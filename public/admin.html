@@ -10,7 +10,7 @@
       font-family: Arial, sans-serif;
       padding: 20px;
     }
-    h1, h2 {
+    h1, h2, h3 {
       margin-bottom: 10px;
     }
     input, select, button {
@@ -35,6 +35,9 @@
       border-radius: 4px;
       margin-top: 4px;
     }
+    .xp-row {
+      margin: 3px 0;
+    }
   </style>
 </head>
 <body>
@@ -55,7 +58,7 @@
 
 <h2>Schüler:innen</h2>
 <label>Aktive Klasse auswählen:</label>
-<select id="activeClass" onchange="loadStudents()"></select>
+<select id="activeClass" onchange="onActiveClassChange()"></select>
 <br>
 <input id="studentName" placeholder="Name">
 <input id="studentPass" placeholder="Passwort">
@@ -87,6 +90,28 @@
 
 <h3>Alle Missionen</h3>
 <div id="missionList"></div>
+
+<hr>
+
+<h2>XP-Verwaltung</h2>
+
+<h3>Schüler:innen der aktiven Klasse</h3>
+<div id="xpStudentList"></div>
+
+<input id="xpValue" type="number" placeholder="XP (+/-)">
+<button onclick="grantXpSelected()">XP an ausgewählte</button>
+<button onclick="grantXpAll()">XP an alle</button>
+<br>
+
+<label>Mission auswählen:</label>
+<select id="xpMissionSelect"></select>
+<button onclick="grantMissionXpSelected()">Mission-XP an ausgewählte</button>
+<button onclick="grantMissionXpAll()">Mission-XP an alle</button>
+
+<hr>
+
+<h3>Uploads dieser Klasse</h3>
+<div id="uploadList"></div>
 
 <hr>
 
@@ -137,11 +162,14 @@ async function loadClasses() {
     classList.appendChild(div);
   });
 
-  // Nach dem Laden direkt Schüler:innen anzeigen
   if (data.length > 0) {
     await loadStudents();
+    await loadXpStudents();
+    await loadUploads();
   } else {
     document.getElementById("studentList").innerHTML = "";
+    document.getElementById("xpStudentList").innerHTML = "";
+    document.getElementById("uploadList").innerHTML = "";
   }
 }
 
@@ -180,11 +208,13 @@ async function loadStudents() {
   data.forEach(s => {
     const div = document.createElement("div");
     div.innerHTML = `
-      ${s.name}
+      ${s.name} (XP: ${s.xp})
       <button class="red" onclick="deleteStudent(${s.id})">Löschen</button>
     `;
     list.appendChild(div);
   });
+
+  await loadXpStudents();
 }
 
 async function createStudent() {
@@ -210,6 +240,13 @@ async function deleteStudent(id) {
   if (!confirm("Schüler:in wirklich löschen?")) return;
   await api(`/api/student/${id}`, "DELETE");
   await loadStudents();
+}
+
+// Wird von Select onchange genutzt
+async function onActiveClassChange() {
+  await loadStudents();
+  await loadXpStudents();
+  await loadUploads();
 }
 
 // =========================================================
@@ -256,7 +293,6 @@ async function createMission() {
     return;
   }
 
-  // Felder zurücksetzen
   document.getElementById("missionName").value = "";
   document.getElementById("missionXp").value = "";
   document.getElementById("missionImg").value = "";
@@ -275,19 +311,182 @@ async function loadMissions() {
     div.innerHTML = `
       <strong>${m.name}</strong> – ${m.xp} XP<br>
       Upload erforderlich: ${m.require_upload ? "Ja" : "Nein"}<br>
-      ${m.image_url ? `<img class="mission-img" src="${m.image_url}" alt="Mission">` : ""}
-      <br>
-      <button class="red" onclick="deleteMission(${m.id})">Löschen</button>
+      <img class="mission-img" src="${m.image_url}" alt="Mission"><br>
+      <hr>
+    `;
+    list.appendChild(div);
+  });
+
+  // Missionsliste für XP-Bereich
+  const xpSelect = document.getElementById("xpMissionSelect");
+  xpSelect.innerHTML = "";
+  data.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = `${m.name} (${m.xp} XP)`;
+    xpSelect.appendChild(opt);
+  });
+}
+
+// =========================================================
+// XP-Verwaltung
+// =========================================================
+async function loadXpStudents() {
+  const classId = document.getElementById("activeClass").value;
+  const list = document.getElementById("xpStudentList");
+  list.innerHTML = "";
+
+  if (!classId) return;
+
+  const data = await api(`/api/student?classId=${classId}`);
+
+  data.forEach(s => {
+    const div = document.createElement("div");
+    div.className = "xp-row";
+    div.innerHTML = `
+      <label>
+        <input type="checkbox" class="xp-student" value="${s.id}">
+        ${s.name} (XP: ${s.xp})
+      </label>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function getSelectedXpStudents() {
+  return Array.from(document.querySelectorAll(".xp-student:checked"))
+    .map(cb => parseInt(cb.value, 10))
+    .filter(n => !isNaN(n));
+}
+
+async function grantXpSelected() {
+  const classId = document.getElementById("activeClass").value;
+  if (!classId) return alert("Bitte zuerst eine Klasse auswählen.");
+
+  const xpRaw = document.getElementById("xpValue").value;
+  const xp = parseInt(xpRaw, 10);
+  if (isNaN(xp)) return alert("XP-Wert eingeben.");
+
+  const ids = getSelectedXpStudents();
+  if (ids.length === 0) return alert("Bitte Schüler:innen auswählen.");
+
+  const res = await api("/api/xp/grant", "POST", {
+    classId,
+    studentIds: ids,
+    applyToAll: false,
+    xpDelta: xp
+  });
+
+  if (!res.success) {
+    alert(res.error || "Fehler bei der XP-Vergabe.");
+    return;
+  }
+
+  await loadStudents();
+  await loadXpStudents();
+}
+
+async function grantXpAll() {
+  const classId = document.getElementById("activeClass").value;
+  if (!classId) return alert("Bitte zuerst eine Klasse auswählen.");
+
+  const xpRaw = document.getElementById("xpValue").value;
+  const xp = parseInt(xpRaw, 10);
+  if (isNaN(xp)) return alert("XP-Wert eingeben.");
+
+  const res = await api("/api/xp/grant", "POST", {
+    classId,
+    applyToAll: true,
+    xpDelta: xp
+  });
+
+  if (!res.success) {
+    alert(res.error || "Fehler bei der XP-Vergabe.");
+    return;
+  }
+
+  await loadStudents();
+  await loadXpStudents();
+}
+
+async function grantMissionXpSelected() {
+  const classId = document.getElementById("activeClass").value;
+  if (!classId) return alert("Bitte zuerst eine Klasse auswählen.");
+
+  const missionId = document.getElementById("xpMissionSelect").value;
+  if (!missionId) return alert("Bitte Mission auswählen.");
+
+  const ids = getSelectedXpStudents();
+  if (ids.length === 0) return alert("Bitte Schüler:innen auswählen.");
+
+  const res = await api("/api/xp/grant", "POST", {
+    classId,
+    studentIds: ids,
+    applyToAll: false,
+    missionId
+  });
+
+  if (!res.success) {
+    alert(res.error || "Fehler bei der Mission-XP-Vergabe.");
+    return;
+  }
+
+  await loadStudents();
+  await loadXpStudents();
+}
+
+async function grantMissionXpAll() {
+  const classId = document.getElementById("activeClass").value;
+  if (!classId) return alert("Bitte zuerst eine Klasse auswählen.");
+
+  const missionId = document.getElementById("xpMissionSelect").value;
+  if (!missionId) return alert("Bitte Mission auswählen.");
+
+  const res = await api("/api/xp/grant", "POST", {
+    classId,
+    applyToAll: true,
+    missionId
+  });
+
+  if (!res.success) {
+    alert(res.error || "Fehler bei der Mission-XP-Vergabe.");
+    return;
+  }
+
+  await loadStudents();
+  await loadXpStudents();
+}
+
+// =========================================================
+// Uploads (Admin-Ansicht)
+// =========================================================
+async function loadUploads() {
+  const classId = document.getElementById("activeClass").value;
+  const list = document.getElementById("uploadList");
+  list.innerHTML = "";
+
+  if (!classId) return;
+
+  const data = await api(`/api/uploads?classId=${classId}`);
+
+  data.forEach(u => {
+    const div = document.createElement("div");
+    const dateStr = new Date(u.created_at).toLocaleString();
+    div.innerHTML = `
+      <strong>${u.student_name}</strong> – Mission: ${u.mission_name}<br>
+      <img class="mission-img" src="${u.image_url}" alt="Upload"><br>
+      <small>${dateStr}</small><br>
+      <button class="red" onclick="deleteUpload(${u.id})">Löschen</button>
       <hr>
     `;
     list.appendChild(div);
   });
 }
 
-async function deleteMission(id) {
-  if (!confirm("Mission wirklich löschen?")) return;
-  await api(`/api/missions/${id}`, "DELETE");
-  await loadMissions();
+async function deleteUpload(id) {
+  if (!confirm("Upload wirklich löschen?")) return;
+  await api(`/api/uploads/${id}`, "DELETE");
+  await loadUploads();
 }
 
 // =========================================================

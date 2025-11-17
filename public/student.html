@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Temple of Logic – Schülerbereich</title>
+  <style>
+    body {
+      background: #111;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    input, select, button {
+      padding: 8px;
+      margin: 5px;
+    }
+    button {
+      background: #2b8a3e;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button.red {
+      background: #b30000;
+    }
+    hr {
+      margin: 20px 0;
+      border: 1px solid #444;
+    }
+    .upload-img {
+      height: 80px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Temple of Logic – Schülerbereich</h1>
+<div id="userInfo"></div>
+<button onclick="logout()">Logout</button>
+
+<hr>
+
+<h2>Mission hochladen</h2>
+
+<label>Mission auswählen (mit Upload-Pflicht):</label>
+<select id="studentMissionSelect"></select><br>
+
+<input id="studentUploadFile" type="file" accept="image/*"><br>
+<button onclick="studentUpload()">Bild hochladen</button>
+
+<hr>
+
+<h2>Meine Uploads</h2>
+<div id="studentUploads"></div>
+
+<hr>
+
+<script>
+async function api(url, method = "GET", data = null) {
+  const opt = { method, headers: {} };
+  if (data) {
+    opt.headers["Content-Type"] = "application/json";
+    opt.body = JSON.stringify(data);
+  }
+  const res = await fetch(url, opt);
+  return await res.json().catch(() => ({}));
+}
+
+async function logout() {
+  await api("/api/logout", "POST");
+  location.href = "/login.html";
+}
+
+async function loadUser() {
+  const res = await api("/api/me");
+  if (!res.success) {
+    alert("Nicht eingeloggt.");
+    location.href = "/login.html";
+    return;
+  }
+  const u = res.user;
+  document.getElementById("userInfo").innerText =
+    `Angemeldet als ${u.name} – XP: ${u.xp}`;
+}
+
+async function loadStudentMissions() {
+  const data = await api("/api/missions");
+  const select = document.getElementById("studentMissionSelect");
+  select.innerHTML = "";
+
+  data
+    .filter(m => m.require_upload)
+    .forEach(m => {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = `${m.name} (${m.xp} XP)`;
+      select.appendChild(opt);
+    });
+}
+
+async function studentUpload() {
+  const missionId = document.getElementById("studentMissionSelect").value;
+  const file = document.getElementById("studentUploadFile").files[0];
+
+  if (!missionId) return alert("Bitte eine Mission wählen.");
+  if (!file) return alert("Bitte ein Bild auswählen.");
+
+  const form = new FormData();
+  form.append("image", file);
+  form.append("missionId", missionId);
+
+  const res = await fetch("/api/student/upload", {
+    method: "POST",
+    body: form
+  }).then(r => r.json());
+
+  if (!res.success) {
+    alert(res.error || "Upload fehlgeschlagen.");
+    return;
+  }
+
+  document.getElementById("studentUploadFile").value = "";
+  await loadUser();
+  await loadStudentUploads();
+}
+
+async function loadStudentUploads() {
+  const data = await api("/api/student/uploads");
+  const list = document.getElementById("studentUploads");
+  list.innerHTML = "";
+
+  data.forEach(u => {
+    const div = document.createElement("div");
+    const dateStr = new Date(u.created_at).toLocaleString();
+    div.innerHTML = `
+      Mission: ${u.mission_name}<br>
+      <img class="upload-img" src="${u.image_url}" alt="Upload"><br>
+      <small>${dateStr}</small>
+      <hr>
+    `;
+    list.appendChild(div);
+  });
+}
+
+(async function init() {
+  await loadUser();
+  await loadStudentMissions();
+  await loadStudentUploads();
+})();
+</script>
+
+</body>
+</html>
