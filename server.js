@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – FINAL SERVER.JS
+// Temple of Logic – FINAL SERVER (Cloudflare R2 stabil)
 // =======================================================
 
 import express from "express";
@@ -8,7 +8,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import bodyParser from "body-parser";
 import multer from "multer";
-import AWS from "aws-sdk";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import pkg from "pg";
 const { Pool } = pkg;
 
@@ -45,18 +45,18 @@ const pool = new Pool({
 });
 
 // -------------------------------------------------------
-// Cloudflare R2 (AWS S3-kompatibel)
+// Cloudflare R2 – S3 kompatibel (V3 SDK → stabil!)
 // -------------------------------------------------------
-const S3 = AWS.S3;
-const r2 = new S3({
-  endpoint: process.env.R2_ENDPOINT,
-  accessKeyId: process.env.R2_ACCESS_KEY_ID,
-  secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+const r2 = new S3Client({
   region: "auto",
-  signatureVersion: "v4",
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  },
 });
 
-// Upload-Handler
+// Upload für Mission-Bilder
 const upload = multer({ storage: multer.memoryStorage() });
 
 // -------------------------------------------------------
@@ -69,7 +69,7 @@ app.use(express.static(path.join(__dirname, "public")));
 // =======================================================
 
 async function migrate() {
-  console.log("Starte automatische Datenbank-Reparatur…");
+  console.log("🔧 Starte Migration…");
 
   // USERS
   await pool.query(`
@@ -112,7 +112,7 @@ async function migrate() {
     ON CONFLICT (name) DO NOTHING;
   `);
 
-  console.log("Migration abgeschlossen.");
+  console.log("✅ Migration abgeschlossen.");
 }
 
 await migrate();
@@ -211,21 +211,21 @@ app.delete("/api/student/:id", isAdmin, async (req, res) => {
 // MISSIONEN
 // =======================================================
 
-// 1) Bild-Upload
+// 1) Bild-Upload (R2)
 app.post("/api/missions/upload", isAdmin, upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.json({ success: false });
 
     const fileName = "missions/" + Date.now() + "_" + req.file.originalname;
 
-    await r2
-      .putObject({
+    await r2.send(
+      new PutObjectCommand({
         Bucket: process.env.R2_BUCKET,
         Key: fileName,
         Body: req.file.buffer,
         ContentType: req.file.mimetype,
       })
-      .promise();
+    );
 
     const publicURL = `${process.env.R2_PUBLIC_URL}/${fileName}`;
 
@@ -266,5 +266,5 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
 // =======================================================
 
 app.listen(process.env.PORT || 8080, () => {
-  console.log("Server läuft auf Port 8080");
+  console.log("🚀 Server läuft auf Port 8080");
 });
