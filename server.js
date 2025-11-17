@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – FINAL SERVER.JS
+// Temple of Logic – FINAL SERVER.JS (100% Clean Version)
 // =======================================================
 
 import express from "express";
@@ -45,7 +45,7 @@ const pool = new Pool({
 });
 
 // -------------------------------------------------------
-// Cloudflare R2 – S3-kompatibel
+// Cloudflare R2 (AWS S3-kompatibel)
 // -------------------------------------------------------
 const r2 = new S3Client({
   region: "auto",
@@ -65,13 +65,12 @@ const upload = multer({ storage: multer.memoryStorage() });
 app.use(express.static(path.join(__dirname, "public")));
 
 // =======================================================
-// MIGRATION
+// MIGRATION – jetzt 100% clean
 // =======================================================
 
 async function migrate() {
   console.log("🔧 Starte Migration…");
 
-  // USERS
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -85,7 +84,6 @@ async function migrate() {
     );
   `);
 
-  // CLASSES
   await pool.query(`
     CREATE TABLE IF NOT EXISTS classes (
       id SERIAL PRIMARY KEY,
@@ -93,7 +91,6 @@ async function migrate() {
     );
   `);
 
-  // MISSIONS
   await pool.query(`
     CREATE TABLE IF NOT EXISTS missions (
       id SERIAL PRIMARY KEY,
@@ -105,7 +102,6 @@ async function migrate() {
     );
   `);
 
-  // DEFAULT ADMIN
   await pool.query(`
     INSERT INTO users (name, password, role)
     VALUES ('admin', 'bruhrain', 'admin')
@@ -161,10 +157,7 @@ app.get("/api/class", isAdmin, async (req, res) => {
 app.post("/api/class", isAdmin, async (req, res) => {
   const { name } = req.body;
 
-  await pool.query(
-    "INSERT INTO classes (name) VALUES ($1)",
-    [name]
-  );
+  await pool.query("INSERT INTO classes (name) VALUES ($1)", [name]);
 
   res.json({ success: true });
 });
@@ -210,9 +203,6 @@ app.delete("/api/student/:id", isAdmin, async (req, res) => {
 // MISSIONEN
 // =======================================================
 
-// ----------------------
-// 1) Bild-Upload
-// ----------------------
 app.post("/api/missions/upload", isAdmin, upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.json({ success: false });
@@ -237,9 +227,6 @@ app.post("/api/missions/upload", isAdmin, upload.single("image"), async (req, re
   }
 });
 
-// ----------------------
-// 2) Mission anlegen
-// ----------------------
 app.post("/api/missions", isAdmin, async (req, res) => {
   const { name, xp, imageUrl, requireUpload } = req.body;
 
@@ -252,17 +239,11 @@ app.post("/api/missions", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// ----------------------
-// 3) Missionen abrufen
-// ----------------------
 app.get("/api/missions", isAdmin, async (req, res) => {
   const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
   res.json(r.rows);
 });
 
-// ----------------------
-// 4) Mission löschen
-// ----------------------
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
   await pool.query("DELETE FROM missions WHERE id=$1", [req.params.id]);
   res.json({ success: true });
