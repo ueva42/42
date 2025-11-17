@@ -1,154 +1,209 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <title>Temple of Logic – Schülerbereich</title>
+  <meta charset="UTF-8">
+  <title>Student</title>
   <style>
     body {
-      background: #111;
-      color: #eee;
-      font-family: Arial, sans-serif;
-      padding: 20px;
+      background:#111; 
+      color:#fff; 
+      font-family:Arial; 
+      padding:20px;
     }
-    input, select, button {
-      padding: 8px;
-      margin: 5px;
+    h1, h2, h3 { margin-top:30px; }
+    .mission-box {
+      border:1px solid #444;
+      padding:15px;
+      margin-top:20px;
     }
     button {
-      background: #2b8a3e;
-      color: white;
-      border: none;
-      cursor: pointer;
+      padding:6px 12px;
+      background:#116611;
+      color:#fff;
+      border:none;
+      cursor:pointer;
+      margin-top:10px;
     }
-    button.red {
-      background: #b30000;
+    button.red { background:#661111; }
+    img.mission-img {
+      width:120px;
+      height:120px;
+      object-fit:cover;
+      border:1px solid #555;
+      margin-right:15px;
     }
-    hr {
-      margin: 20px 0;
-      border: 1px solid #444;
+    img.thumb {
+      width:80px;
+      height:80px;
+      object-fit:cover;
+      border:1px solid #333;
+      margin-right:10px;
     }
-    .upload-img {
-      height: 80px;
-      border-radius: 4px;
-      margin-top: 4px;
-    }
+    .row { margin-top:10px; }
   </style>
 </head>
 <body>
 
-<h1>Temple of Logic – Schülerbereich</h1>
-<div id="userInfo"></div>
+<h1>Mein Abenteuer</h1>
 <button onclick="logout()">Logout</button>
 
-<hr>
+<h2>Mein Fortschritt</h2>
+<div id="xpStatus">XP laden…</div>
 
-<h2>Mission hochladen</h2>
-
-<label>Mission auswählen (mit Upload-Pflicht):</label>
-<select id="studentMissionSelect"></select><br>
-
-<input id="studentUploadFile" type="file" accept="image/*"><br>
-<button onclick="studentUpload()">Bild hochladen</button>
-
-<hr>
+<h2>Missionen</h2>
+<div id="missionContainer"></div>
 
 <h2>Meine Uploads</h2>
-<div id="studentUploads"></div>
+<div id="myUploads"></div>
 
-<hr>
 
 <script>
-async function api(url, method = "GET", data = null) {
-  const opt = { method, headers: {} };
-  if (data) {
+// =========================================================
+// Hilfsfunktionen
+// =========================================================
+
+async function api(url, method="GET", data=null) {
+  let opt = { method, headers:{} };
+  if(data){
     opt.headers["Content-Type"] = "application/json";
     opt.body = JSON.stringify(data);
   }
   const res = await fetch(url, opt);
-  return await res.json().catch(() => ({}));
+  return res.json();
 }
 
-async function logout() {
-  await api("/api/logout", "POST");
-  location.href = "/login.html";
+function $(id){ return document.getElementById(id); }
+
+
+// =========================================================
+// LOGOUT
+// =========================================================
+
+async function logout(){
+  await api("/api/logout","POST");
+  window.location.href = "/login.html";
 }
 
-async function loadUser() {
-  const res = await api("/api/me");
-  if (!res.success) {
-    alert("Nicht eingeloggt.");
-    location.href = "/login.html";
-    return;
-  }
-  const u = res.user;
-  document.getElementById("userInfo").innerText =
-    `Angemeldet als ${u.name} – XP: ${u.xp}`;
-}
 
-async function loadStudentMissions() {
-  const data = await api("/api/missions");
-  const select = document.getElementById("studentMissionSelect");
-  select.innerHTML = "";
+// =========================================================
+// MEINE XP LADEN
+// =========================================================
 
-  data
-    .filter(m => m.require_upload)
-    .forEach(m => {
-      const opt = document.createElement("option");
-      opt.value = m.id;
-      opt.textContent = `${m.name} (${m.xp} XP)`;
-      select.appendChild(opt);
-    });
-}
-
-async function studentUpload() {
-  const missionId = document.getElementById("studentMissionSelect").value;
-  const file = document.getElementById("studentUploadFile").files[0];
-
-  if (!missionId) return alert("Bitte eine Mission wählen.");
-  if (!file) return alert("Bitte ein Bild auswählen.");
-
-  const form = new FormData();
-  form.append("image", file);
-  form.append("missionId", missionId);
-
-  const res = await fetch("/api/student/upload", {
-    method: "POST",
-    body: form
-  }).then(r => r.json());
-
-  if (!res.success) {
-    alert(res.error || "Upload fehlgeschlagen.");
+async function loadXP(){
+  const r = await api("/api/me");
+  if(!r.success){
+    window.location.href = "/login.html";
     return;
   }
 
-  document.getElementById("studentUploadFile").value = "";
-  await loadUser();
-  await loadStudentUploads();
+  $("xpStatus").innerHTML =
+    `<b>${r.name}</b><br>
+     XP: <b>${r.xp}</b><br>
+     Höchste XP: <b>${r.highest_xp}</b>`;
 }
 
-async function loadStudentUploads() {
-  const data = await api("/api/student/uploads");
-  const list = document.getElementById("studentUploads");
-  list.innerHTML = "";
 
-  data.forEach(u => {
-    const div = document.createElement("div");
-    const dateStr = new Date(u.created_at).toLocaleString();
-    div.innerHTML = `
-      Mission: ${u.mission_name}<br>
-      <img class="upload-img" src="${u.image_url}" alt="Upload"><br>
-      <small>${dateStr}</small>
-      <hr>
+// =========================================================
+// MISSIONEN LADEN
+// =========================================================
+
+async function loadMissions(){
+  const list = await api("/api/missions");
+  const box = $("missionContainer");
+  box.innerHTML = "";
+
+  list.forEach(m => {
+
+    box.innerHTML += `
+      <div class="mission-box">
+        
+        <div style="display:flex; align-items:center;">
+          <img src="${m.image_url}" class="mission-img">
+          <div>
+            <h3>${m.name}</h3>
+            <div>${m.xp} XP</div>
+            <div>Upload erforderlich: <b>${m.require_upload ? "Ja" : "Nein"}</b></div>
+          </div>
+        </div>
+
+        ${m.require_upload ? `
+          <div class="row">
+            <input type="file" id="file_${m.id}">
+            <button onclick="uploadMission(${m.id})">Upload senden</button>
+          </div>
+        ` : `
+          <div style="margin-top:10px; color:#bbb;">Keine Abgabe nötig</div>
+        `}
+      </div>
     `;
-    list.appendChild(div);
   });
 }
 
-(async function init() {
-  await loadUser();
-  await loadStudentMissions();
-  await loadStudentUploads();
-})();
+
+// =========================================================
+// MISSION-UPLOAD ABSCHICKEN
+// =========================================================
+
+async function uploadMission(missionId){
+  const fileInput = $("file_"+missionId);
+  const file = fileInput.files[0];
+
+  if(!file) return alert("Bitte Datei auswählen.");
+
+  const fd = new FormData();
+  fd.append("image", file);
+  fd.append("missionId", missionId);
+
+  const res = await fetch("/api/student/upload", {
+    method: "POST",
+    body: fd
+  });
+
+  const json = await res.json();
+  if(!json.success){
+    alert("Upload fehlgeschlagen.");
+    return;
+  }
+
+  alert("Upload gespeichert.");
+  loadMyUploads();
+}
+
+
+// =========================================================
+// MEINE UPLOADS LADEN
+// =========================================================
+
+async function loadMyUploads(){
+  const list = await api("/api/student/uploads");
+  const box = $("myUploads");
+  box.innerHTML = "";
+
+  if(list.length === 0){
+    box.innerHTML = "<i>Keine Uploads vorhanden</i>";
+    return;
+  }
+
+  list.forEach(u => {
+    box.innerHTML += `
+      <div style="margin-bottom:15px;">
+        <img src="${u.image_url}" class="thumb">
+        <b>${u.mission_name}</b><br>
+        <span style="color:#aaa;">${u.created_at}</span>
+      </div>
+    `;
+  });
+}
+
+
+// =========================================================
+// INIT
+// =========================================================
+
+loadXP();
+loadMissions();
+loadMyUploads();
+
 </script>
 
 </body>
