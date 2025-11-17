@@ -33,6 +33,7 @@
     .mission-img {
       height: 60px;
       border-radius: 4px;
+      margin-top: 4px;
     }
   </style>
 </head>
@@ -43,12 +44,7 @@
 
 <hr>
 
-<!-- ========================================== -->
-<!-- KLASSEN + SCHÜLER:INNEN -->
-<!-- ========================================== -->
-
 <h2>Klassen</h2>
-
 <input id="className" placeholder="Klassenname (z. B. 7a)">
 <button onclick="createClass()">Klasse anlegen</button>
 
@@ -58,12 +54,9 @@
 <hr>
 
 <h2>Schüler:innen</h2>
-
 <label>Aktive Klasse auswählen:</label>
 <select id="activeClass" onchange="loadStudents()"></select>
-
 <br>
-
 <input id="studentName" placeholder="Name">
 <input id="studentPass" placeholder="Passwort">
 <button onclick="createStudent()">Schüler:in anlegen</button>
@@ -73,28 +66,21 @@
 
 <hr>
 
-<!-- ========================================== -->
-<!-- MISSIONEN -->
-<!-- ========================================== -->
-
 <h2>Missionen</h2>
 
 <input id="missionName" placeholder="Missionsname">
-<input id="missionXP" placeholder="XP" type="number">
-
+<input id="missionXp" placeholder="XP" type="number" min="0">
 <br>
 
-<label>Bild (optional):</label>
-<input id="missionImg" type="file">
-
+<label>Bild (Pflicht):</label>
+<input id="missionImg" type="file" accept="image/*">
 <br>
 
 <label>Upload erforderlich?</label>
 <select id="missionRequired">
-  <option value="false">Nein</option>
+  <option value="false" selected>Nein</option>
   <option value="true">Ja</option>
 </select>
-
 <br>
 
 <button onclick="createMission()">Mission anlegen</button>
@@ -106,9 +92,9 @@
 
 <script>
 // =========================================================
-// API HELPER
+// Helfer für JSON-API
 // =========================================================
-async function api(url, method="GET", data=null) {
+async function api(url, method = "GET", data = null) {
   const opt = { method, headers: {} };
   if (data) {
     opt.headers["Content-Type"] = "application/json";
@@ -119,7 +105,7 @@ async function api(url, method="GET", data=null) {
 }
 
 // =========================================================
-// LOGOUT
+// Logout
 // =========================================================
 async function logout() {
   await api("/api/logout", "POST");
@@ -127,26 +113,22 @@ async function logout() {
 }
 
 // =========================================================
-// KLASSEN
+// Klassen
 // =========================================================
-
 async function loadClasses() {
   const data = await api("/api/class");
-
   const classList = document.getElementById("classList");
-  classList.innerHTML = "";
-
   const select = document.getElementById("activeClass");
+
+  classList.innerHTML = "";
   select.innerHTML = "";
 
   data.forEach(c => {
-    // Dropdown
     const opt = document.createElement("option");
     opt.value = c.id;
     opt.textContent = c.name;
     select.appendChild(opt);
 
-    // Liste
     const div = document.createElement("div");
     div.innerHTML = `
       ${c.name}
@@ -154,30 +136,44 @@ async function loadClasses() {
     `;
     classList.appendChild(div);
   });
+
+  // Nach dem Laden direkt Schüler:innen anzeigen
+  if (data.length > 0) {
+    await loadStudents();
+  } else {
+    document.getElementById("studentList").innerHTML = "";
+  }
 }
 
 async function createClass() {
-  const name = document.getElementById("className").value;
-  if (!name) return alert("Name angeben");
+  const name = document.getElementById("className").value.trim();
+  if (!name) return alert("Bitte Klassennamen eingeben.");
 
-  await api("/api/class", "POST", { name });
+  const res = await api("/api/class", "POST", { name });
+  if (!res.success) {
+    alert(res.error || "Fehler beim Anlegen der Klasse.");
+  }
+  document.getElementById("className").value = "";
   await loadClasses();
 }
 
 async function deleteClass(id) {
+  if (!confirm("Klasse wirklich löschen?")) return;
   await api(`/api/class/${id}`, "DELETE");
   await loadClasses();
 }
 
 // =========================================================
-// SCHÜLER:INNEN
+// Schüler:innen
 // =========================================================
-
 async function loadStudents() {
   const classId = document.getElementById("activeClass").value;
+  if (!classId) {
+    document.getElementById("studentList").innerHTML = "";
+    return;
+  }
 
   const data = await api(`/api/student?classId=${classId}`);
-
   const list = document.getElementById("studentList");
   list.innerHTML = "";
 
@@ -192,72 +188,94 @@ async function loadStudents() {
 }
 
 async function createStudent() {
-  const name = document.getElementById("studentName").value;
+  const name = document.getElementById("studentName").value.trim();
   const password = document.getElementById("studentPass").value;
   const classId = document.getElementById("activeClass").value;
 
-  if (!name || !password || !classId) return alert("Bitte alles ausfüllen.");
+  if (!classId) return alert("Bitte zuerst eine Klasse auswählen.");
+  if (!name || !password) return alert("Name und Passwort eingeben.");
 
-  await api("/api/student", "POST", { name, password, classId });
+  const res = await api("/api/student", "POST", { name, password, classId });
+  if (!res.success) {
+    alert(res.error || "Fehler beim Anlegen der Schüler:in.");
+  }
+
+  document.getElementById("studentName").value = "";
+  document.getElementById("studentPass").value = "";
+
   await loadStudents();
 }
 
 async function deleteStudent(id) {
+  if (!confirm("Schüler:in wirklich löschen?")) return;
   await api(`/api/student/${id}`, "DELETE");
   await loadStudents();
 }
 
 // =========================================================
-// MISSIONEN
+// Missionen
 // =========================================================
-
 async function createMission() {
-  const name = document.getElementById("missionName").value;
-  const xp = document.getElementById("missionXP").value;
-  const requireUpload = document.getElementById("missionRequired").value === "true";
+  const name = document.getElementById("missionName").value.trim();
+  const xpRaw = document.getElementById("missionXp").value;
+  const requireUpload = document.getElementById("missionRequired").value;
   const file = document.getElementById("missionImg").files[0];
 
-  let imageUrl = "";
+  if (!name) return alert("Bitte Missionsnamen eingeben.");
+  if (!xpRaw) return alert("Bitte XP-Wert eingeben.");
+  const xp = parseInt(xpRaw, 10);
+  if (isNaN(xp)) return alert("XP muss eine Zahl sein.");
+  if (!file) return alert("Ein Bild ist Pflicht für diese Mission.");
 
-  // 1) File upload falls vorhanden
-  if (file) {
-    const form = new FormData();
-    form.append("image", file);
+  // 1. Upload zu R2
+  const form = new FormData();
+  form.append("image", file);
 
-    const res = await fetch("/api/missions/upload", {
-      method: "POST",
-      body: form
-    }).then(r => r.json());
+  const uploadRes = await fetch("/api/missions/upload", {
+    method: "POST",
+    body: form,
+  }).then(r => r.json());
 
-    if (!res.success) return alert("Upload fehlgeschlagen");
-
-    imageUrl = res.url;
+  if (!uploadRes.success) {
+    alert(uploadRes.error || "Upload fehlgeschlagen.");
+    return;
   }
 
-  // 2) Mission speichern
-  await api("/api/missions", "POST", {
+  const imageUrl = uploadRes.url;
+
+  // 2. Mission speichern
+  const saveRes = await api("/api/missions", "POST", {
     name,
     xp,
     imageUrl,
-    requireUpload
+    requireUpload,
   });
+
+  if (!saveRes.success) {
+    alert(saveRes.error || "Fehler beim Speichern der Mission.");
+    return;
+  }
+
+  // Felder zurücksetzen
+  document.getElementById("missionName").value = "";
+  document.getElementById("missionXp").value = "";
+  document.getElementById("missionImg").value = "";
+  document.getElementById("missionRequired").value = "false";
 
   await loadMissions();
 }
 
-// Missionen laden
 async function loadMissions() {
   const data = await api("/api/missions");
-
   const list = document.getElementById("missionList");
   list.innerHTML = "";
 
   data.forEach(m => {
     const div = document.createElement("div");
     div.innerHTML = `
-      <strong>${m.name}</strong> – ${m.xp} XP 
-      ${m.image_url ? `<br><img class="mission-img" src="${m.image_url}">` : ""}
-      <br>Upload erforderlich: ${m.require_upload ? "Ja" : "Nein"}
+      <strong>${m.name}</strong> – ${m.xp} XP<br>
+      Upload erforderlich: ${m.require_upload ? "Ja" : "Nein"}<br>
+      ${m.image_url ? `<img class="mission-img" src="${m.image_url}" alt="Mission">` : ""}
       <br>
       <button class="red" onclick="deleteMission(${m.id})">Löschen</button>
       <hr>
@@ -267,6 +285,7 @@ async function loadMissions() {
 }
 
 async function deleteMission(id) {
+  if (!confirm("Mission wirklich löschen?")) return;
   await api(`/api/missions/${id}`, "DELETE");
   await loadMissions();
 }
@@ -276,7 +295,6 @@ async function deleteMission(id) {
 // =========================================================
 (async function init() {
   await loadClasses();
-  await loadStudents();
   await loadMissions();
 })();
 </script>

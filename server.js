@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – FINAL SERVER.JS (100% Clean Version)
+// Temple of Logic – SERVER.JS (mit R2 & Missionen)
 // =======================================================
 
 import express from "express";
@@ -33,7 +33,7 @@ app.use(
     secret: "super-temp-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false },
+    cookie: { secure: false }, // Prod später auf true + HTTPS
   })
 );
 
@@ -45,7 +45,7 @@ const pool = new Pool({
 });
 
 // -------------------------------------------------------
-// Cloudflare R2 (AWS S3-kompatibel)
+// Cloudflare R2 (S3-kompatibel)
 // -------------------------------------------------------
 const r2 = new S3Client({
   region: "auto",
@@ -56,7 +56,6 @@ const r2 = new S3Client({
   },
 });
 
-// Upload-Handler
 const upload = multer({ storage: multer.memoryStorage() });
 
 // -------------------------------------------------------
@@ -65,7 +64,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 app.use(express.static(path.join(__dirname, "public")));
 
 // =======================================================
-// MIGRATION – jetzt 100% clean
+// MIGRATION
 // =======================================================
 
 async function migrate() {
@@ -96,12 +95,13 @@ async function migrate() {
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       xp INTEGER NOT NULL,
-      image_url TEXT,
+      image_url TEXT NOT NULL,
       require_upload BOOLEAN DEFAULT false,
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
 
+  // Default-Admin
   await pool.query(`
     INSERT INTO users (name, password, role)
     VALUES ('admin', 'bruhrain', 'admin')
@@ -156,9 +156,11 @@ app.get("/api/class", isAdmin, async (req, res) => {
 
 app.post("/api/class", isAdmin, async (req, res) => {
   const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, error: "Name fehlt" });
+  }
 
-  await pool.query("INSERT INTO classes (name) VALUES ($1)", [name]);
-
+  await pool.query("INSERT INTO classes (name) VALUES ($1)", [name.trim()]);
   res.json({ success: true });
 });
 
@@ -173,6 +175,7 @@ app.delete("/api/class/:id", isAdmin, async (req, res) => {
 
 app.get("/api/student", isAdmin, async (req, res) => {
   const { classId } = req.query;
+  if (!classId) return res.json([]);
 
   const r = await pool.query(
     "SELECT * FROM users WHERE role='student' AND class_id=$1 ORDER BY name ASC",
@@ -185,10 +188,17 @@ app.get("/api/student", isAdmin, async (req, res) => {
 app.post("/api/student", isAdmin, async (req, res) => {
   const { name, password, classId } = req.body;
 
+  if (!classId) {
+    return res.status(400).json({ success: false, error: "classId fehlt" });
+  }
+  if (!name || !name.trim() || !password) {
+    return res.status(400).json({ success: false, error: "Name/Passwort fehlt" });
+  }
+
   await pool.query(
     `INSERT INTO users (name, password, role, class_id)
      VALUES ($1,$2,'student',$3)`,
-    [name, password, classId]
+    [name.trim(), password, parseInt(classId, 10)]
   );
 
   res.json({ success: true });
@@ -203,11 +213,18 @@ app.delete("/api/student/:id", isAdmin, async (req, res) => {
 // MISSIONEN
 // =======================================================
 
+// Bild-Upload – Bild ist Pflicht laut deiner Vorgabe
 app.post("/api/missions/upload", isAdmin, upload.single("image"), async (req, res) => {
   try {
-    if (!req.file) return res.json({ success: false });
+    if (!req.file) {
+      return res.json({ success: false, error: "Kein Bild hochgeladen" });
+    }
 
-    const key = "missions/" + Date.now() + "_" + req.file.originalname;
+    const key =
+      "missions/" +
+      Date.now() +
+      "_" +
+      req.file.originalname.replace(/\s+/g, "_");
 
     await r2.send(
       new PutObjectCommand({
@@ -223,27 +240,52 @@ app.post("/api/missions/upload", isAdmin, upload.single("image"), async (req, re
     res.json({ success: true, url: publicUrl });
   } catch (err) {
     console.error("Upload-Fehler:", err);
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, error: "Upload Fehler" });
   }
 });
 
+// Mission anlegen – Bild ist Pflicht
 app.post("/api/missions", isAdmin, async (req, res) => {
   const { name, xp, imageUrl, requireUpload } = req.body;
+
+  if (!name || !name.trim()) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Missionsname fehlt" });
+  }
+
+  let xpValue = parseInt(xp, 10);
+  if (isNaN(xpValue)) {
+    return res
+      .status(400)
+      .json({ success: false, error: "XP muss eine Zahl sein" });
+  }
+
+  if (!imageUrl || !imageUrl.trim()) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Bild-URL fehlt (Upload vorher nötig)" });
+  }
+
+  const requireUploadBool =
+    requireUpload === true || requireUpload === "true" ? true : false;
 
   await pool.query(
     `INSERT INTO missions (name, xp, image_url, require_upload)
      VALUES ($1,$2,$3,$4)`,
-    [name, xp, imageUrl, requireUpload]
+    [name.trim(), xpValue, imageUrl.trim(), requireUploadBool]
   );
 
   res.json({ success: true });
 });
 
+// Missionen abrufen
 app.get("/api/missions", isAdmin, async (req, res) => {
   const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
   res.json(r.rows);
 });
 
+// Mission löschen
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
   await pool.query("DELETE FROM missions WHERE id=$1", [req.params.id]);
   res.json({ success: true });
