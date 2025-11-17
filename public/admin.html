@@ -2,280 +2,284 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <title>Temple of Logic – Admin</title>
+  <title>Admin – Temple of Logic</title>
   <style>
-    body { background:black; color:white; font-family:Arial; margin:0; padding:0; display:flex; height:100vh; }
-    #menu { width:220px; background:#111; padding:20px; }
-    #menu button { width:100%; margin-bottom:10px; padding:10px; background:#333; color:white; border:none; cursor:pointer; }
-    #menu button:hover { background:#555; }
-    #content { flex:1; padding:20px; overflow:auto; }
-    .delete-btn { background:#900; color:white; padding:5px 10px; border:none; cursor:pointer; }
+    body {
+      background: #111;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    h1, h2 {
+      margin-bottom: 10px;
+    }
+    input, select, button {
+      padding: 8px;
+      margin: 5px;
+    }
+    button {
+      background: #2b8a3e;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button.red {
+      background: #b30000;
+    }
+    hr {
+      margin: 20px 0;
+      border: 1px solid #444;
+    }
+    .mission-img {
+      height: 60px;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
 
-  <!-- ==================== Menü ==================== -->
-  <div id="menu">
-    <button onclick="showSection('section-klassen')">Klassen</button>
-    <button onclick="showSection('section-schueler')">Schüler:innen</button>
-    <button onclick="showSection('section-missionen')">Missionen</button>
-    <button onclick="logout()">Logout</button>
-  </div>
+<h1>Admin-Bereich</h1>
+<button onclick="logout()">Logout</button>
 
-  <!-- ==================== Inhalt ==================== -->
-  <div id="content">
+<hr>
 
-    <!-- ==================== KLASSEN ==================== -->
-    <div id="section-klassen" style="display:none;">
-      <h2>Klassenverwaltung</h2>
+<!-- ========================================== -->
+<!-- KLASSEN + SCHÜLER:INNEN -->
+<!-- ========================================== -->
 
-      <input id="newClassName" placeholder="Klassenname (z. B. 7a)">
-      <button onclick="addClass()">Klasse anlegen</button>
+<h2>Klassen</h2>
 
-      <h3>Klassenliste</h3>
-      <div id="classList"></div>
-    </div>
+<input id="className" placeholder="Klassenname (z. B. 7a)">
+<button onclick="createClass()">Klasse anlegen</button>
 
-    <!-- ==================== SCHÜLER ==================== -->
-    <div id="section-schueler" style="display:none;">
-      <h2>Schüler:innen</h2>
+<h3>Klassenliste</h3>
+<div id="classList"></div>
 
-      <select id="classSelectForStudents" onchange="loadStudents()"></select>
+<hr>
 
-      <h3>Neue Schüler:in anlegen</h3>
-      <input id="studentName" placeholder="Name">
-      <input id="studentPassword" placeholder="Passwort">
-      <button onclick="addStudent()">Anlegen</button>
+<h2>Schüler:innen</h2>
 
-      <h3>Schüler:innen der Klasse</h3>
-      <div id="studentList"></div>
-    </div>
+<label>Aktive Klasse auswählen:</label>
+<select id="activeClass" onchange="loadStudents()"></select>
 
-    <!-- ==================== MISSIONEN ==================== -->
-    <div id="section-missionen" style="display:none;">
-      <h2>Mission anlegen</h2>
+<br>
 
-      <input id="missionName" placeholder="Missionsname" style="margin-bottom:10px;"><br>
-      <input id="missionXP" type="number" placeholder="XP" style="margin-bottom:10px;"><br>
+<input id="studentName" placeholder="Name">
+<input id="studentPass" placeholder="Passwort">
+<button onclick="createStudent()">Schüler:in anlegen</button>
 
-      <label>
-        <input type="checkbox" id="missionRequireUpload">
-        Bild ist Pflicht
-      </label>
-      <br><br>
+<h3>Schüler:innen dieser Klasse</h3>
+<div id="studentList"></div>
 
-      <input type="file" id="missionImage"><br><br>
+<hr>
 
-      <button onclick="createMission()" style="background:green; padding:8px 14px; border:none; cursor:pointer;">
-        Mission speichern
-      </button>
+<!-- ========================================== -->
+<!-- MISSIONEN -->
+<!-- ========================================== -->
 
-      <h3 style="margin-top:30px;">Alle Missionen</h3>
-      <div id="missionsList"></div>
-    </div>
+<h2>Missionen</h2>
 
-  </div>
+<input id="missionName" placeholder="Missionsname">
+<input id="missionXP" placeholder="XP" type="number">
+
+<br>
+
+<label>Bild (optional):</label>
+<input id="missionImg" type="file">
+
+<br>
+
+<label>Upload erforderlich?</label>
+<select id="missionRequired">
+  <option value="false">Nein</option>
+  <option value="true">Ja</option>
+</select>
+
+<br>
+
+<button onclick="createMission()">Mission anlegen</button>
+
+<h3>Alle Missionen</h3>
+<div id="missionList"></div>
+
+<hr>
 
 <script>
-/* ============================================================
-   HELFER
-============================================================ */
-
-function showSection(id) {
-  document.querySelectorAll('#content > div').forEach(div => div.style.display = 'none');
-  document.getElementById(id).style.display = 'block';
-
-  if (id === "section-klassen") loadClasses();
-  if (id === "section-schueler") loadClassesForStudents();
-  if (id === "section-missionen") loadMissions();
+// =========================================================
+// API HELPER
+// =========================================================
+async function api(url, method="GET", data=null) {
+  const opt = { method, headers: {} };
+  if (data) {
+    opt.headers["Content-Type"] = "application/json";
+    opt.body = JSON.stringify(data);
+  }
+  const res = await fetch(url, opt);
+  return await res.json().catch(() => ({}));
 }
 
+// =========================================================
+// LOGOUT
+// =========================================================
 async function logout() {
-  await fetch("/api/logout", { method:"POST", credentials:"include" });
-  window.location.href = "/login.html";
+  await api("/api/logout", "POST");
+  location.href = "/login.html";
 }
 
-/* ============================================================
-   KLASSEN
-============================================================ */
+// =========================================================
+// KLASSEN
+// =========================================================
 
 async function loadClasses() {
-  const res = await fetch("/api/class", { credentials:"include" });
-  const data = await res.json();
-  const box = document.getElementById("classList");
+  const data = await api("/api/class");
 
-  box.innerHTML = "";
+  const classList = document.getElementById("classList");
+  classList.innerHTML = "";
+
+  const select = document.getElementById("activeClass");
+  select.innerHTML = "";
+
   data.forEach(c => {
-    box.innerHTML += `
-      <div style="margin-bottom:8px;">
-        ${c.name}
-        <button class="delete-btn" onclick="deleteClass(${c.id})">Löschen</button>
-      </div>
+    // Dropdown
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    select.appendChild(opt);
+
+    // Liste
+    const div = document.createElement("div");
+    div.innerHTML = `
+      ${c.name}
+      <button class="red" onclick="deleteClass(${c.id})">Löschen</button>
     `;
+    classList.appendChild(div);
   });
 }
 
-async function addClass() {
-  const name = document.getElementById("newClassName").value.trim();
-  if (!name) return alert("Name fehlt");
+async function createClass() {
+  const name = document.getElementById("className").value;
+  if (!name) return alert("Name angeben");
 
-  await fetch("/api/class", {
-    method:"POST",
-    credentials:"include",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ name })
-  });
-
-  document.getElementById("newClassName").value = "";
-  loadClasses();
+  await api("/api/class", "POST", { name });
+  await loadClasses();
 }
 
 async function deleteClass(id) {
-  await fetch("/api/class/" + id, {
-    method:"DELETE",
-    credentials:"include"
-  });
-  loadClasses();
+  await api(`/api/class/${id}`, "DELETE");
+  await loadClasses();
 }
 
-/* ============================================================
-   SCHÜLER:INNEN
-============================================================ */
-
-async function loadClassesForStudents() {
-  const res = await fetch("/api/class", { credentials:"include" });
-  const classes = await res.json();
-
-  const sel = document.getElementById("classSelectForStudents");
-  sel.innerHTML = "";
-
-  classes.forEach(c => {
-    sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
-  });
-
-  loadStudents();
-}
+// =========================================================
+// SCHÜLER:INNEN
+// =========================================================
 
 async function loadStudents() {
-  const classId = document.getElementById("classSelectForStudents").value;
-  const res = await fetch(`/api/student?classId=${classId}`, { credentials:"include" });
-  const data = await res.json();
+  const classId = document.getElementById("activeClass").value;
 
-  const box = document.getElementById("studentList");
-  box.innerHTML = "";
+  const data = await api(`/api/student?classId=${classId}`);
+
+  const list = document.getElementById("studentList");
+  list.innerHTML = "";
 
   data.forEach(s => {
-    box.innerHTML += `
-      <div style="margin-bottom:8px;">
-        ${s.name} – ${s.xp} XP
-        <button class="delete-btn" onclick="deleteStudent(${s.id})">Löschen</button>
-      </div>
+    const div = document.createElement("div");
+    div.innerHTML = `
+      ${s.name}
+      <button class="red" onclick="deleteStudent(${s.id})">Löschen</button>
     `;
+    list.appendChild(div);
   });
 }
 
-async function addStudent() {
-  const name = document.getElementById("studentName").value.trim();
-  const password = document.getElementById("studentPassword").value.trim();
-  const classId = document.getElementById("classSelectForStudents").value;
+async function createStudent() {
+  const name = document.getElementById("studentName").value;
+  const password = document.getElementById("studentPass").value;
+  const classId = document.getElementById("activeClass").value;
 
-  if (!name || !password) return alert("Name + Passwort nötig");
+  if (!name || !password || !classId) return alert("Bitte alles ausfüllen.");
 
-  await fetch("/api/student", {
-    method:"POST",
-    credentials:"include",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ name, password, classId })
-  });
-
-  document.getElementById("studentName").value = "";
-  document.getElementById("studentPassword").value = "";
-
-  loadStudents();
+  await api("/api/student", "POST", { name, password, classId });
+  await loadStudents();
 }
 
 async function deleteStudent(id) {
-  await fetch("/api/student/" + id, {
-    method:"DELETE",
-    credentials:"include"
-  });
-  loadStudents();
+  await api(`/api/student/${id}`, "DELETE");
+  await loadStudents();
 }
 
-/* ============================================================
-   MISSIONEN
-============================================================ */
-
-async function loadMissions() {
-  const res = await fetch("/api/missions", { credentials:"include" });
-  const data = await res.json();
-
-  const box = document.getElementById("missionsList");
-  box.innerHTML = "";
-
-  data.forEach(m => {
-    box.innerHTML += `
-      <div style="margin-bottom:15px;">
-        <b>${m.name}</b> – ${m.xp} XP
-        ${m.image_url ? `<br><img src="${m.image_url}" height="80">` : ""}
-        <br>
-        ${m.require_upload ? "<i>Bildpflicht</i><br>" : ""}
-        <button class="delete-btn" onclick="deleteMission(${m.id})">Löschen</button>
-      </div>
-    `;
-  });
-}
+// =========================================================
+// MISSIONEN
+// =========================================================
 
 async function createMission() {
-  const name = document.getElementById("missionName").value.trim();
-  const xp = parseInt(document.getElementById("missionXP").value);
-  const requireUpload = document.getElementById("missionRequireUpload").checked;
-  const imageFile = document.getElementById("missionImage").files[0];
+  const name = document.getElementById("missionName").value;
+  const xp = document.getElementById("missionXP").value;
+  const requireUpload = document.getElementById("missionRequired").value === "true";
+  const file = document.getElementById("missionImg").files[0];
 
-  if (!name || !xp) return alert("Name + XP nötig");
+  let imageUrl = "";
 
-  let imageUrl = null;
-
-  if (imageFile) {
+  // 1) File upload falls vorhanden
+  if (file) {
     const form = new FormData();
-    form.append("image", imageFile);
+    form.append("image", file);
 
-    const uploadRes = await fetch("/api/missions/upload", {
-      method:"POST",
-      credentials:"include",
+    const res = await fetch("/api/missions/upload", {
+      method: "POST",
       body: form
-    });
+    }).then(r => r.json());
 
-    const uploadData = await uploadRes.json();
+    if (!res.success) return alert("Upload fehlgeschlagen");
 
-    if (uploadData.success) {
-      imageUrl = uploadData.url;
-    }
+    imageUrl = res.url;
   }
 
-  await fetch("/api/missions", {
-    method:"POST",
-    credentials:"include",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ name, xp, imageUrl, requireUpload })
+  // 2) Mission speichern
+  await api("/api/missions", "POST", {
+    name,
+    xp,
+    imageUrl,
+    requireUpload
   });
 
-  document.getElementById("missionName").value = "";
-  document.getElementById("missionXP").value = "";
-  document.getElementById("missionRequireUpload").checked = false;
-  document.getElementById("missionImage").value = "";
+  await loadMissions();
+}
 
-  loadMissions();
+// Missionen laden
+async function loadMissions() {
+  const data = await api("/api/missions");
+
+  const list = document.getElementById("missionList");
+  list.innerHTML = "";
+
+  data.forEach(m => {
+    const div = document.createElement("div");
+    div.innerHTML = `
+      <strong>${m.name}</strong> – ${m.xp} XP 
+      ${m.image_url ? `<br><img class="mission-img" src="${m.image_url}">` : ""}
+      <br>Upload erforderlich: ${m.require_upload ? "Ja" : "Nein"}
+      <br>
+      <button class="red" onclick="deleteMission(${m.id})">Löschen</button>
+      <hr>
+    `;
+    list.appendChild(div);
+  });
 }
 
 async function deleteMission(id) {
-  await fetch("/api/missions/" + id, {
-    method:"DELETE",
-    credentials:"include"
-  });
-  loadMissions();
+  await api(`/api/missions/${id}`, "DELETE");
+  await loadMissions();
 }
 
+// =========================================================
+// INIT
+// =========================================================
+(async function init() {
+  await loadClasses();
+  await loadStudents();
+  await loadMissions();
+})();
 </script>
+
 </body>
 </html>
