@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Temple of Logic – Adminbereich</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: white;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 240px;
+      background: #181818;
+      border-right: 1px solid #333;
+      padding-top: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 18px;
+      color: #ccc;
+    }
+
+    .menu-item {
+      padding: 14px 22px;
+      cursor: pointer;
+      border-bottom: 1px solid #222;
+      font-size: 15px;
+    }
+
+    .menu-item:hover,
+    .menu-item.active {
+      background: #333;
+    }
+
+    .content {
+      flex: 1;
+      padding: 25px;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    input, button, select {
+      padding: 8px;
+      margin-top: 6px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      border: none;
+      font-size: 14px;
+    }
+
+    input, select {
+      min-width: 220px;
+    }
+
+    button {
+      background: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    .delete-btn {
+      background: #d32f2f;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: white;
+      border: none;
+      font-size: 12px;
+    }
+
+    .delete-btn:hover {
+      background: #b71c1c;
+    }
+
+    .top-right {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+    }
+
+    .item-row {
+      margin-bottom: 6px;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Admin Menü</h2>
+
+    <div class="menu-item active" data-section="klassenschueler">Klassen & Schüler:innen</div>
+    <div class="menu-item" data-section="xp">XP-Verwaltung</div>
+    <div class="menu-item" data-section="missionen">Missionen</div>
+    <div class="menu-item" data-section="bonus">Bonuskarten</div>
+    <div class="menu-item" data-section="charakter">Charakter</div>
+    <div class="menu-item" data-section="level">Level</div>
+  </div>
+
+  <div class="content">
+    <button class="top-right" onclick="logout()" style="background:#444;">Logout</button>
+    <h1 id="section-title">Klassen & Schüler:innen</h1>
+
+    <!-- =================== KLASSEN & SCHÜLER =================== -->
+    <div id="section-klassenschueler">
+      <h3>Klasse anlegen</h3>
+      <input type="text" id="className" placeholder="Klassenname (z. B. 7a)">
+      <button onclick="createClass()">Klasse anlegen</button>
+
+      <h3>Klasse auswählen</h3>
+      <select id="classSelect" onchange="onClassChange()"></select>
+      <div id="activeClassLabel"></div>
+
+      <h3>Klassenliste</h3>
+      <div id="classList"></div>
+
+      <hr>
+
+      <h3>Schüler:in in ausgewählter Klasse anlegen</h3>
+      <input type="text" id="studentName" placeholder="Name">
+      <input type="text" id="studentPassword" placeholder="Passwort">
+      <button onclick="createStudent()">Schüler:in anlegen</button>
+
+      <h3>Schüler:innen dieser Klasse</h3>
+      <div id="studentList"></div>
+    </div>
+
+    <!-- Platzhalter für spätere Module -->
+    <div id="section-xp" style="display:none;"><h2>XP-Verwaltung – später</h2></div>
+    <div id="section-missionen" style="display:none;"><h2>Missionen – später</h2></div>
+    <div id="section-bonus" style="display:none;"><h2>Bonuskarten – später</h2></div>
+    <div id="section-charakter" style="display:none;"><h2>Charakter – später</h2></div>
+    <div id="section-level" style="display:none;"><h2>Level – später</h2></div>
+  </div>
+
+  <script>
+    let activeClassId = null;
+    let activeClassName = "";
+
+    // -------------------------------------
+    // Navigation
+    // -------------------------------------
+    document.querySelectorAll(".menu-item").forEach(item => {
+      item.addEventListener("click", () => {
+        document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
+        item.classList.add("active");
+
+        const section = item.dataset.section;
+
+        document.querySelectorAll("[id^='section-']").forEach(s => s.style.display = "none");
+        document.getElementById("section-" + section).style.display = "block";
+
+        document.getElementById("section-title").innerText = item.innerText;
+      });
+    });
+
+    // -------------------------------------------------------
+    // KLASSEN
+    // -------------------------------------------------------
+    async function createClass() {
+      const name = document.getElementById("className").value.trim();
+      if (!name) return alert("Bitte Klassenname eingeben");
+
+      await fetch("/api/class", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+
+      document.getElementById("className").value = "";
+      await loadClasses();
+    }
+
+    async function loadClasses() {
+      const res = await fetch("/api/class", { credentials: "include" });
+      if (!res.ok) {
+        console.error("Klassen laden fehlgeschlagen");
+        return;
+      }
+      const data = await res.json();
+
+      // Dropdown
+      const select = document.getElementById("classSelect");
+      select.innerHTML = "";
+
+      data.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.name;
+        select.appendChild(opt);
+      });
+
+      if (data.length > 0) {
+        if (!activeClassId) {
+          activeClassId = data[0].id;
+          activeClassName = data[0].name;
+          select.value = activeClassId;
+        } else {
+          // aktive Klasse behalten, falls vorhanden
+          const found = data.find(c => c.id === activeClassId);
+          if (!found) {
+            activeClassId = data[0].id;
+            activeClassName = data[0].name;
+            select.value = activeClassId;
+          } else {
+            select.value = activeClassId;
+          }
+        }
+      } else {
+        activeClassId = null;
+        activeClassName = "";
+      }
+
+      updateActiveClassLabel();
+      renderClassList(data);
+      loadStudents(); // Schüler der aktuellen Klasse laden
+    }
+
+    function renderClassList(data) {
+      const wrapper = document.getElementById("classList");
+      wrapper.innerHTML = "";
+
+      data.forEach(c => {
+        const div = document.createElement("div");
+        div.className = "item-row";
+        div.innerHTML = `
+          ${c.name}
+          <button onclick="setActiveClass(${c.id}, '${c.name.replace(/'/g, "\\'")}')">Aktiv</button>
+          <button class="delete-btn" onclick="deleteClass(${c.id})">Löschen</button>
+        `;
+        wrapper.appendChild(div);
+      });
+    }
+
+    function setActiveClass(id, name) {
+      activeClassId = id;
+      activeClassName = name;
+      document.getElementById("classSelect").value = id;
+      updateActiveClassLabel();
+      loadStudents();
+    }
+
+    function onClassChange() {
+      const select = document.getElementById("classSelect");
+      activeClassId = parseInt(select.value, 10);
+      activeClassName = select.options[select.selectedIndex]?.textContent || "";
+      updateActiveClassLabel();
+      loadStudents();
+    }
+
+    function updateActiveClassLabel() {
+      const label = document.getElementById("activeClassLabel");
+      if (activeClassId) {
+        label.textContent = "Aktive Klasse: " + activeClassName + " (ID " + activeClassId + ")";
+      } else {
+        label.textContent = "Keine aktive Klasse ausgewählt.";
+      }
+    }
+
+    async function deleteClass(id) {
+      await fetch("/api/class/" + id, {
+        method: "DELETE",
+        credentials: "include"
+      });
+
+      if (activeClassId === id) {
+        activeClassId = null;
+        activeClassName = "";
+      }
+
+      await loadClasses();
+    }
+
+    // -------------------------------------------------------
+    // SCHÜLER
+    // -------------------------------------------------------
+    async function createStudent() {
+      if (!activeClassId) {
+        alert("Bitte zuerst eine Klasse auswählen.");
+        return;
+      }
+
+      const name = document.getElementById("studentName").value.trim();
+      const password = document.getElementById("studentPassword").value.trim();
+
+      if (!name || !password) {
+        return alert("Name und Passwort eingeben.");
+      }
+
+      const res = await fetch("/api/student", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, password, classId: activeClassId })
+      });
+
+      if (!res.ok) {
+        alert("Fehler beim Anlegen der Schüler:in.");
+        return;
+      }
+
+      document.getElementById("studentName").value = "";
+      document.getElementById("studentPassword").value = "";
+      loadStudents();
+    }
+
+    async function loadStudents() {
+      const list = document.getElementById("studentList");
+      list.innerHTML = "";
+
+      if (!activeClassId) {
+        list.textContent = "Keine Klasse ausgewählt.";
+        return;
+      }
+
+      const res = await fetch("/api/student?classId=" + activeClassId, {
+        credentials: "include"
+      });
+
+      if (!res.ok) {
+        list.textContent = "Fehler beim Laden der Schüler:innen.";
+        return;
+      }
+
+      const data = await res.json();
+
+      data.forEach(s => {
+        const div = document.createElement("div");
+        div.className = "item-row";
+        div.innerHTML = `
+          ${s.name} (XP: ${s.xp})
+          <button class="delete-btn" onclick="deleteStudent(${s.id})">Löschen</button>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    async function deleteStudent(id) {
+      await fetch("/api/student/" + id, {
+        method: "DELETE",
+        credentials: "include"
+      });
+      loadStudents();
+    }
+
+    // -------------------------------------------------------
+    // LOGOUT
+    // -------------------------------------------------------
+    async function logout() {
+      await fetch("/api/logout", {
+        method: "POST",
+        credentials: "include"
+      });
+      window.location.href = "/login.html";
+    }
+
+    // -------------------------------------------------------
+    // Start
+    // -------------------------------------------------------
+    loadClasses();
+
+  </script>
+
+</body>
+</html>
