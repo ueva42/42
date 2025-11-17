@@ -1,6 +1,6 @@
-// ==========================
-// Temple of Logic – SERVER
-// ==========================
+// =======================================================
+// Temple of Logic – FINAL SERVER.JS
+// =======================================================
 
 import express from "express";
 import session from "express-session";
@@ -8,42 +8,46 @@ import path from "path";
 import { fileURLToPath } from "url";
 import bodyParser from "body-parser";
 import multer from "multer";
-import { S3 } from "aws-sdk";
+import AWS from "aws-sdk";
 import pkg from "pg";
 const { Pool } = pkg;
 
-// --------------------------
+// -------------------------------------------------------
+// Pfade
+// -------------------------------------------------------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// --------------------------
 
+// -------------------------------------------------------
+// Express
+// -------------------------------------------------------
 const app = express();
-
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// --------------------------
+// -------------------------------------------------------
 // Sessions
-// --------------------------
+// -------------------------------------------------------
 app.use(
   session({
-    secret: "super-secret-temp",
+    secret: "super-temp-secret",
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false },
   })
 );
 
-// --------------------------
+// -------------------------------------------------------
 // PostgreSQL
-// --------------------------
+// -------------------------------------------------------
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-// --------------------------
-// Cloudflare R2 (AWS-S3 kompatibel)
-// --------------------------
+// -------------------------------------------------------
+// Cloudflare R2 (AWS S3-kompatibel)
+// -------------------------------------------------------
+const S3 = AWS.S3;
 const r2 = new S3({
   endpoint: process.env.R2_ENDPOINT,
   accessKeyId: process.env.R2_ACCESS_KEY_ID,
@@ -52,17 +56,17 @@ const r2 = new S3({
   signatureVersion: "v4",
 });
 
-// File Upload
+// Upload-Handler
 const upload = multer({ storage: multer.memoryStorage() });
 
-// --------------------------
-// STATIC FILES
-// --------------------------
+// -------------------------------------------------------
+// Static Files
+// -------------------------------------------------------
 app.use(express.static(path.join(__dirname, "public")));
 
-// ============================================================
-// MIGRATION – Tabellen automatisch erstellen/reparieren
-// ============================================================
+// =======================================================
+// MIGRATION
+// =======================================================
 
 async function migrate() {
   console.log("Starte automatische Datenbank-Reparatur…");
@@ -89,7 +93,7 @@ async function migrate() {
     );
   `);
 
-  // MISSIONS (FIX)
+  // MISSIONS
   await pool.query(`
     CREATE TABLE IF NOT EXISTS missions (
       id SERIAL PRIMARY KEY,
@@ -113,35 +117,30 @@ async function migrate() {
 
 await migrate();
 
-// ============================================================
+// =======================================================
 // LOGIN
-// ============================================================
+// =======================================================
 
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
   const r = await pool.query("SELECT * FROM users WHERE name=$1", [username]);
-
   if (r.rows.length === 0) return res.json({ success: false });
 
   const user = r.rows[0];
-
   if (user.password !== password) return res.json({ success: false });
 
   req.session.user = { id: user.id, role: user.role };
-
   res.json({ success: true, role: user.role });
 });
 
 app.post("/api/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.json({ success: true });
-  });
+  req.session.destroy(() => res.json({ success: true }));
 });
 
-// ============================================================
-// AUTH MIDDLEWARE
-// ============================================================
+// =======================================================
+// AUTH
+// =======================================================
 
 function isAdmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== "admin") {
@@ -150,9 +149,9 @@ function isAdmin(req, res, next) {
   next();
 }
 
-// ============================================================
-// K L A S S E N
-// ============================================================
+// =======================================================
+// KLASSEN
+// =======================================================
 
 app.get("/api/class", isAdmin, async (req, res) => {
   const r = await pool.query("SELECT * FROM classes ORDER BY name ASC");
@@ -175,9 +174,9 @@ app.delete("/api/class/:id", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================
-//  S C H Ü L E R : I N N E N
-// ============================================================
+// =======================================================
+// SCHÜLER:INNEN
+// =======================================================
 
 app.get("/api/student", isAdmin, async (req, res) => {
   const { classId } = req.query;
@@ -208,11 +207,11 @@ app.delete("/api/student/:id", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================
-//  M I S S I O N E N
-// ============================================================
+// =======================================================
+// MISSIONEN
+// =======================================================
 
-// Bild-Upload
+// 1) Bild-Upload
 app.post("/api/missions/upload", isAdmin, upload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.json({ success: false });
@@ -232,12 +231,12 @@ app.post("/api/missions/upload", isAdmin, upload.single("image"), async (req, re
 
     res.json({ success: true, url: publicURL });
   } catch (err) {
-    console.error(err);
+    console.error("Upload-Fehler:", err);
     res.status(500).json({ success: false });
   }
 });
 
-// Mission anlegen
+// 2) Mission anlegen
 app.post("/api/missions", isAdmin, async (req, res) => {
   const { name, xp, imageUrl, requireUpload } = req.body;
 
@@ -250,21 +249,22 @@ app.post("/api/missions", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// Missionen abrufen
+// 3) Missionen abrufen
 app.get("/api/missions", isAdmin, async (req, res) => {
   const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
   res.json(r.rows);
 });
 
-// Mission löschen
+// 4) Mission löschen
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
   await pool.query("DELETE FROM missions WHERE id=$1", [req.params.id]);
   res.json({ success: true });
 });
 
-// ============================================================
+// =======================================================
 // SERVER START
-// ============================================================
+// =======================================================
+
 app.listen(process.env.PORT || 8080, () => {
   console.log("Server läuft auf Port 8080");
 });
