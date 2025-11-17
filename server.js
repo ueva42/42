@@ -1,55 +1,50 @@
+// ==========================
+// Temple of Logic – SERVER
+// ==========================
+
 import express from "express";
 import session from "express-session";
-import pg from "pg";
+import path from "path";
+import { fileURLToPath } from "url";
+import bodyParser from "body-parser";
 import multer from "multer";
-import AWS from "aws-sdk";
+import { S3 } from "aws-sdk";
+import pkg from "pg";
+const { Pool } = pkg;
+
+// --------------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// --------------------------
 
 const app = express();
 
-// --------------------------------------------------
-// TRUST PROXY (Railway)
-// --------------------------------------------------
-app.set("trust proxy", 1);
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// --------------------------------------------------
-// BODY PARSER & STATIC FILES
-// --------------------------------------------------
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static("public"));
-
-// --------------------------------------------------
-// POSTGRES CONNECTION
-// --------------------------------------------------
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
-});
-
-// --------------------------------------------------
-// SESSION — RAILWAY READY
-// --------------------------------------------------
+// --------------------------
+// Sessions
+// --------------------------
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "secret123",
-    proxy: true,
+    secret: "super-secret-temp",
     resave: false,
     saveUninitialized: false,
-    cookie: {
-      secure: true,
-      httpOnly: true,
-      sameSite: "none",
-      maxAge: 1000 * 60 * 60 * 24,
-    },
+    cookie: { secure: false },
   })
 );
 
-// --------------------------------------------------
-// R2 UPLOAD CONFIG
-// --------------------------------------------------
-const upload = multer({ storage: multer.memoryStorage() });
+// --------------------------
+// PostgreSQL
+// --------------------------
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-const s3 = new AWS.S3({
+// --------------------------
+// Cloudflare R2 (AWS-S3 kompatibel)
+// --------------------------
+const r2 = new S3({
   endpoint: process.env.R2_ENDPOINT,
   accessKeyId: process.env.R2_ACCESS_KEY_ID,
   secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
@@ -57,9 +52,18 @@ const s3 = new AWS.S3({
   signatureVersion: "v4",
 });
 
-// --------------------------------------------------
-// MIGRATION
-// --------------------------------------------------
+// File Upload
+const upload = multer({ storage: multer.memoryStorage() });
+
+// --------------------------
+// STATIC FILES
+// --------------------------
+app.use(express.static(path.join(__dirname, "public")));
+
+// ============================================================
+// MIGRATION – Tabellen automatisch erstellen/reparieren
+// ============================================================
+
 async function migrate() {
   console.log("Starte automatische Datenbank-Reparatur…");
 
@@ -67,236 +71,200 @@ async function migrate() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
+      name TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'student',
+      class_id INTEGER,
       xp INTEGER DEFAULT 0,
-      class_id INTEGER
+      highest_xp INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
     );
-  `);
-
-  // Remove UNIQUE from name
-  await pool.query(`
-    DO $$
-    DECLARE
-      c TEXT;
-    BEGIN
-      SELECT constraint_name INTO c
-      FROM information_schema.constraint_column_usage
-      WHERE table_name='users' AND column_name='name';
-
-      IF c IS NOT NULL THEN
-        EXECUTE 'ALTER TABLE users DROP CONSTRAINT ' || c;
-      END IF;
-
-    END $$;
   `);
 
   // CLASSES
   await pool.query(`
     CREATE TABLE IF NOT EXISTS classes (
       id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL
+      name TEXT UNIQUE NOT NULL
     );
   `);
 
-  // MISSIONS
+  // MISSIONS (FIX)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS missions (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       xp INTEGER NOT NULL,
       image_url TEXT,
-      require_upload BOOLEAN DEFAULT false
+      require_upload BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT NOW()
     );
   `);
 
   // DEFAULT ADMIN
-  const adminCheck = await pool.query(
-    "SELECT id FROM users WHERE name='admin' LIMIT 1"
-  );
-
-  if (adminCheck.rows.length === 0) {
-    await pool.query(
-      "INSERT INTO users (name, password, role) VALUES ('admin','bruhrain','admin')"
-    );
-    console.log("Default Admin erstellt");
-  }
+  await pool.query(`
+    INSERT INTO users (name, password, role)
+    VALUES ('admin', 'bruhrain', 'admin')
+    ON CONFLICT (name) DO NOTHING;
+  `);
 
   console.log("Migration abgeschlossen.");
 }
 
-// --------------------------------------------------
+await migrate();
+
+// ============================================================
 // LOGIN
-// --------------------------------------------------
+// ============================================================
+
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
-  const r = await pool.query(
-    "SELECT * FROM users WHERE name=$1 AND password=$2",
-    [username, password]
-  );
+  const r = await pool.query("SELECT * FROM users WHERE name=$1", [username]);
 
-  if (r.rows.length === 0)
-    return res.status(400).json({ error: "Login fehlgeschlagen" });
+  if (r.rows.length === 0) return res.json({ success: false });
 
-  req.session.user = {
-    id: r.rows[0].id,
-    name: r.rows[0].name,
-    role: r.rows[0].role,
-  };
+  const user = r.rows[0];
 
-  res.json({ success: true, role: r.rows[0].role });
+  if (user.password !== password) return res.json({ success: false });
+
+  req.session.user = { id: user.id, role: user.role };
+
+  res.json({ success: true, role: user.role });
 });
 
-// --------------------------------------------------
-// LOGOUT
-// --------------------------------------------------
 app.post("/api/logout", (req, res) => {
-  req.session.destroy(() => res.json({ success: true }));
+  req.session.destroy(() => {
+    res.json({ success: true });
+  });
 });
 
-// --------------------------------------------------
-// ADMIN CHECK MIDDLEWARE
-// --------------------------------------------------
-function requireAdmin(req, res, next) {
+// ============================================================
+// AUTH MIDDLEWARE
+// ============================================================
+
+function isAdmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== "admin") {
-    return res.status(403).json({ error: "Nicht erlaubt" });
+    return res.status(403).json({ error: "Forbidden" });
   }
   next();
 }
 
-// --------------------------------------------------
-// KLASSEN
-// --------------------------------------------------
-app.post("/api/class", requireAdmin, async (req, res) => {
-  const { name } = req.body;
+// ============================================================
+// K L A S S E N
+// ============================================================
 
-  const r = await pool.query(
-    "INSERT INTO classes (name) VALUES ($1) RETURNING *",
-    [name]
-  );
-
-  res.json(r.rows[0]);
-});
-
-app.get("/api/class", requireAdmin, async (req, res) => {
-  const r = await pool.query("SELECT * FROM classes ORDER BY id");
+app.get("/api/class", isAdmin, async (req, res) => {
+  const r = await pool.query("SELECT * FROM classes ORDER BY name ASC");
   res.json(r.rows);
 });
 
-app.delete("/api/class/:id", requireAdmin, async (req, res) => {
-  const id = req.params.id;
+app.post("/api/class", isAdmin, async (req, res) => {
+  const { name } = req.body;
 
-  // Schüler dieser Klasse löschen
-  await pool.query("DELETE FROM users WHERE class_id=$1 AND role='student'", [
-    id,
-  ]);
-
-  await pool.query("DELETE FROM classes WHERE id=$1", [id]);
+  await pool.query(
+    "INSERT INTO classes (name) VALUES ($1) ON CONFLICT (name) DO NOTHING",
+    [name]
+  );
 
   res.json({ success: true });
 });
 
-// --------------------------------------------------
-// SCHÜLER
-// --------------------------------------------------
-app.post("/api/student", requireAdmin, async (req, res) => {
-  const { name, password, classId } = req.body;
-
-  if (!name || !password || !classId) {
-    return res.status(400).json({ error: "Name, Passwort, Klasse nötig" });
-  }
-
-  const r = await pool.query(
-    "INSERT INTO users (name, password, role, class_id, xp) VALUES ($1,$2,'student',$3,0) RETURNING *",
-    [name, password, classId]
-  );
-
-  res.json(r.rows[0]);
+app.delete("/api/class/:id", isAdmin, async (req, res) => {
+  await pool.query("DELETE FROM classes WHERE id=$1", [req.params.id]);
+  res.json({ success: true });
 });
 
-app.get("/api/student", requireAdmin, async (req, res) => {
+// ============================================================
+//  S C H Ü L E R : I N N E N
+// ============================================================
+
+app.get("/api/student", isAdmin, async (req, res) => {
   const { classId } = req.query;
 
-  if (!classId) return res.json([]);
-
   const r = await pool.query(
-    "SELECT id, name, xp FROM users WHERE role='student' AND class_id=$1 ORDER BY name",
+    "SELECT * FROM users WHERE role='student' AND class_id=$1 ORDER BY name ASC",
     [classId]
   );
 
   res.json(r.rows);
 });
 
-app.delete("/api/student/:id", requireAdmin, async (req, res) => {
+app.post("/api/student", isAdmin, async (req, res) => {
+  const { name, password, classId } = req.body;
+
+  await pool.query(
+    `INSERT INTO users (name, password, role, class_id)
+     VALUES ($1,$2,'student',$3)
+     ON CONFLICT (name) DO NOTHING`,
+    [name, password, classId]
+  );
+
+  res.json({ success: true });
+});
+
+app.delete("/api/student/:id", isAdmin, async (req, res) => {
   await pool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
   res.json({ success: true });
 });
 
-// --------------------------------------------------
-// MISSIONEN
-// --------------------------------------------------
-app.post("/api/missions", requireAdmin, async (req, res) => {
-  const { name, xp, imageUrl, requireUpload } = req.body;
+// ============================================================
+//  M I S S I O N E N
+// ============================================================
 
-  const r = await pool.query(
-    "INSERT INTO missions (name, xp, image_url, require_upload) VALUES ($1,$2,$3,$4) RETURNING *",
-    [name, xp, imageUrl || null, requireUpload === "true"]
-  );
+// Bild-Upload
+app.post("/api/missions/upload", isAdmin, upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) return res.json({ success: false });
 
-  res.json(r.rows[0]);
+    const fileName = "missions/" + Date.now() + "_" + req.file.originalname;
+
+    await r2
+      .putObject({
+        Bucket: process.env.R2_BUCKET,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      })
+      .promise();
+
+    const publicURL = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+
+    res.json({ success: true, url: publicURL });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false });
+  }
 });
 
-app.get("/api/missions", requireAdmin, async (req, res) => {
-  const r = await pool.query("SELECT * FROM missions ORDER BY id");
+// Mission anlegen
+app.post("/api/missions", isAdmin, async (req, res) => {
+  const { name, xp, imageUrl, requireUpload } = req.body;
+
+  await pool.query(
+    `INSERT INTO missions (name, xp, image_url, require_upload)
+     VALUES ($1,$2,$3,$4)`,
+    [name, xp, imageUrl, requireUpload]
+  );
+
+  res.json({ success: true });
+});
+
+// Missionen abrufen
+app.get("/api/missions", isAdmin, async (req, res) => {
+  const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
   res.json(r.rows);
 });
 
-app.delete("/api/missions/:id", requireAdmin, async (req, res) => {
+// Mission löschen
+app.delete("/api/missions/:id", isAdmin, async (req, res) => {
   await pool.query("DELETE FROM missions WHERE id=$1", [req.params.id]);
   res.json({ success: true });
 });
 
-// --------------------------------------------------
-// MISSION IMAGE UPLOAD
-// --------------------------------------------------
-app.post("/api/missions/upload", requireAdmin, upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Kein Bild erhalten" });
-
-  const fileName = `missions/${Date.now()}-${req.file.originalname}`;
-
-  const params = {
-    Bucket: process.env.R2_BUCKET,
-    Key: fileName,
-    Body: req.file.buffer,
-    ContentType: req.file.mimetype,
-    ACL: "public-read",
-  };
-
-  try {
-    await s3.putObject(params).promise();
-
-    const fileUrl = `${process.env.R2_PUBLIC_URL}/${fileName}`;
-
-    res.json({ success: true, url: fileUrl });
-  } catch (err) {
-    console.error("Upload Error:", err);
-    res.status(500).json({ error: "Bild konnte nicht gespeichert werden." });
-  }
-});
-
-// --------------------------------------------------
-// ROOT → LOGIN
-// --------------------------------------------------
-app.get("/", (req, res) => res.redirect("/login.html"));
-
-// --------------------------------------------------
-// START SERVER
-// --------------------------------------------------
-const PORT = process.env.PORT || 8080;
-
-app.listen(PORT, async () => {
-  await migrate();
-  console.log("Server läuft auf Port " + PORT);
+// ============================================================
+// SERVER START
+// ============================================================
+app.listen(process.env.PORT || 8080, () => {
+  console.log("Server läuft auf Port 8080");
 });
