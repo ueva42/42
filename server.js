@@ -1,7 +1,8 @@
 // =======================================================
 // Temple of Logic – FINAL SERVER.JS (vollständig, 2025)
 // Mit: Klassen, Schüler:innen, Missionen, XP, Uploads,
-// Bonuskarten, Charaktere, Level, R2-Upload
+// Bonuskarten, Charaktere, Level, XP-Logging, Student-State
+// Cloudflare R2 + Railway + PostgreSQL
 // =======================================================
 
 import express from "express";
@@ -39,7 +40,7 @@ app.use(
     secret: "super-temp-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false },
+    cookie: { secure: false }, // bei HTTPS auf true setzen
   })
 );
 
@@ -85,7 +86,7 @@ async function migrate() {
     );
   `);
 
-  // USERS unique fix
+  // USERS: evtl. altes UNIQUE(name) entfernen
   await pool.query(`
     DO $$
     DECLARE
@@ -103,7 +104,7 @@ async function migrate() {
     END $$;
   `);
 
-  // USERS
+  // USERS Tabelle
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -116,9 +117,21 @@ async function migrate() {
     );
   `);
 
+  // UNIQUE (name, class_id)
   await pool.query(`
-    ALTER TABLE users
-    ADD CONSTRAINT users_name_class_unique UNIQUE(name, class_id);
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'users'
+          AND constraint_type = 'UNIQUE'
+          AND constraint_name = 'users_name_class_unique'
+      ) THEN
+        ALTER TABLE users
+        ADD CONSTRAINT users_name_class_unique UNIQUE(name, class_id);
+      END IF;
+    END$$;
   `);
 
   // MISSIONEN
@@ -133,7 +146,7 @@ async function migrate() {
     );
   `);
 
-  // SCHÜLER-UPLOADS
+  // SCHÜLER-UPLOADS (global)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS student_uploads (
       id SERIAL PRIMARY KEY,
@@ -170,6 +183,31 @@ async function migrate() {
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       required_xp INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // STUDENT_STATE (Charakter + Traits + Items)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_state (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      character_id INTEGER REFERENCES characters(id) ON DELETE SET NULL,
+      traits JSONB,
+      items JSONB,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // XP_TRANSACTIONS: Logging aller XP-Vergaben
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS xp_transactions (
+      id SERIAL PRIMARY KEY,
+      student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount INTEGER NOT NULL,
+      mission_id INTEGER REFERENCES missions(id),
+      source TEXT, -- z.B. 'direct', 'mission', 'bonus'
+      awarded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
@@ -229,7 +267,7 @@ function isStudent(req, res, next) {
 }
 
 // =======================================================
-// KLASSEN
+// KLASSEN (ADMIN)
 // =======================================================
 
 app.get("/api/class", isAdmin, async (_, res) => {
@@ -249,7 +287,7 @@ app.post("/api/class", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// SCHÜLER
+// SCHÜLER:INNEN (ADMIN)
 // =======================================================
 
 app.get("/api/student", isAdmin, async (req, res) => {
@@ -303,15 +341,27 @@ app.delete("/api/student/:id", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// XP VERGABE
+// XP VERGABE (ADMIN) + LOGGING
 // =======================================================
 
 app.post("/api/xp", isAdmin, async (req, res) => {
   const { studentId, xp } = req.body;
+  const amount = Number(xp);
+  if (!amount) return res.json({ success: false });
 
+  // XP erhöhen
   await pool.query(
     "UPDATE users SET xp = xp + $1 WHERE id=$2 AND role='student'",
-    [Number(xp), studentId]
+    [amount, studentId]
+  );
+
+  // Logging
+  await pool.query(
+    `
+    INSERT INTO xp_transactions (student_id, amount, mission_id, source, awarded_by)
+    VALUES ($1, $2, NULL, 'direct', $3)
+    `,
+    [studentId, amount, req.session.user.id]
   );
 
   res.json({ success: true });
@@ -328,16 +378,45 @@ app.post("/api/xpmission", isAdmin, async (req, res) => {
 
   const missionXP = r.rows[0].xp;
 
+  // XP erhöhen
   await pool.query(
     "UPDATE users SET xp = xp + $1 WHERE id=$2",
     [missionXP, studentId]
   );
 
+  // Logging
+  await pool.query(
+    `
+    INSERT INTO xp_transactions (student_id, amount, mission_id, source, awarded_by)
+    VALUES ($1, $2, $3, 'mission', $4)
+    `,
+    [studentId, missionXP, missionId, req.session.user.id]
+  );
+
   res.json({ success: true });
 });
 
+// Missionen-XP-Summary (ADMIN) – für Tabelle in XP-Übersicht
+app.get("/api/xp/mission-summary", isAdmin, async (_, res) => {
+  const r = await pool.query(
+    `
+    SELECT
+      m.id,
+      m.name,
+      COALESCE(SUM(t.amount), 0) AS total_xp,
+      COUNT(t.id) AS grants
+    FROM missions m
+    LEFT JOIN xp_transactions t
+      ON t.mission_id = m.id
+    GROUP BY m.id, m.name
+    ORDER BY m.name ASC
+    `
+  );
+  res.json(r.rows);
+});
+
 // =======================================================
-// SCHÜLER-UPLOAD
+// SCHÜLER-UPLOAD (STUDENT + ADMIN-LÖSCHUNG)
 // =======================================================
 
 app.post(
@@ -377,7 +456,7 @@ app.post(
   }
 );
 
-// Admin löscht Upload
+// Admin löscht letzten Upload eines Schülers
 app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
   const studentId = req.params.studentId;
 
@@ -415,9 +494,10 @@ app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// MISSIONEN
+// MISSIONEN (ADMIN + STUDENT-READ)
 // =======================================================
 
+// Bild-Upload Mission
 app.post(
   "/api/missions/upload",
   isAdmin,
@@ -446,6 +526,7 @@ app.post(
   }
 );
 
+// Mission anlegen
 app.post("/api/missions", isAdmin, async (req, res) => {
   const { name, xp, imageUrl, requireUpload } = req.body;
 
@@ -460,11 +541,13 @@ app.post("/api/missions", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// Missionen (Admin)
 app.get("/api/missions", isAdmin, async (_, res) => {
   const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
   res.json(r.rows);
 });
 
+// Mission löschen
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
   const id = req.params.id;
 
@@ -484,17 +567,28 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
           Key: key,
         })
       );
-    } catch (err) {}
+    } catch (err) {
+      console.error("R2 delete error:", err);
+    }
   }
 
   await pool.query("DELETE FROM missions WHERE id=$1", [id]);
   res.json({ success: true });
 });
 
+// Missionen für Schüler (READ ONLY)
+app.get("/api/student/missions", isStudent, async (_, res) => {
+  const r = await pool.query(
+    "SELECT * FROM missions ORDER BY id ASC"
+  );
+  res.json(r.rows);
+});
+
 // =======================================================
-// BONUSKARTEN
+// BONUSKARTEN (ADMIN + STUDENT-READ)
 // =======================================================
 
+// Upload Bonuskarte
 app.post(
   "/api/bonus/upload",
   isAdmin,
@@ -523,6 +617,7 @@ app.post(
   }
 );
 
+// Bonuskarte anlegen
 app.post("/api/bonus", isAdmin, async (req, res) => {
   const { name, xp, imageUrl } = req.body;
 
@@ -537,11 +632,13 @@ app.post("/api/bonus", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// Bonuskarten (Admin)
 app.get("/api/bonus", isAdmin, async (_, res) => {
   const r = await pool.query("SELECT * FROM bonuscards ORDER BY id DESC");
   res.json(r.rows);
 });
 
+// Bonuskarte löschen
 app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
   const id = req.params.id;
 
@@ -561,7 +658,9 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
           Key: key,
         })
       );
-    } catch (err) {}
+    } catch (err) {
+      console.error("R2 delete error:", err);
+    }
   }
 
   await pool.query("DELETE FROM bonuscards WHERE id=$1", [id]);
@@ -569,11 +668,19 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// Bonuskarten für Schüler (READ ONLY)
+app.get("/api/student/bonus", isStudent, async (_, res) => {
+  const r = await pool.query(
+    "SELECT * FROM bonuscards ORDER BY xp ASC"
+  );
+  res.json(r.rows);
+});
+
 // =======================================================
-// CHARAKTERE
+// CHARAKTERE (ADMIN + STUDENT-READ)
 // =======================================================
 
-// Upload
+// Upload Charakter
 app.post(
   "/api/character/upload",
   isAdmin,
@@ -615,7 +722,7 @@ app.post("/api/character", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// Charakterliste
+// Charakterliste (Admin)
 app.get("/api/character", isAdmin, async (_, res) => {
   const r = await pool.query("SELECT * FROM characters ORDER BY id DESC");
   res.json(r.rows);
@@ -650,8 +757,16 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// Charakterliste für Schüler (READ ONLY)
+app.get("/api/student/characters", isStudent, async (_, res) => {
+  const r = await pool.query(
+    "SELECT * FROM characters ORDER BY id ASC"
+  );
+  res.json(r.rows);
+});
+
 // =======================================================
-// LEVEL
+// LEVEL (ADMIN + STUDENT-READ)
 // =======================================================
 
 // Level anlegen
@@ -667,7 +782,7 @@ app.post("/api/level", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// Level-Liste
+// Levelliste (Admin)
 app.get("/api/level", isAdmin, async (_, res) => {
   const r = await pool.query(
     "SELECT * FROM levels ORDER BY required_xp ASC"
@@ -681,10 +796,97 @@ app.delete("/api/level/:id", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// Level für Schüler (READ ONLY)
+app.get("/api/student/levels", isStudent, async (_, res) => {
+  const r = await pool.query(
+    "SELECT * FROM levels ORDER BY required_xp ASC"
+  );
+  res.json(r.rows);
+});
+
+// =======================================================
+// STUDENT STATE (Charakter + Traits + Items)
+// =======================================================
+
+// State abrufen
+app.get("/api/student/state", isStudent, async (req, res) => {
+  const userId = req.session.user.id;
+
+  const r = await pool.query(
+    `
+    SELECT
+      u.id AS user_id,
+      u.name,
+      u.xp,
+      ss.character_id,
+      ss.traits,
+      ss.items,
+      c.name AS character_name,
+      c.image_url AS character_image_url
+    FROM users u
+    LEFT JOIN student_state ss
+      ON ss.user_id = u.id
+    LEFT JOIN characters c
+      ON c.id = ss.character_id
+    WHERE u.id = $1
+    `,
+    [userId]
+  );
+
+  if (r.rows.length === 0) {
+    return res.json({ exists: false });
+  }
+
+  const row = r.rows[0];
+
+  res.json({
+    exists: !!row.character_id,
+    user: {
+      id: row.user_id,
+      name: row.name,
+      xp: row.xp,
+    },
+    state: row.character_id
+      ? {
+          character_id: row.character_id,
+          traits: row.traits || [],
+          items: row.items || [],
+          character_name: row.character_name,
+          character_image_url: row.character_image_url,
+        }
+      : null,
+  });
+});
+
+// State initialisieren (nur beim ersten Mal)
+// Erwartet: { characterId, traits, items }
+app.post("/api/student/state/init", isStudent, async (req, res) => {
+  const userId = req.session.user.id;
+  const { characterId, traits, items } = req.body;
+
+  const r = await pool.query(
+    "SELECT id FROM student_state WHERE user_id=$1",
+    [userId]
+  );
+  if (r.rows.length > 0) {
+    return res.json({ success: false, alreadyInitialized: true });
+  }
+
+  await pool.query(
+    `
+    INSERT INTO student_state (user_id, character_id, traits, items)
+    VALUES ($1, $2, $3::jsonb, $4::jsonb)
+    `,
+    [userId, characterId, JSON.stringify(traits || []), JSON.stringify(items || [])]
+  );
+
+  res.json({ success: true });
+});
+
 // =======================================================
 // START
 // =======================================================
 
 app.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Server läuft auf Port 8080");
+  console.log("🚀 Server läuft auf Port " + (process.env.PORT || 8080));
 });

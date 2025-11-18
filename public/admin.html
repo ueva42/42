@@ -145,16 +145,12 @@
   </div>
 
   <div class="nav-item" onclick="showTab('characterTab')">
-    <svg viewBox="0 0 24 24">
-      <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
-    </svg>
+    <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 5-2.3 5-5S14.7 2 12 2 7 4.3 7 7s2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
     <span>Charaktere</span>
   </div>
 
   <div class="nav-item" onclick="showTab('levelTab')">
-    <svg viewBox="0 0 24 24">
-      <path d="M4 22h16v-2H4v2zm2-4h12v-2H6v2zm2-4h8v-2H8v2zm2-4h4V8h-4v2zm2-10L3 6v2h18V6L12 0z"/>
-    </svg>
+    <svg viewBox="0 0 24 24"><path d="M3 17h18v2H3v-2zm0-5h18v2H3v-2zm0-5h18v2H3V7z"/></svg>
     <span>Level</span>
   </div>
 
@@ -167,7 +163,7 @@
 <!-- CONTENT -->
 <div class="content">
 
-  <!-- XP -->
+  <!-- XP VERWALTUNG -->
   <div id="xpTab" class="tab">
     <h1>XP-Verwaltung</h1>
 
@@ -195,9 +191,21 @@
     <select id="xpMissionSelect"></select>
     <button class="action" onclick="addMissionXP()">Mission an Auswahl</button>
     <button class="action" onclick="addMissionXPAll()">Mission an alle</button>
+
+    <h2>XP nach Missionen</h2>
+    <table id="xpMissionSummaryTable">
+      <thead>
+        <tr>
+          <th>Mission</th>
+          <th>Gesamt XP</th>
+          <th>Anzahl Vergaben</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
 
-  <!-- KLASSEN -->
+  <!-- KLASSEN & SCHÜLER -->
   <div id="classTab" class="tab hidden">
     <h1>Klassen & Schüler:innen</h1>
 
@@ -238,7 +246,9 @@
     </label>
     <br>
     <input type="file" id="missionImage" />
-    <button class="action" onclick="uploadMissionImage()">Bild hochladen</button>
+    <button class="action" onclick="uploadMissionImage()">
+      Bild hochladen
+    </button>
     <br>
     <button class="action" onclick="addMission()">Mission speichern</button>
 
@@ -256,7 +266,6 @@
       <tbody></tbody>
     </table>
   </div>
-
   <!-- BONUSKARTEN -->
   <div id="bonusTab" class="tab hidden">
     <h1>Bonuskarten</h1>
@@ -287,8 +296,8 @@
     <h1>Charaktere</h1>
 
     <h3>Neuen Charakter anlegen</h3>
-    <input id="characterName" placeholder="Name" />
-    <input type="file" id="characterImage" />
+    <input id="charName" placeholder="Name" />
+    <input type="file" id="charImage" />
     <button class="action" onclick="uploadCharacterImage()">Bild hochladen</button>
     <button class="action" onclick="addCharacter()">Speichern</button>
 
@@ -311,15 +320,15 @@
 
     <h3>Neues Level anlegen</h3>
     <input id="levelName" placeholder="Levelname" />
-    <input id="levelXP" type="number" placeholder="XP-Bedarf" />
-    <button class="action" onclick="addLevel()">Level speichern</button>
+    <input id="levelXP" type="number" placeholder="Benötigte XP" />
+    <button class="action" onclick="addLevel()">Speichern</button>
 
-    <h3>Levelliste</h3>
+    <h3>Level</h3>
     <table id="levelTable">
       <thead>
         <tr>
           <th>Name</th>
-          <th>XP-Bedarf</th>
+          <th>Benötigte XP</th>
           <th>Löschen</th>
         </tr>
       </thead>
@@ -327,9 +336,12 @@
     </table>
   </div>
 
+</div> <!-- END CONTENT -->
+
+
 <script>
 /* ---------------------------------------------------
-   TAB SYSTEM
+   TABS
 --------------------------------------------------- */
 function showTab(id) {
   document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
@@ -388,7 +400,7 @@ async function loadXPStudents() {
       <td>${s.name}</td>
       <td>${s.xp}</td>
       <td>
-        ${s.upload_url ? `<img class="thumb" src="${s.upload_url}"> 
+        ${s.upload_url ? `<img class="thumb" src="${s.upload_url}">
         <button class="delete" onclick="deleteUpload(${s.id})">X</button>`
         : "—"}
       </td>
@@ -397,6 +409,7 @@ async function loadXPStudents() {
   });
 
   loadMissionsForXP();
+  loadMissionSummary();
 }
 
 async function loadClassesForManage() {
@@ -567,7 +580,28 @@ async function addMissionXPAll() {
 }
 
 /* ---------------------------------------------------
-   UPLOAD LÖSCHEN
+   XP MISSION SUMMARY
+--------------------------------------------------- */
+async function loadMissionSummary() {
+  const r = await fetch("/api/xp/mission-summary");
+  const list = await r.json();
+
+  const tbody = document.querySelector("#xpMissionSummaryTable tbody");
+  tbody.innerHTML = "";
+
+  list.forEach(row => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${row.name}</td>
+      <td>${row.total_xp}</td>
+      <td>${row.grants}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ---------------------------------------------------
+   UPLOAD (Schülerbild löschen)
 --------------------------------------------------- */
 async function deleteUpload(studentId) {
   await fetch(`/api/upload/${studentId}`, { method: "DELETE" });
@@ -587,9 +621,12 @@ async function uploadMissionImage() {
   const form = new FormData();
   form.append("image", file);
 
-  const r = await fetch("/api/missions/upload", { method: "POST", body: form });
-  const data = await r.json();
+  const r = await fetch("/api/missions/upload", {
+    method: "POST",
+    body: form
+  });
 
+  const data = await r.json();
   if (data.success) uploadedMissionImageUrl = data.url;
 }
 
@@ -713,10 +750,11 @@ async function deleteBonus(id) {
 /* ---------------------------------------------------
    CHARAKTERE
 --------------------------------------------------- */
-let uploadedCharacterImageUrl = null;
+
+let uploadedCharImageUrl = null;
 
 async function uploadCharacterImage() {
-  const file = document.getElementById("characterImage").files[0];
+  const file = document.getElementById("charImage").files[0];
   if (!file) return;
 
   const form = new FormData();
@@ -728,11 +766,12 @@ async function uploadCharacterImage() {
   });
 
   const data = await r.json();
-  if (data.success) uploadedCharacterImageUrl = data.url;
+  if (data.success) uploadedCharImageUrl = data.url;
 }
 
 async function addCharacter() {
-  const name = document.getElementById("characterName").value;
+  const name = document.getElementById("charName").value;
+
   if (!name) return;
 
   await fetch("/api/character", {
@@ -740,25 +779,24 @@ async function addCharacter() {
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({
       name,
-      imageUrl: uploadedCharacterImageUrl
+      imageUrl: uploadedCharImageUrl
     })
   });
 
-  uploadedCharacterImageUrl = null;
-  document.getElementById("characterName").value = "";
-  document.getElementById("characterImage").value = "";
+  document.getElementById("charName").value = "";
+  uploadedCharImageUrl = null;
 
   loadCharacters();
 }
 
 async function loadCharacters() {
   const r = await fetch("/api/character");
-  const chars = await r.json();
+  const characters = await r.json();
 
   const tbody = document.querySelector("#characterTable tbody");
   tbody.innerHTML = "";
 
-  chars.forEach(c => {
+  characters.forEach(c => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${c.image_url ? `<img class="thumb" src="${c.image_url}">` : "—"}</td>
@@ -775,19 +813,22 @@ async function deleteCharacter(id) {
 }
 
 /* ---------------------------------------------------
-   LEVEL SYSTEM
+   LEVEL
 --------------------------------------------------- */
 
 async function addLevel() {
   const name = document.getElementById("levelName").value;
   const xp = Number(document.getElementById("levelXP").value);
 
-  if (!name || isNaN(xp)) return;
+  if (!name || !xp) return;
 
   await fetch("/api/level", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ name, required_xp: xp })
+    body: JSON.stringify({
+      name,
+      required_xp: xp
+    })
   });
 
   document.getElementById("levelName").value = "";
@@ -819,5 +860,6 @@ async function deleteLevel(id) {
   loadLevels();
 }
 </script>
+
 </body>
 </html>
