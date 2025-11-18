@@ -1,409 +1,337 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8" />
-<title>Temple of Logic – Schüler</title>
-<style>
-  body {
-    margin: 0;
-    background: #0b0b0f;
-    color: #eee;
-    font-family: Arial, sans-serif;
-  }
+  <meta charset="UTF-8">
+  <title>Temple of Logic – Schülerbereich</title>
+  <style>
+    body {
+      margin: 0;
+      background: #0b0b0c;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
 
-  .container {
-    max-width: 900px;
-    margin: auto;
-    padding: 20px;
-  }
+    h1, h2 {
+      margin-top: 0;
+    }
 
-  h1, h2 {
-    text-align: center;
-    margin-bottom: 10px;
-  }
+    .card {
+      background: #161616;
+      border: 1px solid #333;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
 
-  .section {
-    background: #111;
-    border: 1px solid #333;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 25px;
-  }
+    .row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
 
-  .char-box {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-  }
+    .char-img {
+      width: 140px;
+      height: 140px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 2px solid #444;
+    }
 
-  .char-box img {
-    width: 120px;
-    height: 120px;
-    object-fit: cover;
-    border: 2px solid #444;
-    border-radius: 8px;
-  }
+    .mission-img, .bonus-img {
+      width: 160px;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #444;
+    }
 
-  /* Level Bar */
-  .level-bar {
-    background: #333;
-    border-radius: 8px;
-    height: 28px;
-    margin: 10px 0;
-    overflow: hidden;
-  }
-  .level-fill {
-    background: #009933;
-    height: 100%;
-    width: 0%;
-    transition: width 0.4s;
-  }
+    .carousel {
+      display: flex;
+      overflow-x: auto;
+      gap: 20px;
+      padding-bottom: 10px;
+    }
 
-  .carousel {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    padding: 10px 0;
-  }
+    .carousel::-webkit-scrollbar {
+      height: 8px;
+    }
+    .carousel::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 4px;
+    }
 
-  .card {
-    background: #181818;
-    border: 1px solid #333;
-    min-width: 160px;
-    padding: 10px;
-    border-radius: 6px;
-    text-align: center;
-  }
-  .card img {
-    width: 100%;
-    height: 110px;
-    object-fit: cover;
-    border-radius: 6px;
-    margin-bottom: 6px;
-  }
+    .bonus-card {
+      position: relative;
+    }
 
-  .bonus-btn {
-    margin-top: 5px;
-    padding: 6px 10px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    background: #444;
-    color: white;
-  }
-  .bonus-btn:hover {
-    background: #666;
-  }
+    .bonus-btn {
+      margin-top: 5px;
+      background: #009933;
+      border: none;
+      color: white;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .bonus-btn:hover {
+      background: #00bb44;
+    }
 
-  input {
-    padding: 6px;
-    background: #222;
-    border: 1px solid #444;
-    color: #eee;
-  }
+    input[type=file] {
+      margin-top: 8px;
+    }
 
-  button {
-    background: #009933;
-    border: none;
-    padding: 8px 14px;
-    color: #fff;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-top: 5px;
-  }
-  button:hover {
-    background: #00bb44;
-  }
+    .level-bar {
+      background: #222;
+      height: 25px;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid #555;
+      margin-top: 8px;
+    }
 
-  .logout {
-    text-align: center;
-    margin-top: 25px;
-  }
-</style>
+    .level-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0080ff, #00ffaa);
+      width: 0%;
+      transition: width 0.5s;
+    }
+
+    .logout {
+      background: #aa2222;
+      padding: 8px 12px;
+      border: none;
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+      float: right;
+    }
+    .logout:hover {
+      background: #dd0000;
+    }
+  </style>
 </head>
 <body>
 
-<div class="container">
+<button class="logout" onclick="logout()">Logout</button>
+<h1>Temple of Logic</h1>
 
-  <h1>Temple of Logic</h1>
-  <h2>Schülerbereich</h2>
-
-  <!-- Charakter -->
-  <div class="section" id="characterSection">
-    <h2>Dein Charakter</h2>
-    <div id="characterContent"></div>
-  </div>
-
-  <!-- Level -->
-  <div class="section">
-    <h2>Level</h2>
-    <div id="levelInfo"></div>
-    <div class="level-bar">
-      <div class="level-fill" id="levelFill"></div>
-    </div>
-  </div>
-
-  <!-- Missionen -->
-  <div class="section">
-    <h2>Missionen</h2>
-    <div class="carousel" id="missionCarousel"></div>
-  </div>
-
-  <!-- Bonuskarten -->
-  <div class="section">
-    <h2>Bonuskarten</h2>
-    <div class="carousel" id="bonusCarousel"></div>
-  </div>
-
-  <!-- Upload -->
-  <div class="section">
-    <h2>Bild hochladen</h2>
-    <input type="file" id="uploadFile" />
-    <button onclick="uploadImage()">Hochladen</button>
-    <p id="uploadMsg"></p>
-  </div>
-
-  <div class="logout">
-    <button onclick="logout()">Logout</button>
-  </div>
-
-</div><!-- container -->
+<div id="content"></div>
 
 <script>
-// ----------------------------------------------------------
-// RANDOM SETUP (Traits + Items)
-// ----------------------------------------------------------
+// ======================================================
+// Daten laden + darstellen
+// ======================================================
 
-const TRAITS = [
-  "Neugierig","Ausdauernd","Kreativ","Hilfsbereit","Strukturiert",
-  "Risikofreudig","Ruhig","Zielstrebig","Analytisch","Teamorientiert",
-  "Selbstkritisch","Optimistisch","Aufmerksam","Pragmatisch","Mutig",
-  "Sorgfältig","Logisch denkend","Erfinderisch","Geduldig","Inspirierend"
-];
-
-const ITEMS = [
-  "Zirkel der Präzision","Rechenamulett","Logikstein","Notizrolle der Klarheit",
-  "Schutzbrille der Konzentration","Zauberstift des Beweises","Kompass der Richtung",
-  "Rucksack der Ideen","Lineal des Gleichgewichts","Lampe des Einfalls",
-  "Formelbuch des Wissens","Tasche der Zufälle","Würfel der Wahrscheinlichkeit",
-  "Chronometer der Geduld","Mantel der Logik","Rechenbrett des Ausgleichs",
-  "Trank der Übersicht","Kristall des Beweises","Talisman der Motivation",
-  "Zauberstab des Verständnisses"
-];
-
-function pickThree(arr) {
-  const shuffled = [...arr].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 3);
+async function initStudentSession() {
+  // Charakter/Traits/Items anlegen, falls neu
+  await fetch("/api/student/state/init", { method: "POST" });
 }
 
-// ----------------------------------------------------------
-// LOAD STUDENT STATE
-// ----------------------------------------------------------
-
-let studentXP = 0;
-let levels = [];
-
-async function init() {
-  const stateRes = await fetch("/api/student/state");
-  const data = await stateRes.json();
-
-  const missions = await (await fetch("/api/student/missions")).json();
-  const bonus = await (await fetch("/api/student/bonus")).json();
-  levels = await (await fetch("/api/student/levels")).json();
-
-  // Missions anzeigen
-  renderMissions(missions);
-
-  // Bonuskarten anzeigen
-  renderBonuscards(bonus);
-
-  if (!data.exists) {
-    // Noch kein Charakter → neuen erzeugen
-    await initNewCharacter();
-  } else {
-    renderCharacter(data);
-  }
-
-  updateLevelBar();
+async function loadData() {
+  const r = await fetch("/api/student/me");
+  const data = await r.json();
+  render(data);
 }
 
-async function initNewCharacter() {
-  const chars = await (await fetch("/api/student/characters")).json();
+function render(data) {
+  const { user, state, missions, levels, bonuscards } = data;
 
-  if (chars.length === 0) {
-    document.getElementById("characterContent").innerHTML =
-      "<p>Keine Charaktere vorhanden.</p>";
-    return;
-  }
+  const c = document.getElementById("content");
+  c.innerHTML = "";
 
-  const char = chars[Math.floor(Math.random() * chars.length)];
+  // --------------------------------------------------
+  // Charakterkarte
+  // --------------------------------------------------
 
-  const traits = pickThree(TRAITS);
-  const items = pickThree(ITEMS);
+  const charCard = document.createElement("div");
+  charCard.className = "card";
 
-  // speichern
-  await fetch("/api/student/state/init", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({
-      characterId: char.id,
-      traits,
-      items
-    })
-  });
-
-  const updated = await (await fetch("/api/student/state")).json();
-  renderCharacter(updated);
-}
-
-function renderCharacter(data) {
-  const c = data.state;
-  studentXP = data.user.xp;
-
-  document.getElementById("characterContent").innerHTML = `
-    <div class="char-box">
-      <img src="${c.character_image_url}" />
+  charCard.innerHTML = `
+    <h2>Dein Charakter</h2>
+    <div class="row">
       <div>
-        <h3>${c.character_name}</h3>
-        <p><b>Eigenschaften:</b><br>${c.traits.join(", ")}</p>
-        <p><b>Ausrüstung:</b><br>${c.items.join(", ")}</p>
-        <p><b>XP:</b> ${studentXP}</p>
+        <img class="char-img" src="${state?.image_url || ""}">
+      </div>
+      <div>
+        <b>Name:</b> ${state?.character_name || "—"}<br><br>
+        <b>Eigenschaften:</b><br>
+        ${state?.traits?.join(", ") || "—"}<br><br>
+        <b>Ausrüstung:</b><br>
+        ${state?.items?.join(", ") || "—"}
       </div>
     </div>
   `;
-}
 
-// ----------------------------------------------------------
-// LEVEL SYSTEM
-// ----------------------------------------------------------
-function updateLevelBar() {
-  const xp = studentXP;
+  c.appendChild(charCard);
 
-  let currentLevel = levels[0];
-  let nextLevel = null;
+  // --------------------------------------------------
+  // XP + Level
+  // --------------------------------------------------
 
-  for (let i = 0; i < levels.length; i++) {
-    if (xp >= levels[i].required_xp) {
-      currentLevel = levels[i];
-      nextLevel = levels[i+1] || null;
-    }
-  }
+  const levelCard = document.createElement("div");
+  levelCard.className = "card";
 
-  // Levelinfo
-  let text = `Level: ${currentLevel.name}`;
-  if (nextLevel) {
-    const need = nextLevel.required_xp - xp;
-    text += ` – ${need} XP bis Level ${nextLevel.name}`;
-  } else {
-    text += " – Höchstes Level erreicht";
-  }
-  document.getElementById("levelInfo").innerText = text;
+  // Level bestimmen
+  const lvl = determineLevel(user.xp, levels);
 
-  // Balken
-  let fill = 100;
-  if (nextLevel) {
-    const dist = nextLevel.required_xp - currentLevel.required_xp;
-    const prog = xp - currentLevel.required_xp;
-    fill = Math.max(0, Math.min(100, (prog / dist) * 100));
-  }
-  document.getElementById("levelFill").style.width = fill + "%";
-}
+  const fillPercent = calcLevelFill(user.xp, levels);
 
-// ----------------------------------------------------------
-// MISSIONEN
-// ----------------------------------------------------------
-function renderMissions(missions) {
-  const box = document.getElementById("missionCarousel");
-  box.innerHTML = "";
+  levelCard.innerHTML = `
+    <h2>Dein Fortschritt</h2>
+    <b>XP:</b> ${user.xp}<br>
+    <b>Level:</b> ${lvl.name}<br><br>
+    <div class="level-bar">
+      <div class="level-fill" style="width:${fillPercent}%"></div>
+    </div>
+  `;
+
+  c.appendChild(levelCard);
+
+  // --------------------------------------------------
+  // Missionen
+  // --------------------------------------------------
+
+  const missionCard = document.createElement("div");
+  missionCard.className = "card";
+
+  missionCard.innerHTML = `<h2>Missionen</h2>`;
+
+  const carousel = document.createElement("div");
+  carousel.className = "carousel";
 
   missions.forEach(m => {
     const div = document.createElement("div");
-    div.className = "card";
     div.innerHTML = `
-      ${m.image_url ? `<img src="${m.image_url}">` : ""}
+      <img class="mission-img" src="${m.image_url || ""}">
+      <br>
       <b>${m.name}</b><br>
-      ${m.xp} XP<br>
-      ${m.require_upload ? "<i>Upload nötig</i>" : ""}
+      XP: ${m.xp}<br>
+      ${m.require_upload ? `<input type="file" onchange="uploadMissionImage(${m.id}, this.files[0])">` : ""}
     `;
-    box.appendChild(div);
-  });
-}
-
-// ----------------------------------------------------------
-// BONUSKARTEN
-// ----------------------------------------------------------
-function renderBonuscards(list) {
-  const box = document.getElementById("bonusCarousel");
-  box.innerHTML = "";
-
-  list.forEach(b => {
-    const unlocked = studentXP >= b.xp;
-
-    const div = document.createElement("div");
-    div.className = "card";
-
-    div.innerHTML = `
-      ${b.image_url ? `<img src="${b.image_url}">` : ""}
-      <b>${b.name}</b><br>
-      <small>${b.xp} XP nötig</small><br>
-      ${unlocked ? `<button class="bonus-btn" onclick="redeemBonus(${b.id}, ${b.xp})">Einlösen</button>` : `<i>Gesperrt</i>`}
-    `;
-    box.appendChild(div);
-  });
-}
-
-async function redeemBonus(id, cost) {
-  // XP abziehen → aber Level bleibt erhalten (Server-Logik: direct XP)
-  await fetch("/api/xp", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ studentId: null, xp: -cost }) // server ignoriert studentId für Schüler
+    carousel.appendChild(div);
   });
 
-  // Reload state
-  const st = await (await fetch("/api/student/state")).json();
-  studentXP = st.user.xp;
-  updateLevelBar();
+  missionCard.appendChild(carousel);
+  c.appendChild(missionCard);
 
-  const bonus = await (await fetch("/api/student/bonus")).json();
-  renderBonuscards(bonus);
+  // --------------------------------------------------
+  // Bonuskarten
+  // --------------------------------------------------
+
+  const bonusCard = document.createElement("div");
+  bonusCard.className = "card";
+  bonusCard.innerHTML = `<h2>Bonuskarten</h2>`;
+
+  const bCarousel = document.createElement("div");
+  bCarousel.className = "carousel";
+
+  bonuscards.forEach(b => {
+    if (user.xp >= b.xp) {
+      const d = document.createElement("div");
+      d.className = "bonus-card";
+      d.innerHTML = `
+        <img class="bonus-img" src="${b.image_url || ""}">
+        <div><b>${b.name}</b><br>XP-Kosten: ${b.xp}</div>
+        <button class="bonus-btn" onclick="redeemBonus(${b.id}, ${b.xp})">Einlösen</button>
+      `;
+      bCarousel.appendChild(d);
+    }
+  });
+
+  bonusCard.appendChild(bCarousel);
+  c.appendChild(bonusCard);
 }
 
-// ----------------------------------------------------------
-// UPLOAD
-// ----------------------------------------------------------
-async function uploadImage() {
-  const file = document.getElementById("uploadFile").files[0];
-  if (!file) {
-    document.getElementById("uploadMsg").innerText = "Bitte eine Datei auswählen.";
-    return;
+// ======================================================
+// Level Helper
+// ======================================================
+
+function determineLevel(xp, levels) {
+  if (levels.length === 0) return { name: "—", required_xp: 0 };
+
+  let last = levels[0];
+
+  for (let lvl of levels) {
+    if (xp >= lvl.required_xp) last = lvl;
+    else break;
   }
+
+  return last;
+}
+
+function calcLevelFill(xp, levels) {
+  if (levels.length < 2) return 100;
+
+  let current = determineLevel(xp, levels);
+  let next = levels.find(l => l.required_xp > current.required_xp);
+
+  if (!next) return 100;
+
+  const dist = next.required_xp - current.required_xp;
+  const progress = xp - current.required_xp;
+
+  return Math.max(0, Math.min(100, (progress / dist) * 100));
+}
+
+// ======================================================
+// Upload
+// ======================================================
+
+async function uploadMissionImage(missionId, file) {
+  if (!file) return;
 
   const form = new FormData();
   form.append("image", file);
+  form.append("missionId", missionId);
 
   const r = await fetch("/api/student/upload", {
     method: "POST",
-    body: form
+    body: form,
   });
 
   const data = await r.json();
   if (data.success) {
-    document.getElementById("uploadMsg").innerText = "Bild hochgeladen!";
-  } else {
-    document.getElementById("uploadMsg").innerText = "Fehler beim Upload.";
+    alert("Bild hochgeladen!");
+    loadData();
   }
 }
 
-// ----------------------------------------------------------
-// LOGOUT
-// ----------------------------------------------------------
+// ======================================================
+// Bonus einlösen
+// ======================================================
+
+async function redeemBonus(bonusId, xpCost) {
+  if (!confirm("Bonuskarte einlösen?")) return;
+
+  await fetch("/api/xp", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ studentId: null, xp: -xpCost })
+  });
+
+  alert("Bonus eingelöst!");
+  location.reload();
+}
+
+// ======================================================
+// Logout
+// ======================================================
+
 async function logout() {
   await fetch("/api/logout", { method: "POST" });
   location.href = "/login.html";
 }
 
-init();
+// ======================================================
+// Start
+// ======================================================
+
+(async () => {
+  await initStudentSession();
+  await loadData();
+})();
 </script>
 
 </body>
