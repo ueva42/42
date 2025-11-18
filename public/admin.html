@@ -10,6 +10,7 @@
       color: #eee;
       font-family: Arial, sans-serif;
       display: flex;
+      overflow: hidden;
     }
 
     /* Sidebar */
@@ -23,26 +24,40 @@
 
     .sidebar h2 {
       margin-top: 0;
+      margin-bottom: 20px;
     }
 
-    .sidebar button {
-      width: 100%;
-      margin-bottom: 8px;
+    .nav-item {
+      display: flex;
+      align-items: center;
+      background: #151515;
+      border: 1px solid #333;
+      margin-bottom: 10px;
       padding: 10px;
-      background: #222;
-      border: 1px solid #555;
-      color: white;
+      border-radius: 6px;
       cursor: pointer;
     }
 
-    .sidebar button:hover {
-      background: #333;
+    .nav-item:hover {
+      background: #222;
     }
 
-    /* Content */
+    .nav-item svg {
+      width: 22px;
+      height: 22px;
+      margin-right: 10px;
+      fill: #aaa;
+    }
+
+    .nav-item span {
+      color: #eee;
+    }
+
     .content {
       flex-grow: 1;
+      height: 100vh;
       padding: 20px;
+      overflow-y: auto;
     }
 
     .hidden {
@@ -63,6 +78,9 @@
     input, select {
       padding: 6px;
       margin: 4px;
+      background: #222;
+      color: #eee;
+      border: 1px solid #555;
     }
 
     button.action {
@@ -72,10 +90,23 @@
       cursor: pointer;
       color: white;
       margin-left: 3px;
+      border-radius: 4px;
     }
 
     button.action:hover {
       background: #00bb44;
+    }
+
+    button.delete {
+      background: #992222;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button.delete:hover {
+      background: #cc0000;
     }
 
     .thumb {
@@ -83,475 +114,546 @@
       height: 60px;
       object-fit: cover;
       border: 1px solid #555;
+      margin-bottom: 4px;
     }
   </style>
 </head>
 <body>
-  <!-- SIDEBAR -->
-  <div class="sidebar">
-    <h2>Admin</h2>
-    <button onclick="showTab('xpTab')">XP-Verwaltung</button>
-    <button onclick="showTab('classTab')">Klassen & Schüler:innen</button>
-    <button onclick="showTab('missionTab')">Missionen</button>
-    <button onclick="showTab('bonusTab')">Bonuskarten</button>
-    <button onclick="logout()">Logout</button>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <h2>Admin</h2>
+
+  <div class="nav-item" onclick="showTab('xpTab')">
+    <svg viewBox="0 0 24 24"><path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/></svg>
+    <span>XP-Verwaltung</span>
   </div>
 
-  <!-- CONTENT -->
-  <div class="content">
-
-    <!-- =============================================== -->
-    <!-- XP VERWALTUNG (Startseite) -->
-    <!-- =============================================== -->
-    <div id="xpTab" class="tab">
-      <h1>XP-Verwaltung</h1>
-
-      <label>Aktive Klasse wählen:</label>
-      <select id="xpClassSelect" onchange="loadXPStudents()"></select>
-
-      <h3>Schüler:innen dieser Klasse</h3>
-      <table id="xpStudentTable">
-        <thead>
-          <tr>
-            <th>Auswahl</th>
-            <th>Name</th>
-            <th>XP</th>
-            <th>Uploads</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-
-      <h3>XP vergeben</h3>
-      <input type="number" id="xpValue" placeholder="XP" />
-      <button class="action" onclick="addXP()">XP an ausgewählte</button>
-      <button class="action" onclick="addXPToAll()">XP an alle</button>
-
-      <h3>Mission XP</h3>
-      <select id="xpMissionSelect"></select>
-      <button class="action" onclick="missionXP()">Mission an ausgewählte</button>
-      <button class="action" onclick="missionXPAll()">Mission an alle</button>
-    </div>
-
-    <!-- =============================================== -->
-    <!-- KLASSEN & SCHÜLER -->
-    <!-- =============================================== -->
-    <div id="classTab" class="tab hidden">
-      <h1>Klassen & Schüler:innen</h1>
-
-      <h3>Neue Klasse anlegen</h3>
-      <input id="newClassName" placeholder="Klassenname (7a)" />
-      <button class="action" onclick="addClass()">Klasse anlegen</button>
-
-      <h3>Klassenliste</h3>
-      <table id="classList"></table>
-
-      <h3>Schüler:in anlegen</h3>
-      <select id="studentClassSelect"></select>
-      <input id="studentName" placeholder="Name" />
-      <input id="studentPw" placeholder="Passwort" />
-      <button class="action" onclick="addStudent()">Schüler:in anlegen</button>
-
-      <h3>Schülerliste</h3>
-      <table id="studentList"></table>
-    </div>
-
-    <!-- =============================================== -->
-    <!-- MISSIONEN -->
-    <!-- =============================================== -->
-    <div id="missionTab" class="tab hidden">
-      <h1>Missionen</h1>
-
-      <h3>Neue Mission</h3>
-      <input id="missionName" placeholder="Name" />
-      <input id="missionXP" type="number" placeholder="XP" />
-      <input id="missionImage" type="file" />
-      <label>Upload erforderlich?</label>
-      <select id="missionReq">
-        <option value="false">Nein</option>
-        <option value="true">Ja</option>
-      </select>
-      <button class="action" onclick="createMission()">Mission anlegen</button>
-
-      <h3>Alle Missionen</h3>
-      <table id="missionList"></table>
-    </div>
-
-    <!-- =============================================== -->
-    <!-- BONUSKARTEN -->
-    <!-- =============================================== -->
-    <div id="bonusTab" class="tab hidden">
-      <h1>Bonuskarten</h1>
-
-      <h3>Neue Bonuskarte</h3>
-      <input id="bonusName" placeholder="Name" />
-      <input id="bonusCost" type="number" placeholder="XP Kosten" />
-      <input id="bonusImage" type="file" />
-      <button class="action" onclick="createBonus()">Bonuskarte anlegen</button>
-
-      <h3>Alle Bonuskarten</h3>
-      <table id="bonusList"></table>
-    </div>
-
-  </div> <!-- content -->
-
-  <script>
-    const API = "";
-
-    // ==============================
-    // Sidebar Tabs
-    // ==============================
-    function showTab(id) {
-      document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
-      document.getElementById(id).classList.remove("hidden");
-    }
-
-    // ==============================
-    // Logout
-    // ==============================
-    async function logout() {
-      await fetch("/api/logout", { method: "POST" });
-      window.location = "/login.html";
-    }
-
-    // ============================================================
-    // XP VERWALTUNG
-    // ============================================================
-
-    async function loadXPClasses() {
-      const r = await fetch("/api/class");
-      const list = await r.json();
-      const sel = document.getElementById("xpClassSelect");
-      sel.innerHTML = "";
-      list.forEach(c => {
-        const o = document.createElement("option");
-        o.value = c.id;
-        o.textContent = c.name;
-        sel.appendChild(o);
-      });
-      loadXPStudents();
-    }
-
-    async function loadXPStudents() {
-      const classId = document.getElementById("xpClassSelect").value;
-      if (!classId) return;
-
-      const r = await fetch("/api/student?classId=" + classId);
-      const students = await r.json();
-
-      const tbl = document.querySelector("#xpStudentTable tbody");
-      tbl.innerHTML = "";
-
-      for (const s of students) {
-        const uploads = await fetch("/api/admin/uploads/" + s.id).then(r => r.json());
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><input type="checkbox" value="${s.id}"></td>
-          <td>${s.name}</td>
-          <td>${s.xp}</td>
-          <td>
-            ${uploads
-              .map(
-                u =>
-                  `<img src="${u.image_url}" class="thumb">
-                   <button onclick="deleteUpload(${u.id})">Löschen</button>`
-              )
-              .join("<br>")}
-          </td>
-        `;
-        tbl.appendChild(tr);
-      }
-    }
-
-    function getXPSelected() {
-      return [...document.querySelectorAll("#xpStudentTable input[type=checkbox]:checked")].map(
-        c => Number(c.value)
-      );
-    }
-
-    async function addXP() {
-      const ids = getXPSelected();
-      const xp = Number(document.getElementById("xpValue").value);
-      if (!ids.length) return alert("Keine Schüler ausgewählt");
-
-      await fetch("/api/xp/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentIds: ids, xp }),
-      });
-      loadXPStudents();
-    }
-
-    async function addXPToAll() {
-      const xp = Number(document.getElementById("xpValue").value);
-      const ids = [...document.querySelectorAll("#xpStudentTable input[type=checkbox]")]
-        .map(c => Number(c.value));
-      await fetch("/api/xp/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentIds: ids, xp }),
-      });
-      loadXPStudents();
-    }
-
-    async function loadMissionsForXP() {
-      const r = await fetch("/api/missions");
-      const missions = await r.json();
-      const sel = document.getElementById("xpMissionSelect");
-      sel.innerHTML = "";
-      missions.forEach(m => {
-        const o = document.createElement("option");
-        o.value = m.id;
-        o.textContent = `${m.name} (+${m.xp} XP)`;
-        sel.appendChild(o);
-      });
-    }
-
-    async function missionXP() {
-      const ids = getXPSelected();
-      const missionId = document.getElementById("xpMissionSelect").value;
-      if (!ids.length) return alert("Keine Schüler ausgewählt");
-
-      await fetch("/api/xp/mission", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentIds: ids, missionId }),
-      });
-      loadXPStudents();
-    }
-
-    async function missionXPAll() {
-      const missionId = document.getElementById("xpMissionSelect").value;
-      const ids = [...document.querySelectorAll("#xpStudentTable input[type=checkbox]")]
-        .map(c => Number(c.value));
-
-      await fetch("/api/xp/mission", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentIds: ids, missionId }),
-      });
-      loadXPStudents();
-    }
-
-    async function deleteUpload(id) {
-      await fetch("/api/upload/" + id, { method: "DELETE" });
-      loadXPStudents();
-    }
-
-    // ============================================================
-    // KLASSEN / SCHÜLER
-    // ============================================================
-
-    async function loadClasses() {
-      const r = await fetch("/api/class");
-      const list = await r.json();
-
-      const ctbl = document.getElementById("classList");
-      ctbl.innerHTML = "<tr><th>Name</th><th>Aktionen</th></tr>";
-
-      const sel = document.getElementById("studentClassSelect");
-      sel.innerHTML = "";
-
-      list.forEach(c => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${c.name}</td>
-          <td><button onclick="deleteClass(${c.id})">Löschen</button></td>
-        `;
-        ctbl.appendChild(tr);
-
-        const o = document.createElement("option");
-        o.value = c.id;
-        o.textContent = c.name;
-        sel.appendChild(o);
-      });
-
-      loadStudents();
-    }
-
-    async function addClass() {
-      const name = document.getElementById("newClassName").value;
-      await fetch("/api/class", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      loadClasses();
-    }
-
-    async function deleteClass(id) {
-      await fetch("/api/class/" + id, { method: "DELETE" });
-      loadClasses();
-    }
-
-    async function loadStudents() {
-      const classId = document.getElementById("studentClassSelect").value;
-      const r = await fetch("/api/student?classId=" + classId);
-      const list = await r.json();
-
-      const tbl = document.getElementById("studentList");
-      tbl.innerHTML = "<tr><th>Name</th><th>Passwort</th><th>Aktionen</th></tr>";
-
-      list.forEach(s => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${s.name}</td>
-          <td>${s.password}</td>
-          <td><button onclick="deleteStudent(${s.id})">Löschen</button></td>
-        `;
-        tbl.appendChild(tr);
-      });
-    }
-
-    async function addStudent() {
-      const name = document.getElementById("studentName").value;
-      const password = document.getElementById("studentPw").value;
-      const classId = document.getElementById("studentClassSelect").value;
-
-      await fetch("/api/student", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password, classId }),
-      });
-      loadStudents();
-    }
-
-    async function deleteStudent(id) {
-      await fetch("/api/student/" + id, { method: "DELETE" });
-      loadStudents();
-    }
-
-    // ============================================================
-    // MISSIONEN
-    // ============================================================
-
-    async function loadMissions() {
-      const r = await fetch("/api/missions");
-      const list = await r.json();
-
-      const tbl = document.getElementById("missionList");
-      tbl.innerHTML = "<tr><th>Name</th><th>XP</th><th>Bild</th><th>Upload?</th><th>Aktionen</th></tr>";
-
-      list.forEach(m => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${m.name}</td>
-          <td>${m.xp}</td>
-          <td>${m.image_url ? `<img src="${m.image_url}" class="thumb">` : "-"}</td>
-          <td>${m.require_upload ? "Ja" : "Nein"}</td>
-          <td><button onclick="deleteMission(${m.id})">Löschen</button></td>
-        `;
-        tbl.appendChild(tr);
-      });
-    }
-
-    async function createMission() {
-      const name = document.getElementById("missionName").value;
-      const xp = Number(document.getElementById("missionXP").value);
-      const file = document.getElementById("missionImage").files[0];
-      const requireUpload = document.getElementById("missionReq").value;
-
-      let imageUrl = "";
-
-      if (file) {
-        const fd = new FormData();
-        fd.append("image", file);
-        const r = await fetch("/api/missions/upload", {
-          method: "POST",
-          body: fd,
-        });
-        const j = await r.json();
-        if (!j.success) return alert("Upload fehlgeschlagen");
-        imageUrl = j.url;
-      }
-
-      await fetch("/api/missions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, xp, imageUrl, requireUpload }),
-      });
-
-      loadMissions();
-      loadMissionsForXP();
-    }
-
-    async function deleteMission(id) {
-      await fetch("/api/missions/" + id, { method: "DELETE" });
-      loadMissions();
-      loadMissionsForXP();
-    }
-
-    // ============================================================
-    // BONUSKARTEN
-    // ============================================================
-
-    async function loadBonuscards() {
-      const r = await fetch("/api/bonuscards");
-      const list = await r.json();
-
-      const tbl = document.getElementById("bonusList");
-      tbl.innerHTML = "<tr><th>Name</th><th>Kosten</th><th>Bild</th><th>Aktionen</th></tr>";
-
-      list.forEach(b => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${b.name}</td>
-          <td>${b.xp_cost}</td>
-          <td>${b.image_url ? `<img src="${b.image_url}" class="thumb">` : "-"}</td>
-          <td><button onclick="deleteBonus(${b.id})">Löschen</button></td>
-        `;
-        tbl.appendChild(tr);
-      });
-    }
-
-    async function createBonus() {
-      const name = document.getElementById("bonusName").value;
-      const xp_cost = Number(document.getElementById("bonusCost").value);
-      const file = document.getElementById("bonusImage").files[0];
-
-      let url = "";
-
-      if (file) {
-        const fd = new FormData();
-        fd.append("image", file);
-        const r = await fetch("/api/bonuscards/upload", {
-          method: "POST",
-          body: fd,
-        });
-        const j = await r.json();
-        if (!j.success) return alert("Upload fehlgeschlagen");
-        url = j.url;
-      }
-
-      await fetch("/api/bonuscards", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, xp_cost, imageUrl: url }),
-      });
-
-      loadBonuscards();
-    }
-
-    async function deleteBonus(id) {
-      await fetch("/api/bonuscards/" + id, { method: "DELETE" });
-      loadBonuscards();
-    }
-
-    // ============================================================
-    // INIT
-    // ============================================================
-
-    async function init() {
-      showTab("xpTab");
-      await loadXPClasses();
-      await loadMissionsForXP();
-      await loadClasses();
-      await loadBonuscards();
-      await loadMissions();
-    }
-
-    init();
-  </script>
+  <div class="nav-item" onclick="showTab('classTab')">
+    <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
+    <span>Klassen & Schüler</span>
+  </div>
+
+  <div class="nav-item" onclick="showTab('missionTab')">
+    <svg viewBox="0 0 24 24"><path d="M3 3v18l9-4 9 4V3H3zm16 2v11.1l-7-3.1-7 3.1V5h14z"/></svg>
+    <span>Missionen</span>
+  </div>
+
+  <div class="nav-item" onclick="showTab('bonusTab')">
+    <svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.2L18 21l-6-4-6 4 1.5-7.8L2 9h7z"/></svg>
+    <span>Bonuskarten</span>
+  </div>
+
+  <div class="nav-item" onclick="logout()">
+    <svg viewBox="0 0 24 24"><path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9v2h10v14H9v2h10c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+    <span>Logout</span>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- XP-Verwaltung -->
+  <div id="xpTab" class="tab">
+    <h1>XP-Verwaltung</h1>
+
+    <label>Aktive Klasse:</label>
+    <select id="xpClassSelect" onchange="loadXPStudents()"></select>
+
+    <table id="xpStudentTable">
+      <thead>
+        <tr>
+          <th>Auswahl</th>
+          <th>Name</th>
+          <th>XP</th>
+          <th>Uploads</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h3>XP vergeben</h3>
+    <input type="number" id="xpValue" placeholder="XP" />
+    <button class="action" onclick="addXP()">XP an Auswahl</button>
+    <button class="action" onclick="addXPAll()">XP an alle</button>
+
+    <h3>Mission XP</h3>
+    <select id="xpMissionSelect"></select>
+    <button class="action" onclick="addMissionXP()">Mission an Auswahl</button>
+    <button class="action" onclick="addMissionXPAll()">Mission an alle</button>
+  </div>
+  <!-- KLASSEN & SCHÜLER -->
+  <div id="classTab" class="tab hidden">
+    <h1>Klassen & Schüler:innen</h1>
+
+    <h3>Neue Klasse anlegen</h3>
+    <input id="newClassName" placeholder="Klassenname" />
+    <button class="action" onclick="addClass()">Anlegen</button>
+
+    <h3>Klassenliste</h3>
+    <select id="classManageSelect" onchange="loadClassStudents()"></select>
+
+    <table id="classStudentTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Passwort</th>
+          <th>Löschen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h3>Schüler:in anlegen</h3>
+    <input id="studentName" placeholder="Name" />
+    <input id="studentPassword" placeholder="Passwort" />
+    <button class="action" onclick="addStudent()">Schüler:in anlegen</button>
+  </div>
+
+  <!-- MISSIONEN -->
+  <div id="missionTab" class="tab hidden">
+    <h1>Missionen</h1>
+
+    <h3>Neue Mission anlegen</h3>
+    <input id="missionName" placeholder="Name" />
+    <input id="missionXP" type="number" placeholder="XP" />
+    <label>
+      <input type="checkbox" id="missionRequireUpload" />
+      Schüler müssen ein Bild hochladen
+    </label>
+    <br>
+    <input type="file" id="missionImage" />
+    <button class="action" onclick="uploadMissionImage()">Bild hochladen</button>
+    <br>
+    <button class="action" onclick="addMission()">Mission speichern</button>
+
+    <h3>Missionen</h3>
+    <table id="missionTable">
+      <thead>
+        <tr>
+          <th>Bild</th>
+          <th>Name</th>
+          <th>XP</th>
+          <th>Upload?</th>
+          <th>Löschen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- BONUSKARTEN -->
+  <div id="bonusTab" class="tab hidden">
+    <h1>Bonuskarten</h1>
+
+    <h3>Neue Bonuskarte anlegen</h3>
+    <input id="bonusName" placeholder="Name" />
+    <input id="bonusXP" type="number" placeholder="XP" />
+    <input type="file" id="bonusImage" />
+    <button class="action" onclick="uploadBonusImage()">Bild hochladen</button>
+    <button class="action" onclick="addBonus()">Speichern</button>
+
+    <h3>Bonuskarten</h3>
+    <table id="bonusTable">
+      <thead>
+        <tr>
+          <th>Bild</th>
+          <th>Name</th>
+          <th>XP</th>
+          <th>Löschen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+</div> <!-- END CONTENT -->
+
+
+<script>
+/* ---------------------------------------------------
+   TABS
+--------------------------------------------------- */
+function showTab(id) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+
+  if (id === "xpTab") loadXPInit();
+  if (id === "classTab") loadClassesForManage();
+  if (id === "missionTab") loadMissions();
+  if (id === "bonusTab") loadBonuses();
+}
+
+/* ---------------------------------------------------
+   LOGOUT
+--------------------------------------------------- */
+async function logout() {
+  await fetch("/api/logout", { method: "POST" });
+  location.href = "/login.html";
+}
+
+/* ---------------------------------------------------
+   KLASSEN
+--------------------------------------------------- */
+
+async function loadXPInit() {
+  const r = await fetch("/api/class");
+  const classes = await r.json();
+
+  const sel = document.getElementById("xpClassSelect");
+  sel.innerHTML = "";
+
+  classes.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+
+  loadXPStudents();
+}
+
+async function loadXPStudents() {
+  const classId = document.getElementById("xpClassSelect").value;
+  const r = await fetch(`/api/student?classId=${classId}`);
+  const students = await r.json();
+
+  const tbody = document.querySelector("#xpStudentTable tbody");
+  tbody.innerHTML = "";
+
+  students.forEach(s => {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td><input type="checkbox" value="${s.id}" /></td>
+      <td>${s.name}</td>
+      <td>${s.xp}</td>
+      <td>
+        ${s.upload_url ? `<img class="thumb" src="${s.upload_url}"> 
+        <button class="delete" onclick="deleteUpload(${s.id})">X</button>`
+        : "—"}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  loadMissionsForXP();
+}
+
+async function loadClassesForManage() {
+  const r = await fetch("/api/class");
+  const classes = await r.json();
+
+  const sel = document.getElementById("classManageSelect");
+  sel.innerHTML = "";
+
+  classes.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+
+  loadClassStudents();
+}
+
+async function addClass() {
+  const name = document.getElementById("newClassName").value;
+  if (!name) return;
+
+  await fetch("/api/class", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name})
+  });
+
+  loadClassesForManage();
+  loadXPInit();
+}
+
+async function loadClassStudents() {
+  const classId = document.getElementById("classManageSelect").value;
+  const r = await fetch(`/api/student?classId=${classId}`);
+  const students = await r.json();
+
+  const tbody = document.querySelector("#classStudentTable tbody");
+  tbody.innerHTML = "";
+
+  students.forEach(s => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${s.name}</td>
+      <td>${s.password}</td>
+      <td><button class="delete" onclick="deleteStudent(${s.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addStudent() {
+  const classId = document.getElementById("classManageSelect").value;
+  const name = document.getElementById("studentName").value;
+  const password = document.getElementById("studentPassword").value;
+
+  if (!name || !password) return;
+
+  await fetch("/api/student", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name, password, classId})
+  });
+
+  loadClassStudents();
+  loadXPStudents();
+}
+
+async function deleteStudent(id) {
+  await fetch(`/api/student/${id}`, { method: "DELETE" });
+  loadClassStudents();
+  loadXPStudents();
+}
+
+/* ---------------------------------------------------
+   XP VERGABE
+--------------------------------------------------- */
+
+function selectedStudentIds() {
+  return [...document.querySelectorAll("#xpStudentTable input[type=checkbox]:checked")]
+    .map(cb => Number(cb.value));
+}
+
+async function addXP() {
+  const xp = Number(document.getElementById("xpValue").value);
+  const ids = selectedStudentIds();
+  if (!xp || ids.length === 0) return;
+
+  for (let id of ids) {
+    await fetch("/api/xp", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ studentId: id, xp })
+    });
+  }
+  loadXPStudents();
+}
+
+async function addXPAll() {
+  const xp = Number(document.getElementById("xpValue").value);
+  if (!xp) return;
+
+  const cId = document.getElementById("xpClassSelect").value;
+  const r = await fetch(`/api/student?classId=${cId}`);
+  const students = await r.json();
+
+  for (let s of students) {
+    await fetch("/api/xp", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ studentId: s.id, xp })
+    });
+  }
+  loadXPStudents();
+}
+
+/* ---------------------------------------------------
+   MISSION XP
+--------------------------------------------------- */
+
+async function loadMissionsForXP() {
+  const r = await fetch("/api/missions");
+  const missions = await r.json();
+
+  const sel = document.getElementById("xpMissionSelect");
+  sel.innerHTML = "";
+
+  missions.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = `${m.name} (+${m.xp} XP)`;
+    sel.appendChild(opt);
+  });
+}
+
+async function addMissionXP() {
+  const missionId = document.getElementById("xpMissionSelect").value;
+  const ids = selectedStudentIds();
+
+  for (let id of ids) {
+    await fetch("/api/xpmission", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ studentId: id, missionId })
+    });
+  }
+
+  loadXPStudents();
+}
+
+async function addMissionXPAll() {
+  const missionId = document.getElementById("xpMissionSelect").value;
+
+  const cId = document.getElementById("xpClassSelect").value;
+  const r = await fetch(`/api/student?classId=${cId}`);
+  const students = await r.json();
+
+  for (let s of students) {
+    await fetch("/api/xpmission", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ studentId: s.id, missionId })
+    });
+  }
+
+  loadXPStudents();
+}
+
+/* ---------------------------------------------------
+   UPLOAD der Schüler:innen löschen
+--------------------------------------------------- */
+async function deleteUpload(studentId) {
+  await fetch(`/api/upload/${studentId}`, { method: "DELETE" });
+  loadXPStudents();
+}
+
+/* ---------------------------------------------------
+   MISSIONEN
+--------------------------------------------------- */
+
+let uploadedMissionImageUrl = null;
+
+async function uploadMissionImage() {
+  const file = document.getElementById("missionImage").files[0];
+  if (!file) return;
+
+  const form = new FormData();
+  form.append("image", file);
+
+  const r = await fetch("/api/missions/upload", {
+    method: "POST",
+    body: form
+  });
+
+  const data = await r.json();
+  if (data.success) uploadedMissionImageUrl = data.url;
+}
+
+async function addMission() {
+  const name = document.getElementById("missionName").value;
+  const xp = Number(document.getElementById("missionXP").value);
+  const requireUpload = document.getElementById("missionRequireUpload").checked;
+
+  if (!name || !xp) return;
+
+  await fetch("/api/missions", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name,
+      xp,
+      imageUrl: uploadedMissionImageUrl,
+      requireUpload
+    })
+  });
+
+  document.getElementById("missionName").value = "";
+  document.getElementById("missionXP").value = "";
+  document.getElementById("missionImage").value = "";
+  uploadedMissionImageUrl = null;
+
+  loadMissions();
+}
+
+async function loadMissions() {
+  const r = await fetch("/api/missions");
+  const missions = await r.json();
+
+  const tbody = document.querySelector("#missionTable tbody");
+  tbody.innerHTML = "";
+
+  missions.forEach(m => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${m.image_url ? `<img class="thumb" src="${m.image_url}">` : "—"}</td>
+      <td>${m.name}</td>
+      <td>${m.xp}</td>
+      <td>${m.require_upload ? "Ja" : "Nein"}</td>
+      <td><button class="delete" onclick="deleteMission(${m.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function deleteMission(id) {
+  await fetch(`/api/missions/${id}`, { method: "DELETE" });
+  loadMissions();
+  loadMissionsForXP();
+}
+
+/* ---------------------------------------------------
+   BONUSKARTEN
+--------------------------------------------------- */
+
+let uploadedBonusImageUrl = null;
+
+async function uploadBonusImage() {
+  const file = document.getElementById("bonusImage").files[0];
+  if (!file) return;
+
+  const form = new FormData();
+  form.append("image", file);
+
+  const r = await fetch("/api/bonus/upload", { method: "POST", body: form });
+  const data = await r.json();
+  if (data.success) uploadedBonusImageUrl = data.url;
+}
+
+async function addBonus() {
+  const name = document.getElementById("bonusName").value;
+  const xp = Number(document.getElementById("bonusXP").value);
+
+  if (!name || !xp) return;
+
+  await fetch("/api/bonus", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name,
+      xp,
+      imageUrl: uploadedBonusImageUrl
+    })
+  });
+
+  document.getElementById("bonusName").value = "";
+  document.getElementById("bonusXP").value = "";
+  uploadedBonusImageUrl = null;
+
+  loadBonuses();
+}
+
+async function loadBonuses() {
+  const r = await fetch("/api/bonus");
+  const bonuses = await r.json();
+
+  const tbody = document.querySelector("#bonusTable tbody");
+  tbody.innerHTML = "";
+
+  bonuses.forEach(b => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${b.image_url ? `<img class="thumb" src="${b.image_url}">` : "—"}</td>
+      <td>${b.name}</td>
+      <td>${b.xp}</td>
+      <td><button class="delete" onclick="deleteBonus(${b.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function deleteBonus(id) {
+  await fetch(`/api/bonus/${id}`, { method: "DELETE" });
+  loadBonuses();
+}
+
+</script>
 </body>
 </html>
