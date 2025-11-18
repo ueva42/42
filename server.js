@@ -1,7 +1,7 @@
 // =======================================================
 // Temple of Logic – FINAL SERVER.JS (vollständig, 2025)
 // Mit: Klassen, Schüler:innen, Missionen, XP, Uploads,
-// Bonuskarten, Charaktere, R2-Upload
+// Bonuskarten, Charaktere, Level, R2-Upload
 // =======================================================
 
 import express from "express";
@@ -85,7 +85,7 @@ async function migrate() {
     );
   `);
 
-  // USERS UNIQUE entfernen
+  // USERS unique fix
   await pool.query(`
     DO $$
     DECLARE
@@ -160,6 +160,16 @@ async function migrate() {
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       image_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // LEVEL
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS levels (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      required_xp INTEGER NOT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
@@ -637,6 +647,37 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
   }
 
   await pool.query("DELETE FROM characters WHERE id=$1", [id]);
+  res.json({ success: true });
+});
+
+// =======================================================
+// LEVEL
+// =======================================================
+
+// Level anlegen
+app.post("/api/level", isAdmin, async (req, res) => {
+  const { name, required_xp } = req.body;
+
+  await pool.query(
+    `INSERT INTO levels (name, required_xp)
+     VALUES ($1, $2)`,
+    [name, Number(required_xp)]
+  );
+
+  res.json({ success: true });
+});
+
+// Level-Liste
+app.get("/api/level", isAdmin, async (_, res) => {
+  const r = await pool.query(
+    "SELECT * FROM levels ORDER BY required_xp ASC"
+  );
+  res.json(r.rows);
+});
+
+// Level löschen
+app.delete("/api/level/:id", isAdmin, async (req, res) => {
+  await pool.query("DELETE FROM levels WHERE id=$1", [req.params.id]);
   res.json({ success: true });
 });
 

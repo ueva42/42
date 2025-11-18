@@ -151,6 +151,13 @@
     <span>Charaktere</span>
   </div>
 
+  <div class="nav-item" onclick="showTab('levelTab')">
+    <svg viewBox="0 0 24 24">
+      <path d="M4 22h16v-2H4v2zm2-4h12v-2H6v2zm2-4h8v-2H8v2zm2-4h4V8h-4v2zm2-10L3 6v2h18V6L12 0z"/>
+    </svg>
+    <span>Level</span>
+  </div>
+
   <div class="nav-item" onclick="logout()">
     <svg viewBox="0 0 24 24"><path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9v2h10v14H9v2h10c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
     <span>Logout</span>
@@ -160,7 +167,7 @@
 <!-- CONTENT -->
 <div class="content">
 
-  <!-- XP-Verwaltung -->
+  <!-- XP -->
   <div id="xpTab" class="tab">
     <h1>XP-Verwaltung</h1>
 
@@ -190,7 +197,7 @@
     <button class="action" onclick="addMissionXPAll()">Mission an alle</button>
   </div>
 
-  <!-- KLASSEN & SCHÜLER -->
+  <!-- KLASSEN -->
   <div id="classTab" class="tab hidden">
     <h1>Klassen & Schüler:innen</h1>
 
@@ -274,6 +281,7 @@
       <tbody></tbody>
     </table>
   </div>
+
   <!-- CHARAKTERE -->
   <div id="characterTab" class="tab hidden">
     <h1>Charaktere</h1>
@@ -297,11 +305,31 @@
     </table>
   </div>
 
-</div> <!-- END CONTENT -->
+  <!-- LEVEL -->
+  <div id="levelTab" class="tab hidden">
+    <h1>Level</h1>
+
+    <h3>Neues Level anlegen</h3>
+    <input id="levelName" placeholder="Levelname" />
+    <input id="levelXP" type="number" placeholder="XP-Bedarf" />
+    <button class="action" onclick="addLevel()">Level speichern</button>
+
+    <h3>Levelliste</h3>
+    <table id="levelTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>XP-Bedarf</th>
+          <th>Löschen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
 <script>
 /* ---------------------------------------------------
-   TABS
+   TAB SYSTEM
 --------------------------------------------------- */
 function showTab(id) {
   document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
@@ -312,6 +340,7 @@ function showTab(id) {
   if (id === "missionTab") loadMissions();
   if (id === "bonusTab") loadBonuses();
   if (id === "characterTab") loadCharacters();
+  if (id === "levelTab") loadLevels();
 }
 
 /* ---------------------------------------------------
@@ -538,7 +567,7 @@ async function addMissionXPAll() {
 }
 
 /* ---------------------------------------------------
-   UPLOAD der Schüler:innen löschen
+   UPLOAD LÖSCHEN
 --------------------------------------------------- */
 async function deleteUpload(studentId) {
   await fetch(`/api/upload/${studentId}`, { method: "DELETE" });
@@ -558,12 +587,9 @@ async function uploadMissionImage() {
   const form = new FormData();
   form.append("image", file);
 
-  const r = await fetch("/api/missions/upload", {
-    method: "POST",
-    body: form
-  });
-
+  const r = await fetch("/api/missions/upload", { method: "POST", body: form });
   const data = await r.json();
+
   if (data.success) uploadedMissionImageUrl = data.url;
 }
 
@@ -687,7 +713,6 @@ async function deleteBonus(id) {
 /* ---------------------------------------------------
    CHARAKTERE
 --------------------------------------------------- */
-
 let uploadedCharacterImageUrl = null;
 
 async function uploadCharacterImage() {
@@ -719,9 +744,9 @@ async function addCharacter() {
     })
   });
 
+  uploadedCharacterImageUrl = null;
   document.getElementById("characterName").value = "";
   document.getElementById("characterImage").value = "";
-  uploadedCharacterImageUrl = null;
 
   loadCharacters();
 }
@@ -735,13 +760,11 @@ async function loadCharacters() {
 
   chars.forEach(c => {
     const tr = document.createElement("tr");
-
     tr.innerHTML = `
       <td>${c.image_url ? `<img class="thumb" src="${c.image_url}">` : "—"}</td>
       <td>${c.name}</td>
       <td><button class="delete" onclick="deleteCharacter(${c.id})">X</button></td>
     `;
-
     tbody.appendChild(tr);
   });
 }
@@ -751,7 +774,50 @@ async function deleteCharacter(id) {
   loadCharacters();
 }
 
-</script>
+/* ---------------------------------------------------
+   LEVEL SYSTEM
+--------------------------------------------------- */
 
+async function addLevel() {
+  const name = document.getElementById("levelName").value;
+  const xp = Number(document.getElementById("levelXP").value);
+
+  if (!name || isNaN(xp)) return;
+
+  await fetch("/api/level", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name, required_xp: xp })
+  });
+
+  document.getElementById("levelName").value = "";
+  document.getElementById("levelXP").value = "";
+
+  loadLevels();
+}
+
+async function loadLevels() {
+  const r = await fetch("/api/level");
+  const levels = await r.json();
+
+  const tbody = document.querySelector("#levelTable tbody");
+  tbody.innerHTML = "";
+
+  levels.forEach(l => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${l.name}</td>
+      <td>${l.required_xp}</td>
+      <td><button class="delete" onclick="deleteLevel(${l.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function deleteLevel(id) {
+  await fetch(`/api/level/${id}`, { method: "DELETE" });
+  loadLevels();
+}
+</script>
 </body>
 </html>
