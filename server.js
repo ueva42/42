@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – FINAL SERVER.JS (MIT BONUSKARTEN)
+// Temple of Logic – SERVER (passend zu admin.html Teil 1+2)
 // =======================================================
 
 import express from "express";
@@ -33,9 +33,14 @@ app.use(
     secret: "super-temp-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false },
+    cookie: { secure: false }, // hinter Proxy auf true umstellen
   })
 );
+
+// -------------------------------------------------------
+// Static Files
+// -------------------------------------------------------
+app.use(express.static(path.join(__dirname, "public")));
 
 // -------------------------------------------------------
 // PostgreSQL
@@ -45,7 +50,7 @@ const pool = new Pool({
 });
 
 // -------------------------------------------------------
-// Cloudflare R2 Upload
+// Cloudflare R2 (S3-kompatibel)
 // -------------------------------------------------------
 const r2 = new S3Client({
   region: "auto",
@@ -56,13 +61,8 @@ const r2 = new S3Client({
   },
 });
 
-// Upload-Handler
+// Multer – Upload im Speicher
 const upload = multer({ storage: multer.memoryStorage() });
-
-// -------------------------------------------------------
-// Static Files
-// -------------------------------------------------------
-app.use(express.static(path.join(__dirname, "public")));
 
 // =======================================================
 // MIGRATION
@@ -71,21 +71,7 @@ app.use(express.static(path.join(__dirname, "public")));
 async function migrate() {
   console.log("🔧 Starte Migration…");
 
-  // USERS
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      name TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'student',
-      class_id INTEGER,
-      xp INTEGER DEFAULT 0,
-      highest_xp INTEGER DEFAULT 0,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
-
-  // CLASSES
+  // Klassen
   await pool.query(`
     CREATE TABLE IF NOT EXISTS classes (
       id SERIAL PRIMARY KEY,
@@ -93,19 +79,32 @@ async function migrate() {
     );
   `);
 
-  // MISSIONS
+  // Nutzer
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'student',
+      class_id INTEGER REFERENCES classes(id) ON DELETE SET NULL,
+      xp INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // Missionen
   await pool.query(`
     CREATE TABLE IF NOT EXISTS missions (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       xp INTEGER NOT NULL,
       image_url TEXT,
-      require_upload BOOLEAN DEFAULT false,
+      require_upload BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
 
-  // STUDENT UPLOADS
+  // Uploads der Schüler:innen
   await pool.query(`
     CREATE TABLE IF NOT EXISTS student_uploads (
       id SERIAL PRIMARY KEY,
@@ -115,18 +114,18 @@ async function migrate() {
     );
   `);
 
-  // BONUSKARTEN
+  // Bonuskarten
   await pool.query(`
     CREATE TABLE IF NOT EXISTS bonuscards (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
-      xp_cost INTEGER NOT NULL,
+      xp INTEGER NOT NULL,
       image_url TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
 
-  // DEFAULT ADMIN
+  // Default-Admin
   await pool.query(`
     INSERT INTO users (name, password, role)
     VALUES ('admin', 'bruhrain', 'admin')
@@ -139,29 +138,30 @@ async function migrate() {
 await migrate();
 
 // =======================================================
-// LOGIN
+// AUTH / LOGIN
 // =======================================================
 
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
-  const r = await pool.query("SELECT * FROM users WHERE name=$1", [username]);
+  const r = await pool.query("SELECT * FROM users WHERE name = $1", [username]);
   if (r.rows.length === 0) return res.json({ success: false });
 
   const user = r.rows[0];
   if (user.password !== password) return res.json({ success: false });
 
-  req.session.user = { id: user.id, role: user.role, class_id: user.class_id };
+  req.session.user = {
+    id: user.id,
+    role: user.role,
+    class_id: user.class_id,
+  };
+
   res.json({ success: true, role: user.role });
 });
 
 app.post("/api/logout", (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
 });
-
-// =======================================================
-// AUTH
-// =======================================================
 
 function isAdmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== "admin") {
@@ -187,15 +187,20 @@ app.get("/api/class", isAdmin, async (_req, res) => {
 });
 
 app.post("/api/class", isAdmin, async (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.json({ success: false });
+
   await pool.query(
     "INSERT INTO classes (name) VALUES ($1) ON CONFLICT (name) DO NOTHING",
-    [req.body.name]
+    [name]
   );
+
   res.json({ success: true });
 });
 
+// (Klasse löschen – optional, hängt an dir)
 app.delete("/api/class/:id", isAdmin, async (req, res) => {
-  await pool.query("DELETE FROM classes WHERE id=$1", [req.params.id]);
+  await pool.query("DELETE FROM classes WHERE id = $1", [req.params.id]);
   res.json({ success: true });
 });
 
@@ -203,79 +208,118 @@ app.delete("/api/class/:id", isAdmin, async (req, res) => {
 // SCHÜLER:INNEN
 // =======================================================
 
+// Liste der Schüler:innen einer Klasse
+// -> liefert auch upload_url (letzter Upload des Schülers)
 app.get("/api/student", isAdmin, async (req, res) => {
+  const classId = req.query.classId;
+  if (!classId) return res.json([]);
+
   const r = await pool.query(
-    "SELECT * FROM users WHERE role='student' AND class_id=$1 ORDER BY name ASC",
-    [req.query.classId]
+    `
+    SELECT
+      u.id,
+      u.name,
+      u.password,
+      u.xp,
+      su.image_url AS upload_url
+    FROM users u
+    LEFT JOIN LATERAL (
+      SELECT image_url
+      FROM student_uploads
+      WHERE student_id = u.id
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) su ON TRUE
+    WHERE u.role = 'student'
+      AND u.class_id = $1
+    ORDER BY u.name ASC
+    `,
+    [classId]
   );
+
   res.json(r.rows);
 });
 
+// Schüler:in anlegen
 app.post("/api/student", isAdmin, async (req, res) => {
   const { name, password, classId } = req.body;
+  if (!name || !password || !classId) return res.json({ success: false });
 
   await pool.query(
-    `INSERT INTO users (name, password, role, class_id)
-     VALUES ($1,$2,'student',$3)
-     ON CONFLICT (name) DO NOTHING`,
+    `
+    INSERT INTO users (name, password, role, class_id)
+    VALUES ($1, $2, 'student', $3)
+    ON CONFLICT (name) DO NOTHING
+    `,
     [name, password, classId]
   );
 
   res.json({ success: true });
 });
 
+// Schüler:in löschen
 app.delete("/api/student/:id", isAdmin, async (req, res) => {
-  await pool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
+  await pool.query("DELETE FROM users WHERE id = $1", [req.params.id]);
   res.json({ success: true });
 });
 
 // =======================================================
-// XP – VERGABE
+// XP – VERGABE (einzelner Schüler)
 // =======================================================
 
-app.post("/api/xp/add", isAdmin, async (req, res) => {
-  const { studentIds, xp } = req.body;
-
-  for (const id of studentIds) {
-    await pool.query(`UPDATE users SET xp = xp + $1 WHERE id=$2`, [xp, id]);
+// admin.html ruft /api/xp mit { studentId, xp } mehrfach auf
+app.post("/api/xp", isAdmin, async (req, res) => {
+  const { studentId, xp } = req.body;
+  if (!studentId || !Number.isFinite(Number(xp))) {
+    return res.json({ success: false });
   }
+  const delta = Number(xp);
+
+  await pool.query(
+    "UPDATE users SET xp = xp + $1 WHERE id = $2 AND role = 'student'",
+    [delta, studentId]
+  );
 
   res.json({ success: true });
 });
 
-// Mission XP
-app.post("/api/xp/mission", isAdmin, async (req, res) => {
-  const { studentIds, missionId } = req.body;
+// Mission-XP für einen Schüler
+// admin.html ruft /api/xpmission mit { studentId, missionId }
+app.post("/api/xpmission", isAdmin, async (req, res) => {
+  const { studentId, missionId } = req.body;
+  if (!studentId || !missionId) return res.json({ success: false });
 
-  const mission = await pool.query("SELECT xp FROM missions WHERE id=$1", [
+  const mr = await pool.query("SELECT xp FROM missions WHERE id = $1", [
     missionId,
   ]);
+  if (mr.rows.length === 0) return res.json({ success: false });
 
-  if (mission.rows.length === 0)
-    return res.json({ success: false, error: "Mission not found" });
+  const missionXP = mr.rows[0].xp;
 
-  const xp = mission.rows[0].xp;
-
-  for (const id of studentIds) {
-    await pool.query(`UPDATE users SET xp = xp + $1 WHERE id=$2`, [xp, id]);
-  }
+  await pool.query(
+    "UPDATE users SET xp = xp + $1 WHERE id = $2 AND role = 'student'",
+    [missionXP, studentId]
+  );
 
   res.json({ success: true });
 });
 
 // =======================================================
-// UPLOAD PRO SCHÜLER
+// SCHÜLER-UPLOAD (für student.html) + Löschen (Admin)
 // =======================================================
 
+// Schüler:in lädt Bild hoch (z.B. als Missions-Nachweis)
 app.post(
-  "/api/student/:id/upload",
+  "/api/student/upload",
   isStudent,
   upload.single("image"),
   async (req, res) => {
     try {
-      const studentId = req.session.user.id;
+      if (!req.file) return res.json({ success: false });
 
-      const fileName = `uploads/${studentId}_${Date.now()}_${req.file.originalname}`;
+      const studentId = req.session.user.id;
+      const fileName =
+        "uploads/" + studentId + "_" + Date.now() + "_" + req.file.originalname;
 
       await r2.send(
         new PutObjectCommand({
@@ -289,40 +333,64 @@ app.post(
       const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
 
       await pool.query(
-        `INSERT INTO student_uploads (student_id, image_url)
-         VALUES ($1,$2)`,
+        `
+        INSERT INTO student_uploads (student_id, image_url)
+        VALUES ($1, $2)
+        `,
         [studentId, url]
       );
 
       res.json({ success: true, url });
     } catch (err) {
-      console.error("Uploadfehler:", err);
+      console.error("Schüler-Upload Fehler:", err);
       res.status(500).json({ success: false });
     }
   }
 );
 
-// Admin löscht Upload
-app.delete("/api/upload/:id", isAdmin, async (req, res) => {
-  const r = await pool.query(
-    "SELECT image_url FROM student_uploads WHERE id=$1",
-    [req.params.id]
+// Admin löscht (letzten) Upload eines Schülers
+// admin.html ruft: DELETE /api/upload/:studentId
+app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
+  const studentId = req.params.studentId;
+
+  // letzten Upload holen
+  const ur = await pool.query(
+    `
+    SELECT id, image_url
+    FROM student_uploads
+    WHERE student_id = $1
+    ORDER BY created_at DESC
+    LIMIT 1
+    `,
+    [studentId]
   );
-  if (r.rows.length === 0) return res.json({ success: false });
 
-  const url = r.rows[0].image_url;
-  const key = url.split("/").slice(3).join("/");
+  if (ur.rows.length === 0) {
+    return res.json({ success: false });
+  }
 
-  await r2.send(
-    new DeleteObjectCommand({
-      Bucket: process.env.R2_BUCKET,
-      Key: key,
-    })
-  );
+  const upload = ur.rows[0];
 
-  await pool.query("DELETE FROM student_uploads WHERE id=$1", [
-    req.params.id,
-  ]);
+  // R2-Key aus URL ableiten (alles nach dem Bucket-Host)
+  const url = upload.image_url;
+  const publicPrefix = process.env.R2_PUBLIC_URL + "/";
+  const key = url.startsWith(publicPrefix) ? url.slice(publicPrefix.length) : null;
+
+  if (key) {
+    try {
+      await r2.send(
+        new DeleteObjectCommand({
+          Bucket: process.env.R2_BUCKET,
+          Key: key,
+        })
+      );
+    } catch (err) {
+      console.error("R2 Delete Fehler:", err);
+      // selbst wenn R2-Löschen fehlschlägt, entfernen wir den DB-Eintrag
+    }
+  }
+
+  await pool.query("DELETE FROM student_uploads WHERE id = $1", [upload.id]);
 
   res.json({ success: true });
 });
@@ -331,14 +399,16 @@ app.delete("/api/upload/:id", isAdmin, async (req, res) => {
 // MISSIONEN
 // =======================================================
 
-// Bild-Upload
+// Bild-Upload für Mission
 app.post(
   "/api/missions/upload",
   isAdmin,
   upload.single("image"),
   async (req, res) => {
     try {
-      const fileName = `missions/${Date.now()}_${req.file.originalname}`;
+      if (!req.file) return res.json({ success: false });
+
+      const fileName = "missions/" + Date.now() + "_" + req.file.originalname;
 
       await r2.send(
         new PutObjectCommand({
@@ -352,7 +422,7 @@ app.post(
       const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
       res.json({ success: true, url });
     } catch (err) {
-      console.error("Mission Uploadfehler:", err);
+      console.error("Mission-Upload Fehler:", err);
       res.status(500).json({ success: false });
     }
   }
@@ -361,11 +431,16 @@ app.post(
 // Mission anlegen
 app.post("/api/missions", isAdmin, async (req, res) => {
   const { name, xp, imageUrl, requireUpload } = req.body;
+  if (!name || !Number.isFinite(Number(xp))) {
+    return res.json({ success: false });
+  }
 
   await pool.query(
-    `INSERT INTO missions (name, xp, image_url, require_upload)
-     VALUES ($1,$2,$3,$4)`,
-    [name, xp, imageUrl, requireUpload]
+    `
+    INSERT INTO missions (name, xp, image_url, require_upload)
+    VALUES ($1, $2, $3, $4)
+    `,
+    [name, Number(xp), imageUrl || null, !!requireUpload]
   );
 
   res.json({ success: true });
@@ -379,7 +454,32 @@ app.get("/api/missions", isAdmin, async (_req, res) => {
 
 // Mission löschen
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
-  await pool.query("DELETE FROM missions WHERE id=$1", [req.params.id]);
+  const id = req.params.id;
+
+  // Bild ggf. aus R2 löschen
+  const mr = await pool.query("SELECT image_url FROM missions WHERE id = $1", [
+    id,
+  ]);
+  if (mr.rows.length > 0 && mr.rows[0].image_url) {
+    const url = mr.rows[0].image_url;
+    const publicPrefix = process.env.R2_PUBLIC_URL + "/";
+    const key = url.startsWith(publicPrefix) ? url.slice(publicPrefix.length) : null;
+
+    if (key) {
+      try {
+        await r2.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.R2_BUCKET,
+            Key: key,
+          })
+        );
+      } catch (err) {
+        console.error("Mission-Bild löschen Fehler:", err);
+      }
+    }
+  }
+
+  await pool.query("DELETE FROM missions WHERE id = $1", [id]);
   res.json({ success: true });
 });
 
@@ -387,14 +487,16 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
 // BONUSKARTEN
 // =======================================================
 
-// Upload
+// Bild-Upload für Bonuskarte
 app.post(
-  "/api/bonuscards/upload",
+  "/api/bonus/upload",
   isAdmin,
   upload.single("image"),
   async (req, res) => {
     try {
-      const fileName = `bonuscards/${Date.now()}_${req.file.originalname}`;
+      if (!req.file) return res.json({ success: false });
+
+      const fileName = "bonuscards/" + Date.now() + "_" + req.file.originalname;
 
       await r2.send(
         new PutObjectCommand({
@@ -408,34 +510,64 @@ app.post(
       const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
       res.json({ success: true, url });
     } catch (err) {
-      console.error("Bonuskarte Uploadfehler:", err);
+      console.error("Bonus-Upload Fehler:", err);
       res.status(500).json({ success: false });
     }
   }
 );
 
 // Bonuskarte anlegen
-app.post("/api/bonuscards", isAdmin, async (req, res) => {
-  const { name, xp_cost, imageUrl } = req.body;
+app.post("/api/bonus", isAdmin, async (req, res) => {
+  const { name, xp, imageUrl } = req.body;
+  if (!name || !Number.isFinite(Number(xp))) {
+    return res.json({ success: false });
+  }
 
   await pool.query(
-    `INSERT INTO bonuscards (name, xp_cost, image_url)
-     VALUES ($1,$2,$3)`,
-    [name, xp_cost, imageUrl]
+    `
+    INSERT INTO bonuscards (name, xp, image_url)
+    VALUES ($1, $2, $3)
+    `,
+    [name, Number(xp), imageUrl || null]
   );
 
   res.json({ success: true });
 });
 
 // Bonuskarten abrufen
-app.get("/api/bonuscards", isAdmin, async (_req, res) => {
+app.get("/api/bonus", isAdmin, async (_req, res) => {
   const r = await pool.query("SELECT * FROM bonuscards ORDER BY id DESC");
   res.json(r.rows);
 });
 
 // Bonuskarte löschen
-app.delete("/api/bonuscards/:id", isAdmin, async (req, res) => {
-  await pool.query("DELETE FROM bonuscards WHERE id=$1", [req.params.id]);
+app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
+  const id = req.params.id;
+
+  // Bild ggf. aus R2 löschen
+  const br = await pool.query("SELECT image_url FROM bonuscards WHERE id = $1", [
+    id,
+  ]);
+  if (br.rows.length > 0 && br.rows[0].image_url) {
+    const url = br.rows[0].image_url;
+    const publicPrefix = process.env.R2_PUBLIC_URL + "/";
+    const key = url.startsWith(publicPrefix) ? url.slice(publicPrefix.length) : null;
+
+    if (key) {
+      try {
+        await r2.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.R2_BUCKET,
+            Key: key,
+          })
+        );
+      } catch (err) {
+        console.error("Bonus-Bild löschen Fehler:", err);
+      }
+    }
+  }
+
+  await pool.query("DELETE FROM bonuscards WHERE id = $1", [id]);
   res.json({ success: true });
 });
 
@@ -443,6 +575,7 @@ app.delete("/api/bonuscards/:id", isAdmin, async (req, res) => {
 // SERVER START
 // =======================================================
 
-app.listen(process.env.PORT || 8080, () => {
-  console.log("Server läuft auf Port 8080");
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log("Server läuft auf Port " + PORT);
 });
