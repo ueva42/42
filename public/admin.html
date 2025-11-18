@@ -1,696 +1,1013 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin – Temple of Logic</title>
+  <meta charset="UTF-8" />
+  <title>Admin – Temple of Logic</title>
+  <style>
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #2b1b4a 0, #060613 50%, #020308 100%);
+      color: #eee;
+      font-family: Arial, sans-serif;
+      display: flex;
+      overflow: hidden;
+    }
 
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #0d0d0d;
-            color: white;
-            display: flex;
-        }
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: linear-gradient(180deg, #05030a 0%, #050510 40%, #070718 100%);
+      padding: 20px;
+      height: 100vh;
+      border-right: 2px solid #261b47;
+      box-shadow: 0 0 25px rgba(0,0,0,0.8);
+      box-sizing: border-box;
+    }
 
-        /* Sidebar */
-        #sidebar {
-            width: 260px;
-            background: #000;
-            padding: 20px;
-            height: 100vh;
-            box-sizing: border-box;
-        }
+    .sidebar h2 {
+      margin-top: 0;
+      margin-bottom: 24px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-size: 16px;
+      color: #b8a4ff;
+    }
 
-        .menu-item {
-            background: #111;
-            padding: 12px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border: 1px solid #222;
-        }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      background: radial-gradient(circle at left, #1e1638 0, #120f23 60%);
+      border: 1px solid #33245c;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+    }
 
-        .menu-item:hover {
-            background: #1a1a1a;
-        }
+    .nav-item:hover {
+      background: radial-gradient(circle at left, #3d2b6f 0, #17142c 60%);
+      border-color: #7b5bff;
+      transform: translateX(4px);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.8);
+    }
 
-        #content {
-            flex: 1;
-            padding: 40px;
-            overflow-y: auto;
-        }
+    .nav-item svg {
+      width: 22px;
+      height: 22px;
+      margin-right: 10px;
+      fill: #9c88ff;
+      flex-shrink: 0;
+    }
 
-        h1 {
-            margin-top: 0;
-            margin-bottom: 25px;
-        }
+    .nav-item span {
+      color: #eee;
+      font-size: 14px;
+    }
 
-        table {
-            width: 100%;
-            background: #111;
-            border-collapse: collapse;
-            margin-top: 20px;
-            border: 1px solid #222;
-        }
+    .content {
+      flex-grow: 1;
+      height: 100vh;
+      padding: 24px;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
 
-        th, td {
-            padding: 12px;
-            border-bottom: 1px solid #222;
-        }
+    .hidden {
+      display: none;
+    }
 
-        th {
-            background: #181818;
-        }
+    h1 {
+      margin-top: 0;
+      margin-bottom: 16px;
+      letter-spacing: .5px;
+    }
 
-        .delete {
-            background: #b30000;
-            border: none;
-            color: white;
-            padding: 6px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
+    h3 {
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
 
-        .delete:hover {
-            background: red;
-        }
+    /* Tabs als mystische Panels */
+    .tab {
+      animation: fadeInUp 0.25s ease;
+    }
 
-        input, select {
-            padding: 8px;
-            margin-top: 5px;
-            margin-bottom: 15px;
-            width: 300px;
-        }
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
 
-        button {
-            background: #333;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-        }
+    /* Inputs / Selects / Buttons */
+    input, select {
+      padding: 6px 9px;
+      margin: 4px;
+      background: #161630;
+      color: #eee;
+      border: 1px solid #35305f;
+      border-radius: 6px;
+      outline: none;
+      min-width: 160px;
+    }
 
-        button:hover {
-            background: #444;
-        }
+    input:focus, select:focus {
+      border-color: #7b5bff;
+      box-shadow: 0 0 0 1px rgba(123,91,255,0.5);
+    }
 
-        .hidden {
-            display: none;
-        }
-    </style>
+    button.action {
+      background: linear-gradient(135deg, #16a34a, #22c55e);
+      border: none;
+      padding: 6px 12px;
+      cursor: pointer;
+      color: white;
+      margin-left: 3px;
+      border-radius: 999px;
+      font-size: 13px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.7);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    }
 
+    button.action:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 7px 16px rgba(0,0,0,0.8);
+      filter: brightness(1.05);
+    }
+
+    button.delete {
+      background: linear-gradient(135deg, #b91c1c, #e11d48);
+      color: white;
+      padding: 4px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      border: none;
+      font-size: 12px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.7);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    button.delete:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.85);
+    }
+
+    /* Tabellen als Karten-Stack */
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0 10px;
+      margin-top: 10px;
+    }
+
+    thead tr {
+      background: transparent;
+    }
+
+    thead th {
+      border: none;
+      padding: 4px 6px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #a8b0d5;
+    }
+
+    table tbody tr {
+      background: radial-gradient(circle at top left, #211b40 0, #131327 50%, #0b0b18 100%);
+      border-radius: 10px;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.85);
+      overflow: hidden;
+      transform: translateY(0);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      border: 1px solid #2d224f;
+    }
+
+    table tbody tr:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 14px 28px rgba(0,0,0,0.95);
+      border-color: #7b5bff;
+    }
+
+    table td {
+      border: none;
+      padding: 10px 12px;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    .thumb {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border: 1px solid #555;
+      border-radius: 6px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.7);
+    }
+
+    /* XP-Statistik-Badge */
+    .xp-stats-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 16px;
+      padding: 8px 14px;
+      margin: 8px 0 4px;
+      border-radius: 999px;
+      background: radial-gradient(circle at left, rgba(123,91,255,0.25) 0, rgba(15,23,42,0.9) 60%);
+      border: 1px solid rgba(129,140,248,0.6);
+      font-size: 12px;
+      color: #e5e7eb;
+    }
+
+    .xp-stats-box span.label {
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-size: 11px;
+      color: #a5b4fc;
+    }
+
+    .xp-pill {
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: rgba(15,118,110,0.2);
+      border: 1px solid rgba(34,197,194,0.7);
+      font-size: 12px;
+    }
+
+    .xp-pill.red {
+      background: rgba(185,28,28,0.2);
+      border-color: rgba(248,113,113,0.8);
+    }
+
+    .xp-pill.blue {
+      background: rgba(55,48,163,0.35);
+      border-color: rgba(129,140,248,0.8);
+    }
+
+  </style>
 </head>
 <body>
 
-<div id="sidebar">
-    <h2>Admin</h2>
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <h2>TEMPLE OF LOGIC</h2>
 
-    <div class="menu-item" onclick="showPage('overview')">📄 Klassenübersicht</div>
-    <div class="menu-item" onclick="showPage('xp')">📊 XP-Verwaltung</div>
-    <div class="menu-item" onclick="showPage('students')">👥 Klassen & Schüler</div>
-    <div class="menu-item" onclick="showPage('missions')">🏷 Missionen</div>
-    <div class="menu-item" onclick="showPage('bonus')">⭐ Bonuskarten</div>
-    <div class="menu-item" onclick="showPage('characters')">🧙 Charaktere</div>
-    <div class="menu-item" onclick="showPage('levels')">📈 Level</div>
+  <!-- XP-Verwaltung -->
+  <div class="nav-item" onclick="showTab('xpTab')">
+    <svg viewBox="0 0 24 24">
+      <path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/>
+    </svg>
+    <span>XP-Verwaltung</span>
+  </div>
 
-    <div class="menu-item" onclick="logout()">🚪 Logout</div>
+  <!-- Klassen & Schüler -->
+  <div class="nav-item" onclick="showTab('classTab')">
+    <svg viewBox="0 0 24 24">
+      <path d="M12 12c2.5 0 4.5-2 4.5-4.5S14.5 3 12 3 7.5 5 7.5 7.5 9.5 12 12 12zm0 1.5c-3 0-9 1.5-9 4.5V21h18v-3c0-3-6-4.5-9-4.5z"/>
+    </svg>
+    <span>Klassen & Schüler</span>
+  </div>
+
+  <!-- Missionen -->
+  <div class="nav-item" onclick="showTab('missionTab')">
+    <svg viewBox="0 0 24 24">
+      <path d="M3 3v18l9-4 9 4V3H3zm16 2v11.1l-7-3.1-7 3.1V5h14z"/>
+    </svg>
+    <span>Missionen</span>
+  </div>
+
+  <!-- Bonuskarten -->
+  <div className="nav-item" onclick="showTab('bonusTab')">
+    <svg viewBox="0 0 24 24">
+      <path d="M12 2l3 7h7l-5.5 4.2L18 21l-6-4-6 4 1.5-7.8L2 9h7z"/>
+    </svg>
+    <span>Bonuskarten</span>
+  </div>
+
+  <!-- Charaktere -->
+  <div class="nav-item" onclick="showTab('characterTab')">
+    <svg viewBox="0 0 24 24">
+      <path d="M12 2l4 4-4 4-4-4 4-4zm0 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/>
+    </svg>
+    <span>Charaktere</span>
+  </div>
+
+  <!-- Level -->
+  <div class="nav-item" onclick="showTab('levelTab')">
+    <svg viewBox="0 0 24 24">
+      <path d="M4 22h4V10H4v12zm6 0h4V2h-4v20zm6 0h4V6h-4v16z"/>
+    </svg>
+    <span>Level</span>
+  </div>
+
+  <!-- Logout -->
+  <div class="nav-item" onclick="logout()">
+    <svg viewBox="0 0 24 24">
+      <path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9v2h10v14H9v2h10c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+    </svg>
+    <span>Logout</span>
+  </div>
 </div>
 
-<div id="content">
+<!-- CONTENT -->
+<div class="content">
 
-    <!-- ░░ K L A S S E N Ü B E R S I C H T ░░ -->
-    <div id="page-overview" class="page hidden">
-        <h1>Klassenübersicht</h1>
+  <!-- XP-Verwaltung -->
+  <div id="xpTab" class="tab">
+    <h1>XP-Verwaltung</h1>
 
-        <table id="classOverviewTable">
-            <thead>
-                <tr>
-                    <th>Klasse</th>
-                    <th>Anzahl Schüler</th>
-                    <th>Löschen</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+    <label>Aktive Klasse:</label>
+    <select id="xpClassSelect" onchange="loadXPStudents()"></select>
+
+    <!-- XP-Statistik pro Klasse -->
+    <div id="xpStats" class="xp-stats-box" style="display:none;">
+      <span class="label">Klassen-Stats</span>
+      <span id="xpStatsCount" class="xp-pill blue"></span>
+      <span id="xpStatsTotal" class="xp-pill"></span>
+      <span id="xpStatsAvg" class="xp-pill red"></span>
     </div>
 
-    <!-- ░░ X P – V E R W A L T U N G ░░ -->
-    <div id="page-xp" class="page hidden">
-        <h1>XP-Verwaltung</h1>
+    <table id="xpStudentTable">
+      <thead>
+        <tr>
+          <th>Auswahl</th>
+          <th>Name</th>
+          <th>XP</th>
+          <th>Uploads</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
 
-        <select id="xpClassSelect"></select>
-        <br/>
+    <h3>XP vergeben</h3>
+    <input type="number" id="xpValue" placeholder="XP" />
+    <button class="action" onclick="addXP()">XP an Auswahl</button>
+    <button class="action" onclick="addXPAll()">XP an alle</button>
 
-        <table id="xpTable">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>XP</th>
-                    <th>Aktion</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+    <h3>Mission XP</h3>
+    <select id="xpMissionSelect"></select>
+    <button class="action" onclick="addMissionXP()">Mission an Auswahl</button>
+    <button class="action" onclick="addMissionXPAll()">Mission an alle</button>
+  </div>
 
-        <h3>XP direkt vergeben</h3>
-        <input id="xpAmount" type="number" placeholder="XP" />
-        <button onclick="giveXP()">XP geben</button>
-    </div>
+  <!-- KLASSEN & SCHÜLER -->
+  <div id="classTab" class="tab hidden">
+    <h1>Klassen & Schüler:innen</h1>
 
-    <!-- ░░ K L A S S E N & S C H Ü L E R ░░ -->
-    <div id="page-students" class="page hidden">
-        <h1>Klassen & Schüler</h1>
+    <h3>Neue Klasse anlegen</h3>
+    <input id="newClassName" placeholder="Klassenname" />
+    <button class="action" onclick="addClass()">Anlegen</button>
 
-        <h3>Neue Klasse anlegen</h3>
-        <input id="newClassName" placeholder="Klassenname" />
-        <button onclick="addClass()">Anlegen</button>
+    <h3>Klassenliste</h3>
+    <select id="classManageSelect" onchange="loadClassStudents()"></select>
 
-        <h3>Schüler in Klasse</h3>
-        <select id="studentClassSelect"></select>
+    <table id="classStudentTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Passwort</th>
+          <th>Löschen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
 
-        <h4>Neuen Schüler anlegen</h4>
-        <input id="studentName" placeholder="Name" />
-        <input id="studentPassword" placeholder="Passwort" />
-        <button onclick="addStudent()">Hinzufügen</button>
+    <h3>Schüler:in anlegen</h3>
+    <input id="studentName" placeholder="Name" />
+    <input id="studentPassword" placeholder="Passwort" />
+    <button class="action" onclick="addStudent()">Schüler:in anlegen</button>
+  </div>
 
-        <table id="studentTable">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Passwort</th>
-                    <th>XP</th>
-                    <th>Letzter Upload</th>
-                    <th>Aktion</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-    <!-- ░░ M I S S I O N E N ░░ -->
-    <div id="page-missions" class="page hidden">
-        <h1>Missionen</h1>
+  <!-- MISSIONEN -->
+  <div id="missionTab" class="tab hidden">
+    <h1>Missionen</h1>
 
-        <h3>Neue Mission</h3>
-        <input id="missionName" placeholder="Name" /><br>
-        <input id="missionXP" type="number" placeholder="XP" /><br>
-        <label><input type="checkbox" id="missionUploadRequired"> Bild-Upload erforderlich</label><br><br>
+    <h3>Neue Mission anlegen</h3>
+    <input id="missionName" placeholder="Name" />
+    <input id="missionXP" type="number" placeholder="XP" />
+    <label>
+      <input type="checkbox" id="missionRequireUpload" />
+      Schüler müssen ein Bild hochladen
+    </label>
+    <br>
+    <input type="file" id="missionImage" />
+    <button class="action" onclick="uploadMissionImage()">Bild hochladen</button>
+    <br>
+    <button class="action" onclick="addMission()">Mission speichern</button>
 
-        <input id="missionImage" type="file" /><br>
-        <button onclick="uploadMissionImage()">Bild hochladen</button>
+    <h3>Missionen</h3>
+    <table id="missionTable">
+      <thead>
+        <tr>
+          <th>Bild</th>
+          <th>Name</th>
+          <th>XP</th>
+          <th>Upload?</th>
+          <th>Löschen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-        <br><br>
-        <button onclick="saveMission()">Mission speichern</button>
+  <!-- BONUSKARTEN -->
+  <div id="bonusTab" class="tab hidden">
+    <h1>Bonuskarten</h1>
 
-        <h3>Alle Missionen</h3>
-        <table id="missionsTable">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>XP</th>
-                    <th>Upload?</th>
-                    <th>Bild</th>
-                    <th>Aktion</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
+    <h3>Neue Bonuskarte anlegen</h3>
+    <input id="bonusName" placeholder="Name" />
+    <input id="bonusXP" type="number" placeholder="XP" />
+    <input type="file" id="bonusImage" />
+    <button class="action" onclick="uploadBonusImage()">Bild hochladen</button>
+    <button class="action" onclick="addBonus()">Speichern</button>
 
-    <!-- ░░ B O N U S K A R T E N ░░ -->
-    <div id="page-bonus" class="page hidden">
-        <h1>Bonuskarten</h1>
+    <h3>Bonuskarten</h3>
+    <table id="bonusTable">
+      <thead>
+        <tr>
+          <th>Bild</th>
+          <th>Name</th>
+          <th>XP</th>
+          <th>Löschen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-        <h3>Neue Bonuskarte</h3>
-        <input id="bonusName" placeholder="Name" /><br>
-        <input id="bonusXP" type="number" placeholder="XP-Kosten" /><br>
+  <!-- CHARAKTER -->
+  <div id="characterTab" class="tab hidden">
+    <h1>Charaktere</h1>
 
-        <input id="bonusImage" type="file" /><br>
-        <button onclick="uploadBonusImage()">Bild hochladen</button><br><br>
+    <h3>Neuen Charakter anlegen</h3>
+    <input id="characterName" placeholder="Name" />
+    <input type="file" id="characterImage" />
+    <button class="action" onclick="uploadCharacterImage()">Bild hochladen</button>
+    <button class="action" onclick="addCharacter()">Speichern</button>
 
-        <button onclick="saveBonus()">Speichern</button>
+    <h3>Charakterliste</h3>
+    <table id="characterTable">
+      <thead>
+        <tr>
+          <th>Bild</th>
+          <th>Name</th>
+          <th>Löschen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-        <h3>Alle Bonuskarten</h3>
-        <table id="bonusTable">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>XP</th>
-                    <th>Bild</th>
-                    <th>Aktion</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
+  <!-- LEVELS -->
+  <div id="levelTab" class="tab hidden">
+    <h1>Levelsystem</h1>
 
-    <!-- ░░ C H A R A K T E R E ░░ -->
-    <div id="page-characters" class="page hidden">
-        <h1>Charaktere</h1>
+    <h3>Neues Level anlegen</h3>
+    <input id="levelName" placeholder="Levelname" />
+    <input id="levelMinXP" type="number" placeholder="XP ab" />
+    <button class="action" onclick="addLevel()">Speichern</button>
 
-        <h3>Neuer Charakter</h3>
-        <input id="charName" placeholder="Name" /><br>
-        <input id="charImage" type="file" /><br>
-        <button onclick="uploadCharacterImage()">Bild hochladen</button><br><br>
+    <h3>Level</h3>
+    <table id="levelTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>XP ab</th>
+          <th>Löschen</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-        <button onclick="saveCharacter()">Speichern</button>
+</div> <!-- END CONTENT -->
 
-        <h3>Alle Charaktere</h3>
-        <table id="characterTable">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Bild</th>
-                    <th>Aktion</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-
-    <!-- ░░ L E V E L ░░ -->
-    <div id="page-levels" class="page hidden">
-        <h1>Level</h1>
-
-        <h3>Neues Level</h3>
-        <input id="levelName" placeholder="Levelname" /><br>
-        <input id="levelXP" type="number" placeholder="Mindest-XP" /><br>
-        <button onclick="saveLevel()">Level speichern</button>
-
-        <h3>Alle Level</h3>
-        <table id="levelTable">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Min. XP</th>
-                    <th>Löschen</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-
-</div> <!-- content -->
 
 <script>
-/* ░░░░░ PAGING ░░░░░ */
-function showPage(id) {
-    document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
-    document.getElementById("page-" + id).classList.remove("hidden");
+/* ---------------------------------------------------
+   TABS
+--------------------------------------------------- */
+function showTab(id) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
 
-    if (id === "overview") loadClassOverview();
-    if (id === "students") loadStudentsInit();
-    if (id === "xp") loadXPInit();
-    if (id === "missions") loadMissions();
-    if (id === "bonus") loadBonuses();
-    if (id === "characters") loadCharacters();
-    if (id === "levels") loadLevels();
+  if (id === "xpTab") loadXPInit();
+  if (id === "classTab") loadClassesForManage();
+  if (id === "missionTab") loadMissions();
+  if (id === "bonusTab") loadBonuses();
+  if (id === "characterTab") loadCharacters();
+  if (id === "levelTab") loadLevels();
 }
 
-/* ░░░░░ LOGOUT ░░░░░ */
-function logout() {
-    fetch("/api/logout", { method: "POST" }).then(() => {
-        window.location.href = "/login.html";
-    });
+/* ---------------------------------------------------
+   LOGOUT
+--------------------------------------------------- */
+async function logout() {
+  await fetch("/api/logout", { method: "POST" });
+  location.href = "/login.html";
 }
 
-/* ░░░░░ K L A S S E N – Ü B E R S I C H T ░░░░░ */
-async function loadClassOverview() {
-    const r = await fetch("/api/classes-overview"); // FIXED
-    const rows = await r.json();
-
-    const tbody = document.querySelector("#classOverviewTable tbody");
-    tbody.innerHTML = "";
-
-    rows.forEach(row => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${row.name}</td>
-            <td>${row.count}</td>
-            <td><button class="delete" onclick="deleteClass(${row.id})">X</button></td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-async function deleteClass(id) {
-    if (!confirm("Klasse wirklich löschen? Alle Schüler werden ebenfalls gelöscht!"))
-        return;
-
-    await fetch("/api/class/" + id, { method: "DELETE" });
-    loadClassOverview();
-}
-
-/* ░░░░░ K L A S S E N & S C H Ü L E R ░░░░░ */
-
-async function loadStudentsInit() {
-    const r = await fetch("/api/class");
-    const classes = await r.json();
-
-    const sel = document.getElementById("studentClassSelect");
-    sel.innerHTML = "";
-
-    classes.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c.id;
-        opt.textContent = c.name;
-        sel.appendChild(opt);
-    });
-
-    loadStudents();
-}
-
-async function addClass() {
-    const name = document.getElementById("newClassName").value.trim();
-    if (!name) return;
-
-    await fetch("/api/class", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name })
-    });
-
-    document.getElementById("newClassName").value = "";
-    loadStudentsInit();
-}
-
-async function loadStudents() {
-    const classId = document.getElementById("studentClassSelect").value;
-    if (!classId) return;
-
-    const r = await fetch("/api/student?classId=" + classId);
-    const students = await r.json();
-
-    const tbody = document.querySelector("#studentTable tbody");
-    tbody.innerHTML = "";
-
-    students.forEach(s => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${s.name}</td>
-            <td>${s.password}</td>
-            <td>${s.xp}</td>
-            <td>${s.upload_url ? `<img src="${s.upload_url}" width="60">` : "-"}</td>
-            <td><button class="delete" onclick="deleteStudent(${s.id})">X</button></td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-async function addStudent() {
-    const name = document.getElementById("studentName").value.trim();
-    const password = document.getElementById("studentPassword").value.trim();
-    const classId = document.getElementById("studentClassSelect").value;
-
-    if (!name || !password) return;
-
-    await fetch("/api/student", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password, classId })
-    });
-
-    document.getElementById("studentName").value = "";
-    document.getElementById("studentPassword").value = "";
-
-    loadStudents();
-}
-
-async function deleteStudent(id) {
-    await fetch("/api/student/" + id, { method: "DELETE" });
-    loadStudents();
-}
-
-/* ░░░░░ XP – VERGABE ░░░░░ */
+/* ---------------------------------------------------
+   KLASSEN
+--------------------------------------------------- */
 
 async function loadXPInit() {
-    const r = await fetch("/api/class");
-    const classes = await r.json();
+  const r = await fetch("/api/class");
+  const classes = await r.json();
 
-    const sel = document.getElementById("xpClassSelect");
-    sel.innerHTML = "";
+  const sel = document.getElementById("xpClassSelect");
+  sel.innerHTML = "";
 
-    classes.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c.id;
-        opt.textContent = c.name;
-        sel.appendChild(opt);
-    });
+  classes.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
 
-    loadXPStudents();
+  loadXPStudents();
 }
 
 async function loadXPStudents() {
-    const classId = document.getElementById("xpClassSelect").value;
-    if (!classId) return;
+  const classId = document.getElementById("xpClassSelect").value;
+  if (!classId) return;
 
-    const r = await fetch("/api/student?classId=" + classId);
-    const students = await r.json();
+  const r = await fetch(`/api/student?classId=${classId}`);
+  const students = await r.json();
 
-    const tbody = document.querySelector("#xpTable tbody");
-    tbody.innerHTML = "";
+  const tbody = document.querySelector("#xpStudentTable tbody");
+  tbody.innerHTML = "";
 
-    students.forEach(s => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${s.name}</td>
-            <td>${s.xp}</td>
-            <td><button onclick="giveXP(${s.id})">+XP</button></td>
-        `;
-        tbody.appendChild(tr);
-    });
+  students.forEach(s => {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td><input type="checkbox" value="${s.id}" /></td>
+      <td>${s.name}</td>
+      <td>${s.xp}</td>
+      <td>
+        ${s.upload_url ? `<img class="thumb" src="${s.upload_url}"> 
+        <button class="delete" onclick="deleteUpload(${s.id})">X</button>`
+        : "—"}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // XP-Statistik pro Klasse
+  const statsBox = document.getElementById("xpStats");
+  const countSpan = document.getElementById("xpStatsCount");
+  const totalSpan = document.getElementById("xpStatsTotal");
+  const avgSpan = document.getElementById("xpStatsAvg");
+
+  if (students.length === 0) {
+    statsBox.style.display = "none";
+  } else {
+    const totalXP = students.reduce((sum, s) => sum + (s.xp || 0), 0);
+    const avgXP = Math.round(totalXP / students.length);
+
+    statsBox.style.display = "inline-flex";
+    countSpan.textContent = `Schüler:innen: ${students.length}`;
+    totalSpan.textContent = `Gesamt-XP: ${totalXP}`;
+    avgSpan.textContent = `Ø XP: ${avgXP}`;
+  }
+
+  loadMissionsForXP();
 }
 
-async function giveXP(studentId) {
-    const xp = Number(document.getElementById("xpAmount").value);
-    if (!xp) return;
+async function loadClassesForManage() {
+  const r = await fetch("/api/class");
+  const classes = await r.json();
 
+  const sel = document.getElementById("classManageSelect");
+  sel.innerHTML = "";
+
+  classes.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+
+  loadClassStudents();
+}
+
+async function addClass() {
+  const name = document.getElementById("newClassName").value;
+  if (!name) return;
+
+  await fetch("/api/class", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name})
+  });
+
+  document.getElementById("newClassName").value = "";
+  loadClassesForManage();
+  loadXPInit();
+}
+
+async function loadClassStudents() {
+  const classId = document.getElementById("classManageSelect").value;
+  const r = await fetch(`/api/student?classId=${classId}`);
+  const students = await r.json();
+
+  const tbody = document.querySelector("#classStudentTable tbody");
+  tbody.innerHTML = "";
+
+  students.forEach(s => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${s.name}</td>
+      <td>${s.password}</td>
+      <td><button class="delete" onclick="deleteStudent(${s.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addStudent() {
+  const classId = document.getElementById("classManageSelect").value;
+  const name = document.getElementById("studentName").value;
+  const password = document.getElementById("studentPassword").value;
+
+  if (!name || !password) return;
+
+  await fetch("/api/student", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name, password, classId})
+  });
+
+  document.getElementById("studentName").value = "";
+  document.getElementById("studentPassword").value = "";
+
+  loadClassStudents();
+  loadXPStudents();
+}
+
+async function deleteStudent(id) {
+  await fetch(`/api/student/${id}`, { method: "DELETE" });
+  loadClassStudents();
+  loadXPStudents();
+}
+
+/* ---------------------------------------------------
+   XP VERGABE
+--------------------------------------------------- */
+
+function selectedStudentIds() {
+  return [...document.querySelectorAll("#xpStudentTable input[type=checkbox]:checked")]
+    .map(cb => Number(cb.value));
+}
+
+async function addXP() {
+  const xp = Number(document.getElementById("xpValue").value);
+  const ids = selectedStudentIds();
+  if (!xp || ids.length === 0) return;
+
+  for (let id of ids) {
     await fetch("/api/xp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, xp })
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ studentId: id, xp })
     });
-
-    loadXPStudents();
+  }
+  loadXPStudents();
 }
 
-/* ░░░░░ M I S S I O N E N ░░░░░ */
+async function addXPAll() {
+  const xp = Number(document.getElementById("xpValue").value);
+  if (!xp) return;
 
-let missionImageURL = null;
+  const cId = document.getElementById("xpClassSelect").value;
+  const r = await fetch(`/api/student?classId=${cId}`);
+  const students = await r.json();
+
+  for (let s of students) {
+    await fetch("/api/xp", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ studentId: s.id, xp })
+    });
+  }
+  loadXPStudents();
+}
+
+/* ---------------------------------------------------
+   MISSION XP
+--------------------------------------------------- */
+
+async function loadMissionsForXP() {
+  const r = await fetch("/api/missions");
+  const missions = await r.json();
+
+  const sel = document.getElementById("xpMissionSelect");
+  sel.innerHTML = "";
+
+  missions.forEach(m => {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = `${m.name} (+${m.xp} XP)`;
+    sel.appendChild(opt);
+  });
+}
+
+async function addMissionXP() {
+  const missionId = document.getElementById("xpMissionSelect").value;
+  const ids = selectedStudentIds();
+
+  for (let id of ids) {
+    await fetch("/api/xpmission", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ studentId: id, missionId })
+    });
+  }
+
+  loadXPStudents();
+}
+
+async function addMissionXPAll() {
+  const missionId = document.getElementById("xpMissionSelect").value;
+
+  const cId = document.getElementById("xpClassSelect").value;
+  const r = await fetch(`/api/student?classId=${cId}`);
+  const students = await r.json();
+
+  for (let s of students) {
+    await fetch("/api/xpmission", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ studentId: s.id, missionId })
+    });
+  }
+
+  loadXPStudents();
+}
+
+/* ---------------------------------------------------
+   UPLOAD der Schüler:innen löschen
+--------------------------------------------------- */
+async function deleteUpload(studentId) {
+  await fetch(`/api/upload/${studentId}`, { method: "DELETE" });
+  loadXPStudents();
+}
+
+/* ---------------------------------------------------
+   MISSIONEN
+--------------------------------------------------- */
+
+let uploadedMissionImageUrl = null;
 
 async function uploadMissionImage() {
-    const file = document.getElementById("missionImage").files[0];
-    if (!file) return;
+  const file = document.getElementById("missionImage").files[0];
+  if (!file) return;
 
-    const fd = new FormData();
-    fd.append("image", file);
+  const form = new FormData();
+  form.append("image", file);
 
-    const r = await fetch("/api/missions/upload", { method: "POST", body: fd });
-    const j = await r.json();
+  const r = await fetch("/api/missions/upload", {
+    method: "POST",
+    body: form
+  });
 
-    if (j.success) missionImageURL = j.url;
+  const data = await r.json();
+  if (data.success) uploadedMissionImageUrl = data.url;
 }
 
-async function saveMission() {
-    const name = document.getElementById("missionName").value.trim();
-    const xp = document.getElementById("missionXP").value;
-    const requireUpload = document.getElementById("missionUploadRequired").checked;
+async function addMission() {
+  const name = document.getElementById("missionName").value;
+  const xp = Number(document.getElementById("missionXP").value);
+  const requireUpload = document.getElementById("missionRequireUpload").checked;
 
-    await fetch("/api/missions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            name,
-            xp,
-            imageUrl: missionImageURL,
-            requireUpload
-        })
-    });
+  if (!name || !xp) return;
 
-    loadMissions();
+  await fetch("/api/missions", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name,
+      xp,
+      imageUrl: uploadedMissionImageUrl,
+      requireUpload
+    })
+  });
+
+  document.getElementById("missionName").value = "";
+  document.getElementById("missionXP").value = "";
+  document.getElementById("missionImage").value = "";
+  uploadedMissionImageUrl = null;
+
+  loadMissions();
 }
 
 async function loadMissions() {
-    const r = await fetch("/api/missions");
-    const missions = await r.json();
+  const r = await fetch("/api/missions");
+  const missions = await r.json();
 
-    const tbody = document.querySelector("#missionsTable tbody");
-    tbody.innerHTML = "";
+  const tbody = document.querySelector("#missionTable tbody");
+  tbody.innerHTML = "";
 
-    missions.forEach(m => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${m.name}</td>
-            <td>${m.xp}</td>
-            <td>${m.require_upload ? "Ja" : "Nein"}</td>
-            <td>${m.image_url ? `<img src="${m.image_url}" width="60">` : "-"}</td>
-            <td><button class="delete" onclick="deleteMission(${m.id})">X</button></td>
-        `;
-        tbody.appendChild(tr);
-    });
+  missions.forEach(m => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${m.image_url ? `<img class="thumb" src="${m.image_url}">` : "—"}</td>
+      <td>${m.name}</td>
+      <td>${m.xp}</td>
+      <td>${m.require_upload ? "Ja" : "Nein"}</td>
+      <td><button class="delete" onclick="deleteMission(${m.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 async function deleteMission(id) {
-    await fetch("/api/missions/" + id, { method: "DELETE" });
-    loadMissions();
+  await fetch(`/api/missions/${id}`, { method: "DELETE" });
+  loadMissions();
+  loadMissionsForXP();
 }
 
-/* ░░░░░ B O N U S K A R T E N ░░░░░ */
+/* ---------------------------------------------------
+   BONUSKARTEN
+--------------------------------------------------- */
 
-let bonusImageURL = null;
+let uploadedBonusImageUrl = null;
 
 async function uploadBonusImage() {
-    const file = document.getElementById("bonusImage").files[0];
-    if (!file) return;
+  const file = document.getElementById("bonusImage").files[0];
+  if (!file) return;
 
-    const fd = new FormData();
-    fd.append("image", file);
+  const form = new FormData();
+  form.append("image", file);
 
-    const r = await fetch("/api/bonus/upload", { method: "POST", body: fd });
-    const j = await r.json();
-
-    if (j.success) bonusImageURL = j.url;
+  const r = await fetch("/api/bonus/upload", { method: "POST", body: form });
+  const data = await r.json();
+  if (data.success) uploadedBonusImageUrl = data.url;
 }
 
-async function saveBonus() {
-    const name = document.getElementById("bonusName").value.trim();
-    const xp = document.getElementById("bonusXP").value;
+async function addBonus() {
+  const name = document.getElementById("bonusName").value;
+  const xp = Number(document.getElementById("bonusXP").value);
 
-    await fetch("/api/bonus", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            name,
-            xp,
-            imageUrl: bonusImageURL
-        })
-    });
+  if (!name || !xp) return;
 
-    loadBonuses();
+  await fetch("/api/bonus", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name,
+      xp,
+      imageUrl: uploadedBonusImageUrl
+    })
+  });
+
+  document.getElementById("bonusName").value = "";
+  document.getElementById("bonusXP").value = "";
+  uploadedBonusImageUrl = null;
+
+  loadBonuses();
 }
 
 async function loadBonuses() {
-    const r = await fetch("/api/bonus");
-    const bonuses = await r.json();
+  const r = await fetch("/api/bonus");
+  const bonuses = await r.json();
 
-    const tbody = document.querySelector("#bonusTable tbody");
-    tbody.innerHTML = "";
+  const tbody = document.querySelector("#bonusTable tbody");
+  tbody.innerHTML = "";
 
-    bonuses.forEach(b => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${b.name}</td>
-            <td>${b.xp}</td>
-            <td>${b.image_url ? `<img src="${b.image_url}" width="60">` : "-"}</td>
-            <td><button class="delete" onclick="deleteBonus(${b.id})">X</button></td>
-        `;
-        tbody.appendChild(tr);
-    });
+  bonuses.forEach(b => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${b.image_url ? `<img class="thumb" src="${b.image_url}">` : "—"}</td>
+      <td>${b.name}</td>
+      <td>${b.xp}</td>
+      <td><button class="delete" onclick="deleteBonus(${b.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 async function deleteBonus(id) {
-    await fetch("/api/bonus/" + id, { method: "DELETE" });
-    loadBonuses();
+  await fetch(`/api/bonus/${id}`, { method: "DELETE" });
+  loadBonuses();
 }
 
-/* ░░░░░ C H A R A K T E R E ░░░░░ */
+/* ---------------------------------------------------
+   CHARAKTERE
+--------------------------------------------------- */
 
-let charImageURL = null;
+let uploadedCharacterImageUrl = null;
 
 async function uploadCharacterImage() {
-    const file = document.getElementById("charImage").files[0];
-    if (!file) return;
+  const file = document.getElementById("characterImage").files[0];
+  if (!file) return;
 
-    const fd = new FormData();
-    fd.append("image", file);
+  const form = new FormData();
+  form.append("image", file);
 
-    const r = await fetch("/api/character/upload", { method: "POST", body: fd });
-    const j = await r.json();
+  const r = await fetch("/api/character/upload", {
+    method: "POST",
+    body: form
+  });
 
-    if (j.success) charImageURL = j.url;
+  const data = await r.json();
+  if (data.success) uploadedCharacterImageUrl = data.url;
 }
 
-async function saveCharacter() {
-    const name = document.getElementById("charName").value.trim();
+async function addCharacter() {
+  const name = document.getElementById("characterName").value;
 
-    await fetch("/api/character", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, imageUrl: charImageURL })
-    });
+  await fetch("/api/character", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name,
+      imageUrl: uploadedCharacterImageUrl
+    })
+  });
 
-    loadCharacters();
+  document.getElementById("characterName").value = "";
+  document.getElementById("characterImage").value = "";
+  uploadedCharacterImageUrl = null;
+
+  loadCharacters();
 }
 
 async function loadCharacters() {
-    const r = await fetch("/api/character");
-    const chars = await r.json();
+  const r = await fetch("/api/character");
+  const characters = await r.json();
 
-    const tbody = document.querySelector("#characterTable tbody");
-    tbody.innerHTML = "";
+  const tbody = document.querySelector("#characterTable tbody");
+  tbody.innerHTML = "";
 
-    chars.forEach(c => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${c.name}</td>
-            <td>${c.image_url ? `<img src="${c.image_url}" width="60">` : "-"}</td>
-            <td><button class="delete" onclick="deleteCharacter(${c.id})">X</button></td>
-        `;
-        tbody.appendChild(tr);
-    });
+  characters.forEach(c => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${c.image_url ? `<img class="thumb" src="${c.image_url}">` : "—"}</td>
+      <td>${c.name}</td>
+      <td><button class="delete" onclick="deleteCharacter(${c.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 async function deleteCharacter(id) {
-    await fetch("/api/character/" + id, { method: "DELETE" });
-    loadCharacters();
+  await fetch(`/api/character/${id}`, { method: "DELETE" });
+  loadCharacters();
 }
 
-/* ░░░░░ L E V E L ░░░░░ */
+/* ---------------------------------------------------
+   LEVELS
+--------------------------------------------------- */
 
-async function saveLevel() {
-    const name = document.getElementById("levelName").value.trim();
-    const min_xp = document.getElementById("levelXP").value;
+async function addLevel() {
+  const name = document.getElementById("levelName").value;
+  const xp = Number(document.getElementById("levelMinXP").value);
 
-    await fetch("/api/levels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, min_xp })
-    });
+  await fetch("/api/levels", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name, min_xp: xp })
+  });
 
-    loadLevels();
+  document.getElementById("levelName").value = "";
+  document.getElementById("levelMinXP").value = "";
+
+  loadLevels();
 }
 
 async function loadLevels() {
-    const r = await fetch("/api/levels");
-    const levels = await r.json();
+  const r = await fetch("/api/levels");
+  const levels = await r.json();
 
-    const tbody = document.querySelector("#levelTable tbody");
-    tbody.innerHTML = "";
+  const tbody = document.querySelector("#levelTable tbody");
+  tbody.innerHTML = "";
 
-    levels.forEach(l => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${l.name}</td>
-            <td>${l.required_xp}</td>
-            <td><button class="delete" onclick="deleteLevel(${l.id})">X</button></td>
-        `;
-        tbody.appendChild(tr);
-    });
+  levels.forEach(l => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${l.name}</td>
+      <td>${l.required_xp}</td>
+      <td><button class="delete" onclick="deleteLevel(${l.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 async function deleteLevel(id) {
-    await fetch("/api/levels/" + id, { method: "DELETE" });
-    loadLevels();
+  await fetch(`/api/levels/${id}`, { method: "DELETE" });
+  loadLevels();
 }
 
-showPage("overview"); // default
-
+/* Startansicht */
+showTab("xpTab");
 </script>
-
 </body>
 </html>
