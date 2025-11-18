@@ -1,480 +1,557 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<title>Admin – Temple of Logic</title>
-<style>
-  body {
-    margin:0;
-    background:#0d0d0d;
-    color:#fff;
-    font-family:Arial, sans-serif;
-    display:flex;
-  }
-
-  /* SIDEBAR */
-  #sidebar {
-    width:70px;
-    background:#000;
-    border-right:1px solid #222;
-    height:100vh;
-    display:flex;
-    flex-direction:column;
-    padding-top:20px;
-    align-items:center;
-    gap:25px;
-    position:fixed;
-    left:0;
-    top:0;
-  }
-
-  .icon-btn {
-    width:50px;
-    height:50px;
-    padding:10px;
-    border-radius:12px;
-    cursor:pointer;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    transition:0.15s;
-  }
-  .icon-btn:hover {
-    background:#222;
-  }
-
-  .icon-btn svg {
-    width:26px;
-    height:26px;
-    fill:#fff;
-  }
-
-  /* CONTENT WRAPPER */
-  #content {
-    margin-left:90px;
-    padding:25px;
-    width:calc(100% - 90px);
-  }
-
-  h1, h2, h3 { margin-top:20px; }
-
-  .box {
-    border:1px solid #333;
-    background:#111;
-    padding:15px;
-    margin-top:25px;
-    border-radius:10px;
-  }
-
-  button {
-    padding:6px 12px;
-    border:none;
-    cursor:pointer;
-    background:#116611;
-    color:white;
-    margin:4px;
-    border-radius:6px;
-  }
-  button.red { background:#661111; }
-
-  select, input {
-    padding:6px;
-    margin:4px;
-    border-radius:6px;
-    border:1px solid #222;
-    background:#222;
-    color:#fff;
-  }
-
-  .student-row {
-    border-bottom:1px solid #333;
-    padding:8px 0;
-  }
-
-  img.thumb {
-    width:70px;
-    height:70px;
-    border:1px solid #444;
-    border-radius:6px;
-    object-fit:cover;
-  }
-
-  .upload-line {
-    display:flex;
-    align-items:center;
-    gap:8px;
-    margin-top:4px;
-  }
-</style>
-</head>
-<body>
-
-<!-- ========================================================= -->
-<!-- SIDEBAR                                                   -->
-<!-- ========================================================= -->
-<div id="sidebar">
-
-  <!-- XP Verwaltung -->
-  <div class="icon-btn" onclick="showPage('xpPage')" title="XP-Verwaltung">
-    <svg viewBox="0 0 24 24"><path d="M12 2L15 8L22 9L17 14L18 21L12 18L6 21L7 14L2 9L9 8L12 2Z"/></svg>
-  </div>
-
-  <!-- Klassen & Schüler -->
-  <div class="icon-btn" onclick="showPage('classPage')" title="Klassen & Schüler:innen">
-    <svg viewBox="0 0 24 24"><path d="M12 2C10.34 2 9 3.34 9 5S10.34 8 12 8 15 6.66 15 5 13.66 2 12 2M6 8C4.34 8 3 9.34 3 11S4.34 14 6 14 9 12.66 9 11 7.66 8 6 8M18 8C16.34 8 15 9.34 15 11S16.34 14 18 14 21 12.66 21 11 19.66 8 18 8M6 16C3.33 16 0 17.34 0 20V22H12V20C12 17.34 8.67 16 6 16M18 16C16.07 16 13.27 16.84 12.23 18.65C12.54 18.94 12.83 19.27 13.08 19.65C13.81 20.85 14 22 14 22H24V20C24 17.34 20.67 16 18 16Z"/></svg>
-  </div>
-
-  <!-- Missionen -->
-  <div class="icon-btn" onclick="showPage('missionPage')" title="Missionen">
-    <svg viewBox="0 0 24 24"><path d="M12 2L3 5V11C3 16.55 6.84 21.74 12 23C17.16 21.74 21 16.55 21 11V5L12 2Z"/></svg>
-  </div>
-
-  <!-- Bonuskarten -->
-  <div class="icon-btn" onclick="alert('Kommt später')" title="Bonuskarten">
-    <svg viewBox="0 0 24 24"><path d="M20,2H4A2,2 0 0,0 2,4V20A2,2 0 0,0 4,22H20A2,2 0 0,0 22,20V4A2,2 0 0,0 20,2M11,17H6V15H11V17M18,13H6V11H18V13M18,9H6V7H18V9Z"/></svg>
-  </div>
-
-  <!-- Charakter & Level -->
-  <div class="icon-btn" onclick="alert('Kommt später')" title="Charakter & Level">
-    <svg viewBox="0 0 24 24"><path d="M12 12C14.67 12 17 9.67 17 7S14.67 2 12 2 7 4.33 7 7 9.33 12 12 12M12 14C9.33 14 4 15.33 4 18V20H20V18C20 15.33 14.67 14 12 14Z"/></svg>
-  </div>
-
-  <!-- Logout -->
-  <div class="icon-btn" onclick="logout()" title="Logout">
-    <svg viewBox="0 0 24 24"><path d="M10,17V14H3V10H10V7L15,12L10,17M19,3H11V5H19V19H11V21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3Z"/></svg>
-  </div>
-
-</div>
-
-<!-- ========================================================= -->
-<!-- CONTENT                                                   -->
-<!-- ========================================================= -->
-<div id="content">
-
-  <!-- XP VERWALTUNG (Startseite) -->
-  <div id="xpPage">
-    <h1>XP-Verwaltung</h1>
-
-    <select id="xpClassSelect" onchange="loadXPStudents()"></select>
-
-    <div id="xpStudentList"></div>
-
-    <h3>XP vergeben</h3>
-    <input type="number" id="xpDelta" value="5">
-    <button onclick="grantXPSelected()">An ausgewählte</button>
-    <button onclick="grantXPAll()">An ALLE</button>
-
-    <h3>Mission-XP</h3>
-    <select id="missionSelect"></select><br>
-    <button onclick="grantMissionXPSelected()">An ausgewählte</button>
-    <button onclick="grantMissionXPAll()">An ALLE</button>
-  </div>
-
-  <!-- KLASSEN & SCHÜLER -->
-  <div id="classPage" style="display:none;">
-    <h1>Klassen & Schüler:innen</h1>
-
-    <h3>Klasse anlegen</h3>
-    <input id="className" placeholder="Neue Klasse">
-    <button onclick="addClass()">Anlegen</button>
-
-    <h3>Alle Klassen</h3>
-    <div id="classList"></div>
-
-    <h3>Schüler:innen verwalten</h3>
-    <select id="studentClassSelect" onchange="loadStudents()"></select><br>
-
-    <input id="studentName" placeholder="Name">
-    <input id="studentPass" placeholder="Passwort">
-    <button onclick="addStudent()">Anlegen</button>
-
-    <div id="studentList"></div>
-  </div>
-
-  <!-- MISSIONEN -->
-  <div id="missionPage" style="display:none;">
-    <h1>Missionen</h1>
-
-    <input id="missionName" placeholder="Name">
-    <input id="missionXP" type="number" placeholder="XP"><br>
-
-    <label>Bild:</label>
-    <input type="file" id="missionImage">
-    <button onclick="uploadMissionImage()">Upload</button><br>
-
-    <label>Upload erforderlich?</label>
-    <select id="missionUploadRequired">
-      <option value="false">Nein</option>
-      <option value="true">Ja</option>
-    </select>
-
-    <input type="hidden" id="missionImageUrl"><br>
-
-    <button onclick="addMission()">Mission anlegen</button>
-
-    <h3>Alle Missionen</h3>
-    <div id="missionList"></div>
-  </div>
-
-</div>
-
-<script>
-// =========================================================
-// Navigation
-// =========================================================
-function showPage(id){
-  document.querySelectorAll("#content > div")
-    .forEach(div => div.style.display = "none");
-  $(id).style.display = "block";
-}
-
-// =========================================================
-// Helper
-// =========================================================
-function $(id){ return document.getElementById(id); }
-
-async function api(url, method="GET", data=null){
-  const opt = { method, headers:{} };
-  if(data){
-    opt.headers["Content-Type"] = "application/json";
-    opt.body = JSON.stringify(data);
-  }
-  const res = await fetch(url,opt);
-  return res.json();
-}
-
-async function logout(){
-  await api("/api/logout","POST");
-  window.location.href="/login.html";
-}
-
-// =========================================================
-// Laden: Klassen / Schüler / XP
-// =========================================================
-async function loadClasses(){
-  const classes = await api("/api/class");
-  const xpSel = $("xpClassSelect");
-  const stuSel = $("studentClassSelect");
-  const list = $("classList");
-
-  xpSel.innerHTML = "";
-  stuSel.innerHTML = "";
-  list.innerHTML = "";
-
-  classes.forEach(c=>{
-    xpSel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
-    stuSel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
-
-    list.innerHTML += `
-      <div>
-        ${c.name}
-        <button class="red" onclick="deleteClass(${c.id})">Löschen</button>
-      </div>
-    `;
-  });
-
-  if(classes.length>0){
-    loadXPStudents();
-    loadStudents();
-  }
-}
-
-async function addClass(){
-  const n = $("className").value.trim();
-  if(!n) return alert("Name fehlt");
-  await api("/api/class","POST",{name:n});
-  $("className").value="";
-  loadClasses();
-}
-
-async function deleteClass(id){
-  if(!confirm("Löschen?")) return;
-  await api("/api/class/"+id,"DELETE");
-  loadClasses();
-}
-
-async function loadStudents(){
-  const cid = $("studentClassSelect").value;
-  const list = $("studentList");
-  if(!cid){ list.innerHTML=""; return; }
-
-  const stu = await api(`/api/student?classId=${cid}`);
-  list.innerHTML="";
-
-  stu.forEach(s=>{
-    list.innerHTML += `
-      <div class="student-row">
-        ${s.name} (XP: ${s.xp})
-        <button class="red" onclick="deleteStudent(${s.id})">Löschen</button>
-      </div>
-    `;
-  });
-}
-
-async function addStudent(){
-  const cid = $("studentClassSelect").value;
-  const name = $("studentName").value;
-  const pass = $("studentPass").value;
-
-  await api("/api/student","POST",{name,password:pass,classId:cid});
-  $("studentName").value="";
-  $("studentPass").value="";
-  loadStudents();
-  loadXPStudents();
-}
-
-async function deleteStudent(id){
-  if(!confirm("Löschen?")) return;
-  await api("/api/student/"+id,"DELETE");
-  loadStudents();
-  loadXPStudents();
-}
-
-// =========================================================
-// XP-Verwaltung
-// =========================================================
-async function loadXPStudents(){
-  const cid = $("xpClassSelect").value;
-  if(!cid) return;
-
-  const [students, uploads] = await Promise.all([
-    api(`/api/student?classId=${cid}`),
-    api(`/api/admin/uploads?classId=${cid}`)
-  ]);
-
-  const box = $("xpStudentList");
-  box.innerHTML="";
-
-  students.forEach(s=>{
-    const myUploads = uploads.filter(u=>u.student_name===s.name);
-
-    let uploadHTML = "";
-    if(myUploads.length>0){
-      uploadHTML = myUploads.map(u=>`
-        <div class="upload-line">
-          <img src="${u.image_url}" class="thumb">
-          <span>${u.mission_name}</span>
-          <button class="red" onclick="deleteUpload(${u.upload_id})">Löschen</button>
-        </div>
-      `).join("");
-    } else {
-      uploadHTML = `<div style='color:#777;font-size:0.9em;'>Keine Uploads</div>`;
+  <meta charset="UTF-8" />
+  <title>Admin – Temple of Logic</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      display: flex;
     }
 
-    box.innerHTML += `
-      <div class="student-row">
-        <input type="checkbox" class="xpCheck" value="${s.id}">
-        <b>${s.name}</b> – XP: ${s.xp}
-        <div style="margin-left:25px;margin-top:5px;">${uploadHTML}</div>
-      </div>
-    `;
-  });
-}
+    /* Sidebar */
+    .sidebar {
+      width: 250px;
+      background: #000;
+      padding: 20px;
+      height: 100vh;
+      border-right: 2px solid #222;
+    }
 
-function selectedStudentIds(){
-  return [...document.querySelectorAll(".xpCheck:checked")].map(cb=>cb.value);
-}
+    .sidebar h2 {
+      margin-top: 0;
+    }
 
-async function grantXPSelected(){
-  const ids = selectedStudentIds();
-  const xp = parseInt($("xpDelta").value);
+    .sidebar button {
+      width: 100%;
+      margin-bottom: 8px;
+      padding: 10px;
+      background: #222;
+      border: 1px solid #555;
+      color: white;
+      cursor: pointer;
+    }
 
-  await api("/api/xp/give","POST",{studentIds:ids,xp});
-  loadXPStudents();
-  loadStudents();
-}
+    .sidebar button:hover {
+      background: #333;
+    }
 
-async function grantXPAll(){
-  const cid = $("xpClassSelect").value;
-  const xp = parseInt($("xpDelta").value);
+    /* Content */
+    .content {
+      flex-grow: 1;
+      padding: 20px;
+    }
 
-  await api("/api/xp/give/all","POST",{classId:cid,xp});
-  loadXPStudents();
-  loadStudents();
-}
+    .hidden {
+      display: none;
+    }
 
-async function grantMissionXPSelected(){
-  const ids = selectedStudentIds();
-  const mid = $("missionSelect").value;
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
 
-  await api("/api/xp/mission/give","POST",{studentIds:ids,missionId:mid});
-  loadXPStudents();
-  loadStudents();
-}
+    table td, table th {
+      border: 1px solid #444;
+      padding: 8px;
+    }
 
-async function grantMissionXPAll(){
-  const cid = $("xpClassSelect").value;
-  const mid = $("missionSelect").value;
+    input, select {
+      padding: 6px;
+      margin: 4px;
+    }
 
-  await api("/api/xp/mission/give/all","POST",{classId:cid,missionId:mid});
-  loadXPStudents();
-  loadStudents();
-}
+    button.action {
+      background: #009933;
+      border: none;
+      padding: 6px 12px;
+      cursor: pointer;
+      color: white;
+      margin-left: 3px;
+    }
 
-async function deleteUpload(id){
-  await api("/api/admin/upload/"+id,"DELETE");
-  loadXPStudents();
-}
+    button.action:hover {
+      background: #00bb44;
+    }
 
-// =========================================================
-// Missionen
-// =========================================================
-async function loadMissions(){
-  const list = await api("/api/missions");
-  const sel = $("missionSelect");
-  const box = $("missionList");
+    .thumb {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border: 1px solid #555;
+    }
+  </style>
+</head>
+<body>
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <h2>Admin</h2>
+    <button onclick="showTab('xpTab')">XP-Verwaltung</button>
+    <button onclick="showTab('classTab')">Klassen & Schüler:innen</button>
+    <button onclick="showTab('missionTab')">Missionen</button>
+    <button onclick="showTab('bonusTab')">Bonuskarten</button>
+    <button onclick="logout()">Logout</button>
+  </div>
 
-  sel.innerHTML="";
-  box.innerHTML="";
+  <!-- CONTENT -->
+  <div class="content">
 
-  list.forEach(m=>{
-    sel.innerHTML += `<option value="${m.id}">${m.name} (${m.xp} XP)</option>`;
+    <!-- =============================================== -->
+    <!-- XP VERWALTUNG (Startseite) -->
+    <!-- =============================================== -->
+    <div id="xpTab" class="tab">
+      <h1>XP-Verwaltung</h1>
 
-    box.innerHTML += `
-      <div class="student-row">
-        <img src="${m.image_url}" class="thumb">
-        <b>${m.name}</b> – ${m.xp} XP – Upload: ${m.require_upload?"Ja":"Nein"}
-        <button class="red" onclick="deleteMission(${m.id})">Löschen</button>
-      </div>
-    `;
-  });
-}
+      <label>Aktive Klasse wählen:</label>
+      <select id="xpClassSelect" onchange="loadXPStudents()"></select>
 
-async function uploadMissionImage(){
-  const file = $("missionImage").files[0];
-  const fd = new FormData();
-  fd.append("image",file);
+      <h3>Schüler:innen dieser Klasse</h3>
+      <table id="xpStudentTable">
+        <thead>
+          <tr>
+            <th>Auswahl</th>
+            <th>Name</th>
+            <th>XP</th>
+            <th>Uploads</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
 
-  const res = await fetch("/api/missions/upload",{method:"POST",body:fd});
-  const json = await res.json();
-  $("missionImageUrl").value = json.url;
-}
+      <h3>XP vergeben</h3>
+      <input type="number" id="xpValue" placeholder="XP" />
+      <button class="action" onclick="addXP()">XP an ausgewählte</button>
+      <button class="action" onclick="addXPToAll()">XP an alle</button>
 
-async function addMission(){
-  const name = $("missionName").value;
-  const xp = $("missionXP").value;
-  const url = $("missionImageUrl").value;
-  const req = $("missionUploadRequired").value;
+      <h3>Mission XP</h3>
+      <select id="xpMissionSelect"></select>
+      <button class="action" onclick="missionXP()">Mission an ausgewählte</button>
+      <button class="action" onclick="missionXPAll()">Mission an alle</button>
+    </div>
 
-  await api("/api/missions","POST",{name,xp,imageUrl:url,requireUpload:req});
-  $("missionName").value="";
-  $("missionXP").value="";
-  $("missionImageUrl").value="";
-  $("missionImage").value="";
-  loadMissions();
-}
+    <!-- =============================================== -->
+    <!-- KLASSEN & SCHÜLER -->
+    <!-- =============================================== -->
+    <div id="classTab" class="tab hidden">
+      <h1>Klassen & Schüler:innen</h1>
 
-async function deleteMission(id){
-  await api("/api/missions/"+id,"DELETE");
-  loadMissions();
-}
+      <h3>Neue Klasse anlegen</h3>
+      <input id="newClassName" placeholder="Klassenname (7a)" />
+      <button class="action" onclick="addClass()">Klasse anlegen</button>
 
-// =========================================================
-// INIT
-// =========================================================
-loadClasses();
-loadMissions();
-showPage("xpPage"); // Startseite: XP Verwaltung
-</script>
+      <h3>Klassenliste</h3>
+      <table id="classList"></table>
+
+      <h3>Schüler:in anlegen</h3>
+      <select id="studentClassSelect"></select>
+      <input id="studentName" placeholder="Name" />
+      <input id="studentPw" placeholder="Passwort" />
+      <button class="action" onclick="addStudent()">Schüler:in anlegen</button>
+
+      <h3>Schülerliste</h3>
+      <table id="studentList"></table>
+    </div>
+
+    <!-- =============================================== -->
+    <!-- MISSIONEN -->
+    <!-- =============================================== -->
+    <div id="missionTab" class="tab hidden">
+      <h1>Missionen</h1>
+
+      <h3>Neue Mission</h3>
+      <input id="missionName" placeholder="Name" />
+      <input id="missionXP" type="number" placeholder="XP" />
+      <input id="missionImage" type="file" />
+      <label>Upload erforderlich?</label>
+      <select id="missionReq">
+        <option value="false">Nein</option>
+        <option value="true">Ja</option>
+      </select>
+      <button class="action" onclick="createMission()">Mission anlegen</button>
+
+      <h3>Alle Missionen</h3>
+      <table id="missionList"></table>
+    </div>
+
+    <!-- =============================================== -->
+    <!-- BONUSKARTEN -->
+    <!-- =============================================== -->
+    <div id="bonusTab" class="tab hidden">
+      <h1>Bonuskarten</h1>
+
+      <h3>Neue Bonuskarte</h3>
+      <input id="bonusName" placeholder="Name" />
+      <input id="bonusCost" type="number" placeholder="XP Kosten" />
+      <input id="bonusImage" type="file" />
+      <button class="action" onclick="createBonus()">Bonuskarte anlegen</button>
+
+      <h3>Alle Bonuskarten</h3>
+      <table id="bonusList"></table>
+    </div>
+
+  </div> <!-- content -->
+
+  <script>
+    const API = "";
+
+    // ==============================
+    // Sidebar Tabs
+    // ==============================
+    function showTab(id) {
+      document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
+      document.getElementById(id).classList.remove("hidden");
+    }
+
+    // ==============================
+    // Logout
+    // ==============================
+    async function logout() {
+      await fetch("/api/logout", { method: "POST" });
+      window.location = "/login.html";
+    }
+
+    // ============================================================
+    // XP VERWALTUNG
+    // ============================================================
+
+    async function loadXPClasses() {
+      const r = await fetch("/api/class");
+      const list = await r.json();
+      const sel = document.getElementById("xpClassSelect");
+      sel.innerHTML = "";
+      list.forEach(c => {
+        const o = document.createElement("option");
+        o.value = c.id;
+        o.textContent = c.name;
+        sel.appendChild(o);
+      });
+      loadXPStudents();
+    }
+
+    async function loadXPStudents() {
+      const classId = document.getElementById("xpClassSelect").value;
+      if (!classId) return;
+
+      const r = await fetch("/api/student?classId=" + classId);
+      const students = await r.json();
+
+      const tbl = document.querySelector("#xpStudentTable tbody");
+      tbl.innerHTML = "";
+
+      for (const s of students) {
+        const uploads = await fetch("/api/admin/uploads/" + s.id).then(r => r.json());
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><input type="checkbox" value="${s.id}"></td>
+          <td>${s.name}</td>
+          <td>${s.xp}</td>
+          <td>
+            ${uploads
+              .map(
+                u =>
+                  `<img src="${u.image_url}" class="thumb">
+                   <button onclick="deleteUpload(${u.id})">Löschen</button>`
+              )
+              .join("<br>")}
+          </td>
+        `;
+        tbl.appendChild(tr);
+      }
+    }
+
+    function getXPSelected() {
+      return [...document.querySelectorAll("#xpStudentTable input[type=checkbox]:checked")].map(
+        c => Number(c.value)
+      );
+    }
+
+    async function addXP() {
+      const ids = getXPSelected();
+      const xp = Number(document.getElementById("xpValue").value);
+      if (!ids.length) return alert("Keine Schüler ausgewählt");
+
+      await fetch("/api/xp/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentIds: ids, xp }),
+      });
+      loadXPStudents();
+    }
+
+    async function addXPToAll() {
+      const xp = Number(document.getElementById("xpValue").value);
+      const ids = [...document.querySelectorAll("#xpStudentTable input[type=checkbox]")]
+        .map(c => Number(c.value));
+      await fetch("/api/xp/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentIds: ids, xp }),
+      });
+      loadXPStudents();
+    }
+
+    async function loadMissionsForXP() {
+      const r = await fetch("/api/missions");
+      const missions = await r.json();
+      const sel = document.getElementById("xpMissionSelect");
+      sel.innerHTML = "";
+      missions.forEach(m => {
+        const o = document.createElement("option");
+        o.value = m.id;
+        o.textContent = `${m.name} (+${m.xp} XP)`;
+        sel.appendChild(o);
+      });
+    }
+
+    async function missionXP() {
+      const ids = getXPSelected();
+      const missionId = document.getElementById("xpMissionSelect").value;
+      if (!ids.length) return alert("Keine Schüler ausgewählt");
+
+      await fetch("/api/xp/mission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentIds: ids, missionId }),
+      });
+      loadXPStudents();
+    }
+
+    async function missionXPAll() {
+      const missionId = document.getElementById("xpMissionSelect").value;
+      const ids = [...document.querySelectorAll("#xpStudentTable input[type=checkbox]")]
+        .map(c => Number(c.value));
+
+      await fetch("/api/xp/mission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentIds: ids, missionId }),
+      });
+      loadXPStudents();
+    }
+
+    async function deleteUpload(id) {
+      await fetch("/api/upload/" + id, { method: "DELETE" });
+      loadXPStudents();
+    }
+
+    // ============================================================
+    // KLASSEN / SCHÜLER
+    // ============================================================
+
+    async function loadClasses() {
+      const r = await fetch("/api/class");
+      const list = await r.json();
+
+      const ctbl = document.getElementById("classList");
+      ctbl.innerHTML = "<tr><th>Name</th><th>Aktionen</th></tr>";
+
+      const sel = document.getElementById("studentClassSelect");
+      sel.innerHTML = "";
+
+      list.forEach(c => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${c.name}</td>
+          <td><button onclick="deleteClass(${c.id})">Löschen</button></td>
+        `;
+        ctbl.appendChild(tr);
+
+        const o = document.createElement("option");
+        o.value = c.id;
+        o.textContent = c.name;
+        sel.appendChild(o);
+      });
+
+      loadStudents();
+    }
+
+    async function addClass() {
+      const name = document.getElementById("newClassName").value;
+      await fetch("/api/class", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      loadClasses();
+    }
+
+    async function deleteClass(id) {
+      await fetch("/api/class/" + id, { method: "DELETE" });
+      loadClasses();
+    }
+
+    async function loadStudents() {
+      const classId = document.getElementById("studentClassSelect").value;
+      const r = await fetch("/api/student?classId=" + classId);
+      const list = await r.json();
+
+      const tbl = document.getElementById("studentList");
+      tbl.innerHTML = "<tr><th>Name</th><th>Passwort</th><th>Aktionen</th></tr>";
+
+      list.forEach(s => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${s.name}</td>
+          <td>${s.password}</td>
+          <td><button onclick="deleteStudent(${s.id})">Löschen</button></td>
+        `;
+        tbl.appendChild(tr);
+      });
+    }
+
+    async function addStudent() {
+      const name = document.getElementById("studentName").value;
+      const password = document.getElementById("studentPw").value;
+      const classId = document.getElementById("studentClassSelect").value;
+
+      await fetch("/api/student", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, password, classId }),
+      });
+      loadStudents();
+    }
+
+    async function deleteStudent(id) {
+      await fetch("/api/student/" + id, { method: "DELETE" });
+      loadStudents();
+    }
+
+    // ============================================================
+    // MISSIONEN
+    // ============================================================
+
+    async function loadMissions() {
+      const r = await fetch("/api/missions");
+      const list = await r.json();
+
+      const tbl = document.getElementById("missionList");
+      tbl.innerHTML = "<tr><th>Name</th><th>XP</th><th>Bild</th><th>Upload?</th><th>Aktionen</th></tr>";
+
+      list.forEach(m => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${m.name}</td>
+          <td>${m.xp}</td>
+          <td>${m.image_url ? `<img src="${m.image_url}" class="thumb">` : "-"}</td>
+          <td>${m.require_upload ? "Ja" : "Nein"}</td>
+          <td><button onclick="deleteMission(${m.id})">Löschen</button></td>
+        `;
+        tbl.appendChild(tr);
+      });
+    }
+
+    async function createMission() {
+      const name = document.getElementById("missionName").value;
+      const xp = Number(document.getElementById("missionXP").value);
+      const file = document.getElementById("missionImage").files[0];
+      const requireUpload = document.getElementById("missionReq").value;
+
+      let imageUrl = "";
+
+      if (file) {
+        const fd = new FormData();
+        fd.append("image", file);
+        const r = await fetch("/api/missions/upload", {
+          method: "POST",
+          body: fd,
+        });
+        const j = await r.json();
+        if (!j.success) return alert("Upload fehlgeschlagen");
+        imageUrl = j.url;
+      }
+
+      await fetch("/api/missions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, xp, imageUrl, requireUpload }),
+      });
+
+      loadMissions();
+      loadMissionsForXP();
+    }
+
+    async function deleteMission(id) {
+      await fetch("/api/missions/" + id, { method: "DELETE" });
+      loadMissions();
+      loadMissionsForXP();
+    }
+
+    // ============================================================
+    // BONUSKARTEN
+    // ============================================================
+
+    async function loadBonuscards() {
+      const r = await fetch("/api/bonuscards");
+      const list = await r.json();
+
+      const tbl = document.getElementById("bonusList");
+      tbl.innerHTML = "<tr><th>Name</th><th>Kosten</th><th>Bild</th><th>Aktionen</th></tr>";
+
+      list.forEach(b => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${b.name}</td>
+          <td>${b.xp_cost}</td>
+          <td>${b.image_url ? `<img src="${b.image_url}" class="thumb">` : "-"}</td>
+          <td><button onclick="deleteBonus(${b.id})">Löschen</button></td>
+        `;
+        tbl.appendChild(tr);
+      });
+    }
+
+    async function createBonus() {
+      const name = document.getElementById("bonusName").value;
+      const xp_cost = Number(document.getElementById("bonusCost").value);
+      const file = document.getElementById("bonusImage").files[0];
+
+      let url = "";
+
+      if (file) {
+        const fd = new FormData();
+        fd.append("image", file);
+        const r = await fetch("/api/bonuscards/upload", {
+          method: "POST",
+          body: fd,
+        });
+        const j = await r.json();
+        if (!j.success) return alert("Upload fehlgeschlagen");
+        url = j.url;
+      }
+
+      await fetch("/api/bonuscards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, xp_cost, imageUrl: url }),
+      });
+
+      loadBonuscards();
+    }
+
+    async function deleteBonus(id) {
+      await fetch("/api/bonuscards/" + id, { method: "DELETE" });
+      loadBonuscards();
+    }
+
+    // ============================================================
+    // INIT
+    // ============================================================
+
+    async function init() {
+      showTab("xpTab");
+      await loadXPClasses();
+      await loadMissionsForXP();
+      await loadClasses();
+      await loadBonuscards();
+      await loadMissions();
+    }
+
+    init();
+  </script>
 </body>
 </html>
