@@ -68,10 +68,10 @@
       margin-bottom: 16px;
     }
 
-    /* GROSSES CHARAKTERBILD */
+    /* GROSSES CHARAKTERBILD – 221 x 393 */
     #charBig {
-      width: 200px;
-      height: 350px;
+      width: 221px;
+      height: 393px;
       border-radius: 12px;
       border: 2px solid #6d28d9;
       object-fit: cover;
@@ -86,9 +86,10 @@
       text-align: center;
     }
 
+    /* Missionsbild – 221 x 393 */
     .mission-slide img {
-      width: 200px;
-      height: 350px;
+      width: 221px;
+      height: 393px;
       object-fit: cover;
       border-radius: 10px;
       border: 1px solid #4c1d95;
@@ -195,7 +196,6 @@ async function loadMe() {
   const data = await r.json();
   const u = data.user;
 
-  // Charakterbild + Name + XP
   document.getElementById("charBig").src =
     data.character ? data.character.image_url : "";
   document.getElementById("charName").innerText =
@@ -205,7 +205,6 @@ async function loadMe() {
   document.getElementById("levelValue").innerText =
     `${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)`;
 
-  // TRAITS & ITEMS
   document.getElementById("traitsItemsCard").innerHTML = `
     <b>Eigenschaften:</b><br>
     ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
@@ -213,7 +212,6 @@ async function loadMe() {
     ${data.items.map(i => "• " + i).join("<br>")}
   `;
 
-  // XP LOG
   const xpDiv = document.getElementById("xpLog");
   xpDiv.innerHTML = "";
   data.xp_log.forEach(entry => {
@@ -225,7 +223,6 @@ async function loadMe() {
       </div>`;
   });
 
-  // Uploads
   const up = document.getElementById("uploadGrid");
   up.innerHTML = "";
   data.uploads.forEach(upl => {
