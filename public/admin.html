@@ -20,7 +20,7 @@
 
     /* ===== SIDEBAR ===== */
     .sidebar {
-      width: 270px;
+      width: 260px;
       background: radial-gradient(circle at top, #1f1638 0, #0b0a18 40%, #05040c 100%);
       padding: 24px 18px;
       height: 100vh;
@@ -148,10 +148,25 @@
     }
 
     .thumb {
-      width: 60px;
-      height: 60px;
+      width: 55px;
+      height: 55px;
       border-radius: 6px;
       object-fit: cover;
+      margin-right: 4px;
+      cursor: pointer;
+      border: 1px solid #4c3aaa;
+    }
+
+    /* MODAL */
+    #imgModal {
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.85);
+      backdrop-filter: blur(4px);
+      justify-content:center;
+      align-items:center;
+      z-index:9999;
     }
   </style>
 </head>
@@ -339,6 +354,38 @@
 
 </div>
 
+
+<!-- ====================== MODAL ========================== -->
+<div id="imgModal">
+  <div style="position:relative;">
+    <img id="modalImg" src="" style="max-width:90vw;max-height:90vh;border-radius:12px;">
+    <button id="modalDelete" style="
+      position:absolute;
+      top:10px;
+      right:10px;
+      background:#e11d48;
+      color:white;
+      padding:6px 12px;
+      border:none;
+      border-radius:6px;
+      cursor:pointer;
+      font-size:14px;
+    ">Löschen</button>
+    <button onclick="closeModal()" style="
+      position:absolute;
+      top:10px;
+      left:10px;
+      background:#312e81;
+      color:white;
+      padding:6px 12px;
+      border:none;
+      border-radius:6px;
+      cursor:pointer;
+      font-size:14px;
+    ">Zurück</button>
+  </div>
+</div>
+
 <script>
 /* ---------------------------- TABS ---------------------------- */
 function showTab(id) {
@@ -394,9 +441,11 @@ async function loadXPStudents() {
       <td><input type="checkbox" value="${s.id}"></td>
       <td>${s.name}</td>
       <td>${s.xp}</td>
-      <td>${s.upload_url ? `<img class="thumb" src="${s.upload_url}"><button class="delete" onclick="deleteUpload(${s.id})">X</button>` : "—"}</td>
+      <td id="uploadCell_${s.id}">—</td>
     `;
     tbody.appendChild(tr);
+
+    loadUploadsForStudent(s.id);
   });
 
   loadMissionsForXP();
@@ -439,7 +488,6 @@ async function addXPAll() {
   }
   loadXPStudents();
 }
-
 /* ---------------------------- XP MISSION ---------------------------- */
 async function loadMissionsForXP() {
   const r = await fetch("/api/missions");
@@ -490,11 +538,53 @@ async function addMissionXPAll() {
   loadXPStudents();
 }
 
-/* ---------------------------- UPLOAD ---------------------------- */
-async function deleteUpload(studentId) {
-  await fetch(`/api/upload/${studentId}`, { method:"DELETE" });
-  loadXPStudents();
+/* ---------------------------- UPLOADS + MODAL ---------------------------- */
+
+// lädt ALLE Uploads eines Schülers rein
+async function loadUploadsForStudent(studentId) {
+  const r = await fetch(`/api/uploads/${studentId}`);
+  const uploads = await r.json();
+
+  const cell = document.getElementById(`uploadCell_${studentId}`);
+
+  if (!uploads.length) {
+    cell.innerHTML = "—";
+    return;
+  }
+
+  cell.innerHTML = uploads.map(u => `
+    <img 
+      src="${u.image_url}" 
+      class="thumb" 
+      onclick="openModal('${u.image_url}', ${u.id})"
+      style="cursor:pointer;"
+    >
+  `).join("");
 }
+
+// MODAL
+let currentUploadId = null;
+
+function openModal(url, uploadId) {
+  currentUploadId = uploadId;
+  document.getElementById("modalImg").src = url;
+  document.getElementById("imgModal").style.display = "flex";
+}
+
+function closeModal() {
+  document.getElementById("imgModal").style.display = "none";
+}
+
+// ADMIN: Upload löschen
+async function deleteCurrentUpload() {
+  if (!currentUploadId) return;
+  await fetch(`/api/upload/delete/${currentUploadId}`, { method:"DELETE" });
+  closeModal();
+  loadXPStudents(); // neu laden
+}
+
+document.getElementById("modalDelete").onclick = deleteCurrentUpload;
+
 
 /* ---------------------------- KLASSEN ---------------------------- */
 async function loadClassesForManage() {
@@ -802,6 +892,8 @@ async function deleteLevel(id) {
 
 /* Default Ansicht */
 showTab("xpTab");
+
 </script>
+
 </body>
 </html>
