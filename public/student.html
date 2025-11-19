@@ -38,35 +38,66 @@
       letter-spacing: 0.07em;
     }
 
-    /* CHARACTER */
+    /* CHARACTER CARD */
     .character-card {
       background: rgba(20, 16, 36, 0.8);
       border: 1px solid rgba(120, 90, 200, 0.6);
-      border-radius: 16px;
-      padding: 16px;
+      border-radius: 18px;
+      padding: 20px;
       margin-bottom: 24px;
       text-align: center;
-      box-shadow: 0 0 20px rgba(80, 50, 180, 0.4);
+      box-shadow: 0 0 25px rgba(80, 50, 180, 0.45);
       backdrop-filter: blur(8px);
     }
 
     .character-img {
-      width: 120px;
-      height: 120px;
+      width: 160px;
+      height: 160px;
       object-fit: cover;
       border-radius: 50%;
-      margin-bottom: 12px;
-      border: 3px solid #6d28d9;
-      box-shadow: 0 0 12px rgba(139,92,246,0.7);
+      margin-bottom: 14px;
+      border: 4px solid #6d28d9;
+      box-shadow: 0 0 14px rgba(139,92,246,0.8);
     }
 
-    .xp-box {
-      margin-top: 10px;
-      font-size: 18px;
+    .xp-big {
+      margin-top: 12px;
+      font-size: 24px;
+      font-weight: bold;
       color: #c4b5fd;
     }
 
-    /* SECTION */
+    /* XP BAR */
+    .xp-bar-container {
+      width: 100%;
+      height: 18px;
+      background: #2a2445;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #4c3a9f;
+      margin-top: 10px;
+      margin-bottom: 5px;
+    }
+
+    .xp-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+      box-shadow: 0 0 10px #8b5cf6;
+      transition: width 1.2s ease-out;
+    }
+
+    .level-bg-flash {
+      animation: flash 1.3s ease-out;
+    }
+
+    @keyframes flash {
+      0% { box-shadow: 0 0 0px rgba(255,255,255,0.0); }
+      50% { box-shadow: 0 0 40px rgba(255,255,255,0.9); }
+      100% { box-shadow: 0 0 0px rgba(255,255,255,0.0); }
+    }
+
+    /* SECTION TITLES */
     .section-title {
       font-size: 20px;
       margin: 20px 0 10px;
@@ -77,19 +108,19 @@
     /* TRAITS + ITEMS */
     .card-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 16px;
     }
 
     .small-card {
       background: rgba(30, 24, 54, 0.75);
       border: 1px solid rgba(140,100,240,0.5);
-      padding: 14px;
+      padding: 16px;
       border-radius: 12px;
       text-align: center;
-      box-shadow: 0 0 14px rgba(140,100,240,0.4);
+      box-shadow: 0 0 16px rgba(140,100,240,0.45);
       line-height: 1.3;
-      font-size: 14px;
+      font-size: 15px;
     }
 
   </style>
@@ -101,46 +132,69 @@
   <h1>Temple of Logic</h1>
 </div>
 
-<!-- CHARACTER -->
 <div class="character-card" id="characterBox">
-  <img id="characterImg" class="character-img" src="" alt="Charakter">
-  <div id="characterName">Charakter...</div>
-  <div class="xp-box" id="xpBox">XP: ...</div>
+  <img id="characterImg" class="character-img">
+  <div id="characterName"></div>
+  <div class="xp-big" id="xpValue">XP: …</div>
+
+  <div class="xp-bar-container">
+    <div class="xp-bar-fill" id="xpBar"></div>
+  </div>
+
+  <div id="levelName" style="margin-top:4px; color:#a78bfa;"></div>
 </div>
 
-<!-- TRAITS -->
 <div class="section-title">Eigenschaften</div>
 <div class="card-grid" id="traitsGrid"></div>
 
-<!-- ITEMS -->
 <div class="section-title">Ausrüstung</div>
 <div class="card-grid" id="itemsGrid"></div>
 
 <script>
 async function loadStudent() {
-  // 1. Server fragen, ob erster Login → dann Traits/Items/Char werden generiert
   const res = await fetch("/api/student/firstLogin", {
     method: "POST",
     headers: { "Content-Type": "application/json" }
   });
 
   const data = await res.json();
-  console.log("Student Data:", data);
 
-  const character = data.character;
-  const traits = data.traits;
-  const items = data.items;
+  // --- ELEMENTE ---
+  const img = document.getElementById("characterImg");
+  const name = document.getElementById("characterName");
+  const xpValue = document.getElementById("xpValue");
+  const levelName = document.getElementById("levelName");
+  const xpBar = document.getElementById("xpBar");
 
-  // ==== CHARACTER ====
-  document.getElementById("characterImg").src = character.image_url;
-  document.getElementById("characterName").innerText = character.name;
-  document.getElementById("xpBox").innerText = "XP: " + data.xp;
+  // --- FÜLLEN ---
+  img.src = data.character.image_url;
+  name.innerText = data.character.name;
+  xpValue.innerText = "XP: " + data.xp;
+  levelName.innerText = "Level: " + data.level.name;
+
+  // --- XP-BAR (progress to next level) ---
+  const minXP = data.level.min_xp;
+  const nextXP = data.level.next_min_xp ?? (data.level.min_xp + 100); 
+  const progress = Math.min(100, ((data.xp - minXP) / (nextXP - minXP)) * 100);
+
+  // kurze Verzögerung für Animation
+  setTimeout(() => {
+    xpBar.style.width = progress + "%";
+  }, 50);
+
+  // Level-Up Flash
+  if (data.justLeveledUp) {
+    document.getElementById("characterBox").classList.add("level-bg-flash");
+    setTimeout(() => {
+      document.getElementById("characterBox").classList.remove("level-bg-flash");
+    }, 1300);
+  }
 
   // ==== TRAITS ====
   const traitsGrid = document.getElementById("traitsGrid");
   traitsGrid.innerHTML = "";
-  traits.forEach(t => {
-    let div = document.createElement("div");
+  data.traits.forEach(t => {
+    const div = document.createElement("div");
     div.className = "small-card";
     div.innerText = t;
     traitsGrid.appendChild(div);
@@ -149,8 +203,8 @@ async function loadStudent() {
   // ==== ITEMS ====
   const itemsGrid = document.getElementById("itemsGrid");
   itemsGrid.innerHTML = "";
-  items.forEach(it => {
-    let div = document.createElement("div");
+  data.items.forEach(it => {
+    const div = document.createElement("div");
     div.className = "small-card";
     div.innerText = it;
     itemsGrid.appendChild(div);
