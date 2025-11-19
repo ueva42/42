@@ -242,34 +242,8 @@ async function migrate() {
 await migrate();
 
 // =======================================================
-// AUTH
+// ROLE CHECKS (FIXED)
 // =======================================================
-app.post("/api/login", async (req, res) => {
-  const { username, password } = req.body;
-
-  const r = await pool.query(
-    "SELECT * FROM users WHERE name=$1 ORDER BY id ASC",
-    [username]
-  );
-
-  if (!r.rows.length) return res.json({ success: false });
-
-  const user = r.rows[0];
-  if (user.password !== password) return res.json({ success: false });
-
-  req.session.user = {
-    id: user.id,
-    role: user.role,
-    class_id: user.class_id,
-  };
-
-  res.json({ success: true, role: user.role });
-});
-
-app.post("/api/logout", (req, res) => {
-  req.session.destroy(() => res.json({ success: true }));
-});
-
 function isAdmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== "admin")
     return res.status(403).json({ error: "Forbidden" });
@@ -280,7 +254,8 @@ function isStudent(req, res, next) {
   if (!req.session.user || req.session.user.role !== "student")
     return res.status(403).json({ error: "Forbidden" });
   next();
-});
+}
+
 // =======================================================
 // KLASSEN
 // =======================================================
@@ -414,7 +389,36 @@ app.post("/api/xpmission", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// STUDENT-UPLOAD: NUR EINZELNE BILD-UPLOADS (MISSION-BEZOGEN)
+// AUTH
+// =======================================================
+app.post("/api/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  const r = await pool.query(
+    "SELECT * FROM users WHERE name=$1 ORDER BY id ASC",
+    [username]
+  );
+
+  if (!r.rows.length) return res.json({ success: false });
+
+  const user = r.rows[0];
+  if (user.password !== password) return res.json({ success: false });
+
+  req.session.user = {
+    id: user.id,
+    role: user.role,
+    class_id: user.class_id,
+  };
+
+  res.json({ success: true, role: user.role });
+});
+
+app.post("/api/logout", (req, res) => {
+  req.session.destroy(() => res.json({ success: true }));
+});
+
+// =======================================================
+// STUDENT-UPLOAD
 // =======================================================
 app.post(
   "/api/student/uploadForMission",
@@ -467,7 +471,7 @@ app.post(
 );
 
 // =======================================================
-// ADMIN: ALLE Uploads eines Schülers abrufen
+// ADMIN: Uploads eines Schülers
 // =======================================================
 app.get("/api/uploads/:studentId", isAdmin, async (req, res) => {
   const studentId = Number(req.params.studentId);
@@ -493,7 +497,7 @@ app.get("/api/uploads/:studentId", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// ADMIN: Einzelnes Upload löschen
+// ADMIN: Upload löschen
 // =======================================================
 app.delete("/api/upload/delete/:uploadId", isAdmin, async (req, res) => {
   const uploadId = Number(req.params.uploadId);
@@ -525,14 +529,13 @@ app.delete("/api/upload/delete/:uploadId", isAdmin, async (req, res) => {
 
   res.json({ success: true });
 });
+
 // =======================================================
 // STUDENT DASHBOARD
 // =======================================================
-
 app.get("/api/student/me", isStudent, async (req, res) => {
   const id = req.session.user.id;
 
-  // ----- USER-DATEN -----
   const user = await pool.query(
     `
     SELECT 
@@ -550,7 +553,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     [id]
   );
 
-  // ----- CHARACTER -----
   const character = await pool.query(
     `
     SELECT c.id, c.name, c.image_url
@@ -561,20 +563,15 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     [id]
   );
 
-  // ----- USER TRAITS -----
+  // Traits / Items sicherstellen
   await ensureColumn("users", "traits", "JSONB");
   await ensureColumn("users", "items", "JSONB");
 
   const traitItem = await pool.query(
-    `
-    SELECT traits, items 
-    FROM users 
-    WHERE id=$1
-    `,
+    `SELECT traits, items FROM users WHERE id=$1`,
     [id]
   );
 
-  // Falls Traits noch nicht vergeben → zufällig zuweisen
   let traits = traitItem.rows[0].traits;
   let items = traitItem.rows[0].items;
 
@@ -592,12 +589,12 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     "Selbstkritisch – Reflektiert ehrlich",
     "Optimistisch – Sieht Chancen statt Probleme",
     "Aufmerksam – Erkennt wichtige Details",
-    "Pragmatisch – Wählt den einfachsten funktionierenden Weg",
-    "Mutig – Stellt sich schwierigen Aufgaben",
+    "Pragmatisch – Wählt den einfachsten Weg",
+    "Mutig – Stellt sich Herausforderungen",
     "Sorgfältig – Achtet auf Genauigkeit",
-    "Logisch denkend – Denkt Schritt für Schritt",
-    "Erfinderisch – Entwickelt neue Lösungsstrategien",
-    "Geduldig – Arbeitet ruhig und konzentriert",
+    "Logisch denkend – Schritt für Schritt",
+    "Erfinderisch – Entwickelt neue Strategien",
+    "Geduldig – Arbeitet ruhig",
     "Inspirierend – Motiviert andere"
   ];
 
@@ -644,7 +641,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     ]);
   }
 
-  // ----- XP LOG -----
   const xpLog = await pool.query(
     `
     SELECT 
@@ -661,7 +657,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     [id]
   );
 
-  // ----- STUDENT UPLOADS -----
   const uploads = await pool.query(
     `
     SELECT 
@@ -689,7 +684,7 @@ app.get("/api/student/me", isStudent, async (req, res) => {
 });
 
 // =======================================================
-// STUDENT: Charakter wählen
+// Charakter wählen
 // =======================================================
 app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
   const { characterId } = req.body;
@@ -706,10 +701,9 @@ app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
 });
 
 // =======================================================
-// STUDENT: Missionsliste abrufen
+// Missionsliste
 // =======================================================
-
-app.get("/api/student/missions", isStudent, async (req, res) => {
+app.get("/api/student/missions", isStudent, async (_req, res) => {
   const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
   res.json(r.rows);
 });
