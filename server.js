@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (FINAL)
+// Temple of Logic – SERVER.JS (Belohnungen + stabiles Level)
 // =======================================================
 
 import express from "express";
@@ -16,6 +16,9 @@ import {
 import pkg from "pg";
 const { Pool } = pkg;
 
+// -------------------------------------------------------
+// Grundpfade
+// -------------------------------------------------------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -28,7 +31,7 @@ app.use(
     secret: "super-temp-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false }
+    cookie: { secure: false },
   })
 );
 
@@ -56,6 +59,9 @@ const r2 = new S3Client({
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// -------------------------------------------------------
+// Helper: Spalten anlegen, wenn sie fehlen
+// -------------------------------------------------------
 async function ensureColumn(table, col, type) {
   await pool.query(`
     DO $$
@@ -71,18 +77,24 @@ async function ensureColumn(table, col, type) {
 }
 
 // -------------------------------------------------------
-// LEVEL-FUNKTIONEN
+// LEVEL-FUNKTIONEN (Level basiert auf HIGHEST_XP, nicht aktuellem XP)
 // -------------------------------------------------------
 async function updateStudentLevel(studentId) {
-  const r = await pool.query("SELECT xp FROM users WHERE id=$1", [studentId]);
+  const r = await pool.query(
+    "SELECT xp, COALESCE(highest_xp, xp) AS highest_xp FROM users WHERE id=$1",
+    [studentId]
+  );
   if (!r.rows.length) return;
 
-  const xp = r.rows[0].xp;
-  const levels = await pool.query("SELECT id,min_xp FROM levels ORDER BY min_xp ASC");
+  const highestXp = r.rows[0].highest_xp;
+
+  const levels = await pool.query(
+    "SELECT id,min_xp FROM levels ORDER BY min_xp ASC"
+  );
 
   let newLevel = null;
   for (const lvl of levels.rows) {
-    if (xp >= lvl.min_xp) newLevel = lvl.id;
+    if (highestXp >= lvl.min_xp) newLevel = lvl.id;
   }
 
   await pool.query("UPDATE users SET level_id=$1 WHERE id=$2", [
@@ -92,16 +104,22 @@ async function updateStudentLevel(studentId) {
 }
 
 async function recalcAllStudentLevels() {
-  const levels = (await pool.query("SELECT id,min_xp FROM levels ORDER BY min_xp ASC")).rows;
-  const users = (await pool.query("SELECT id,xp FROM users WHERE role='student'")).rows;
+  const levels = (
+    await pool.query("SELECT id,min_xp FROM levels ORDER BY min_xp ASC")
+  ).rows;
+  const users = (
+    await pool.query(
+      "SELECT id, xp, COALESCE(highest_xp, xp) AS highest_xp FROM users WHERE role='student'"
+    )
+  ).rows;
 
   for (const u of users) {
-    let levelId = null;
+    let lvlId = null;
     for (const l of levels) {
-      if (u.xp >= l.min_xp) levelId = l.id;
+      if (u.highest_xp >= l.min_xp) lvlId = l.id;
     }
     await pool.query("UPDATE users SET level_id=$1 WHERE id=$2", [
-      levelId,
+      lvlId,
       u.id,
     ]);
   }
@@ -136,6 +154,8 @@ async function migrate() {
   await ensureColumn("users", "level_id", "INTEGER");
   await ensureColumn("users", "traits", "JSONB");
   await ensureColumn("users", "items", "JSONB");
+  // lebenslang gesammelte XP für Levelberechnung
+  await ensureColumn("users", "highest_xp", "INTEGER NOT NULL DEFAULT 0");
 
   await pool.query(`
     DO $$
@@ -284,7 +304,9 @@ app.post("/api/class", isAdmin, async (req, res) => {
 app.delete("/api/class/:id", isAdmin, async (req, res) => {
   const id = Number(req.params.id);
 
-  await pool.query("DELETE FROM users WHERE class_id=$1 AND role='student'", [id]);
+  await pool.query("DELETE FROM users WHERE class_id=$1 AND role='student'", [
+    id,
+  ]);
   await pool.query("DELETE FROM classes WHERE id=$1", [id]);
 
   res.json({ success: true });
@@ -311,8 +333,8 @@ app.post("/api/student", isAdmin, async (req, res) => {
   const { name, password, classId } = req.body;
 
   await pool.query(
-    `INSERT INTO users (name,password,role,class_id,xp)
-     VALUES ($1,$2,'student',$3,0)
+    `INSERT INTO users (name,password,role,class_id,xp,highest_xp)
+     VALUES ($1,$2,'student',$3,0,0)
      ON CONFLICT (name,class_id) DO NOTHING`,
     [name, password, classId]
   );
@@ -336,14 +358,21 @@ async function logXP(studentId, amount, missionId, source, adminId) {
   );
 }
 
+// XP direkt
 app.post("/api/xp", isAdmin, async (req, res) => {
   const { studentId, xp } = req.body;
   const delta = Number(xp);
+  if (!studentId || isNaN(delta)) return res.json({ success: false });
 
-  await pool.query("UPDATE users SET xp=xp+$1 WHERE id=$2", [
-    delta,
-    studentId,
-  ]);
+  await pool.query(
+    `
+    UPDATE users
+    SET xp = xp + $1,
+        highest_xp = GREATEST(COALESCE(highest_xp,0), xp + $1)
+    WHERE id=$2
+    `,
+    [delta, studentId]
+  );
 
   await logXP(studentId, delta, null, "direct", req.session.user.id);
   await updateStudentLevel(studentId);
@@ -351,18 +380,27 @@ app.post("/api/xp", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// XP über Mission
 app.post("/api/xpmission", isAdmin, async (req, res) => {
   const { studentId, missionId } = req.body;
+  if (!studentId || !missionId) return res.json({ success: false });
 
-  const m = await pool.query("SELECT xp FROM missions WHERE id=$1", [missionId]);
+  const m = await pool.query("SELECT xp FROM missions WHERE id=$1", [
+    missionId,
+  ]);
   if (!m.rows.length) return res.json({ success: false });
 
   const xp = m.rows[0].xp;
 
-  await pool.query("UPDATE users SET xp=xp+$1 WHERE id=$2", [
-    xp,
-    studentId,
-  ]);
+  await pool.query(
+    `
+    UPDATE users
+    SET xp = xp + $1,
+        highest_xp = GREATEST(COALESCE(highest_xp,0), xp + $1)
+    WHERE id=$2
+    `,
+    [xp, studentId]
+  );
 
   await logXP(studentId, xp, missionId, "mission", req.session.user.id);
   await updateStudentLevel(studentId);
@@ -374,13 +412,16 @@ app.post("/api/xpmission", isAdmin, async (req, res) => {
 // ADMIN – Uploads
 // -------------------------------------------------------
 app.get("/api/uploads/:studentId", isAdmin, async (req, res) => {
-  const r = await pool.query(`
+  const r = await pool.query(
+    `
     SELECT su.*, m.name AS mission_name
     FROM student_uploads su
     LEFT JOIN missions m ON m.id = su.mission_id
     WHERE su.student_id=$1
     ORDER BY su.created_at DESC
-  `, [req.params.studentId]);
+  `,
+    [req.params.studentId]
+  );
 
   res.json(r.rows);
 });
@@ -417,25 +458,30 @@ app.delete("/api/upload/delete/:uploadId", isAdmin, async (req, res) => {
 // -------------------------------------------------------
 let uploadedMissionImageUrl = null;
 
-app.post("/api/missions/upload", isAdmin, upload.single("image"), async (req, res) => {
-  if (!req.file) return res.json({ success: false });
+app.post(
+  "/api/missions/upload",
+  isAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    if (!req.file) return res.json({ success: false });
 
-  const fileName = `missions/${Date.now()}_${req.file.originalname}`;
+    const fileName = `missions/${Date.now()}_${req.file.originalname}`;
 
-  await r2.send(
-    new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET,
-      Key: fileName,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-    })
-  );
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      })
+    );
 
-  const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
-  uploadedMissionImageUrl = url;
+    const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+    uploadedMissionImageUrl = url;
 
-  res.json({ success: true, url });
-});
+    res.json({ success: true, url });
+  }
+);
 
 app.post("/api/missions", isAdmin, async (req, res) => {
   const { name, xp, imageUrl, requireUpload } = req.body;
@@ -456,10 +502,9 @@ app.get("/api/missions", isAdmin, async (_req, res) => {
 });
 
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
-  const r = await pool.query(
-    "SELECT image_url FROM missions WHERE id=$1",
-    [req.params.id]
-  );
+  const r = await pool.query("SELECT image_url FROM missions WHERE id=$1", [
+    req.params.id,
+  ]);
 
   if (r.rows.length && r.rows[0].image_url) {
     const prefix = process.env.R2_PUBLIC_URL + "/";
@@ -480,29 +525,34 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// BONUSKARTEN
+// BONUSKARTEN (Admin)
 // -------------------------------------------------------
 let uploadedBonusImageUrl = null;
 
-app.post("/api/bonus/upload", isAdmin, upload.single("image"), async (req, res) => {
-  if (!req.file) return res.json({ success: false });
+app.post(
+  "/api/bonus/upload",
+  isAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    if (!req.file) return res.json({ success: false });
 
-  const fileName = `bonuscards/${Date.now()}_${req.file.originalname}`;
+    const fileName = `bonuscards/${Date.now()}_${req.file.originalname}`;
 
-  await r2.send(
-    new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET,
-      Key: fileName,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-    })
-  );
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      })
+    );
 
-  const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
-  uploadedBonusImageUrl = url;
+    const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+    uploadedBonusImageUrl = url;
 
-  res.json({ success: true, url });
-});
+    res.json({ success: true, url });
+  }
+);
 
 app.post("/api/bonus", isAdmin, async (req, res) => {
   const { name, xp, imageUrl } = req.body;
@@ -518,15 +568,14 @@ app.post("/api/bonus", isAdmin, async (req, res) => {
 });
 
 app.get("/api/bonus", isAdmin, async (_req, res) => {
-  const r = await pool.query("SELECT * FROM bonuscards ORDER BY id DESC");
+  const r = await pool.query("SELECT * FROM bonuscards ORDER BY xp ASC");
   res.json(r.rows);
 });
 
 app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
-  const r = await pool.query(
-    "SELECT image_url FROM bonuscards WHERE id=$1",
-    [req.params.id]
-  );
+  const r = await pool.query("SELECT image_url FROM bonuscards WHERE id=$1", [
+    req.params.id,
+  ]);
 
   if (r.rows.length && r.rows[0].image_url) {
     const prefix = process.env.R2_PUBLIC_URL + "/";
@@ -554,25 +603,30 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
 // -------------------------------------------------------
 let uploadedCharacterImageUrl = null;
 
-app.post("/api/character/upload", isAdmin, upload.single("image"), async (req, res) => {
-  if (!req.file) return res.json({ success: false });
+app.post(
+  "/api/character/upload",
+  isAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    if (!req.file) return res.json({ success: false });
 
-  const fileName = `characters/${Date.now()}_${req.file.originalname}`;
+    const fileName = `characters/${Date.now()}_${req.file.originalname}`;
 
-  await r2.send(
-    new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET,
-      Key: fileName,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-    })
-  );
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      })
+    );
 
-  const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
-  uploadedCharacterImageUrl = url;
+    const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+    uploadedCharacterImageUrl = url;
 
-  res.json({ success: true, url });
-});
+    res.json({ success: true, url });
+  }
+);
 
 app.post("/api/character", isAdmin, async (req, res) => {
   const { name, imageUrl } = req.body;
@@ -593,10 +647,9 @@ app.get("/api/character", isAdmin, async (_req, res) => {
 });
 
 app.delete("/api/character/:id", isAdmin, async (req, res) => {
-  const r = await pool.query(
-    "SELECT image_url FROM characters WHERE id=$1",
-    [req.params.id]
-  );
+  const r = await pool.query("SELECT image_url FROM characters WHERE id=$1", [
+    req.params.id,
+  ]);
 
   if (r.rows.length && r.rows[0].image_url) {
     const prefix = process.env.R2_PUBLIC_URL + "/";
@@ -623,7 +676,9 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 // LEVEL-API
 // -------------------------------------------------------
 app.get("/api/levels", isAdmin, async (_req, res) => {
-  const r = await pool.query("SELECT id,name,min_xp FROM levels ORDER BY min_xp ASC");
+  const r = await pool.query(
+    "SELECT id,name,min_xp FROM levels ORDER BY min_xp ASC"
+  );
   res.json(r.rows);
 });
 
@@ -636,10 +691,10 @@ app.post("/api/levels", isAdmin, async (req, res) => {
 
   if (count === 0 && minXp !== 0) minXp = 0;
 
-  await pool.query(
-    "INSERT INTO levels (name,min_xp) VALUES ($1,$2)",
-    [name, minXp]
-  );
+  await pool.query("INSERT INTO levels (name,min_xp) VALUES ($1,$2)", [
+    name,
+    minXp,
+  ]);
 
   await recalcAllStudentLevels();
   res.json({ success: true });
@@ -653,25 +708,31 @@ app.delete("/api/levels/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// STUDENT – Dashboard-Daten (MIT LEVELS)
+// STUDENT – Dashboard-Daten (inkl. xp_per_mission)
 // -------------------------------------------------------
 app.get("/api/student/me", isStudent, async (req, res) => {
   const id = req.session.user.id;
 
-  const user = await pool.query(`
+  const user = await pool.query(
+    `
     SELECT u.id,u.name,u.xp,u.character_id,u.level_id,
            l.name AS level_name,l.min_xp AS level_min_xp
     FROM users u
     LEFT JOIN levels l ON l.id = u.level_id
     WHERE u.id=$1
-  `, [id]);
+  `,
+    [id]
+  );
 
-  const character = await pool.query(`
+  const character = await pool.query(
+    `
     SELECT c.id,c.name,c.image_url
     FROM users u
     LEFT JOIN characters c ON c.id = u.character_id
     WHERE u.id=$1
-  `, [id]);
+  `,
+    [id]
+  );
 
   await ensureColumn("users", "traits", "JSONB");
   await ensureColumn("users", "items", "JSONB");
@@ -695,7 +756,7 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     "Kompass","Rucksack","Lineal","Lampe","Formelbuch"
   ];
 
-  const pickThree = arr => [...arr].sort(()=>Math.random()-0.5).slice(0,3);
+  const pickThree = (arr) => [...arr].sort(() => Math.random() - 0.5).slice(0, 3);
 
   if (!traits || traits.length === 0) {
     traits = pickThree(TRAITS);
@@ -713,27 +774,39 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     ]);
   }
 
-  const xpLog = await pool.query(`
+  const xpLog = await pool.query(
+    `
     SELECT t.*, m.name AS mission_name
     FROM xp_transactions t
     LEFT JOIN missions m ON t.mission_id = m.id
     WHERE student_id=$1
     ORDER BY created_at DESC
-  `, [id]);
+  `,
+    [id]
+  );
 
-  const uploads = await pool.query(`
+  const uploads = await pool.query(
+    `
     SELECT su.*, m.name AS mission_name
     FROM student_uploads su
     LEFT JOIN missions m ON m.id = su.mission_id
     WHERE su.student_id=$1
     ORDER BY su.created_at DESC
-  `, [id]);
+  `,
+    [id]
+  );
 
-  const levels = await pool.query(`
-    SELECT id,name,min_xp 
-    FROM levels 
-    ORDER BY min_xp ASC
-  `);
+  const levels = await pool.query(
+    "SELECT id,name,min_xp FROM levels ORDER BY min_xp ASC"
+  );
+
+  // XP-Summe pro Mission
+  const xpPerMission = {};
+  xpLog.rows.forEach((row) => {
+    if (!row.mission_id) return;
+    xpPerMission[row.mission_id] =
+      (xpPerMission[row.mission_id] || 0) + row.amount;
+  });
 
   res.json({
     user: user.rows[0],
@@ -742,57 +815,136 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     items,
     xp_log: xpLog.rows,
     uploads: uploads.rows,
-    levels: levels.rows
+    levels: levels.rows,
+    xp_per_mission: xpPerMission,
   });
 });
 
 // -------------------------------------------------------
-// STUDENT – Missionen für KARUSSELL  <<<<<<<<<<<<<<<<<<<<<<
+// STUDENT – Missionenliste
 // -------------------------------------------------------
-app.get("/api/student/missions", isStudent, async (req, res) => {
-  const r = await pool.query(`
-    SELECT id,name,xp,image_url,require_upload
-    FROM missions
-    ORDER BY id ASC
-  `);
+app.get("/api/student/missions", isStudent, async (_req, res) => {
+  const r = await pool.query(
+    "SELECT id,name,xp,image_url,require_upload FROM missions ORDER BY id DESC"
+  );
   res.json(r.rows);
 });
 
 // -------------------------------------------------------
-// STUDENT – Uploads
+// STUDENT – Upload für Mission
 // -------------------------------------------------------
-app.post("/api/student/uploadForMission",
+app.post(
+  "/api/student/uploadForMission",
   isStudent,
   upload.single("image"),
   async (req, res) => {
-    const { missionId } = req.body;
-    const studentId = req.session.user.id;
+    try {
+      const { missionId } = req.body;
+      const studentId = req.session.user.id;
 
-    const fileName = `uploads/${studentId}_${missionId}_${Date.now()}_${req.file.originalname}`;
+      if (!missionId || !req.file)
+        return res.json({ success: false });
 
-    await r2.send(
-      new PutObjectCommand({
-        Bucket: process.env.R2_BUCKET,
-        Key: fileName,
-        Body: req.file.buffer,
-        ContentType: req.file.mimetype,
-      })
-    );
+      const fileName = `uploads/${studentId}_${missionId}_${Date.now()}_${req.file.originalname}`;
 
-    const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: process.env.R2_BUCKET,
+          Key: fileName,
+          Body: req.file.buffer,
+          ContentType: req.file.mimetype,
+        })
+      );
 
-    await pool.query(
-      `INSERT INTO student_uploads (student_id,mission_id,image_url)
-       VALUES ($1,$2,$3)`,
-      [studentId, missionId, url]
-    );
+      const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
 
-    res.json({ success: true, url });
+      await pool.query(
+        `INSERT INTO student_uploads (student_id,mission_id,image_url)
+         VALUES ($1,$2,$3)`,
+        [studentId, missionId, url]
+      );
+
+      res.json({ success: true, url });
+    } catch (err) {
+      console.error("Student Upload Fehler:", err);
+      res.status(500).json({ success: false });
+    }
+  }
+);
+
+// -------------------------------------------------------
+// STUDENT – Belohnungen (Bonuskarten)
+// -------------------------------------------------------
+
+// verfügbare Bonuskarten für aktuellen XP-Stand
+app.get("/api/student/bonuscards", isStudent, async (req, res) => {
+  const studentId = req.session.user.id;
+
+  const u = await pool.query("SELECT xp FROM users WHERE id=$1", [studentId]);
+  if (!u.rows.length) return res.json([]);
+
+  const currentXp = u.rows[0].xp;
+
+  const r = await pool.query(
+    `
+    SELECT id,name,xp,image_url
+    FROM bonuscards
+    WHERE xp <= $1
+    ORDER BY xp ASC
+    `,
+    [currentXp]
+  );
+
+  res.json(r.rows);
+});
+
+// Bonuskarte einlösen (XP runter, Level bleibt, Karte mehrfach möglich)
+app.post("/api/student/redeemBonus", isStudent, async (req, res) => {
+  const { bonusId } = req.body;
+  const studentId = req.session.user.id;
+
+  const u = await pool.query(
+    "SELECT xp, COALESCE(highest_xp,0) AS highest_xp FROM users WHERE id=$1",
+    [studentId]
+  );
+  if (!u.rows.length) return res.json({ success: false });
+
+  const b = await pool.query(
+    "SELECT id,name,xp FROM bonuscards WHERE id=$1",
+    [bonusId]
+  );
+  if (!b.rows.length) return res.json({ success: false });
+
+  const cost = b.rows[0].xp;
+  const currentXp = u.rows[0].xp;
+
+  if (currentXp < cost) {
+    return res.json({ success: false, error: "not_enough_xp" });
+  }
+
+  // XP runter, highest_xp NICHT anrühren
+  await pool.query(
+    "UPDATE users SET xp = xp - $1 WHERE id=$2",
+    [cost, studentId]
+  );
+
+  // Loggen als negative XP mit Quelle "bonus:<name>"
+  await logXP(
+    studentId,
+    -cost,
+    null,
+    `bonus:${b.rows[0].name}`,
+    null
+  );
+
+  // Level NICHT neu berechnen, weil auf highest_xp basiert und sich nicht ändert
+
+  res.json({ success: true });
 });
 
 // -------------------------------------------------------
 // START
 // -------------------------------------------------------
 app.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Server läuft auf Port 8080 (FINAL BUILD)");
+  console.log("🚀 Server läuft auf Port 8080 (Belohnungen aktiv)");
 });
