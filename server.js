@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (stabile Gesamtversion mit Levelsystem V2)
+// Temple of Logic – SERVER.JS (stabile Gesamtversion mit Levelsystem)
 // =======================================================
 
 import express from "express";
@@ -31,7 +31,7 @@ app.use(
     secret: "super-temp-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false },
+    cookie: { secure: false }, // bei HTTPS später true
   })
 );
 
@@ -156,6 +156,7 @@ async function migrate() {
     );
   `);
 
+  // alte xp_cost-Spalte entfernen
   await pool.query(`
     DO $$
     BEGIN
@@ -178,7 +179,7 @@ async function migrate() {
     );
   `);
 
-  // XP Transaktionen
+  // XP-Transaktionen
   await pool.query(`
     CREATE TABLE IF NOT EXISTS xp_transactions (
       id SERIAL PRIMARY KEY,
@@ -191,7 +192,12 @@ async function migrate() {
     );
   `);
 
-  // ---------- LEVELSYSTEM EINBAU ----------
+  await ensureColumn("xp_transactions", "amount", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("xp_transactions", "mission_id", "INTEGER");
+  await ensureColumn("xp_transactions", "source", "TEXT");
+  await ensureColumn("xp_transactions", "awarded_by", "INTEGER");
+
+  // LEVELS
   await pool.query(`
     CREATE TABLE IF NOT EXISTS levels (
       id SERIAL PRIMARY KEY,
@@ -200,6 +206,8 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
+  // falls alte Tabelle ohne required_xp existiert
+  await ensureColumn("levels", "required_xp", "INTEGER NOT NULL DEFAULT 0");
 
   // Default Admin
   await pool.query(`
@@ -243,14 +251,16 @@ app.post("/api/logout", (req, res) => {
 });
 
 function isAdmin(req, res, next) {
-  if (!req.session.user || req.session.user.role !== "admin")
+  if (!req.session.user || req.session.user.role !== "admin") {
     return res.status(403).json({ error: "Forbidden" });
+  }
   next();
 }
 
 function isStudent(req, res, next) {
-  if (!req.session.user || req.session.user.role !== "student")
+  if (!req.session.user || req.session.user.role !== "student") {
     return res.status(403).json({ error: "Forbidden" });
+  }
   next();
 }
 
@@ -398,7 +408,7 @@ app.post("/api/xpmission", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// UPLOAD
+// SCHÜLER-UPLOADS
 // =======================================================
 app.post(
   "/api/student/upload",
@@ -437,6 +447,7 @@ app.post(
   }
 );
 
+// Admin löscht letzten Upload
 app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
   const studentId = Number(req.params.studentId);
   if (!studentId) return res.json({ success: false });
@@ -526,6 +537,7 @@ app.get("/api/missions", isAdmin, async (_req, res) => {
 
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
   const id = Number(req.params.id);
+  if (!id) return res.json({ success: false });
 
   const r = await pool.query("SELECT image_url FROM missions WHERE id=$1", [
     id,
@@ -605,6 +617,7 @@ app.get("/api/bonus", isAdmin, async (_req, res) => {
 
 app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
   const id = Number(req.params.id);
+  if (!id) return res.json({ success: false });
 
   const r = await pool.query("SELECT image_url FROM bonuscards WHERE id=$1", [
     id,
@@ -684,6 +697,7 @@ app.get("/api/character", isAdmin, async (_req, res) => {
 
 app.delete("/api/character/:id", isAdmin, async (req, res) => {
   const id = Number(req.params.id);
+  if (!id) return res.json({ success: false });
 
   const r = await pool.query("SELECT image_url FROM characters WHERE id=$1", [
     id,
@@ -706,6 +720,44 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
   }
 
   await pool.query("DELETE FROM characters WHERE id=$1", [id]);
+  res.json({ success: true });
+});
+
+// =======================================================
+// LEVELSYSTEM – API ENDPOINTS
+// =======================================================
+
+// Level anlegen
+app.post("/api/levels", isAdmin, async (req, res) => {
+  const { name, min_xp } = req.body;
+  const xp = Number(min_xp);
+
+  if (!name || isNaN(xp)) {
+    return res.json({ success: false });
+  }
+
+  await pool.query(
+    "INSERT INTO levels (name, required_xp) VALUES ($1, $2)",
+    [name, xp]
+  );
+
+  res.json({ success: true });
+});
+
+// Alle Level abrufen
+app.get("/api/levels", isAdmin, async (_req, res) => {
+  const r = await pool.query(
+    "SELECT * FROM levels ORDER BY required_xp ASC, id ASC"
+  );
+  res.json(r.rows);
+});
+
+// Level löschen
+app.delete("/api/levels/:id", isAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.json({ success: false });
+
+  await pool.query("DELETE FROM levels WHERE id=$1", [id]);
   res.json({ success: true });
 });
 
