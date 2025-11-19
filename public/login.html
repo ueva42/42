@@ -3,42 +3,163 @@
 <head>
   <meta charset="UTF-8" />
   <title>Temple of Logic – Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(168,85,247,0.30), transparent 60%),
+        radial-gradient(circle at 90% 60%, rgba(59,130,246,0.28), transparent 70%),
+        #050312;
+      font-family: "Arial", sans-serif;
+      color: #eee;
+    }
+
+    .login-card {
+      width: 90%;
+      max-width: 380px;
+      padding: 32px;
+      background: rgba(20, 16, 36, 0.8);
+      border: 1px solid rgba(120, 90, 200, 0.6);
+      border-radius: 18px;
+      box-shadow: 0 0 35px rgba(80, 50, 180, 0.6);
+      backdrop-filter: blur(8px);
+      animation: fadeIn 0.8s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    .logo-orb {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 20%, #facc15, #f97316 25%, #4c1d95 70%, #020617 100%);
+      box-shadow: 0 0 20px rgba(250,204,21,0.9);
+    }
+
+    h1 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 24px;
+      font-size: 22px;
+      letter-spacing: 0.1em;
+      color: #ddd6fe;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 14px;
+      border-radius: 10px;
+      border: 1px solid #463c75;
+      background: #141228;
+      color: #eee;
+      font-size: 15px;
+      box-sizing: border-box;
+      outline: none;
+      transition: 0.2s;
+    }
+
+    input:focus {
+      border-color: #8b5cf6;
+      box-shadow: 0 0 8px rgba(139,92,246,0.8);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      margin-top: 6px;
+      background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 14px rgba(140,100,255,0.5);
+    }
+
+    .error {
+      text-align: center;
+      color: #f87171;
+      margin-bottom: 10px;
+      display: none;
+    }
+
+    @media (max-width: 480px) {
+      .login-card {
+        padding: 24px;
+        max-width: 90%;
+      }
+      h1 { font-size: 19px; }
+    }
+
+  </style>
 </head>
 <body>
-  <h2>Login</h2>
 
-  <form id="loginForm">
-    <input type="text" id="username" placeholder="Benutzername" required><br><br>
-    <input type="password" id="password" placeholder="Passwort" required><br><br>
-    <button type="submit">Einloggen</button>
-  </form>
+<div class="login-card">
+  <div class="logo-orb"></div>
+  <h1>TEMPLE OF LOGIC</h1>
 
-  <script>
-    document.getElementById("loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
+  <div id="errorBox" class="error">Falscher Login</div>
 
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
+  <input id="username" placeholder="Benutzername" autocomplete="username" />
+  <input id="password" placeholder="Passwort" type="password" autocomplete="current-password" />
 
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
-      });
+  <button onclick="doLogin()">Login</button>
+</div>
 
-      const data = await res.json();
+<script>
+async function doLogin() {
 
-      if (!data.success) {
-        alert("Login fehlgeschlagen");
-        return;
-      }
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value.trim();
+  const errorBox = document.getElementById("errorBox");
 
-      if (data.role === "admin") {
-        window.location.href = "/admin.html";
-      } else {
-        window.location.href = "/student.html";
-      }
-    });
-  </script>
+  if (!username || !password) {
+    errorBox.innerText = "Bitte alles ausfüllen";
+    errorBox.style.display = "block";
+    return;
+  }
+
+  const res = await fetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
+
+  const data = await res.json();
+
+  if (!data.success) {
+    errorBox.innerText = "Login fehlgeschlagen";
+    errorBox.style.display = "block";
+    return;
+  }
+
+  // Rollenbasierte Weiterleitung:
+  if (data.role === "admin") {
+    window.location.href = "/admin.html";
+  } else {
+    window.location.href = "/student.html";
+  }
+}
+</script>
+
 </body>
 </html>
