@@ -16,9 +16,6 @@ import {
 import pkg from "pg";
 const { Pool } = pkg;
 
-// -------------------------------------------------------
-// Grundpfade
-// -------------------------------------------------------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -59,9 +56,6 @@ const r2 = new S3Client({
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// -------------------------------------------------------
-// Helper: Spalten anlegen, wenn sie fehlen
-// -------------------------------------------------------
 async function ensureColumn(table, col, type) {
   await pool.query(`
     DO $$
@@ -735,7 +729,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     ORDER BY su.created_at DESC
   `, [id]);
 
-  // IMPORTANT: LEVELS FÜR LEVELBALKEN MIT SENDEN
   const levels = await pool.query(`
     SELECT id,name,min_xp 
     FROM levels 
@@ -749,8 +742,20 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     items,
     xp_log: xpLog.rows,
     uploads: uploads.rows,
-    levels: levels.rows       // <<<<<< WICHTIG FÜR LEVEL-BALKEN
+    levels: levels.rows
   });
+});
+
+// -------------------------------------------------------
+// STUDENT – Missionen für KARUSSELL  <<<<<<<<<<<<<<<<<<<<<<
+// -------------------------------------------------------
+app.get("/api/student/missions", isStudent, async (req, res) => {
+  const r = await pool.query(`
+    SELECT id,name,xp,image_url,require_upload
+    FROM missions
+    ORDER BY id ASC
+  `);
+  res.json(r.rows);
 });
 
 // -------------------------------------------------------
