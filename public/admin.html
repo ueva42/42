@@ -183,6 +183,11 @@
     <span class="nav-label">Bonuskarten</span>
   </div>
 
+  <div class="nav-item" onclick="showTab('levelTab')">
+    <svg viewBox="0 0 24 24"><path d="M4 20h4v-4H4v4zm6 0h4v-7h-4v7zm6 0h4V6h-4v14zM4 14h4v-4H4v4zm0-6h4V4H4v4z"/></svg>
+    <span class="nav-label">Level</span>
+  </div>
+
   <div class="nav-item" onclick="showTab('characterTab')">
     <svg viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4zm0 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/></svg>
     <span class="nav-label">Charaktere</span>
@@ -291,6 +296,23 @@
     </table>
   </div>
 
+  <!-- LEVEL -->
+  <div id="levelTab" class="tab hidden">
+    <h1>Level</h1>
+
+    <h3>Neues Level</h3>
+    <input id="levelName" placeholder="Levelname" />
+    <input id="levelMinXP" type="number" placeholder="Min. XP (0, 100, 200 …)" />
+    <button class="action" onclick="addLevel()">Speichern</button>
+
+    <table id="levelTable">
+      <thead>
+        <tr><th>Name</th><th>Min-XP</th><th>Löschen</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
   <!-- CHARAKTERE -->
   <div id="characterTab" class="tab hidden">
     <h1>Charaktere</h1>
@@ -322,6 +344,7 @@ function showTab(id) {
   if (id === "missionTab") loadMissions();
   if (id === "bonusTab") loadBonuses();
   if (id === "characterTab") loadCharacters();
+  if (id === "levelTab") loadLevels();
 }
 
 /* ---------------------------- LOGOUT ---------------------------- */
@@ -686,6 +709,47 @@ async function loadCharacters() {
 async function deleteCharacter(id) {
   await fetch(`/api/character/${id}`, { method:"DELETE" });
   loadCharacters();
+}
+
+/* ---------------------------- LEVEL ---------------------------- */
+async function loadLevels() {
+  const r = await fetch("/api/levels");
+  const levels = await r.json();
+
+  const tbody = document.querySelector("#levelTable tbody");
+  tbody.innerHTML = "";
+
+  levels.forEach(l => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${l.name}</td>
+      <td>${l.min_xp}</td>
+      <td><button class="delete" onclick="deleteLevel(${l.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function addLevel() {
+  const name = document.getElementById("levelName").value.trim();
+  const minXp = Number(document.getElementById("levelMinXP").value);
+
+  if (!name) return;
+
+  await fetch("/api/levels", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name, minXp})
+  });
+
+  document.getElementById("levelName").value = "";
+  document.getElementById("levelMinXP").value = "";
+  loadLevels();
+}
+
+async function deleteLevel(id) {
+  await fetch(`/api/levels/${id}`, { method:"DELETE" });
+  loadLevels();
 }
 
 /* Default Ansicht */

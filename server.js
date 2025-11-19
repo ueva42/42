@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (final ohne Levelsystem)
+// Temple of Logic – SERVER.JS (mit Levelsystem)
 // =======================================================
 
 import express from "express";
@@ -74,6 +74,64 @@ async function ensureColumn(table, col, type) {
 }
 
 // =======================================================
+// LEVEL-LOGIK
+// =======================================================
+
+// setzt level_id eines Schülers passend zu seinen XP
+async function updateStudentLevel(studentId) {
+  const userRes = await pool.query(
+    "SELECT xp FROM users WHERE id=$1",
+    [studentId]
+  );
+  if (!userRes.rows.length) return;
+
+  const xp = userRes.rows[0].xp;
+
+  // höchstes Level, dessen min_xp <= xp ist
+  const levelRes = await pool.query(
+    `
+      SELECT id
+      FROM levels
+      WHERE min_xp <= $1
+      ORDER BY min_xp DESC
+      LIMIT 1
+    `,
+    [xp]
+  );
+
+  const levelId = levelRes.rows.length ? levelRes.rows[0].id : null;
+
+  await pool.query(
+    "UPDATE users SET level_id=$1 WHERE id=$2",
+    [levelId, studentId]
+  );
+}
+
+// alle Schüler neu durchrechnen (z. B. nach Level-Änderung)
+async function recalcAllStudentLevels() {
+  await pool.query(`
+    UPDATE users u
+    SET level_id = sub.id
+    FROM LATERAL (
+      SELECT id
+      FROM levels
+      WHERE min_xp <= u.xp
+      ORDER BY min_xp DESC
+      LIMIT 1
+    ) sub
+  `);
+
+  // Schüler ohne passendes Level → NULL
+  await pool.query(`
+    UPDATE users
+    SET level_id = NULL
+    WHERE NOT EXISTS (
+      SELECT 1 FROM levels WHERE id = users.level_id
+    )
+  `);
+}
+
+// =======================================================
 // MIGRATION
 // =======================================================
 async function migrate() {
@@ -104,6 +162,7 @@ async function migrate() {
   await ensureColumn("users", "class_id", "INTEGER");
   await ensureColumn("users", "xp", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("users", "character_id", "INTEGER");
+  await ensureColumn("users", "level_id", "INTEGER");
 
   // UNIQUE (name,class)
   await pool.query(`
@@ -182,9 +241,9 @@ async function migrate() {
       id SERIAL PRIMARY KEY,
       student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       amount INTEGER NOT NULL DEFAULT 0,
-      mission_id INTEGER REFERENCES missions(id),
+      mission_id INTEGER,
       source TEXT,
-      awarded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      awarded_by INTEGER,
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
@@ -194,10 +253,30 @@ async function migrate() {
   await ensureColumn("xp_transactions", "source", "TEXT");
   await ensureColumn("xp_transactions", "awarded_by", "INTEGER");
 
-  // LEVEL SYSTEM WIRD DEAKTIVIERT
-  // Tabelle komplett entfernen
+  // LEVELS
   await pool.query(`
-    DROP TABLE IF EXISTS levels CASCADE;
+    CREATE TABLE IF NOT EXISTS levels (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      min_xp INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // optional: min_xp eindeutig
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name='levels'
+          AND constraint_type='UNIQUE'
+          AND constraint_name='levels_min_xp_unique'
+      ) THEN
+        ALTER TABLE levels
+        ADD CONSTRAINT levels_min_xp_unique UNIQUE(min_xp);
+      END IF;
+    END$$;
   `);
 
   // Default Admin
@@ -369,6 +448,7 @@ app.post("/api/xp", isAdmin, async (req, res) => {
   ]);
 
   await logXP(studentId, delta, null, "direct", req.session.user.id);
+  await updateStudentLevel(studentId);
 
   res.json({ success: true });
 });
@@ -390,6 +470,7 @@ app.post("/api/xpmission", isAdmin, async (req, res) => {
   ]);
 
   await logXP(studentId, xp, missionId, "mission", req.session.user.id);
+  await updateStudentLevel(studentId);
 
   res.json({ success: true });
 });
@@ -710,13 +791,82 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 });
 
 // =======================================================
+// LEVEL-API (Admin)
+// =======================================================
+
+// Liste aller Level
+app.get("/api/levels", isAdmin, async (_req, res) => {
+  const r = await pool.query(
+    "SELECT id, name, min_xp FROM levels ORDER BY min_xp ASC"
+  );
+  res.json(r.rows);
+});
+
+// neues Level anlegen
+app.post("/api/levels", isAdmin, async (req, res) => {
+  let { name, minXp } = req.body;
+  if (!name) return res.json({ success: false });
+
+  let min_xp = Number(minXp);
+  if (isNaN(min_xp) || min_xp < 0) {
+    return res.json({ success: false, message: "minXp muss ≥ 0 sein." });
+  }
+
+  // Regel: das erste Level MUSS bei 0 starten
+  const countRes = await pool.query("SELECT COUNT(*)::int AS c FROM levels");
+  if (countRes.rows[0].c === 0 && min_xp !== 0) {
+    min_xp = 0; // erzwingen
+  }
+
+  try {
+    await pool.query(
+      `
+      INSERT INTO levels (name, min_xp)
+      VALUES ($1,$2)
+    `,
+      [name, min_xp]
+    );
+  } catch (e) {
+    console.error("Level Insert Error:", e);
+    return res.json({ success: false });
+  }
+
+  // nach neuem Level alle Schüler durchrechnen
+  await recalcAllStudentLevels();
+
+  res.json({ success: true });
+});
+
+// Level löschen
+app.delete("/api/levels/:id", isAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.json({ success: false });
+
+  await pool.query("DELETE FROM levels WHERE id=$1", [id]);
+
+  // nach Löschen neu durchrechnen
+  await recalcAllStudentLevels();
+
+  res.json({ success: true });
+});
+
+// =======================================================
 // STUDENT DASHBOARD
 // =======================================================
 app.get("/api/student/me", isStudent, async (req, res) => {
   const id = req.session.user.id;
 
-  const user = await pool.query(
-    "SELECT id,name,xp,character_id FROM users WHERE id=$1",
+  const userRes = await pool.query(
+    `
+    SELECT 
+      u.id, u.name, u.xp, u.character_id,
+      u.level_id,
+      l.name AS level_name,
+      l.min_xp AS level_min_xp
+    FROM users u
+    LEFT JOIN levels l ON u.level_id = l.id
+    WHERE u.id=$1
+  `,
     [id]
   );
 
@@ -753,10 +903,17 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   );
 
   res.json({
-    user: user.rows[0],
+    user: userRes.rows[0],
     uploads: uploads.rows,
     xp_log: xpLog.rows,
     character: character.rows[0] || null,
+    level: userRes.rows[0]?.level_id
+      ? {
+          id: userRes.rows[0].level_id,
+          name: userRes.rows[0].level_name,
+          min_xp: userRes.rows[0].level_min_xp,
+        }
+      : null,
   });
 });
 
@@ -778,5 +935,5 @@ app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
 // START
 // =======================================================
 app.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Server läuft auf Port 8080 (ohne Levelsystem)");
+  console.log("🚀 Server läuft auf Port 8080 (mit Levelsystem)");
 });
