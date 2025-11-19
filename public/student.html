@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Temple of Logic – Schüler</title>
+
   <style>
     body {
       margin: 0;
@@ -67,27 +68,6 @@
       margin-bottom: 16px;
     }
 
-    .row {
-      display: flex;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
-
-    .char-img {
-      width: 90px;
-      height: 90px;
-      border-radius: 8px;
-      object-fit: cover;
-      border: 1px solid #4c1d95;
-    }
-
-    .character-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-      gap: 15px;
-      margin-top: 10px;
-    }
-
     .character-option {
       background: #111026;
       padding: 10px;
@@ -97,20 +77,31 @@
       cursor: pointer;
       transition: 0.2s;
     }
-
     .character-option:hover {
       border-color: #8b5cf6;
       transform: translateY(-2px);
     }
 
-    textarea, input[type=file], select {
+    .character-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 15px;
+      margin-top: 10px;
+    }
+
+    .mission-slide {
+      min-width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .mission-slide img {
       width: 100%;
-      background: #0f1022;
-      color: #eee;
-      border: 1px solid #2d2450;
-      padding: 8px;
-      border-radius: 8px;
-      margin-top: 6px;
+      height: 180px;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid #4c1d95;
       margin-bottom: 10px;
     }
 
@@ -122,23 +113,6 @@
       border-radius: 8px;
       cursor: pointer;
       font-size: 13px;
-    }
-
-    .mission-card {
-      background: radial-gradient(circle at top, #1e1b4b 0, #111827 70%);
-      border-radius: 10px;
-      border: 1px solid #312e81;
-      padding: 12px;
-      margin-bottom: 12px;
-    }
-
-    .mission-img {
-      width: 100%;
-      height: 160px;
-      object-fit: cover;
-      border-radius: 8px;
-      border: 1px solid #4c1d95;
-      margin-bottom: 8px;
     }
 
     .xp-log-entry {
@@ -166,8 +140,8 @@
       object-fit: cover;
       border-radius: 6px;
     }
-
   </style>
+
 </head>
 <body>
 
@@ -178,15 +152,23 @@
 
 <div class="container">
 
-  <!-- USER OVERVIEW -->
-  <h2>Dein Status</h2>
-  <div class="card" id="userCard"></div>
+  <!-- CHARACTER & XP HEADER -->
+  <h2>Dein Charakter & Status</h2>
+  <div class="card" id="headerCard" style="text-align:center;">
+    <img id="charBig" src="" 
+         style="width:140px;height:140px;border-radius:12px;border:2px solid #6d28d9;object-fit:cover;margin-bottom:10px;">
+    <div id="charName" style="font-size:18px;margin-bottom:10px;color:#ddd6fe;font-weight:bold;"></div>
 
-  <!-- CHARAKTER -->
-  <h2>Dein Charakter</h2>
+    <div style="margin-top:10px;">
+      <div><b>XP:</b> <span id="xpValue"></span></div>
+      <div><b>Level:</b> <span id="levelValue"></span></div>
+    </div>
+  </div>
+
+  <!-- CHARACTER SELECTION -->
+  <h2>Charakter wählen / ändern</h2>
   <div class="card">
     <div id="characterInfo"></div>
-    <h3>Charakter wählen / ändern</h3>
     <div class="character-grid" id="characterSelect"></div>
   </div>
 
@@ -194,15 +176,24 @@
   <h2>Eigenschaften & Items</h2>
   <div class="card" id="traitsItemsCard"></div>
 
-  <!-- MISSIONEN -->
+  <!-- MISSION CAROUSEL -->
   <h2>Missionen</h2>
-  <div id="missionList"></div>
+  <div class="card" style="text-align:center;">
+    <div id="carouselContainer" style="position:relative;overflow:hidden;">
+      <div id="carousel" style="display:flex;transition:0.4s;"></div>
+
+      <button id="prevBtn" class="action"
+              style="position:absolute; left:10px; top:45%; z-index:5;">⟨</button>
+      <button id="nextBtn" class="action"
+              style="position:absolute; right:10px; top:45%; z-index:5;">⟩</button>
+    </div>
+  </div>
 
   <!-- XP LOG -->
   <h2>Deine XP-History</h2>
   <div id="xpLog"></div>
 
-  <!-- UPLOADS -->
+  <!-- UPLOAD GRID -->
   <h2>Deine Uploads</h2>
   <div class="upload-grid" id="uploadGrid"></div>
 
@@ -217,22 +208,24 @@ async function logout() {
 async function loadMe() {
   const r = await fetch("/api/student/me");
   const data = await r.json();
-
   const u = data.user;
 
-  // USER CARD
-  document.getElementById("userCard").innerHTML = `
-    <b>Name:</b> ${u.name}<br>
-    <b>XP:</b> ${u.xp}<br>
-    <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
-  `;
+  // HEADER
+  document.getElementById("charBig").src =
+    data.character ? data.character.image_url : "";
+  document.getElementById("charName").innerText =
+    data.character ? data.character.name : "Noch kein Charakter gewählt";
 
-  // CHARACTER
+  document.getElementById("xpValue").innerText = u.xp;
+  document.getElementById("levelValue").innerText =
+    `${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)`;
+
+  // Charakterinfo
   document.getElementById("characterInfo").innerHTML = data.character
-    ? `<img class="char-img" src="${data.character.image_url}"><br>${data.character.name}`
+    ? `<img class="char-img" src="${data.character.image_url}" style="width:90px;height:90px;border-radius:8px;border:1px solid #4c1d95;"><br>${data.character.name}`
     : "Noch kein Charakter gewählt.";
 
-  // TRAITS + ITEMS
+  // TRAITS & ITEMS
   document.getElementById("traitsItemsCard").innerHTML = `
     <b>Eigenschaften:</b><br>
     ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
@@ -252,7 +245,7 @@ async function loadMe() {
       </div>`;
   });
 
-  // UPLOAD GRID
+  // Uploads
   const up = document.getElementById("uploadGrid");
   up.innerHTML = "";
   data.uploads.forEach(upl => {
@@ -260,8 +253,7 @@ async function loadMe() {
       <div class="upload-card">
         <img src="${upl.image_url}">
         <div style="font-size:12px;opacity:0.8;">${upl.mission_name || "—"}</div>
-      </div>
-    `;
+      </div>`;
   });
 }
 
@@ -293,52 +285,78 @@ async function selectCharacter(id) {
   loadMe();
 }
 
+let currentSlide = 0;
+let missionsGlobal = [];
+
 async function loadMissions() {
   const r = await fetch("/api/student/missions");
   const missions = await r.json();
+  missionsGlobal = missions;
 
-  const list = document.getElementById("missionList");
-  list.innerHTML = "";
+  const c = document.getElementById("carousel");
+  c.innerHTML = "";
 
   missions.forEach(m => {
-    const div = document.createElement("div");
-    div.className = "mission-card";
-    div.innerHTML = `
-      ${m.image_url ? `<img class="mission-img" src="${m.image_url}">` : ""}
+    const slide = document.createElement("div");
+    slide.className = "mission-slide";
+
+    slide.innerHTML = `
+      ${m.image_url ? `<img src="${m.image_url}">` : ""}
       <h3>${m.name}</h3>
       <div><b>${m.xp} XP</b></div>
       ${m.require_upload ? `<div style="color:#fca5a5;">📎 Upload erforderlich</div>` : ""}
       <br>
-      ${m.require_upload ? `
+      ${
+        m.require_upload
+          ? `
         <input type="file" id="upload_${m.id}">
-        <button class="action" onclick="uploadMission(${m.id})">Upload senden</button>` : ""}
+        <button class="action" onclick="uploadMission(${m.id})">Upload senden</button>
+        `
+          : ""
+      }
     `;
-    list.appendChild(div);
+
+    c.appendChild(slide);
   });
+
+  updateCarousel();
 }
 
-async function uploadMission(missionId) {
-  const fileInput = document.getElementById(`upload_${missionId}`);
-  const file = fileInput.files[0];
-  if (!file) return alert("Bitte ein Bild auswählen!");
+function updateCarousel() {
+  const c = document.getElementById("carousel");
+  c.style.transform = `translateX(-${currentSlide * 100}%)`;
+}
 
-  const form = new FormData();
-  form.append("image", file);
-  form.append("missionId", missionId);
+document.getElementById("prevBtn").onclick = () => {
+  if (currentSlide > 0) currentSlide--;
+  updateCarousel();
+};
 
-  const r = await fetch("/api/student/uploadForMission", {
-    method: "POST",
-    body: form
-  });
+document.getElementById("nextBtn").onclick = () => {
+  if (currentSlide < missionsGlobal.length - 1) currentSlide++;
+  updateCarousel();
+};
 
-  const data = await r.json();
-  if (data.success) {
-    alert("Upload erfolgreich!");
-    loadMe();
-  } else {
-    alert("Upload fehlgeschlagen.");
+// Touch / Swipe
+let startX = 0;
+let endX = 0;
+
+document.getElementById("carouselContainer").addEventListener("touchstart", e => {
+  startX = e.touches[0].clientX;
+});
+
+document.getElementById("carouselContainer").addEventListener("touchend", e => {
+  endX = e.changedTouches[0].clientX;
+  const diff = endX - startX;
+
+  if (diff > 40 && currentSlide > 0) {
+    currentSlide--;
+    updateCarousel();
+  } else if (diff < -40 && currentSlide < missionsGlobal.length - 1) {
+    currentSlide++;
+    updateCarousel();
   }
-}
+});
 
 loadMe();
 loadCharacters();
