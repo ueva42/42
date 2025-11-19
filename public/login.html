@@ -159,6 +159,13 @@ async function doLogin() {
     window.location.href = "/student.html";
   }
 }
+
+/* ENTER-Taste zum Einloggen */
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    doLogin();
+  }
+});
 </script>
 
 </body>
