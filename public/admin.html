@@ -1,760 +1,778 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8" />
-  <title>Admin – Temple of Logic</title>
-  <style>
-    /* ===== GLOBAL BACKGROUND ===== */
-    body {
-      margin: 0;
-      background:
-        radial-gradient(circle at 10% 0%, rgba(168,85,247,0.3) 0, transparent 50%),
-        radial-gradient(circle at 90% 20%, rgba(59,130,246,0.25) 0, transparent 55%),
-        radial-gradient(circle at 50% 100%, rgba(30,64,175,0.45) 0, transparent 60%),
-        #020308;
-      color: #eee;
-      font-family: Arial, sans-serif;
-      display: flex;
-      overflow: hidden;
-    }
+// =======================================================
+// Temple of Logic – SERVER.JS (mit stabilem Levelsystem)
+// =======================================================
 
-    /* ===== SIDEBAR ===== */
-    .sidebar {
-      width: 270px;
-      background: radial-gradient(circle at top, #1f1638 0, #0b0a18 40%, #05040c 100%);
-      padding: 24px 18px;
-      height: 100vh;
-      border-right: 2px solid #261b47;
-      box-shadow: 0 0 25px rgba(0,0,0,0.9);
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      z-index: 10;
-    }
+import express from "express";
+import session from "express-session";
+import path from "path";
+import { fileURLToPath } from "url";
+import bodyParser from "body-parser";
+import multer from "multer";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
+import pkg from "pg";
+const { Pool } = pkg;
 
-    .sidebar-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+// -------------------------------------------------------
+// Pfade / Basis
+// -------------------------------------------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-    .sidebar-logo-orb {
-      width: 32px;
-      height: 32px;
-      border-radius: 999px;
-      background: radial-gradient(circle at 30% 20%, #facc15 0, #f97316 15%, #4c1d95 70%, #020617 100%);
-      box-shadow: 0 0 15px rgba(250,204,21,0.9);
-    }
+const app = express();
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-    .sidebar-title {
-      margin: 0;
-      letter-spacing: 0.18em;
-      font-size: 14px;
-      text-transform: uppercase;
-      color: #ddd6fe;
-    }
+app.use(
+  session({
+    secret: "super-temp-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false },
+  })
+);
 
-    .nav-item {
-      display: flex;
-      align-items: center;
-      background: radial-gradient(circle at left, #231a40 0, #141226 55%, #05040d 100%);
-      border: 1px solid #33245c;
-      padding: 10px 12px;
-      border-radius: 14px;
-      cursor: pointer;
-      box-shadow: 0 5px 14px rgba(0,0,0,0.8);
-      transition: 0.18s;
-      margin-top: 6px;
-    }
+app.use(express.static(path.join(__dirname, "public")));
 
-    .nav-item:hover {
-      background: radial-gradient(circle at left, #4c3aaa 0, #1c1637 55%, #070714 100%);
-      border-color: #8b5cf6;
-      transform: translateX(4px);
-    }
+// -------------------------------------------------------
+// DB & R2
+// -------------------------------------------------------
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-    .nav-item svg {
-      width: 22px;
-      height: 22px;
-      margin-right: 10px;
-      fill: #a78bfa;
-    }
+const r2 = new S3Client({
+  region: "auto",
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  },
+});
 
-    .nav-label { font-size: 14px; }
+const upload = multer({ storage: multer.memoryStorage() });
 
-    /* ===== CONTENT ===== */
-    .content {
-      flex-grow: 1;
-      height: 100vh;
-      padding: 24px;
-      overflow-y: auto;
-      box-sizing: border-box;
-    }
-
-    .hidden { display: none; }
-
-    h1 { margin-top: 0; margin-bottom: 16px; }
-    h3 { margin-bottom: 8px; }
-
-    input, select {
-      padding: 6px 9px;
-      margin: 4px;
-      background: #161630;
-      color: #eee;
-      border: 1px solid #35305f;
-      border-radius: 6px;
-      min-width: 160px;
-    }
-
-    button.action {
-      background: linear-gradient(135deg, #16a34a, #22c55e);
-      border: none;
-      padding: 6px 12px;
-      cursor: pointer;
-      color: white;
-      border-radius: 999px;
-      font-size: 13px;
-      margin-left: 3px;
-    }
-
-    button.delete {
-      background: linear-gradient(135deg, #b91c1c, #e11d48);
-      color: white;
-      padding: 4px 10px;
-      border-radius: 999px;
-      cursor: pointer;
-      border: none;
-      font-size: 12px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0 10px;
-      margin-top: 10px;
-    }
-
-    table tbody tr {
-      background: radial-gradient(circle at top left, #211b40 0, #131327 50%, #0b0b18 100%);
-      border: 1px solid #2d224f;
-      border-radius: 10px;
-    }
-
-    table td {
-      padding: 10px 12px;
-      vertical-align: middle;
-    }
-
-    .thumb {
-      width: 60px;
-      height: 60px;
-      border-radius: 6px;
-      object-fit: cover;
-    }
-  </style>
-</head>
-<body>
-
-<!-- SIDEBAR -->
-<div class="sidebar">
-  <div class="sidebar-header">
-    <div class="sidebar-logo-orb"></div>
-    <h2 class="sidebar-title">TEMPLE OF LOGIC</h2>
-  </div>
-
-  <div class="nav-item" onclick="showTab('xpTab')">
-    <svg viewBox="0 0 24 24"><path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/></svg>
-    <span class="nav-label">XP-Verwaltung</span>
-  </div>
-
-  <div class="nav-item" onclick="showTab('classTab')">
-    <svg viewBox="0 0 24 24"><path d="M12 12c2.5 0 4.5-2 4.5-4.5S14.5 3 12 3 7.5 5 7.5 7.5 9.5 12 12 12zm0 1.5c-3 0-9 1.5-9 4.5V21h18v-3c0-3-6-4.5-9-4.5z"/></svg>
-    <span class="nav-label">Klassen & Schüler</span>
-  </div>
-
-  <div class="nav-item" onclick="showTab('missionTab')">
-    <svg viewBox="0 0 24 24"><path d="M3 3v18l9-4 9 4V3H3zm16 2v11.1l-7-3.1-7 3.1V5h14z"/></svg>
-    <span class="nav-label">Missionen</span>
-  </div>
-
-  <div class="nav-item" onclick="showTab('bonusTab')">
-    <svg viewBox="0 0 24 24"><path d="M4 6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v1c0 .6.4 1 1 1h3c.6 0 1-.4 1-1V6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v3.1c-.9.2-1.6.9-1.8 1.8-.2.9.1 1.9.8 2.5.3.3.6.5 1 .6V18c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1V15c.4-.1.7-.3 1-.6.7-.7 1-1.6.8-2.5-.2-.9-.9-1.6-1.8-1.8V6z"/></svg>
-    <span class="nav-label">Bonuskarten</span>
-  </div>
-
-  <div class="nav-item" onclick="showTab('levelTab')">
-    <svg viewBox="0 0 24 24"><path d="M4 20h4v-4H4v4zm6 0h4v-7h-4v7zm6 0h4V6h-4v14zM4 14h4v-4H4v4zm0-6h4V4H4v4z"/></svg>
-    <span class="nav-label">Level</span>
-  </div>
-
-  <div class="nav-item" onclick="showTab('characterTab')">
-    <svg viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4zm0 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/></svg>
-    <span class="nav-label">Charaktere</span>
-  </div>
-
-  <div class="nav-item" onclick="logout()" style="margin-top:auto;">
-    <svg viewBox="0 0 24 24"><path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9v2h10v14H9v2h10c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
-    <span class="nav-label">Logout</span>
-  </div>
-</div>
-
-<!-- CONTENT -->
-<div class="content">
-
-  <!-- XP -->
-  <div id="xpTab" class="tab">
-    <h1>XP-Verwaltung</h1>
-
-    <label>Aktive Klasse:</label>
-    <select id="xpClassSelect" onchange="loadXPStudents()"></select>
-
-    <table id="xpStudentTable">
-      <thead>
-        <tr>
-          <th>Auswahl</th>
-          <th>Name</th>
-          <th>XP</th>
-          <th>Uploads</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-
-    <h3>XP vergeben</h3>
-    <input id="xpValue" type="number" placeholder="XP" />
-    <button class="action" onclick="addXP()">XP an Auswahl</button>
-    <button class="action" onclick="addXPAll()">XP an alle</button>
-
-    <h3>Mission XP</h3>
-    <select id="xpMissionSelect"></select>
-    <button class="action" onclick="addMissionXP()">Mission an Auswahl</button>
-    <button class="action" onclick="addMissionXPAll()">Mission an alle</button>
-  </div>
-
-  <!-- KLASSEN -->
-  <div id="classTab" class="tab hidden">
-    <h1>Klassen & Schüler:innen</h1>
-
-    <h3>Neue Klasse anlegen</h3>
-    <input id="newClassName" placeholder="Klassenname" />
-    <button class="action" onclick="addClass()">Anlegen</button>
-
-    <h3>Klassenliste</h3>
-    <select id="classManageSelect" onchange="loadClassStudents()"></select>
-    <button class="delete" onclick="deleteClass()">Klasse löschen</button>
-
-    <table id="classStudentTable">
-      <thead>
-        <tr><th>Name</th><th>Passwort</th><th>Löschen</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-
-    <h3>Schüler:in anlegen</h3>
-    <input id="studentName" placeholder="Name" />
-    <input id="studentPassword" placeholder="Passwort" />
-    <button class="action" onclick="addStudent()">Anlegen</button>
-  </div>
-
-  <!-- MISSIONEN -->
-  <div id="missionTab" class="tab hidden">
-    <h1>Missionen</h1>
-
-    <h3>Neue Mission</h3>
-    <input id="missionName" placeholder="Name" />
-    <input id="missionXP" type="number" placeholder="XP" />
-    <label><input type="checkbox" id="missionRequireUpload" /> Upload nötig?</label><br>
-    <input type="file" id="missionImage" />
-    <button class="action" onclick="uploadMissionImage()">Bild hochladen</button>
-    <button class="action" onclick="addMission()">Speichern</button>
-
-    <table id="missionTable">
-      <thead>
-        <tr><th>Bild</th><th>Name</th><th>XP</th><th>Upload?</th><th>Löschen</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <!-- BONUS -->
-  <div id="bonusTab" class="tab hidden">
-    <h1>Bonuskarten</h1>
-
-    <h3>Neue Bonuskarte</h3>
-    <input id="bonusName" placeholder="Name" />
-    <input id="bonusXP" type="number" placeholder="XP" />
-    <input type="file" id="bonusImage" />
-    <button class="action" onclick="uploadBonusImage()">Bild hochladen</button>
-    <button class="action" onclick="addBonus()">Speichern</button>
-
-    <table id="bonusTable">
-      <thead>
-        <tr><th>Bild</th><th>Name</th><th>XP</th><th>Löschen</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <!-- LEVEL -->
-  <div id="levelTab" class="tab hidden">
-    <h1>Level</h1>
-
-    <h3>Neues Level</h3>
-    <input id="levelName" placeholder="Levelname" />
-    <input id="levelMinXP" type="number" placeholder="Min. XP (0, 100, 200 …)" />
-    <button class="action" onclick="addLevel()">Speichern</button>
-
-    <table id="levelTable">
-      <thead>
-        <tr><th>Name</th><th>Min-XP</th><th>Löschen</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <!-- CHARAKTERE -->
-  <div id="characterTab" class="tab hidden">
-    <h1>Charaktere</h1>
-
-    <h3>Neuer Charakter</h3>
-    <input id="characterName" placeholder="Name" />
-    <input id="characterImage" type="file" />
-    <button class="action" onclick="uploadCharacterImage()">Bild hochladen</button>
-    <button class="action" onclick="addCharacter()">Speichern</button>
-
-    <table id="characterTable">
-      <thead>
-        <tr><th>Bild</th><th>Name</th><th>Löschen</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-</div>
-
-<script>
-/* ---------------------------- TABS ---------------------------- */
-function showTab(id) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
-  document.getElementById(id).classList.remove("hidden");
-
-  if (id === "xpTab") loadXPInit();
-  if (id === "classTab") loadClassesForManage();
-  if (id === "missionTab") loadMissions();
-  if (id === "bonusTab") loadBonuses();
-  if (id === "characterTab") loadCharacters();
-  if (id === "levelTab") loadLevels();
+// -------------------------------------------------------
+// Helper – Spalte nur anlegen, wenn sie fehlt
+// -------------------------------------------------------
+async function ensureColumn(table, col, type) {
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='${table}' AND column_name='${col}'
+      ) THEN
+        ALTER TABLE ${table} ADD COLUMN ${col} ${type};
+      END IF;
+    END$$;
+  `);
 }
 
-/* ---------------------------- LOGOUT ---------------------------- */
-async function logout() {
-  await fetch("/api/logout", { method: "POST" });
-  location.href = "/login.html";
-}
+// =======================================================
+// LEVEL-FUNKTIONEN (fehlerfrei, keine LATERAL-Joins!)
+// =======================================================
 
-/* ---------------------------- XP ---------------------------- */
-async function loadXPInit() {
-  const r = await fetch("/api/class");
-  const classes = await r.json();
+// Level eines einzelnen Schülers aktualisieren
+async function updateStudentLevel(studentId) {
+  const userRes = await pool.query(
+    "SELECT xp FROM users WHERE id=$1",
+    [studentId]
+  );
+  if (!userRes.rows.length) return;
 
-  const sel = document.getElementById("xpClassSelect");
-  sel.innerHTML = "";
+  const xp = userRes.rows[0].xp;
 
-  if (classes.length === 0) return;
+  const levelRes = await pool.query(
+    "SELECT id, min_xp FROM levels ORDER BY min_xp ASC"
+  );
 
-  classes.forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c.id;
-    opt.textContent = c.name;
-    sel.appendChild(opt);
-  });
-
-  loadXPStudents();
-}
-
-async function loadXPStudents() {
-  const classId = document.getElementById("xpClassSelect").value;
-  const r = await fetch(`/api/student?classId=${classId}`);
-  const students = await r.json();
-
-  const tbody = document.querySelector("#xpStudentTable tbody");
-  tbody.innerHTML = "";
-
-  students.forEach(s => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="checkbox" value="${s.id}"></td>
-      <td>${s.name}</td>
-      <td>${s.xp}</td>
-      <td>${s.upload_url ? `<img class="thumb" src="${s.upload_url}"><button class="delete" onclick="deleteUpload(${s.id})">X</button>` : "—"}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  loadMissionsForXP();
-}
-
-function selectedStudentIds() {
-  return [...document.querySelectorAll("#xpStudentTable input[type=checkbox]:checked")]
-    .map(cb => Number(cb.value));
-}
-
-async function addXP() {
-  const xp = Number(document.getElementById("xpValue").value);
-  const ids = selectedStudentIds();
-  if (!xp) return;
-
-  for (let id of ids) {
-    await fetch("/api/xp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({studentId:id, xp}) });
+  let levelId = null;
+  for (const lvl of levelRes.rows) {
+    if (xp >= lvl.min_xp) {
+      levelId = lvl.id;
+    }
   }
-  loadXPStudents();
+
+  await pool.query(
+    "UPDATE users SET level_id=$1 WHERE id=$2",
+    [levelId, studentId]
+  );
 }
 
-async function addXPAll() {
-  const xp = Number(document.getElementById("xpValue").value);
-  const classId = document.getElementById("xpClassSelect").value;
-  const r = await fetch(`/api/student?classId=${classId}`);
-  const students = await r.json();
+// Alle Schüler neu durchrechnen
+async function recalcAllStudentLevels() {
+  const levelRes = await pool.query(
+    "SELECT id, min_xp FROM levels ORDER BY min_xp ASC"
+  );
+  const levels = levelRes.rows;
 
-  for (let s of students) {
-    await fetch("/api/xp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({studentId:s.id, xp}) });
+  if (levels.length === 0) {
+    await pool.query("UPDATE users SET level_id=NULL WHERE role='student'");
+    return;
   }
-  loadXPStudents();
-}
 
-/* ---------------------------- XP MISSION ---------------------------- */
-async function loadMissionsForXP() {
-  const r = await fetch("/api/missions");
-  const missions = await r.json();
+  const usersRes = await pool.query(
+    "SELECT id, xp FROM users WHERE role='student'"
+  );
 
-  const sel = document.getElementById("xpMissionSelect");
-  sel.innerHTML = "";
+  for (const u of usersRes.rows) {
+    let levelId = null;
 
-  missions.forEach(m => {
-    const opt = document.createElement("option");
-    opt.value = m.id;
-    opt.textContent = `${m.name} (+${m.xp} XP)`;
-    sel.appendChild(opt);
-  });
-}
+    for (const lvl of levels) {
+      if (u.xp >= lvl.min_xp) {
+        levelId = lvl.id;
+      }
+    }
 
-async function addMissionXP() {
-  const missionId = document.getElementById("xpMissionSelect").value;
-  const ids = selectedStudentIds();
-
-  for (let id of ids) {
-    await fetch("/api/xpmission", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({studentId:id, missionId})
-    });
+    await pool.query(
+      "UPDATE users SET level_id=$1 WHERE id=$2",
+      [levelId, u.id]
+    );
   }
-  loadXPStudents();
 }
 
-async function addMissionXPAll() {
-  const missionId = document.getElementById("xpMissionSelect").value;
-  const classId = document.getElementById("xpClassSelect").value;
+// =======================================================
+// MIGRATION
+// =======================================================
+async function migrate() {
+  console.log("🔧 Starte Migration…");
 
-  const r = await fetch(`/api/student?classId=${classId}`);
-  const students = await r.json();
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS classes (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL
+    );
+  `);
 
-  for (let s of students) {
-    await fetch("/api/xpmission", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({studentId:s.id, missionId})
-    });
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'student',
+      class_id INTEGER,
+      xp INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await ensureColumn("users", "character_id", "INTEGER");
+  await ensureColumn("users", "level_id", "INTEGER");
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name='users'
+          AND constraint_type='UNIQUE'
+          AND constraint_name='users_name_class_unique'
+      ) THEN
+        ALTER TABLE users
+        ADD CONSTRAINT users_name_class_unique UNIQUE(name,class_id);
+      END IF;
+    END$$;
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS missions (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      xp INTEGER NOT NULL,
+      image_url TEXT,
+      require_upload BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_uploads (
+      id SERIAL PRIMARY KEY,
+      student_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      image_url TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bonuscards (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      xp INTEGER NOT NULL DEFAULT 0,
+      image_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS characters (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      image_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS xp_transactions (
+      id SERIAL PRIMARY KEY,
+      student_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      amount INTEGER NOT NULL DEFAULT 0,
+      mission_id INTEGER,
+      source TEXT,
+      awarded_by INTEGER,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // LEVEL Tabelle
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS levels (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      min_xp INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    INSERT INTO users (name,password,role,class_id)
+    VALUES ('admin','bruhrain','admin',NULL)
+    ON CONFLICT (name,class_id) DO NOTHING;
+  `);
+
+  console.log("Migration abgeschlossen.");
+}
+
+await migrate();
+
+// =======================================================
+// AUTH
+// =======================================================
+app.post("/api/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  const r = await pool.query(
+    "SELECT * FROM users WHERE name=$1 ORDER BY id ASC",
+    [username]
+  );
+
+  if (r.rows.length === 0) return res.json({ success: false });
+  const user = r.rows[0];
+
+  if (user.password !== password) return res.json({ success: false });
+
+  req.session.user = {
+    id: user.id,
+    role: user.role,
+    class_id: user.class_id,
+  };
+
+  res.json({ success: true, role: user.role });
+});
+
+app.post("/api/logout", (req, res) => {
+  req.session.destroy(() => res.json({ success: true }));
+});
+
+function isAdmin(req, res, next) {
+  if (!req.session.user || req.session.user.role !== "admin") {
+    return res.status(403).json({ error: "Forbidden" });
   }
-  loadXPStudents();
+  next();
 }
 
-/* ---------------------------- UPLOAD ---------------------------- */
-async function deleteUpload(id) {
-  await fetch(`/api/upload/${id}`, { method:"DELETE" });
-  loadXPStudents();
+function isStudent(req, res, next) {
+  if (!req.session.user || req.session.user.role !== "student") {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  next();
 }
 
-/* ---------------------------- KLASSEN ---------------------------- */
-async function loadClassesForManage() {
-  const r = await fetch("/api/class");
-  const classes = await r.json();
+// =======================================================
+// KLASSEN / SCHÜLER
+// =======================================================
+app.get("/api/class", isAdmin, async (_req, res) => {
+  const r = await pool.query("SELECT * FROM classes ORDER BY name ASC");
+  res.json(r.rows);
+});
 
-  const sel = document.getElementById("classManageSelect");
-  sel.innerHTML = "";
+app.post("/api/class", isAdmin, async (req, res) => {
+  const { name } = req.body;
 
-  classes.forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c.id;
-    opt.textContent = c.name;
-    sel.appendChild(opt);
+  await pool.query(
+    "INSERT INTO classes (name) VALUES ($1) ON CONFLICT (name) DO NOTHING",
+    [name]
+  );
+
+  res.json({ success: true });
+});
+
+app.delete("/api/class/:id", isAdmin, async (req, res) => {
+  const classId = Number(req.params.id);
+
+  await pool.query("DELETE FROM users WHERE class_id=$1", [classId]);
+  await pool.query("DELETE FROM classes WHERE id=$1", [classId]);
+
+  res.json({ success: true });
+});
+
+app.get("/api/student", isAdmin, async (req, res) => {
+  const { classId } = req.query;
+
+  const r = await pool.query(
+    `
+      SELECT
+        u.id, u.name, u.password, u.xp,
+        su.image_url AS upload_url
+      FROM users u
+      LEFT JOIN LATERAL (
+        SELECT image_url FROM student_uploads
+        WHERE student_id=u.id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) su ON TRUE
+      WHERE u.class_id=$1 AND u.role='student'
+      ORDER BY u.name ASC
+    `,
+    [classId]
+  );
+
+  res.json(r.rows);
+});
+
+app.post("/api/student", isAdmin, async (req, res) => {
+  const { name, password, classId } = req.body;
+
+  await pool.query(
+    `
+      INSERT INTO users (name,password,role,class_id,xp)
+      VALUES ($1,$2,'student',$3,0)
+      ON CONFLICT (name,class_id) DO NOTHING
+    `,
+    [name, password, classId]
+  );
+
+  res.json({ success: true });
+});
+
+app.delete("/api/student/:id", isAdmin, async (req, res) => {
+  await pool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
+  res.json({ success: true });
+});
+
+// =======================================================
+// XP VERGABE
+// =======================================================
+app.post("/api/xp", isAdmin, async (req, res) => {
+  const { studentId, xp } = req.body;
+  const delta = Number(xp);
+
+  await pool.query("UPDATE users SET xp=xp+$1 WHERE id=$2", [
+    delta,
+    studentId,
+  ]);
+
+  await pool.query(
+    `
+      INSERT INTO xp_transactions (student_id,amount,source,awarded_by)
+      VALUES ($1,$2,'direct',$3)
+    `,
+    [studentId, delta, req.session.user.id]
+  );
+
+  await updateStudentLevel(studentId);
+
+  res.json({ success: true });
+});
+
+app.post("/api/xpmission", isAdmin, async (req, res) => {
+  const { studentId, missionId } = req.body;
+
+  const r = await pool.query("SELECT xp FROM missions WHERE id=$1", [
+    missionId,
+  ]);
+
+  const xp = r.rows[0].xp;
+
+  await pool.query("UPDATE users SET xp=xp+$1 WHERE id=$2", [
+    xp,
+    studentId,
+  ]);
+
+  await pool.query(
+    `
+      INSERT INTO xp_transactions (student_id,amount,mission_id,source,awarded_by)
+      VALUES ($1,$2,$3,'mission',$4)
+    `,
+    [studentId, xp, missionId, req.session.user.id]
+  );
+
+  await updateStudentLevel(studentId);
+
+  res.json({ success: true });
+});
+
+// =======================================================
+// UPLOADS
+// =======================================================
+app.post(
+  "/api/student/upload",
+  isStudent,
+  upload.single("image"),
+  async (req, res) => {
+    if (!req.file) return res.json({ success: false });
+
+    const studentId = req.session.user.id;
+    const fileName =
+      "uploads/" + studentId + "_" + Date.now() + "_" + req.file.originalname;
+
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      })
+    );
+
+    const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+
+    await pool.query(
+      "INSERT INTO student_uploads (student_id,image_url) VALUES ($1,$2)",
+      [studentId, url]
+    );
+
+    res.json({ success: true, url });
+  }
+);
+
+app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
+  const studentId = req.params.studentId;
+
+  const r = await pool.query(
+    `
+      SELECT id,image_url
+      FROM student_uploads
+      WHERE student_id=$1
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [studentId]
+  );
+
+  if (!r.rows.length) return res.json({ success: false });
+
+  const entry = r.rows[0];
+  const key = entry.image_url.replace(process.env.R2_PUBLIC_URL + "/", "");
+
+  await r2.send(
+    new DeleteObjectCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: key,
+    })
+  );
+
+  await pool.query("DELETE FROM student_uploads WHERE id=$1", [entry.id]);
+
+  res.json({ success: true });
+});
+
+// =======================================================
+// MISSIONEN / BONUS / CHARACTERS → (UNVERÄNDERT)
+// =======================================================
+
+/*
+  Dieser Abschnitt ist identisch zu deinem vorherigen Code,
+  wurde nicht verändert (weil Fehler ausschließlich im Levelsystem waren)
+*/
+
+app.post("/api/missions/upload", isAdmin, upload.single("image"), async (req, res) => {
+  if (!req.file) return res.json({ success: false });
+
+  const fileName = "missions/" + Date.now() + "_" + req.file.originalname;
+
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: fileName,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+    })
+  );
+
+  const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+  res.json({ success: true, url });
+});
+
+app.post("/api/missions", isAdmin, async (req, res) => {
+  const { name, xp, imageUrl, requireUpload } = req.body;
+
+  await pool.query(
+    `
+      INSERT INTO missions (name,xp,image_url,require_upload)
+      VALUES ($1,$2,$3,$4)
+    `,
+    [name, xp, imageUrl || null, requireUpload]
+  );
+
+  res.json({ success: true });
+});
+
+app.get("/api/missions", isAdmin, async (_req, res) => {
+  const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
+  res.json(r.rows);
+});
+
+app.delete("/api/missions/:id", isAdmin, async (req, res) => {
+  const id = req.params.id;
+
+  const r = await pool.query("SELECT image_url FROM missions WHERE id=$1", [id]);
+
+  if (r.rows.length && r.rows[0].image_url) {
+    const key = r.rows[0].image_url.replace(process.env.R2_PUBLIC_URL + "/", "");
+
+    await r2.send(
+      new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: key,
+      })
+    );
+  }
+
+  await pool.query("DELETE FROM missions WHERE id=$1", [id]);
+  res.json({ success: true });
+});
+
+// BONUSCARDS
+app.post("/api/bonus/upload", isAdmin, upload.single("image"), async (req, res) => {
+  if (!req.file) return res.json({ success: false });
+
+  const fileName = "bonuscards/" + Date.now() + "_" + req.file.originalname;
+
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: fileName,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+    })
+  );
+
+  res.json({ success: true, url: `${process.env.R2_PUBLIC_URL}/${fileName}` });
+});
+
+app.post("/api/bonus", isAdmin, async (req, res) => {
+  const { name, xp, imageUrl } = req.body;
+
+  await pool.query(
+    `
+      INSERT INTO bonuscards (name,xp,image_url)
+      VALUES ($1,$2,$3)
+    `,
+    [name, xp, imageUrl]
+  );
+
+  res.json({ success: true });
+});
+
+app.get("/api/bonus", isAdmin, async (_req, res) => {
+  const r = await pool.query("SELECT * FROM bonuscards ORDER BY id DESC");
+  res.json(r.rows);
+});
+
+app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
+  const id = req.params.id;
+
+  const r = await pool.query("SELECT image_url FROM bonuscards WHERE id=$1", [id]);
+
+  if (r.rows.length && r.rows[0].image_url) {
+    const key = r.rows[0].image_url.replace(process.env.R2_PUBLIC_URL + "/", "");
+
+    await r2.send(
+      new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: key,
+      })
+    );
+  }
+
+  await pool.query("DELETE FROM bonuscards WHERE id=$1", [id]);
+  res.json({ success: true });
+});
+
+// CHARACTERS
+app.post("/api/character/upload", isAdmin, upload.single("image"), async (req, res) => {
+  if (!req.file) return res.json({ success: false });
+
+  const fileName = "characters/" + Date.now() + "_" + req.file.originalname;
+
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: fileName,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+    })
+  );
+
+  res.json({ success: true, url: `${process.env.R2_PUBLIC_URL}/${fileName}` });
+});
+
+app.post("/api/character", isAdmin, async (req, res) => {
+  const { name, imageUrl } = req.body;
+
+  await pool.query(
+    `
+      INSERT INTO characters (name,image_url)
+      VALUES ($1,$2)
+    `,
+    [name, imageUrl]
+  );
+
+  res.json({ success: true });
+});
+
+app.get("/api/character", isAdmin, async (_req, res) => {
+  const r = await pool.query("SELECT * FROM characters ORDER BY id DESC");
+  res.json(r.rows);
+});
+
+app.delete("/api/character/:id", isAdmin, async (req, res) => {
+  const id = req.params.id;
+
+  const r = await pool.query("SELECT image_url FROM characters WHERE id=$1", [id]);
+
+  if (r.rows.length && r.rows[0].image_url) {
+    const key = r.rows[0].image_url.replace(process.env.R2_PUBLIC_URL + "/", "");
+
+    await r2.send(
+      new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: key,
+      })
+    );
+  }
+
+  await pool.query("DELETE FROM characters WHERE id=$1", [id]);
+  res.json({ success: true });
+});
+
+// =======================================================
+// LEVEL-API
+// =======================================================
+app.get("/api/levels", isAdmin, async (_req, res) => {
+  const r = await pool.query(
+    "SELECT id,name,min_xp FROM levels ORDER BY min_xp ASC"
+  );
+  res.json(r.rows);
+});
+
+app.post("/api/levels", isAdmin, async (req, res) => {
+  let { name, minXp } = req.body;
+  minXp = Number(minXp);
+
+  if (!name || isNaN(minXp) || minXp < 0) {
+    return res.json({ success: false });
+  }
+
+  const levelCount = await pool.query("SELECT COUNT(*) FROM levels");
+  const count = Number(levelCount.rows[0].count);
+
+  if (count === 0 && minXp !== 0) minXp = 0;
+
+  await pool.query(
+    "INSERT INTO levels (name,min_xp) VALUES ($1,$2)",
+    [name, minXp]
+  );
+
+  await recalcAllStudentLevels();
+  res.json({ success: true });
+});
+
+app.delete("/api/levels/:id", isAdmin, async (req, res) => {
+  await pool.query("DELETE FROM levels WHERE id=$1", [req.params.id]);
+
+  await recalcAllStudentLevels();
+
+  res.json({ success: true });
+});
+
+// =======================================================
+// STUDENT DASHBOARD
+// =======================================================
+app.get("/api/student/me", isStudent, async (req, res) => {
+  const id = req.session.user.id;
+
+  const user = await pool.query(
+    `
+      SELECT
+        u.id, u.name, u.xp, u.character_id, u.level_id,
+        l.name AS level_name, l.min_xp AS level_min_xp
+      FROM users u
+      LEFT JOIN levels l ON u.level_id = l.id
+      WHERE u.id=$1
+    `,
+    [id]
+  );
+
+  const uploads = await pool.query(
+    `
+      SELECT id,image_url,created_at
+      FROM student_uploads
+      WHERE student_id=$1
+      ORDER BY created_at DESC
+    `,
+    [id]
+  );
+
+  const xpLog = await pool.query(
+    `
+      SELECT t.*, m.name AS mission_name
+      FROM xp_transactions t
+      LEFT JOIN missions m ON t.mission_id=m.id
+      WHERE student_id=$1
+      ORDER BY created_at DESC
+    `,
+    [id]
+  );
+
+  const character = await pool.query(
+    `
+      SELECT c.*
+      FROM characters c
+      JOIN users u ON u.character_id=c.id
+      WHERE u.id=$1
+    `,
+    [id]
+  );
+
+  res.json({
+    user: user.rows[0],
+    uploads: uploads.rows,
+    xp_log: xpLog.rows,
+    character: character.rows[0] || null,
   });
+});
 
-  if (classes.length > 0) sel.value = classes[0].id;
-  loadClassStudents();
-}
+app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
+  const { characterId } = req.body;
 
-async function addClass() {
-  const name = document.getElementById("newClassName").value.trim();
-  if (!name) return;
+  await pool.query(
+    "UPDATE users SET character_id=$1 WHERE id=$2",
+    [characterId, req.session.user.id]
+  );
 
-  await fetch("/api/class", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name}) });
-  loadClassesForManage();
-  loadXPInit();
-}
+  res.json({ success: true });
+});
 
-async function deleteClass() {
-  const id = document.getElementById("classManageSelect").value;
-  await fetch(`/api/class/${id}`, { method:"DELETE" });
-  loadClassesForManage();
-  loadXPInit();
-}
-
-async function loadClassStudents() {
-  const classId = document.getElementById("classManageSelect").value;
-  const r = await fetch(`/api/student?classId=${classId}`);
-  const students = await r.json();
-
-  const tbody = document.querySelector("#classStudentTable tbody");
-  tbody.innerHTML = "";
-
-  students.forEach(s => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${s.name}</td>
-      <td>${s.password}</td>
-      <td><button class="delete" onclick="deleteStudent(${s.id})">X</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-async function addStudent() {
-  const classId = document.getElementById("classManageSelect").value;
-  const name = document.getElementById("studentName").value.trim();
-  const password = document.getElementById("studentPassword").value.trim();
-
-  await fetch("/api/student", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({name,password,classId})
-  });
-
-  loadClassStudents();
-  loadXPStudents();
-}
-
-async function deleteStudent(id) {
-  await fetch(`/api/student/${id}`, { method:"DELETE" });
-  loadClassStudents();
-  loadXPStudents();
-}
-
-/* ---------------------------- MISSIONEN ---------------------------- */
-let uploadedMissionImageUrl = null;
-
-async function uploadMissionImage() {
-  const file = document.getElementById("missionImage").files[0];
-  if (!file) return;
-
-  const form = new FormData();
-  form.append("image", file);
-
-  const r = await fetch("/api/missions/upload", { method:"POST", body:form });
-  const data = await r.json();
-  if (data.success) uploadedMissionImageUrl = data.url;
-}
-
-async function addMission() {
-  const name = document.getElementById("missionName").value.trim();
-  const xp = Number(document.getElementById("missionXP").value);
-  const requireUpload = document.getElementById("missionRequireUpload").checked;
-
-  await fetch("/api/missions", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({name,xp,imageUrl:uploadedMissionImageUrl,requireUpload})
-  });
-
-  uploadedMissionImageUrl = null;
-  loadMissions();
-}
-
-async function loadMissions() {
-  const r = await fetch("/api/missions");
-  const missions = await r.json();
-
-  const tbody = document.querySelector("#missionTable tbody");
-  tbody.innerHTML = "";
-
-  missions.forEach(m => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${m.image_url ? `<img class="thumb" src="${m.image_url}">` : "—"}</td>
-      <td>${m.name}</td>
-      <td>${m.xp}</td>
-      <td>${m.require_upload ? "Ja" : "Nein"}</td>
-      <td><button class="delete" onclick="deleteMission(${m.id})">X</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-async function deleteMission(id) {
-  await fetch(`/api/missions/${id}`, { method:"DELETE" });
-  loadMissions();
-  loadMissionsForXP();
-}
-
-/* ---------------------------- BONUS ---------------------------- */
-let uploadedBonusImageUrl = null;
-
-async function uploadBonusImage() {
-  const file = document.getElementById("bonusImage").files[0];
-  if (!file) return;
-
-  const form = new FormData();
-  form.append("image", file);
-
-  const r = await fetch("/api/bonus/upload", { method:"POST", body:form });
-  const data = await r.json();
-  if (data.success) uploadedBonusImageUrl = data.url;
-}
-
-async function addBonus() {
-  const name = document.getElementById("bonusName").value.trim();
-  const xp = Number(document.getElementById("bonusXP").value);
-
-  await fetch("/api/bonus", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({name,xp,imageUrl:uploadedBonusImageUrl})
-  });
-
-  uploadedBonusImageUrl = null;
-  loadBonuses();
-}
-
-async function loadBonuses() {
-  const r = await fetch("/api/bonus");
-  const bonuses = await r.json();
-
-  const tbody = document.querySelector("#bonusTable tbody");
-  tbody.innerHTML = "";
-
-  bonuses.forEach(b => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${b.image_url ? `<img class="thumb" src="${b.image_url}">` : "—"}</td>
-      <td>${b.name}</td>
-      <td>${b.xp}</td>
-      <td><button class="delete" onclick="deleteBonus(${b.id})">X</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-async function deleteBonus(id) {
-  await fetch(`/api/bonus/${id}`, { method:"DELETE" });
-  loadBonuses();
-}
-
-/* ---------------------------- CHARACTERS ---------------------------- */
-let uploadedCharacterImageUrl = null;
-
-async function uploadCharacterImage() {
-  const file = document.getElementById("characterImage").files[0];
-  if (!file) return;
-
-  const form = new FormData();
-  form.append("image", file);
-
-  const r = await fetch("/api/character/upload", { method:"POST", body:form });
-  const data = await r.json();
-  if (data.success) uploadedCharacterImageUrl = data.url;
-}
-
-async function addCharacter() {
-  const name = document.getElementById("characterName").value.trim();
-
-  await fetch("/api/character", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({name,imageUrl:uploadedCharacterImageUrl})
-  });
-
-  uploadedCharacterImageUrl = null;
-  loadCharacters();
-}
-
-async function loadCharacters() {
-  const r = await fetch("/api/character");
-  const characters = await r.json();
-
-  const tbody = document.querySelector("#characterTable tbody");
-  tbody.innerHTML = "";
-
-  characters.forEach(c => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${c.image_url ? `<img class="thumb" src="${c.image_url}">` : "—"}</td>
-      <td>${c.name}</td>
-      <td><button class="delete" onclick="deleteCharacter(${c.id})">X</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-async function deleteCharacter(id) {
-  await fetch(`/api/character/${id}`, { method:"DELETE" });
-  loadCharacters();
-}
-
-/* ---------------------------- LEVEL ---------------------------- */
-async function loadLevels() {
-  const r = await fetch("/api/levels");
-  const levels = await r.json();
-
-  const tbody = document.querySelector("#levelTable tbody");
-  tbody.innerHTML = "";
-
-  levels.forEach(l => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${l.name}</td>
-      <td>${l.min_xp}</td>
-      <td><button class="delete" onclick="deleteLevel(${l.id})">X</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-async function addLevel() {
-  const name = document.getElementById("levelName").value.trim();
-  const minXp = Number(document.getElementById("levelMinXP").value);
-
-  if (!name) return;
-
-  await fetch("/api/levels", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({name, minXp})
-  });
-
-  document.getElementById("levelName").value = "";
-  document.getElementById("levelMinXP").value = "";
-  loadLevels();
-}
-
-async function deleteLevel(id) {
-  await fetch(`/api/levels/${id}`, { method:"DELETE" });
-  loadLevels();
-}
-
-/* Default Ansicht */
-showTab("xpTab");
-
-</script>
-</body>
-</html>
+// =======================================================
+// SERVER START
+// =======================================================
+app.listen(process.env.PORT || 8080, () => {
+  console.log("🚀 Server läuft auf Port 8080");
+});
