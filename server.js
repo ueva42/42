@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (mit Klassen-Löschen, stabil)
+// Temple of Logic – SERVER.JS (stabile Gesamtversion)
 // =======================================================
 
 import express from "express";
@@ -17,10 +17,11 @@ import pkg from "pg";
 const { Pool } = pkg;
 
 // -------------------------------------------------------
+// Pfade / Basis
+// -------------------------------------------------------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// -------------------------------------------------------
 const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -30,18 +31,19 @@ app.use(
     secret: "super-temp-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false },
+    cookie: { secure: false }, // bei HTTPS später true
   })
 );
 
 app.use(express.static(path.join(__dirname, "public")));
 
 // -------------------------------------------------------
+// DB & R2
+// -------------------------------------------------------
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-// -------------------------------------------------------
 const r2 = new S3Client({
   region: "auto",
   endpoint: process.env.R2_ENDPOINT,
@@ -54,7 +56,7 @@ const r2 = new S3Client({
 const upload = multer({ storage: multer.memoryStorage() });
 
 // -------------------------------------------------------
-// Helper: Spalte erzwingen
+// Helper – Spalte nur anlegen, wenn sie fehlt
 // -------------------------------------------------------
 async function ensureColumn(table, col, type) {
   await pool.query(`
@@ -63,7 +65,8 @@ async function ensureColumn(table, col, type) {
       IF NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_name='${table}' AND column_name='${col}'
+        WHERE table_name='${table}'
+          AND column_name='${col}'
       ) THEN
         ALTER TABLE ${table} ADD COLUMN ${col} ${type};
       END IF;
@@ -74,7 +77,6 @@ async function ensureColumn(table, col, type) {
 // =======================================================
 // MIGRATION
 // =======================================================
-
 async function migrate() {
   console.log("🔧 Starte Migration…");
 
@@ -86,29 +88,34 @@ async function migrate() {
     );
   `);
 
-  // Users
+  // Users (ggf. schon vorhanden – wir ergänzen nur)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       password TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'student',
-      class_id INTEGER REFERENCES classes(id) ON DELETE CASCADE,
+      class_id INTEGER,
       xp INTEGER NOT NULL DEFAULT 0,
-      character_id INTEGER,
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
+
+  await ensureColumn("users", "role", "TEXT NOT NULL DEFAULT 'student'");
+  await ensureColumn("users", "class_id", "INTEGER");
+  await ensureColumn("users", "xp", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("users", "character_id", "INTEGER");
 
   // UNIQUE (name, class_id)
   await pool.query(`
     DO $$
     BEGIN
       IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints
+        SELECT 1
+        FROM information_schema.table_constraints
         WHERE table_name='users'
-        AND constraint_type='UNIQUE'
-        AND constraint_name='users_name_class_unique'
+          AND constraint_type='UNIQUE'
+          AND constraint_name='users_name_class_unique'
       ) THEN
         ALTER TABLE users
           ADD CONSTRAINT users_name_class_unique UNIQUE(name, class_id);
@@ -128,7 +135,7 @@ async function migrate() {
     );
   `);
 
-  // Schüler Uploads
+  // Schüler-Uploads
   await pool.query(`
     CREATE TABLE IF NOT EXISTS student_uploads (
       id SERIAL PRIMARY KEY,
@@ -138,15 +145,28 @@ async function migrate() {
     );
   `);
 
-  // Bonuskarten
+  // Bonuskarten (mit xp)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS bonuscards (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
+      xp INTEGER NOT NULL DEFAULT 0,
       image_url TEXT,
-      xp_cost INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMP DEFAULT NOW()
     );
+  `);
+
+  // falls alte Spalte xp_cost noch existiert → weg
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='bonuscards' AND column_name='xp_cost'
+      ) THEN
+        ALTER TABLE bonuscards DROP COLUMN xp_cost;
+      END IF;
+    END$$;
   `);
 
   // Charaktere
@@ -159,17 +179,17 @@ async function migrate() {
     );
   `);
 
-  // Level
+  // Level (mit required_xp!)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS levels (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
-      min_xp INTEGER NOT NULL,
+      required_xp INTEGER NOT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
 
-  // XP-Transactions
+  // XP-Transaktionen
   await pool.query(`
     CREATE TABLE IF NOT EXISTS xp_transactions (
       id SERIAL PRIMARY KEY,
@@ -182,12 +202,19 @@ async function migrate() {
     );
   `);
 
-  // Default-Admin
-  await pool.query(`
-    INSERT INTO users (name, password, role)
-    VALUES ('admin', 'bruhrain', 'admin')
+  await ensureColumn("xp_transactions", "amount", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("xp_transactions", "mission_id", "INTEGER");
+  await ensureColumn("xp_transactions", "source", "TEXT");
+  await ensureColumn("xp_transactions", "awarded_by", "INTEGER");
+
+  // Default Admin
+  await pool.query(
+    `
+    INSERT INTO users (name, password, role, class_id)
+    VALUES ('admin', 'bruhrain', 'admin', NULL)
     ON CONFLICT (name, class_id) DO NOTHING;
-  `);
+  `
+  );
 
   console.log("Migration abgeschlossen.");
 }
@@ -197,7 +224,6 @@ await migrate();
 // =======================================================
 // AUTH
 // =======================================================
-
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
@@ -207,8 +233,8 @@ app.post("/api/login", async (req, res) => {
   );
 
   if (r.rows.length === 0) return res.json({ success: false });
-  const user = r.rows[0];
 
+  const user = r.rows[0];
   if (user.password !== password) return res.json({ success: false });
 
   req.session.user = {
@@ -225,27 +251,30 @@ app.post("/api/logout", (req, res) => {
 });
 
 function isAdmin(req, res, next) {
-  if (!req.session.user || req.session.user.role !== "admin")
+  if (!req.session.user || req.session.user.role !== "admin") {
     return res.status(403).json({ error: "Forbidden" });
+  }
   next();
 }
 
 function isStudent(req, res, next) {
-  if (!req.session.user || req.session.user.role !== "student")
+  if (!req.session.user || req.session.user.role !== "student") {
     return res.status(403).json({ error: "Forbidden" });
+  }
   next();
 }
+
 // =======================================================
 // KLASSEN
 // =======================================================
-
-app.get("/api/class", isAdmin, async (_, res) => {
-  const r = await pool.query("SELECT * FROM classes ORDER BY name ASC");
+app.get("/api/class", isAdmin, async (_req, res) => {
+  const r = await pool.query("SELECT id, name FROM classes ORDER BY name ASC");
   res.json(r.rows);
 });
 
 app.post("/api/class", isAdmin, async (req, res) => {
   const { name } = req.body;
+  if (!name) return res.json({ success: false });
 
   await pool.query(
     "INSERT INTO classes (name) VALUES ($1) ON CONFLICT (name) DO NOTHING",
@@ -255,23 +284,18 @@ app.post("/api/class", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// 🔥 NEU: Klasse löschen
-// Löscht automatisch: Schüler → Uploads → XP → State
 app.delete("/api/class/:id", isAdmin, async (req, res) => {
-  const classId = req.params.id;
-
-  // 1. ALLE Schüler der Klasse holen
-  const students = await pool.query(
-    "SELECT id FROM users WHERE class_id=$1",
-    [classId]
-  );
-
-  // 2. Für jeden Schüler Uploads & XP löschen (ON DELETE CASCADE erledigt)
-  for (const s of students.rows) {
-    await pool.query("DELETE FROM users WHERE id=$1", [s.id]);
+  const classId = parseInt(req.params.id, 10);
+  if (Number.isNaN(classId)) {
+    return res.status(400).json({ success: false, error: "Invalid class id" });
   }
 
-  // 3. Klasse löschen
+  // Schüler:innen der Klasse löschen
+  await pool.query("DELETE FROM users WHERE class_id=$1 AND role='student'", [
+    classId,
+  ]);
+
+  // Klasse löschen
   await pool.query("DELETE FROM classes WHERE id=$1", [classId]);
 
   res.json({ success: true });
@@ -280,7 +304,6 @@ app.delete("/api/class/:id", isAdmin, async (req, res) => {
 // =======================================================
 // SCHÜLER:INNEN
 // =======================================================
-
 app.get("/api/student", isAdmin, async (req, res) => {
   const { classId } = req.query;
   if (!classId) return res.json([]);
@@ -292,7 +315,7 @@ app.get("/api/student", isAdmin, async (req, res) => {
       u.name,
       u.password,
       u.xp,
-      COALESCE(su.image_url, NULL) AS upload_url
+      su.image_url AS upload_url
     FROM users u
     LEFT JOIN LATERAL (
       SELECT image_url
@@ -313,11 +336,13 @@ app.get("/api/student", isAdmin, async (req, res) => {
 
 app.post("/api/student", isAdmin, async (req, res) => {
   const { name, password, classId } = req.body;
+  if (!name || !password || !classId)
+    return res.json({ success: false });
 
   await pool.query(
     `
-    INSERT INTO users (name, password, role, class_id)
-    VALUES ($1, $2, 'student', $3)
+    INSERT INTO users (name, password, role, class_id, xp)
+    VALUES ($1, $2, 'student', $3, 0)
     ON CONFLICT (name, class_id) DO NOTHING
   `,
     [name, password, classId]
@@ -327,14 +352,16 @@ app.post("/api/student", isAdmin, async (req, res) => {
 });
 
 app.delete("/api/student/:id", isAdmin, async (req, res) => {
-  await pool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.json({ success: false });
+
+  await pool.query("DELETE FROM users WHERE id=$1", [id]);
   res.json({ success: true });
 });
 
 // =======================================================
-// XP TRANSACTIONS HELFER
+// XP-LOG / HELPER
 // =======================================================
-
 async function logXP(studentId, amount, missionId, source, adminId) {
   await pool.query(
     `
@@ -348,24 +375,25 @@ async function logXP(studentId, amount, missionId, source, adminId) {
 // =======================================================
 // XP VERGABE
 // =======================================================
-
 app.post("/api/xp", isAdmin, async (req, res) => {
   const { studentId, xp } = req.body;
+  const delta = Number(xp);
 
-  if (!studentId) return res.json({ success: false });
+  if (!studentId || !delta) return res.json({ success: false });
 
-  await pool.query(
-    "UPDATE users SET xp = xp + $1 WHERE id=$2",
-    [Number(xp), studentId]
-  );
+  await pool.query("UPDATE users SET xp = xp + $1 WHERE id=$2", [
+    delta,
+    studentId,
+  ]);
 
-  await logXP(studentId, Number(xp), null, "direct", req.session.user.id);
+  await logXP(studentId, delta, null, "direct", req.session.user.id);
 
   res.json({ success: true });
 });
 
 app.post("/api/xpmission", isAdmin, async (req, res) => {
   const { studentId, missionId } = req.body;
+  if (!studentId || !missionId) return res.json({ success: false });
 
   const r = await pool.query("SELECT xp FROM missions WHERE id=$1", [
     missionId,
@@ -374,26 +402,19 @@ app.post("/api/xpmission", isAdmin, async (req, res) => {
 
   const missionXP = r.rows[0].xp;
 
-  await pool.query(
-    "UPDATE users SET xp = xp + $1 WHERE id=$2",
-    [missionXP, studentId]
-  );
-
-  await logXP(
-    studentId,
+  await pool.query("UPDATE users SET xp = xp + $1 WHERE id=$2", [
     missionXP,
-    missionId,
-    "mission",
-    req.session.user.id
-  );
+    studentId,
+  ]);
+
+  await logXP(studentId, missionXP, missionId, "mission", req.session.user.id);
 
   res.json({ success: true });
 });
 
 // =======================================================
-// SCHÜLER-UPLOAD (Student)
+// SCHÜLER-UPLOAD
 // =======================================================
-
 app.post(
   "/api/student/upload",
   isStudent,
@@ -418,10 +439,8 @@ app.post(
       const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
 
       await pool.query(
-        `
-        INSERT INTO student_uploads (student_id, image_url)
-        VALUES ($1, $2)
-      `,
+        `INSERT INTO student_uploads (student_id, image_url)
+         VALUES ($1, $2)`,
         [studentId, url]
       );
 
@@ -433,8 +452,10 @@ app.post(
   }
 );
 
+// Admin löscht letzten Upload
 app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
-  const studentId = req.params.studentId;
+  const studentId = parseInt(req.params.studentId, 10);
+  if (Number.isNaN(studentId)) return res.json({ success: false });
 
   const r = await pool.query(
     `
@@ -450,9 +471,8 @@ app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
   if (r.rows.length === 0) return res.json({ success: false });
 
   const entry = r.rows[0];
-  const fileUrl = entry.image_url;
   const prefix = process.env.R2_PUBLIC_URL + "/";
-  const key = fileUrl.replace(prefix, "");
+  const key = entry.image_url.replace(prefix, "");
 
   try {
     await r2.send(
@@ -468,10 +488,10 @@ app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
   await pool.query("DELETE FROM student_uploads WHERE id=$1", [entry.id]);
   res.json({ success: true });
 });
+
 // =======================================================
 // MISSIONEN
 // =======================================================
-
 app.post(
   "/api/missions/upload",
   isAdmin,
@@ -502,6 +522,7 @@ app.post(
 
 app.post("/api/missions", isAdmin, async (req, res) => {
   const { name, xp, imageUrl, requireUpload } = req.body;
+  if (!name || !xp) return res.json({ success: false });
 
   await pool.query(
     `
@@ -514,13 +535,14 @@ app.post("/api/missions", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-app.get("/api/missions", isAdmin, async (_, res) => {
+app.get("/api/missions", isAdmin, async (_req, res) => {
   const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
   res.json(r.rows);
 });
 
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
-  const id = req.params.id;
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.json({ success: false });
 
   const r = await pool.query("SELECT image_url FROM missions WHERE id=$1", [
     id,
@@ -537,7 +559,9 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
           Key: key,
         })
       );
-    } catch {}
+    } catch (err) {
+      console.error("R2 delete mission image:", err);
+    }
   }
 
   await pool.query("DELETE FROM missions WHERE id=$1", [id]);
@@ -547,7 +571,6 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
 // =======================================================
 // BONUSKARTEN
 // =======================================================
-
 app.post(
   "/api/bonus/upload",
   isAdmin,
@@ -579,6 +602,7 @@ app.post(
 
 app.post("/api/bonus", isAdmin, async (req, res) => {
   const { name, xp, imageUrl } = req.body;
+  if (!name || !xp) return res.json({ success: false });
 
   await pool.query(
     `
@@ -591,13 +615,14 @@ app.post("/api/bonus", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-app.get("/api/bonus", isAdmin, async (_, res) => {
+app.get("/api/bonus", isAdmin, async (_req, res) => {
   const r = await pool.query("SELECT * FROM bonuscards ORDER BY id DESC");
   res.json(r.rows);
 });
 
 app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
-  const id = req.params.id;
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.json({ success: false });
 
   const r = await pool.query("SELECT image_url FROM bonuscards WHERE id=$1", [
     id,
@@ -614,20 +639,18 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
           Key: key,
         })
       );
-    } catch (e) {
-      console.log("R2 delete error bonus:", e.message);
+    } catch (err) {
+      console.error("Bonus delete R2:", err);
     }
   }
 
   await pool.query("DELETE FROM bonuscards WHERE id=$1", [id]);
-
   res.json({ success: true });
 });
 
 // =======================================================
 // CHARACTERS
 // =======================================================
-
 app.post(
   "/api/character/upload",
   isAdmin,
@@ -659,25 +682,27 @@ app.post(
 
 app.post("/api/character", isAdmin, async (req, res) => {
   const { name, imageUrl } = req.body;
+  if (!name) return res.json({ success: false });
 
   await pool.query(
     `
     INSERT INTO characters (name, image_url)
     VALUES ($1, $2)
   `,
-    [name, imageUrl]
+    [name, imageUrl || null]
   );
 
   res.json({ success: true });
 });
 
-app.get("/api/character", isAdmin, async (_, res) => {
+app.get("/api/character", isAdmin, async (_req, res) => {
   const r = await pool.query("SELECT * FROM characters ORDER BY id DESC");
   res.json(r.rows);
 });
 
 app.delete("/api/character/:id", isAdmin, async (req, res) => {
-  const id = req.params.id;
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.json({ success: false });
 
   const r = await pool.query("SELECT image_url FROM characters WHERE id=$1", [
     id,
@@ -694,8 +719,8 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
           Key: key,
         })
       );
-    } catch (e) {
-      console.log("Character delete R2 error:", e.message);
+    } catch (err) {
+      console.error("Character delete R2:", err);
     }
   }
 
@@ -704,42 +729,49 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// LEVEL SYSTEM
+// LEVELSYSTEM
 // =======================================================
-
 app.post("/api/levels", isAdmin, async (req, res) => {
   const { name, min_xp } = req.body;
+  const xp = Number(min_xp);
+
+  if (!name || !xp) return res.json({ success: false });
 
   await pool.query(
     `
-    INSERT INTO levels (name, min_xp)
+    INSERT INTO levels (name, required_xp)
     VALUES ($1, $2)
   `,
-    [name, Number(min_xp)]
+    [name, xp]
   );
 
   res.json({ success: true });
 });
 
-app.get("/api/levels", isAdmin, async (_, res) => {
-  const r = await pool.query("SELECT * FROM levels ORDER BY min_xp ASC");
+app.get("/api/levels", isAdmin, async (_req, res) => {
+  const r = await pool.query(
+    "SELECT * FROM levels ORDER BY required_xp ASC, id ASC"
+  );
   res.json(r.rows);
 });
 
 app.delete("/api/levels/:id", isAdmin, async (req, res) => {
-  await pool.query("DELETE FROM levels WHERE id=$1", [req.params.id]);
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.json({ success: false });
+
+  await pool.query("DELETE FROM levels WHERE id=$1", [id]);
   res.json({ success: true });
 });
 
 // =======================================================
-// STUDENT – eigene XP, Uploads, Character
+// STUDENT-API für student.html
 // =======================================================
 
 app.get("/api/student/me", isStudent, async (req, res) => {
   const id = req.session.user.id;
 
   const user = await pool.query(
-    "SELECT id, name, xp FROM users WHERE id=$1",
+    "SELECT id, name, xp, character_id FROM users WHERE id=$1",
     [id]
   );
 
@@ -787,13 +819,11 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   });
 });
 
-// =======================================================
-// STUDENT – Charakter speichern
-// =======================================================
-
 app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
-  const id = req.session.user.id;
   const { characterId } = req.body;
+  const id = req.session.user.id;
+
+  if (!characterId) return res.json({ success: false });
 
   await pool.query("UPDATE users SET character_id=$1 WHERE id=$2", [
     characterId,
@@ -806,7 +836,6 @@ app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
 // =======================================================
 // START
 // =======================================================
-
 app.listen(process.env.PORT || 8080, () => {
   console.log("🚀 Server läuft auf Port 8080");
 });

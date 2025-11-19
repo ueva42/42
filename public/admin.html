@@ -18,7 +18,7 @@
       overflow: hidden;
     }
 
-    /* ===== SIDEBAR ===== */
+    /* ===== SIDEBAR / MYSTIC ORB ===== */
     .sidebar {
       position: relative;
       width: 270px;
@@ -35,6 +35,7 @@
       z-index: 10;
     }
 
+    /* halb-ovaler „Mystic Orb“ oben */
     .sidebar::before {
       content: "";
       position: absolute;
@@ -79,7 +80,13 @@
       justify-content: center;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-      transition: transform 0.15s ease;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .sidebar-toggle:hover {
+      transform: translateY(-1px);
+      background: rgba(30,64,175,0.9);
+      box-shadow: 0 8px 18px rgba(0,0,0,1);
     }
 
     .sidebar-toggle-lines {
@@ -125,13 +132,14 @@
       border-radius: 14px;
       cursor: pointer;
       box-shadow: 0 5px 14px rgba(0,0,0,0.8);
-      transition: transform 0.18s ease;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
     }
 
     .nav-item:hover {
-      background: radial-gradient(circle at left, #4c3aaa , #1c1637 50%);
+      background: radial-gradient(circle at left, #4c3aaa 0, #1c1637 55%, #070714 100%);
       border-color: #8b5cf6;
       transform: translateX(4px);
+      box-shadow: 0 9px 20px rgba(0,0,0,0.95);
     }
 
     .nav-item svg {
@@ -139,6 +147,42 @@
       height: 22px;
       margin-right: 10px;
       fill: #a78bfa;
+      flex-shrink: 0;
+    }
+
+    .nav-label {
+      color: #f9fafb;
+      font-size: 14px;
+      white-space: nowrap;
+      transition: opacity 0.15s ease;
+    }
+
+    .sidebar.collapsed {
+      width: 80px;
+      padding: 20px 10px;
+      align-items: center;
+    }
+
+    .sidebar.collapsed .sidebar-title {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-align: center;
+    }
+
+    .sidebar.collapsed .nav-item {
+      justify-content: center;
+    }
+
+    .sidebar.collapsed .nav-item svg {
+      margin-right: 0;
+    }
+
+    .sidebar.collapsed .nav-label {
+      display: none;
+    }
+
+    .sidebar.collapsed .nav-group-title {
+      display: none;
     }
 
     .content {
@@ -146,62 +190,207 @@
       height: 100vh;
       padding: 24px;
       overflow-y: auto;
+      box-sizing: border-box;
     }
 
-    .hidden { display:none; }
+    .hidden {
+      display: none;
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 16px;
+      letter-spacing: .5px;
+    }
+
+    h3 {
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
+
+    .tab {
+      animation: fadeInUp 0.25s ease;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    input, select {
+      padding: 6px 9px;
+      margin: 4px;
+      background: #161630;
+      color: #eee;
+      border: 1px solid #35305f;
+      border-radius: 6px;
+      outline: none;
+      min-width: 160px;
+    }
+
+    input:focus, select:focus {
+      border-color: #7b5bff;
+      box-shadow: 0 0 0 1px rgba(123,91,255,0.5);
+    }
+
+    button.action {
+      background: linear-gradient(135deg, #16a34a, #22c55e);
+      border: none;
+      padding: 6px 12px;
+      cursor: pointer;
+      color: white;
+      margin-left: 3px;
+      border-radius: 999px;
+      font-size: 13px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.7);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    }
+
+    button.action:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 7px 16px rgba(0,0,0,0.85);
+      filter: brightness(1.05);
+    }
+
+    button.delete {
+      background: linear-gradient(135deg, #b91c1c, #e11d48);
+      color: white;
+      padding: 4px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      border: none;
+      font-size: 12px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.7);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    button.delete:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.85);
+    }
 
     table {
       width: 100%;
       border-collapse: separate;
       border-spacing: 0 10px;
+      margin-top: 10px;
+    }
+
+    thead th {
+      border: none;
+      padding: 4px 6px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #a8b0d5;
+      text-align: left;
     }
 
     table tbody tr {
-      background: radial-gradient(circle at top left, #211b40 0, #131327 50%);
+      background: radial-gradient(circle at top left, #211b40 0, #131327 50%, #0b0b18 100%);
       border-radius: 10px;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.9);
       border: 1px solid #2d224f;
-      transition: .2s;
+      overflow: hidden;
+      transform: translateY(0);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
+
     table tbody tr:hover {
       transform: translateY(-3px);
+      box-shadow: 0 14px 28px rgba(0,0,0,1);
       border-color: #7b5bff;
     }
 
+    table td {
+      border: none;
+      padding: 10px 12px;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
     .thumb {
-      width: 60px; height: 60px;
+      width: 60px;
+      height: 60px;
       object-fit: cover;
       border: 1px solid #555;
       border-radius: 6px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.7);
     }
 
+    .xp-stats-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 16px;
+      padding: 8px 14px;
+      margin: 10px 0 4px;
+      border-radius: 999px;
+      background: radial-gradient(circle at left, rgba(123,91,255,0.3) 0, rgba(15,23,42,0.9) 60%);
+      border: 1px solid rgba(129,140,248,0.8);
+      font-size: 12px;
+      color: #e5e7eb;
+    }
+
+    .xp-stats-box span.label {
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-size: 11px;
+      color: #a5b4fc;
+    }
+
+    .xp-pill {
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+
+    .xp-pill.blue {
+      background: rgba(55,48,163,0.35);
+      border: 1px solid rgba(129,140,248,0.8);
+    }
+    .xp-pill.green {
+      background: rgba(22,163,74,0.22);
+      border: 1px solid rgba(52,211,153,0.9);
+    }
+    .xp-pill.red {
+      background: rgba(185,28,28,0.22);
+      border: 1px solid rgba(248,113,113,0.9);
+    }
   </style>
 </head>
-
 <body>
 
 <!-- SIDEBAR -->
 <div class="sidebar" id="sidebar">
   <div class="sidebar-header">
     <h2 class="sidebar-title">TEMPLE OF LOGIC</h2>
-    <div class="sidebar-toggle" onclick="sidebar.classList.toggle('collapsed')">
-      <div class="sidebar-toggle-lines"><span></span><span></span><span></span></div>
+    <div class="sidebar-toggle" onclick="toggleSidebar()">
+      <div class="sidebar-toggle-lines">
+        <span></span><span></span><span></span>
+      </div>
     </div>
   </div>
 
   <div class="nav-group">
     <div class="nav-item" onclick="showTab('xpTab')">
-      <svg viewBox="0 0 24 24"><path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/></svg>
-      <span>XP-Verwaltung</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/>
+      </svg>
+      <span class="nav-label">XP-Verwaltung</span>
     </div>
 
     <div class="nav-item" onclick="showTab('classTab')">
-      <svg viewBox="0 0 24 24"><path d="M12 12c2.5 0 4.5-2 4.5-4.5S14.5 3 12 3 7.5 5 7.5 7.5 9.5 12 12 12zm0 1.5c-3 0-9 1.5-9 4.5V21h18v-3c0-3-6-4.5-9-4.5z"/></svg>
-      <span>Klassen & Schüler</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M12 12c2.5 0 4.5-2 4.5-4.5S14.5 3 12 3 7.5 5 7.5 7.5 9.5 12 12 12zm0 1.5c-3 0-9 1.5-9 4.5V21h18v-3c0-3-6-4.5-9-4.5z"/>
+      </svg>
+      <span class="nav-label">Klassen & Schüler</span>
     </div>
 
     <div class="nav-item" onclick="showTab('missionTab')">
-      <svg viewBox="0 0 24 24"><path d="M3 3v18l9-4 9 4V3H3zm16 2v11.1l-7-3.1-7 3.1V5h14z"/></svg>
-      <span>Missionen</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M3 3v18l9-4 9 4V3H3zm16 2v11.1l-7-3.1-7 3.1V5h14z"/>
+      </svg>
+      <span class="nav-label">Missionen</span>
     </div>
   </div>
 
@@ -209,25 +398,33 @@
     <div class="nav-group-title">BONUS & WELTEN</div>
 
     <div class="nav-item" onclick="showTab('bonusTab')">
-      <svg viewBox="0 0 24 24"><path d="M4 5c0-.6.4-1 1-1h6.3l1.7 1.7h4.3c.6 0 1 .4 1 1v4c-.8 0-1.5.3-2.1.9-.6.6-.9 1.3-.9 2.1s.3 1.5.9 2.1 1.3.9 2.1.9v2c0 .6-.4 1-1 1H6.7l-1.7-1.7H5c.6 0 1-.4 1-1v-1c0-.6.4-1 1-1h2c.6 0 1-.4 1-1v-2c0-.6-.4-1-1-1H7c-.6 0-1-.4-1-1V7c0-.6-.4-1-1-1H4V5z"/></svg>
-      <span>Bonuskarten</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M4 5c0-.6.4-1 1-1h6.3c.3 0 .5.1.7.3l1.7 1.7h4.3c.6 0 1 .4 1 1v4c-.8 0-1.5.3-2.1.9-.6.6-.9 1.3-.9 2.1s.3 1.5.9 2.1c.6.6 1.3.9 2.1.9v2c0 .6-.4 1-1 1H6.7c-.3 0-.5-.1-.7-.3L4.3 17H5c.6 0 1-.4 1-1v-1c0-.6.4-1 1-1h2c.6 0 1-.4 1-1v-2c0-.6-.4-1-1-1H7c-.6 0-1-.4-1-1V7c0-.6-.4-1-1-1H4V5z"/>
+      </svg>
+      <span class="nav-label">Bonuskarten</span>
     </div>
 
     <div class="nav-item" onclick="showTab('characterTab')">
-      <svg viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4zm0 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/></svg>
-      <span>Charaktere</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M12 2l4 4-4 4-4-4 4-4zm0 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/>
+      </svg>
+      <span class="nav-label">Charaktere</span>
     </div>
 
     <div class="nav-item" onclick="showTab('levelTab')">
-      <svg viewBox="0 0 24 24"><path d="M4 22h4V10H4v12zm6 0h4V2h-4v20zm6 0h4V6h-4v16z"/></svg>
-      <span>Level</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M4 22h4V10H4v12zm6 0h4V2h-4v20zm6 0h4V6h-4v16z"/>
+      </svg>
+      <span class="nav-label">Level</span>
     </div>
   </div>
 
   <div class="nav-group" style="margin-top:auto;">
     <div class="nav-item" onclick="logout()">
-      <svg viewBox="0 0 24 24"><path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9v2h10v14H9v2h10c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
-      <span>Logout</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9v2h10v14H9v2h10c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+      </svg>
+      <span class="nav-label">Logout</span>
     </div>
   </div>
 </div>
@@ -235,12 +432,19 @@
 <!-- CONTENT -->
 <div class="content">
 
-  <!-- XP -->
+  <!-- XP-Verwaltung -->
   <div id="xpTab" class="tab">
     <h1>XP-Verwaltung</h1>
 
     <label>Aktive Klasse:</label>
     <select id="xpClassSelect" onchange="loadXPStudents()"></select>
+
+    <div id="xpStats" class="xp-stats-box" style="display:none;">
+      <span class="label">Klassen-Stats</span>
+      <span id="xpStatsCount" class="xp-pill blue"></span>
+      <span id="xpStatsTotal" class="xp-pill green"></span>
+      <span id="xpStatsAvg" class="xp-pill red"></span>
+    </div>
 
     <table id="xpStudentTable">
       <thead>
@@ -255,7 +459,7 @@
     </table>
 
     <h3>XP vergeben</h3>
-    <input id="xpValue" type="number" placeholder="XP" />
+    <input type="number" id="xpValue" placeholder="XP" />
     <button class="action" onclick="addXP()">XP an Auswahl</button>
     <button class="action" onclick="addXPAll()">XP an alle</button>
 
@@ -265,7 +469,7 @@
     <button class="action" onclick="addMissionXPAll()">Mission an alle</button>
   </div>
 
-  <!-- KLASSEN -->
+  <!-- KLASSEN & SCHÜLER -->
   <div id="classTab" class="tab hidden">
     <h1>Klassen & Schüler:innen</h1>
 
@@ -275,7 +479,7 @@
 
     <h3>Klassenliste</h3>
     <select id="classManageSelect" onchange="loadClassStudents()"></select>
-    <button class="delete" onclick="deleteClass()">Klasse löschen</button>
+    <button class="delete" onclick="deleteCurrentClass()">Klasse löschen</button>
 
     <table id="classStudentTable">
       <thead>
@@ -293,6 +497,7 @@
     <input id="studentPassword" placeholder="Passwort" />
     <button class="action" onclick="addStudent()">Schüler:in anlegen</button>
   </div>
+
   <!-- MISSIONEN -->
   <div id="missionTab" class="tab hidden">
     <h1>Missionen</h1>
@@ -373,7 +578,7 @@
     </table>
   </div>
 
-  <!-- LEVELS -->
+  <!-- LEVELSYSTEM -->
   <div id="levelTab" class="tab hidden">
     <h1>Levelsystem</h1>
 
@@ -396,18 +601,13 @@
   </div>
 
 </div> <!-- END CONTENT -->
+
 <script>
-/* ---------------------------------------------------
-   SIDEBAR TOGGLE
---------------------------------------------------- */
 function toggleSidebar() {
   const sb = document.getElementById("sidebar");
   sb.classList.toggle("collapsed");
 }
 
-/* ---------------------------------------------------
-   TABS
---------------------------------------------------- */
 function showTab(id) {
   document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
@@ -420,17 +620,12 @@ function showTab(id) {
   if (id === "levelTab") loadLevels();
 }
 
-/* ---------------------------------------------------
-   LOGOUT
---------------------------------------------------- */
 async function logout() {
   await fetch("/api/logout", { method: "POST" });
   location.href = "/login.html";
 }
 
-/* ---------------------------------------------------
-   KLASSEN
---------------------------------------------------- */
+/* KLASSEN & XP */
 async function loadXPInit() {
   const r = await fetch("/api/class");
   const classes = await r.json();
@@ -484,6 +679,8 @@ function loadXPStats(students) {
   const totalSpan = document.getElementById("xpStatsTotal");
   const avgSpan = document.getElementById("xpStatsAvg");
 
+  if (!statsBox || !countSpan || !totalSpan || !avgSpan) return;
+
   if (!students.length) {
     statsBox.style.display = "none";
     return;
@@ -526,7 +723,6 @@ async function addClass() {
   });
 
   document.getElementById("newClassName").value = "";
-
   loadClassesForManage();
   loadXPInit();
 }
@@ -557,7 +753,7 @@ async function addStudent() {
   const name = document.getElementById("studentName").value;
   const password = document.getElementById("studentPassword").value;
 
-  if (!name || !password) return;
+  if (!name || !password || !classId) return;
 
   await fetch("/api/student", {
     method: "POST",
@@ -578,21 +774,20 @@ async function deleteStudent(id) {
   loadXPStudents();
 }
 
-/* ---------------------------
-     KLASSE LÖSCHEN (NEU)
------------------------------- */
-async function deleteClass(id) {
-  if (!confirm("Klasse wirklich löschen? Alle Schüler:innen werden mitgelöscht.")) return;
+async function deleteCurrentClass() {
+  const sel = document.getElementById("classManageSelect");
+  const classId = sel.value;
+  if (!classId) return;
 
-  await fetch(`/api/class/${id}`, { method: "DELETE" });
+  if (!confirm("Klasse wirklich löschen? Alle Schüler:innen dieser Klasse werden mitgelöscht.")) return;
 
-  loadClassesForManage();
-  loadXPInit();
+  await fetch(`/api/class/${classId}`, { method: "DELETE" });
+
+  await loadClassesForManage();
+  await loadXPInit();
 }
 
-/* ---------------------------------------------------
-   XP VERGABE
---------------------------------------------------- */
+/* XP VERGABE */
 function selectedStudentIds() {
   return [...document.querySelectorAll("#xpStudentTable input[type=checkbox]:checked")]
     .map(cb => Number(cb.value));
@@ -634,9 +829,7 @@ async function addXPAll() {
   loadXPStudents();
 }
 
-/* ---------------------------------------------------
-   MISSION XP
---------------------------------------------------- */
+/* MISSION XP */
 async function loadMissionsForXP() {
   const r = await fetch("/api/missions");
   const missions = await r.json();
@@ -685,17 +878,13 @@ async function addMissionXPAll() {
   loadXPStudents();
 }
 
-/* ---------------------------------------------------
-   UPLOAD löschen
---------------------------------------------------- */
+/* UPLOAD LÖSCHEN */
 async function deleteUpload(studentId) {
   await fetch(`/api/upload/${studentId}`, { method: "DELETE" });
   loadXPStudents();
 }
 
-/* ---------------------------------------------------
-   MISSIONEN
---------------------------------------------------- */
+/* MISSIONEN */
 let uploadedMissionImageUrl = null;
 
 async function uploadMissionImage() {
@@ -707,7 +896,6 @@ async function uploadMissionImage() {
 
   const r = await fetch("/api/missions/upload", { method: "POST", body: form });
   const data = await r.json();
-
   if (data.success) uploadedMissionImageUrl = data.url;
 }
 
@@ -731,6 +919,7 @@ async function addMission() {
 
   document.getElementById("missionName").value = "";
   document.getElementById("missionXP").value = "";
+  document.getElementById("missionImage").value = "";
   uploadedMissionImageUrl = null;
 
   loadMissions();
@@ -759,11 +948,10 @@ async function loadMissions() {
 async function deleteMission(id) {
   await fetch(`/api/missions/${id}`, { method: "DELETE" });
   loadMissions();
+  loadMissionsForXP();
 }
 
-/* ---------------------------------------------------
-   BONUSKARTEN
---------------------------------------------------- */
+/* BONUSKARTEN */
 let uploadedBonusImageUrl = null;
 
 async function uploadBonusImage() {
@@ -775,14 +963,12 @@ async function uploadBonusImage() {
 
   const r = await fetch("/api/bonus/upload", { method: "POST", body: form });
   const data = await r.json();
-
   if (data.success) uploadedBonusImageUrl = data.url;
 }
 
 async function addBonus() {
   const name = document.getElementById("bonusName").value;
   const xp = Number(document.getElementById("bonusXP").value);
-
   if (!name || !xp) return;
 
   await fetch("/api/bonus", {
@@ -826,9 +1012,7 @@ async function deleteBonus(id) {
   loadBonuses();
 }
 
-/* ---------------------------------------------------
-   CHARAKTERE
---------------------------------------------------- */
+/* CHARAKTERE */
 let uploadedCharacterImageUrl = null;
 
 async function uploadCharacterImage() {
@@ -840,12 +1024,12 @@ async function uploadCharacterImage() {
 
   const r = await fetch("/api/character/upload", { method: "POST", body: form });
   const data = await r.json();
-
   if (data.success) uploadedCharacterImageUrl = data.url;
 }
 
 async function addCharacter() {
   const name = document.getElementById("characterName").value;
+  if (!name) return;
 
   await fetch("/api/character", {
     method: "POST",
@@ -865,12 +1049,12 @@ async function addCharacter() {
 
 async function loadCharacters() {
   const r = await fetch("/api/character");
-  const chars = await r.json();
+  const characters = await r.json();
 
   const tbody = document.querySelector("#characterTable tbody");
   tbody.innerHTML = "";
 
-  chars.forEach(c => {
+  characters.forEach(c => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${c.image_url ? `<img class="thumb" src="${c.image_url}">` : "—"}</td>
@@ -886,9 +1070,7 @@ async function deleteCharacter(id) {
   loadCharacters();
 }
 
-/* ---------------------------------------------------
-   LEVELSYSTEM (FIXED: required_xp!)
---------------------------------------------------- */
+/* LEVELSYSTEM – required_xp */
 async function addLevel() {
   const name = document.getElementById("levelName").value;
   const xp = Number(document.getElementById("levelMinXP").value);
@@ -898,10 +1080,7 @@ async function addLevel() {
   await fetch("/api/levels", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({
-      name,
-      min_xp: xp
-    })
+    body: JSON.stringify({ name, min_xp: xp })
   });
 
   document.getElementById("levelName").value = "";
@@ -933,9 +1112,7 @@ async function deleteLevel(id) {
   loadLevels();
 }
 
-/* ---------------------------------------------------
-   START
---------------------------------------------------- */
+/* STARTTAB */
 showTab("xpTab");
 </script>
 </body>
