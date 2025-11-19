@@ -1,347 +1,348 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <title>Student – Temple of Logic</title>
+  <meta charset="UTF-8">
+  <title>Temple of Logic – Schüler</title>
   <style>
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
       background:
-        radial-gradient(circle at 10% 0%, rgba(168,85,247,0.25) 0, transparent 50%),
+        radial-gradient(circle at 10% 0%, rgba(168,85,247,0.3) 0, transparent 50%),
         radial-gradient(circle at 90% 20%, rgba(59,130,246,0.25) 0, transparent 55%),
         radial-gradient(circle at 50% 100%, rgba(30,64,175,0.45) 0, transparent 60%),
         #020308;
       color: #eee;
+      font-family: Arial, sans-serif;
+      overflow-x: hidden;
     }
 
-    .topbar {
+    header {
       display: flex;
-      justify-content: flex-end;
-      padding: 15px;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 26px;
+      background: rgba(0,0,0,0.45);
+      border-bottom: 1px solid #4c1d95;
+      backdrop-filter: blur(6px);
+      position: sticky;
+      top: 0;
+      z-index: 5;
     }
 
-    #logoutBtn {
-      background: linear-gradient(135deg, #4f46e5, #7c3aed);
-      padding: 8px 16px;
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0.12em;
+      color: #ddd6fe;
+    }
+
+    .logout-btn {
+      background: linear-gradient(135deg, #b91c1c, #e11d48);
       border: none;
-      border-radius: 999px;
+      padding: 8px 14px;
       color: white;
+      font-size: 13px;
+      border-radius: 999px;
       cursor: pointer;
-      font-size: 14px;
-      transition: 0.2s;
-    }
-
-    #logoutBtn:hover {
-      opacity: 0.85;
-    }
-
-    #fadeout {
-      position: fixed;
-      inset: 0;
-      background: #000;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 1s ease;
-      z-index: 1000;
     }
 
     .container {
-      max-width: 900px;
-      margin: 0 auto;
+      max-width: 850px;
+      margin: 25px auto;
       padding: 20px;
-      text-align: center;
-    }
-
-    #avatar {
-      width: 220px;
-      height: 220px;
-      border-radius: 18px;
-      object-fit: cover;
-      border: 3px solid #4f46e5;
-      box-shadow: 0 0 20px rgba(99,102,241,0.7);
-      margin-bottom: 15px;
-    }
-
-    .xp-bar-container {
-      width: 100%;
-      background: #111827;
-      border-radius: 20px;
-      margin-top: 15px;
-      height: 28px;
-      overflow: hidden;
-      border: 1px solid #374151;
-    }
-
-    .xp-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #06b6d4, #3b82f6);
-      transition: width 1.2s ease;
-    }
-
-    .traits, .items {
-      margin-top: 10px;
-      background: rgba(15,23,42,0.7);
-      padding: 10px;
-      border-radius: 12px;
-      border: 1px solid #334155;
-      text-align: left;
     }
 
     h2 {
-      margin: 20px 0 10px 0;
-      text-align: left;
+      margin-top: 25px;
+      border-bottom: 1px solid #3f2d7c;
+      padding-bottom: 6px;
+      color: #c4b5fd;
     }
 
-    /* ===================== MISSION-LISTE ===================== */
-    .mission-list {
-      background: rgba(15,23,42,0.7);
-      padding: 10px;
+    .card {
+      background: radial-gradient(circle at top left, #1e1b4b 0, #020617 60%);
+      border: 1px solid #312e81;
       border-radius: 12px;
-      border: 1px solid #334155;
-      text-align: left;
+      padding: 15px;
+      margin-bottom: 16px;
     }
 
-    /* ===================== KARUSSELL ===================== */
-    .carousel {
-      margin-top: 30px;
+    .row {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-    }
-
-    .carousel-arrow {
-      font-size: 28px;
-      cursor: pointer;
-      padding: 10px;
-      user-select: none;
-      color: #a78bfa;
-    }
-
-    .carousel-item {
-      width: 260px;
-      background: rgba(15,23,42,0.8);
-      padding: 12px;
-      border-radius: 16px;
-      border: 1px solid #4c1d95;
-      text-align: center;
-    }
-
-    .carousel-item img {
-      width: 240px;
-      height: 180px;
-      border-radius: 12px;
-      object-fit: cover;
-      margin-bottom: 8px;
-      border: 2px solid #4c1d95;
-    }
-
-    .upload-gallery {
-      margin-top: 10px;
-      display: flex;
+      gap: 14px;
       flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
     }
 
-    .upload-thumb {
+    .char-img {
       width: 90px;
-      height: 70px;
+      height: 90px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid #4c1d95;
+    }
+
+    .character-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 15px;
+      margin-top: 10px;
+    }
+
+    .character-option {
+      background: #111026;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #2d2254;
+      text-align: center;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .character-option:hover {
+      border-color: #8b5cf6;
+      transform: translateY(-2px);
+    }
+
+    textarea, input[type=file], select {
+      width: 100%;
+      background: #0f1022;
+      color: #eee;
+      border: 1px solid #2d2450;
+      padding: 8px;
+      border-radius: 8px;
+      margin-top: 6px;
+      margin-bottom: 10px;
+    }
+
+    button.action {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border: none;
+      padding: 8px 14px;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .mission-card {
+      background: radial-gradient(circle at top, #1e1b4b 0, #111827 70%);
+      border-radius: 10px;
+      border: 1px solid #312e81;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .mission-img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #4c1d95;
+      margin-bottom: 8px;
+    }
+
+    .xp-log-entry {
+      padding: 8px;
+      border-bottom: 1px solid #3c2d69;
+      font-size: 14px;
+    }
+
+    .upload-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 14px;
+    }
+
+    .upload-card {
+      background: #111026;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #2d2254;
+    }
+
+    .upload-card img {
+      width: 100%;
+      height: 120px;
       object-fit: cover;
       border-radius: 6px;
-      border: 1px solid #6b7280;
-    }
-
-    .upload-btn {
-      margin-top: 8px;
-      padding: 6px 12px;
-      border: none;
-      border-radius: 999px;
-      background: linear-gradient(135deg, #16a34a, #22c55e);
-      color: white;
-      cursor: pointer;
-      font-size: 12px;
     }
 
   </style>
 </head>
 <body>
 
-<div id="fadeout"></div>
-
-<div class="topbar">
-  <button id="logoutBtn" onclick="logout()">Logout</button>
-</div>
+<header>
+  <h1>TEMPLE OF LOGIC – Schülerbereich</h1>
+  <button class="logout-btn" onclick="logout()">Logout</button>
+</header>
 
 <div class="container">
 
-  <img id="avatar" src="" alt="Avatar">
+  <!-- USER OVERVIEW -->
+  <h2>Dein Status</h2>
+  <div class="card" id="userCard"></div>
 
-  <h1 id="studentName"></h1>
-  <h3 id="studentLevel"></h3>
-  <p id="studentXP"></p>
-
-  <div class="xp-bar-container">
-    <div class="xp-bar-fill" id="xpFill"></div>
+  <!-- CHARAKTER -->
+  <h2>Dein Charakter</h2>
+  <div class="card">
+    <div id="characterInfo"></div>
+    <h3>Charakter wählen / ändern</h3>
+    <div class="character-grid" id="characterSelect"></div>
   </div>
 
-  <h2>Eigenschaften</h2>
-  <div class="traits" id="traitsBox"></div>
+  <!-- TRAITS & ITEMS -->
+  <h2>Eigenschaften & Items</h2>
+  <div class="card" id="traitsItemsCard"></div>
 
-  <h2>Ausrüstung</h2>
-  <div class="items" id="itemsBox"></div>
-
-  <h2>Erhaltene Missionen</h2>
-  <div class="mission-list" id="missionList"></div>
-
+  <!-- MISSIONEN -->
   <h2>Missionen</h2>
-  <div class="carousel">
-    <div class="carousel-arrow" onclick="prevMission()">❮</div>
-    <div class="carousel-item" id="missionCarousel"></div>
-    <div class="carousel-arrow" onclick="nextMission()">❯</div>
-  </div>
+  <div id="missionList"></div>
+
+  <!-- XP LOG -->
+  <h2>Deine XP-History</h2>
+  <div id="xpLog"></div>
+
+  <!-- UPLOADS -->
+  <h2>Deine Uploads</h2>
+  <div class="upload-grid" id="uploadGrid"></div>
 
 </div>
 
-
 <script>
-let missions = [];
-let uploads = [];
-let currentIndex = 0;
-let studentId = null;
-
-/* ===================== INIT ===================== */
-loadStudent();
-
-async function loadStudent() {
-  const r = await fetch("/api/me");
-  const me = await r.json();
-
-  studentId = me.id;
-
-  document.getElementById("studentName").textContent = me.name;
-  document.getElementById("avatar").src = me.avatar_url || "/default-avatar.png";
-
-  document.getElementById("studentXP").textContent = `${me.xp} XP`;
-  document.getElementById("studentLevel").textContent = me.level_name || "Level 1";
-
-  // XP-Balken berechnen
-  const r2 = await fetch("/api/levels");
-  const levels = await r2.json();
-
-  let next = levels.find(l => l.min_xp > me.xp);
-  let current = [...levels].reverse().find(l => me.xp >= l.min_xp);
-
-  let min = current ? current.min_xp : 0;
-  let max = next ? next.min_xp : min + 100;
-
-  let pct = ((me.xp - min) / (max - min)) * 100;
-  pct = Math.max(3, Math.min(pct, 100));
-
-  document.getElementById("xpFill").style.width = pct + "%";
-
-  // Eigenschaften
-  if (me.traits && me.traits.length) {
-    document.getElementById("traitsBox").innerHTML =
-      me.traits.map(t => "• " + t).join("<br>");
-  }
-
-  // Ausrüstung
-  if (me.items && me.items.length) {
-    document.getElementById("itemsBox").innerHTML =
-      me.items.map(i => "• " + i).join("<br>");
-  }
-
-  loadReceivedMissions();
-  loadMissions();
+async function logout() {
+  await fetch("/api/logout", { method: "POST" });
+  location.href = "/login.html";
 }
 
-
-/* ===================== ERHALTENE MISSIONEN ===================== */
-async function loadReceivedMissions() {
-  const r = await fetch(`/api/student/${studentId}/received`);
+async function loadMe() {
+  const r = await fetch("/api/student/me");
   const data = await r.json();
 
-  document.getElementById("missionList").innerHTML =
-    data.length
-      ? data.map(m => `• ${m.name} – +${m.xp} XP`).join("<br>")
-      : "<i>Noch keine Missionen erhalten.</i>";
-}
+  const u = data.user;
 
-
-/* ===================== MISSION-KARUSSELL ===================== */
-async function loadMissions() {
-  const r1 = await fetch("/api/missions");
-  missions = await r1.json();
-
-  const r2 = await fetch(`/api/uploads/${studentId}`);
-  uploads = await r2.json();
-
-  showMission();
-}
-
-function showMission() {
-  if (!missions.length) return;
-
-  const m = missions[currentIndex];
-  const box = document.getElementById("missionCarousel");
-
-  const missionUploads = uploads.filter(u => u.mission_id === m.id);
-
-  box.innerHTML = `
-    <h3>${m.name}</h3>
-    ${m.image_url ? `<img src="${m.image_url}">` : "<div style='height:180px;'>—</div>"}
-    <p>${m.xp} XP</p>
-    ${m.require_upload
-      ? `<input type="file" id="fileUp"><br>
-         <button class="upload-btn" onclick="uploadForMission(${m.id})">Hochladen</button>`
-      : `<p><i>Kein Upload nötig</i></p>`
-    }
-    <div class="upload-gallery">
-      ${missionUploads.map(u =>
-        `<img class="upload-thumb" src="${u.image_url}">`
-      ).join("")}
-    </div>
+  // USER CARD
+  document.getElementById("userCard").innerHTML = `
+    <b>Name:</b> ${u.name}<br>
+    <b>XP:</b> ${u.xp}<br>
+    <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
   `;
+
+  // CHARACTER
+  document.getElementById("characterInfo").innerHTML = data.character
+    ? `<img class="char-img" src="${data.character.image_url}"><br>${data.character.name}`
+    : "Noch kein Charakter gewählt.";
+
+  // TRAITS + ITEMS
+  document.getElementById("traitsItemsCard").innerHTML = `
+    <b>Eigenschaften:</b><br>
+    ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
+    <b>Items:</b><br>
+    ${data.items.map(i => "• " + i).join("<br>")}
+  `;
+
+  // XP LOG
+  const xpDiv = document.getElementById("xpLog");
+  xpDiv.innerHTML = "";
+  data.xp_log.forEach(entry => {
+    const d = new Date(entry.created_at).toLocaleString("de-DE");
+    xpDiv.innerHTML += `
+      <div class="xp-log-entry">
+        <b>${entry.amount} XP</b> – ${entry.mission_name || entry.source} <br>
+        <span style="opacity:0.7;">${d}</span>
+      </div>`;
+  });
+
+  // UPLOAD GRID
+  const up = document.getElementById("uploadGrid");
+  up.innerHTML = "";
+  data.uploads.forEach(upl => {
+    up.innerHTML += `
+      <div class="upload-card">
+        <img src="${upl.image_url}">
+        <div style="font-size:12px;opacity:0.8;">${upl.mission_name || "—"}</div>
+      </div>
+    `;
+  });
 }
 
-function nextMission() {
-  currentIndex = (currentIndex + 1) % missions.length;
-  showMission();
+async function loadCharacters() {
+  const r = await fetch("/api/character");
+  const chars = await r.json();
+
+  const grid = document.getElementById("characterSelect");
+  grid.innerHTML = "";
+
+  chars.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "character-option";
+    div.innerHTML = `
+      <img src="${c.image_url}" style="width:100%;height:110px;border-radius:6px;object-fit:cover;">
+      <div>${c.name}</div>
+    `;
+    div.addEventListener("click", () => selectCharacter(c.id));
+    grid.appendChild(div);
+  });
 }
 
-function prevMission() {
-  currentIndex = (currentIndex - 1 + missions.length) % missions.length;
-  showMission();
+async function selectCharacter(id) {
+  await fetch("/api/student/selectCharacter", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ characterId: id })
+  });
+  loadMe();
 }
 
+async function loadMissions() {
+  const r = await fetch("/api/student/missions");
+  const missions = await r.json();
 
-/* ===================== UPLOAD ===================== */
-async function uploadForMission(missionId) {
-  const file = document.getElementById("fileUp").files[0];
-  if (!file) return alert("Bitte Datei auswählen.");
+  const list = document.getElementById("missionList");
+  list.innerHTML = "";
+
+  missions.forEach(m => {
+    const div = document.createElement("div");
+    div.className = "mission-card";
+    div.innerHTML = `
+      ${m.image_url ? `<img class="mission-img" src="${m.image_url}">` : ""}
+      <h3>${m.name}</h3>
+      <div><b>${m.xp} XP</b></div>
+      ${m.require_upload ? `<div style="color:#fca5a5;">📎 Upload erforderlich</div>` : ""}
+      <br>
+      ${m.require_upload ? `
+        <input type="file" id="upload_${m.id}">
+        <button class="action" onclick="uploadMission(${m.id})">Upload senden</button>` : ""}
+    `;
+    list.appendChild(div);
+  });
+}
+
+async function uploadMission(missionId) {
+  const fileInput = document.getElementById(`upload_${missionId}`);
+  const file = fileInput.files[0];
+  if (!file) return alert("Bitte ein Bild auswählen!");
 
   const form = new FormData();
   form.append("image", file);
   form.append("missionId", missionId);
 
-  await fetch(`/api/upload/${studentId}`, { method: "POST", body: form });
+  const r = await fetch("/api/student/uploadForMission", {
+    method: "POST",
+    body: form
+  });
 
-  loadMissions();
+  const data = await r.json();
+  if (data.success) {
+    alert("Upload erfolgreich!");
+    loadMe();
+  } else {
+    alert("Upload fehlgeschlagen.");
+  }
 }
 
-
-/* ===================== LOGOUT mit FADEOUT ===================== */
-async function logout() {
-  document.getElementById("fadeout").style.opacity = 1;
-  await new Promise(res => setTimeout(res, 700));
-
-  await fetch("/api/logout", { method: "POST" });
-  location.href = "/login.html";
-}
-
+loadMe();
+loadCharacters();
+loadMissions();
 </script>
 
 </body>
