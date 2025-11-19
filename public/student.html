@@ -68,27 +68,17 @@
       margin-bottom: 16px;
     }
 
-    .character-option {
-      background: #111026;
-      padding: 10px;
-      border-radius: 10px;
-      border: 1px solid #2d2254;
-      text-align: center;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-    .character-option:hover {
-      border-color: #8b5cf6;
-      transform: translateY(-2px);
+    /* GROSSES CHARAKTERBILD */
+    #charBig {
+      width: 200px;
+      height: 200px;
+      border-radius: 12px;
+      border: 2px solid #6d28d9;
+      object-fit: cover;
+      margin-bottom: 12px;
     }
 
-    .character-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-      gap: 15px;
-      margin-top: 10px;
-    }
-
+    /* MISSION-KARUSSELL */
     .mission-slide {
       min-width: 100%;
       box-sizing: border-box;
@@ -97,8 +87,8 @@
     }
 
     .mission-slide img {
-      width: 100%;
-      height: 180px;
+      width: 70%;
+      height: 200px; /* gleiche Höhe wie Charakter */
       object-fit: cover;
       border-radius: 10px;
       border: 1px solid #4c1d95;
@@ -154,22 +144,14 @@
 
   <!-- CHARACTER & XP HEADER -->
   <h2>Dein Charakter & Status</h2>
-  <div class="card" id="headerCard" style="text-align:center;">
-    <img id="charBig" src="" 
-         style="width:140px;height:140px;border-radius:12px;border:2px solid #6d28d9;object-fit:cover;margin-bottom:10px;">
-    <div id="charName" style="font-size:18px;margin-bottom:10px;color:#ddd6fe;font-weight:bold;"></div>
+  <div class="card" style="text-align:center;">
+    <img id="charBig" src="">
+    <div id="charName" style="font-size:20px;margin-bottom:12px;color:#ddd6fe;font-weight:bold;"></div>
 
-    <div style="margin-top:10px;">
+    <div style="margin-top:10px;font-size:16px;">
       <div><b>XP:</b> <span id="xpValue"></span></div>
       <div><b>Level:</b> <span id="levelValue"></span></div>
     </div>
-  </div>
-
-  <!-- CHARACTER SELECTION -->
-  <h2>Charakter wählen / ändern</h2>
-  <div class="card">
-    <div id="characterInfo"></div>
-    <div class="character-grid" id="characterSelect"></div>
   </div>
 
   <!-- TRAITS & ITEMS -->
@@ -200,17 +182,20 @@
 </div>
 
 <script>
+
+/* LOGOUT */
 async function logout() {
   await fetch("/api/logout", { method: "POST" });
   location.href = "/login.html";
 }
 
+/* STUDENT DATEN LADEN */
 async function loadMe() {
   const r = await fetch("/api/student/me");
   const data = await r.json();
   const u = data.user;
 
-  // HEADER
+  // Charakterbild + Name + XP
   document.getElementById("charBig").src =
     data.character ? data.character.image_url : "";
   document.getElementById("charName").innerText =
@@ -219,11 +204,6 @@ async function loadMe() {
   document.getElementById("xpValue").innerText = u.xp;
   document.getElementById("levelValue").innerText =
     `${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)`;
-
-  // Charakterinfo
-  document.getElementById("characterInfo").innerHTML = data.character
-    ? `<img class="char-img" src="${data.character.image_url}" style="width:90px;height:90px;border-radius:8px;border:1px solid #4c1d95;"><br>${data.character.name}`
-    : "Noch kein Charakter gewählt.";
 
   // TRAITS & ITEMS
   document.getElementById("traitsItemsCard").innerHTML = `
@@ -257,34 +237,7 @@ async function loadMe() {
   });
 }
 
-async function loadCharacters() {
-  const r = await fetch("/api/character");
-  const chars = await r.json();
-
-  const grid = document.getElementById("characterSelect");
-  grid.innerHTML = "";
-
-  chars.forEach(c => {
-    const div = document.createElement("div");
-    div.className = "character-option";
-    div.innerHTML = `
-      <img src="${c.image_url}" style="width:100%;height:110px;border-radius:6px;object-fit:cover;">
-      <div>${c.name}</div>
-    `;
-    div.addEventListener("click", () => selectCharacter(c.id));
-    grid.appendChild(div);
-  });
-}
-
-async function selectCharacter(id) {
-  await fetch("/api/student/selectCharacter", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ characterId: id })
-  });
-  loadMe();
-}
-
+/* MISSIONS-KARUSELL */
 let currentSlide = 0;
 let missionsGlobal = [];
 
@@ -337,7 +290,7 @@ document.getElementById("nextBtn").onclick = () => {
   updateCarousel();
 };
 
-// Touch / Swipe
+// Swipe
 let startX = 0;
 let endX = 0;
 
@@ -349,18 +302,15 @@ document.getElementById("carouselContainer").addEventListener("touchend", e => {
   endX = e.changedTouches[0].clientX;
   const diff = endX - startX;
 
-  if (diff > 40 && currentSlide > 0) {
-    currentSlide--;
-    updateCarousel();
-  } else if (diff < -40 && currentSlide < missionsGlobal.length - 1) {
-    currentSlide++;
-    updateCarousel();
-  }
+  if (diff > 40 && currentSlide > 0) currentSlide--;
+  if (diff < -40 && currentSlide < missionsGlobal.length - 1) currentSlide++;
+
+  updateCarousel();
 });
 
 loadMe();
-loadCharacters();
 loadMissions();
+
 </script>
 
 </body>
