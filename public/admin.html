@@ -31,7 +31,6 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
-      transition: width 0.2s ease, padding 0.2s ease;
       z-index: 10;
     }
 
@@ -56,55 +55,28 @@
       position: relative;
       z-index: 1;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
+      justify-content: flex-start;
+      margin-bottom: 18px;
+      gap: 10px;
     }
 
     .sidebar-title {
       margin: 0;
       letter-spacing: 0.18em;
-      font-size: 15px;
+      font-size: 14px;
       text-transform: uppercase;
       color: #ddd6fe;
     }
 
-    .sidebar-toggle {
-      width: 30px;
-      height: 30px;
+    .sidebar-logo-orb {
+      width: 32px;
+      height: 32px;
       border-radius: 999px;
-      border: 1px solid rgba(148,163,253,0.8);
-      background: rgba(15,23,42,0.9);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.8);
-      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      background: radial-gradient(circle at 30% 20%, #facc15 0, #f97316 15%, #4c1d95 70%, #020617 100%);
+      box-shadow: 0 0 15px rgba(250,204,21,0.9);
+      border: 1px solid rgba(250,250,250,0.5);
     }
-
-    .sidebar-toggle:hover {
-      transform: translateY(-1px);
-      background: rgba(30,64,175,0.9);
-      box-shadow: 0 8px 18px rgba(0,0,0,1);
-    }
-
-    .sidebar-toggle-lines {
-      width: 14px;
-      height: 10px;
-      position: relative;
-    }
-    .sidebar-toggle-lines span {
-      position: absolute;
-      left: 0;
-      right: 0;
-      height: 2px;
-      border-radius: 999px;
-      background: #e5e7eb;
-    }
-    .sidebar-toggle-lines span:nth-child(1) { top: 0; }
-    .sidebar-toggle-lines span:nth-child(2) { top: 4px; }
-    .sidebar-toggle-lines span:nth-child(3) { top: 8px; }
 
     .nav-group {
       position: relative;
@@ -154,37 +126,9 @@
       color: #f9fafb;
       font-size: 14px;
       white-space: nowrap;
-      transition: opacity 0.15s ease;
     }
 
-    .sidebar.collapsed {
-      width: 80px;
-      padding: 20px 10px;
-      align-items: center;
-    }
-
-    .sidebar.collapsed .sidebar-title {
-      font-size: 11px;
-      letter-spacing: 0.16em;
-      text-align: center;
-    }
-
-    .sidebar.collapsed .nav-item {
-      justify-content: center;
-    }
-
-    .sidebar.collapsed .nav-item svg {
-      margin-right: 0;
-    }
-
-    .sidebar.collapsed .nav-label {
-      display: none;
-    }
-
-    .sidebar.collapsed .nav-group-title {
-      display: none;
-    }
-
+    /* ===== CONTENT ===== */
     .content {
       flex-grow: 1;
       height: 100vh;
@@ -217,6 +161,7 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
+    /* Inputs & Buttons */
     input, select {
       padding: 6px 9px;
       margin: 4px;
@@ -269,6 +214,7 @@
       box-shadow: 0 6px 14px rgba(0,0,0,0.85);
     }
 
+    /* Tabellen im Card-Stil */
     table {
       width: 100%;
       border-collapse: separate;
@@ -318,6 +264,7 @@
       box-shadow: 0 4px 10px rgba(0,0,0,0.7);
     }
 
+    /* XP Stats */
     .xp-stats-box {
       display: inline-flex;
       align-items: center;
@@ -356,23 +303,21 @@
       background: rgba(185,28,28,0.22);
       border: 1px solid rgba(248,113,113,0.9);
     }
+
   </style>
 </head>
 <body>
 
 <!-- SIDEBAR -->
-<div class="sidebar" id="sidebar">
+<div class="sidebar">
   <div class="sidebar-header">
+    <div class="sidebar-logo-orb"></div>
     <h2 class="sidebar-title">TEMPLE OF LOGIC</h2>
-    <div class="sidebar-toggle" onclick="toggleSidebar()">
-      <div class="sidebar-toggle-lines">
-        <span></span><span></span><span></span>
-      </div>
-    </div>
   </div>
 
   <div class="nav-group">
     <div class="nav-item" onclick="showTab('xpTab')">
+      <!-- XP Icon -->
       <svg viewBox="0 0 24 24">
         <path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/>
       </svg>
@@ -380,6 +325,7 @@
     </div>
 
     <div class="nav-item" onclick="showTab('classTab')">
+      <!-- Klassen Icon -->
       <svg viewBox="0 0 24 24">
         <path d="M12 12c2.5 0 4.5-2 4.5-4.5S14.5 3 12 3 7.5 5 7.5 7.5 9.5 12 12 12zm0 1.5c-3 0-9 1.5-9 4.5V21h18v-3c0-3-6-4.5-9-4.5z"/>
       </svg>
@@ -387,6 +333,7 @@
     </div>
 
     <div class="nav-item" onclick="showTab('missionTab')">
+      <!-- Missions Icon -->
       <svg viewBox="0 0 24 24">
         <path d="M3 3v18l9-4 9 4V3H3zm16 2v11.1l-7-3.1-7 3.1V5h14z"/>
       </svg>
@@ -398,13 +345,15 @@
     <div class="nav-group-title">BONUS & WELTEN</div>
 
     <div class="nav-item" onclick="showTab('bonusTab')">
+      <!-- 🎫 Ticket/Joker Icon für Bonuskarten -->
       <svg viewBox="0 0 24 24">
-        <path d="M4 5c0-.6.4-1 1-1h6.3c.3 0 .5.1.7.3l1.7 1.7h4.3c.6 0 1 .4 1 1v4c-.8 0-1.5.3-2.1.9-.6.6-.9 1.3-.9 2.1s.3 1.5.9 2.1c.6.6 1.3.9 2.1.9v2c0 .6-.4 1-1 1H6.7c-.3 0-.5-.1-.7-.3L4.3 17H5c.6 0 1-.4 1-1v-1c0-.6.4-1 1-1h2c.6 0 1-.4 1-1v-2c0-.6-.4-1-1-1H7c-.6 0-1-.4-1-1V7c0-.6-.4-1-1-1H4V5z"/>
+        <path d="M4 6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v1c0 .6.4 1 1 1h3c.6 0 1-.4 1-1V6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v3.1c-.9.2-1.6.9-1.8 1.8-.2.9.1 1.9.8 2.5.3.3.6.5 1 .6V18c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1V15c.4-.1.7-.3 1-.6.7-.7 1-1.6.8-2.5-.2-.9-.9-1.6-1.8-1.8V6z"/>
       </svg>
       <span class="nav-label">Bonuskarten</span>
     </div>
 
     <div class="nav-item" onclick="showTab('characterTab')">
+      <!-- Charakter Icon -->
       <svg viewBox="0 0 24 24">
         <path d="M12 2l4 4-4 4-4-4 4-4zm0 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/>
       </svg>
@@ -412,6 +361,7 @@
     </div>
 
     <div class="nav-item" onclick="showTab('levelTab')">
+      <!-- Level Icon -->
       <svg viewBox="0 0 24 24">
         <path d="M4 22h4V10H4v12zm6 0h4V2h-4v20zm6 0h4V6h-4v16z"/>
       </svg>
@@ -439,6 +389,7 @@
     <label>Aktive Klasse:</label>
     <select id="xpClassSelect" onchange="loadXPStudents()"></select>
 
+    <!-- XP-Statistik pro Klasse -->
     <div id="xpStats" class="xp-stats-box" style="display:none;">
       <span class="label">Klassen-Stats</span>
       <span id="xpStatsCount" class="xp-pill blue"></span>
@@ -479,7 +430,7 @@
 
     <h3>Klassenliste</h3>
     <select id="classManageSelect" onchange="loadClassStudents()"></select>
-    <button class="delete" onclick="deleteCurrentClass()">Klasse löschen</button>
+    <button class="delete" onclick="deleteClass()">Gewählte Klasse löschen</button>
 
     <table id="classStudentTable">
       <thead>
@@ -536,7 +487,7 @@
 
     <h3>Neue Bonuskarte anlegen</h3>
     <input id="bonusName" placeholder="Name" />
-    <input id="bonusXP" type="number" placeholder="XP" />
+    <input id="bonusXP" type="number" placeholder="XP-Kosten" />
     <input type="file" id="bonusImage" />
     <button class="action" onclick="uploadBonusImage()">Bild hochladen</button>
     <button class="action" onclick="addBonus()">Speichern</button>
@@ -555,7 +506,7 @@
     </table>
   </div>
 
-  <!-- CHARAKTERE -->
+  <!-- CHARAKTER -->
   <div id="characterTab" class="tab hidden">
     <h1>Charaktere</h1>
 
@@ -578,7 +529,7 @@
     </table>
   </div>
 
-  <!-- LEVELSYSTEM -->
+  <!-- LEVELS -->
   <div id="levelTab" class="tab hidden">
     <h1>Levelsystem</h1>
 
@@ -602,12 +553,11 @@
 
 </div> <!-- END CONTENT -->
 
-<script>
-function toggleSidebar() {
-  const sb = document.getElementById("sidebar");
-  sb.classList.toggle("collapsed");
-}
 
+<script>
+/* ---------------------------------------------------
+   TABS
+--------------------------------------------------- */
 function showTab(id) {
   document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
@@ -620,18 +570,31 @@ function showTab(id) {
   if (id === "levelTab") loadLevels();
 }
 
+/* ---------------------------------------------------
+   LOGOUT
+--------------------------------------------------- */
 async function logout() {
   await fetch("/api/logout", { method: "POST" });
   location.href = "/login.html";
 }
 
-/* KLASSEN & XP */
+/* ---------------------------------------------------
+   KLASSEN / XP-Tab
+--------------------------------------------------- */
+
 async function loadXPInit() {
   const r = await fetch("/api/class");
+  if (!r.ok) return;
   const classes = await r.json();
 
   const sel = document.getElementById("xpClassSelect");
   sel.innerHTML = "";
+
+  if (!Array.isArray(classes) || classes.length === 0) {
+    document.querySelector("#xpStudentTable tbody").innerHTML = "";
+    document.getElementById("xpStats").style.display = "none";
+    return;
+  }
 
   classes.forEach(c => {
     const opt = document.createElement("option");
@@ -645,9 +608,14 @@ async function loadXPInit() {
 
 async function loadXPStudents() {
   const classId = document.getElementById("xpClassSelect").value;
-  if (!classId) return;
+  if (!classId) {
+    document.querySelector("#xpStudentTable tbody").innerHTML = "";
+    document.getElementById("xpStats").style.display = "none";
+    return;
+  }
 
   const r = await fetch(`/api/student?classId=${classId}`);
+  if (!r.ok) return;
   const students = await r.json();
 
   const tbody = document.querySelector("#xpStudentTable tbody");
@@ -655,52 +623,56 @@ async function loadXPStudents() {
 
   students.forEach(s => {
     const tr = document.createElement("tr");
+
     tr.innerHTML = `
       <td><input type="checkbox" value="${s.id}" /></td>
       <td>${s.name}</td>
       <td>${s.xp}</td>
       <td>
-        ${s.upload_url 
-          ? `<img class="thumb" src="${s.upload_url}">
-             <button class="delete" onclick="deleteUpload(${s.id})">X</button>`
-          : "—"}
+        ${s.upload_url ? `<img class="thumb" src="${s.upload_url}"> 
+        <button class="delete" onclick="deleteUpload(${s.id})">X</button>`
+        : "—"}
       </td>
     `;
     tbody.appendChild(tr);
   });
 
-  loadXPStats(students);
-  loadMissionsForXP();
-}
-
-function loadXPStats(students) {
+  // XP-Statistik pro Klasse
   const statsBox = document.getElementById("xpStats");
   const countSpan = document.getElementById("xpStatsCount");
   const totalSpan = document.getElementById("xpStatsTotal");
   const avgSpan = document.getElementById("xpStatsAvg");
 
-  if (!statsBox || !countSpan || !totalSpan || !avgSpan) return;
-
   if (!students.length) {
     statsBox.style.display = "none";
-    return;
+  } else {
+    const totalXP = students.reduce((sum, s) => sum + (s.xp || 0), 0);
+    const avgXP = Math.round(totalXP / students.length);
+    statsBox.style.display = "inline-flex";
+    countSpan.textContent = `Schüler:innen: ${students.length}`;
+    totalSpan.textContent = `Gesamt-XP: ${totalXP}`;
+    avgSpan.textContent = `Ø XP: ${avgXP}`;
   }
 
-  const totalXP = students.reduce((s, x) => s + (x.xp || 0), 0);
-  const avgXP = Math.round(totalXP / students.length);
-
-  statsBox.style.display = "inline-flex";
-  countSpan.textContent = `Schüler:innen: ${students.length}`;
-  totalSpan.textContent = `Gesamt-XP: ${totalXP}`;
-  avgSpan.textContent = `Ø XP: ${avgXP}`;
+  loadMissionsForXP();
 }
+
+/* ---------------------------------------------------
+   KLASSEN / Klassen-Tab
+--------------------------------------------------- */
 
 async function loadClassesForManage() {
   const r = await fetch("/api/class");
+  if (!r.ok) return;
   const classes = await r.json();
 
   const sel = document.getElementById("classManageSelect");
   sel.innerHTML = "";
+
+  if (!Array.isArray(classes) || classes.length === 0) {
+    document.querySelector("#classStudentTable tbody").innerHTML = "";
+    return;
+  }
 
   classes.forEach(c => {
     const opt = document.createElement("option");
@@ -709,29 +681,51 @@ async function loadClassesForManage() {
     sel.appendChild(opt);
   });
 
+  if (!sel.value && classes.length > 0) {
+    sel.value = classes[0].id;
+  }
+
   loadClassStudents();
 }
 
 async function addClass() {
-  const name = document.getElementById("newClassName").value;
+  const name = document.getElementById("newClassName").value.trim();
   if (!name) return;
 
   await fetch("/api/class", {
     method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ name })
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name})
   });
 
   document.getElementById("newClassName").value = "";
-  loadClassesForManage();
-  loadXPInit();
+  await loadClassesForManage();
+  await loadXPInit();
+}
+
+async function deleteClass() {
+  const sel = document.getElementById("classManageSelect");
+  const classId = sel.value;
+  if (!classId) return;
+
+  const sicher = confirm("Klasse und alle zugehörigen Schüler:innen wirklich löschen?");
+  if (!sicher) return;
+
+  await fetch(`/api/class/${classId}`, { method: "DELETE" });
+
+  await loadClassesForManage();
+  await loadXPInit();
 }
 
 async function loadClassStudents() {
   const classId = document.getElementById("classManageSelect").value;
-  if (!classId) return;
+  if (!classId) {
+    document.querySelector("#classStudentTable tbody").innerHTML = "";
+    return;
+  }
 
   const r = await fetch(`/api/student?classId=${classId}`);
+  if (!r.ok) return;
   const students = await r.json();
 
   const tbody = document.querySelector("#classStudentTable tbody");
@@ -750,44 +744,34 @@ async function loadClassStudents() {
 
 async function addStudent() {
   const classId = document.getElementById("classManageSelect").value;
-  const name = document.getElementById("studentName").value;
-  const password = document.getElementById("studentPassword").value;
+  const name = document.getElementById("studentName").value.trim();
+  const password = document.getElementById("studentPassword").value.trim();
 
   if (!name || !password || !classId) return;
 
   await fetch("/api/student", {
     method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ name, password, classId })
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name, password, classId})
   });
 
   document.getElementById("studentName").value = "";
   document.getElementById("studentPassword").value = "";
 
-  loadClassStudents();
-  loadXPStudents();
+  await loadClassStudents();
+  await loadXPStudents();
 }
 
 async function deleteStudent(id) {
   await fetch(`/api/student/${id}`, { method: "DELETE" });
-  loadClassStudents();
-  loadXPStudents();
+  await loadClassStudents();
+  await loadXPStudents();
 }
 
-async function deleteCurrentClass() {
-  const sel = document.getElementById("classManageSelect");
-  const classId = sel.value;
-  if (!classId) return;
+/* ---------------------------------------------------
+   XP VERGABE
+--------------------------------------------------- */
 
-  if (!confirm("Klasse wirklich löschen? Alle Schüler:innen dieser Klasse werden mitgelöscht.")) return;
-
-  await fetch(`/api/class/${classId}`, { method: "DELETE" });
-
-  await loadClassesForManage();
-  await loadXPInit();
-}
-
-/* XP VERGABE */
 function selectedStudentIds() {
   return [...document.querySelectorAll("#xpStudentTable input[type=checkbox]:checked")]
     .map(cb => Number(cb.value));
@@ -796,17 +780,15 @@ function selectedStudentIds() {
 async function addXP() {
   const xp = Number(document.getElementById("xpValue").value);
   const ids = selectedStudentIds();
-
   if (!xp || ids.length === 0) return;
 
   for (let id of ids) {
     await fetch("/api/xp", {
       method: "POST",
-      headers: {"Content-Type":"application/json"},
+      headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ studentId: id, xp })
     });
   }
-
   loadXPStudents();
 }
 
@@ -814,28 +796,36 @@ async function addXPAll() {
   const xp = Number(document.getElementById("xpValue").value);
   if (!xp) return;
 
-  const classId = document.getElementById("xpClassSelect").value;
-  const r = await fetch(`/api/student?classId=${classId}`);
+  const cId = document.getElementById("xpClassSelect").value;
+  if (!cId) return;
+
+  const r = await fetch(`/api/student?classId=${cId}`);
+  if (!r.ok) return;
   const students = await r.json();
 
   for (let s of students) {
     await fetch("/api/xp", {
       method: "POST",
-      headers: {"Content-Type":"application/json"},
+      headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ studentId: s.id, xp })
     });
   }
-
   loadXPStudents();
 }
 
-/* MISSION XP */
+/* ---------------------------------------------------
+   MISSION XP
+--------------------------------------------------- */
+
 async function loadMissionsForXP() {
   const r = await fetch("/api/missions");
+  if (!r.ok) return;
   const missions = await r.json();
 
   const sel = document.getElementById("xpMissionSelect");
   sel.innerHTML = "";
+
+  if (!Array.isArray(missions)) return;
 
   missions.forEach(m => {
     const opt = document.createElement("option");
@@ -848,6 +838,7 @@ async function loadMissionsForXP() {
 async function addMissionXP() {
   const missionId = document.getElementById("xpMissionSelect").value;
   const ids = selectedStudentIds();
+  if (!missionId || ids.length === 0) return;
 
   for (let id of ids) {
     await fetch("/api/xpmission", {
@@ -862,9 +853,13 @@ async function addMissionXP() {
 
 async function addMissionXPAll() {
   const missionId = document.getElementById("xpMissionSelect").value;
+  if (!missionId) return;
 
-  const classId = document.getElementById("xpClassSelect").value;
-  const r = await fetch(`/api/student?classId=${classId}`);
+  const cId = document.getElementById("xpClassSelect").value;
+  if (!cId) return;
+
+  const r = await fetch(`/api/student?classId=${cId}`);
+  if (!r.ok) return;
   const students = await r.json();
 
   for (let s of students) {
@@ -878,13 +873,18 @@ async function addMissionXPAll() {
   loadXPStudents();
 }
 
-/* UPLOAD LÖSCHEN */
+/* ---------------------------------------------------
+   UPLOAD der Schüler:innen löschen
+--------------------------------------------------- */
 async function deleteUpload(studentId) {
   await fetch(`/api/upload/${studentId}`, { method: "DELETE" });
   loadXPStudents();
 }
 
-/* MISSIONEN */
+/* ---------------------------------------------------
+   MISSIONEN
+--------------------------------------------------- */
+
 let uploadedMissionImageUrl = null;
 
 async function uploadMissionImage() {
@@ -894,13 +894,17 @@ async function uploadMissionImage() {
   const form = new FormData();
   form.append("image", file);
 
-  const r = await fetch("/api/missions/upload", { method: "POST", body: form });
+  const r = await fetch("/api/missions/upload", {
+    method: "POST",
+    body: form
+  });
+
   const data = await r.json();
   if (data.success) uploadedMissionImageUrl = data.url;
 }
 
 async function addMission() {
-  const name = document.getElementById("missionName").value;
+  const name = document.getElementById("missionName").value.trim();
   const xp = Number(document.getElementById("missionXP").value);
   const requireUpload = document.getElementById("missionRequireUpload").checked;
 
@@ -927,6 +931,7 @@ async function addMission() {
 
 async function loadMissions() {
   const r = await fetch("/api/missions");
+  if (!r.ok) return;
   const missions = await r.json();
 
   const tbody = document.querySelector("#missionTable tbody");
@@ -951,7 +956,10 @@ async function deleteMission(id) {
   loadMissionsForXP();
 }
 
-/* BONUSKARTEN */
+/* ---------------------------------------------------
+   BONUSKARTEN
+--------------------------------------------------- */
+
 let uploadedBonusImageUrl = null;
 
 async function uploadBonusImage() {
@@ -967,8 +975,9 @@ async function uploadBonusImage() {
 }
 
 async function addBonus() {
-  const name = document.getElementById("bonusName").value;
+  const name = document.getElementById("bonusName").value.trim();
   const xp = Number(document.getElementById("bonusXP").value);
+
   if (!name || !xp) return;
 
   await fetch("/api/bonus", {
@@ -983,6 +992,7 @@ async function addBonus() {
 
   document.getElementById("bonusName").value = "";
   document.getElementById("bonusXP").value = "";
+  document.getElementById("bonusImage").value = "";
   uploadedBonusImageUrl = null;
 
   loadBonuses();
@@ -990,6 +1000,7 @@ async function addBonus() {
 
 async function loadBonuses() {
   const r = await fetch("/api/bonus");
+  if (!r.ok) return;
   const bonuses = await r.json();
 
   const tbody = document.querySelector("#bonusTable tbody");
@@ -1012,7 +1023,10 @@ async function deleteBonus(id) {
   loadBonuses();
 }
 
-/* CHARAKTERE */
+/* ---------------------------------------------------
+   CHARAKTERE
+--------------------------------------------------- */
+
 let uploadedCharacterImageUrl = null;
 
 async function uploadCharacterImage() {
@@ -1022,13 +1036,17 @@ async function uploadCharacterImage() {
   const form = new FormData();
   form.append("image", file);
 
-  const r = await fetch("/api/character/upload", { method: "POST", body: form });
+  const r = await fetch("/api/character/upload", {
+    method: "POST",
+    body: form
+  });
+
   const data = await r.json();
   if (data.success) uploadedCharacterImageUrl = data.url;
 }
 
 async function addCharacter() {
-  const name = document.getElementById("characterName").value;
+  const name = document.getElementById("characterName").value.trim();
   if (!name) return;
 
   await fetch("/api/character", {
@@ -1049,6 +1067,7 @@ async function addCharacter() {
 
 async function loadCharacters() {
   const r = await fetch("/api/character");
+  if (!r.ok) return;
   const characters = await r.json();
 
   const tbody = document.querySelector("#characterTable tbody");
@@ -1070,9 +1089,12 @@ async function deleteCharacter(id) {
   loadCharacters();
 }
 
-/* LEVELSYSTEM – required_xp */
+/* ---------------------------------------------------
+   LEVELS
+--------------------------------------------------- */
+
 async function addLevel() {
-  const name = document.getElementById("levelName").value;
+  const name = document.getElementById("levelName").value.trim();
   const xp = Number(document.getElementById("levelMinXP").value);
 
   if (!name || !xp) return;
@@ -1091,6 +1113,7 @@ async function addLevel() {
 
 async function loadLevels() {
   const r = await fetch("/api/levels");
+  if (!r.ok) return;
   const levels = await r.json();
 
   const tbody = document.querySelector("#levelTable tbody");
@@ -1112,7 +1135,7 @@ async function deleteLevel(id) {
   loadLevels();
 }
 
-/* STARTTAB */
+/* Startansicht */
 showTab("xpTab");
 </script>
 </body>
