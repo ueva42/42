@@ -2,336 +2,162 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Temple of Logic – Schülerbereich</title>
+  <title>Temple of Logic – Student</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
+
     body {
       margin: 0;
-      background: #0b0b0c;
-      color: #eee;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(168,85,247,0.25), transparent 60%),
+        radial-gradient(circle at 90% 60%, rgba(59,130,246,0.25), transparent 70%),
+        #050312;
       font-family: Arial, sans-serif;
+      color: #eee;
       padding: 20px;
     }
 
-    h1, h2 {
-      margin-top: 0;
+    /* HEADER */
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
     }
 
-    .card {
-      background: #161616;
-      border: 1px solid #333;
-      padding: 15px;
-      margin-bottom: 20px;
-      border-radius: 8px;
+    .orb {
+      width: 90px;
+      height: 90px;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 20%, #facc15, #f97316 20%, #4c1d95 60%, #020617 100%);
+      box-shadow: 0 0 25px rgba(250, 204, 21, 0.75);
     }
 
-    .row {
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0.07em;
     }
 
-    .char-img {
-      width: 140px;
-      height: 140px;
+    /* CHARACTER */
+    .character-card {
+      background: rgba(20, 16, 36, 0.8);
+      border: 1px solid rgba(120, 90, 200, 0.6);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 24px;
+      text-align: center;
+      box-shadow: 0 0 20px rgba(80, 50, 180, 0.4);
+      backdrop-filter: blur(8px);
+    }
+
+    .character-img {
+      width: 120px;
+      height: 120px;
       object-fit: cover;
-      border-radius: 8px;
-      border: 2px solid #444;
+      border-radius: 50%;
+      margin-bottom: 12px;
+      border: 3px solid #6d28d9;
+      box-shadow: 0 0 12px rgba(139,92,246,0.7);
     }
 
-    .mission-img, .bonus-img {
-      width: 160px;
-      height: 160px;
-      object-fit: cover;
-      border-radius: 6px;
-      border: 1px solid #444;
+    .xp-box {
+      margin-top: 10px;
+      font-size: 18px;
+      color: #c4b5fd;
     }
 
-    .carousel {
-      display: flex;
-      overflow-x: auto;
-      gap: 20px;
-      padding-bottom: 10px;
+    /* SECTION */
+    .section-title {
+      font-size: 20px;
+      margin: 20px 0 10px;
+      color: #ddd6fe;
+      text-align: center;
     }
 
-    .carousel::-webkit-scrollbar {
-      height: 8px;
-    }
-    .carousel::-webkit-scrollbar-thumb {
-      background: #333;
-      border-radius: 4px;
-    }
-
-    .bonus-card {
-      position: relative;
+    /* TRAITS + ITEMS */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
     }
 
-    .bonus-btn {
-      margin-top: 5px;
-      background: #009933;
-      border: none;
-      color: white;
-      padding: 6px 12px;
-      cursor: pointer;
-      border-radius: 4px;
-    }
-    .bonus-btn:hover {
-      background: #00bb44;
+    .small-card {
+      background: rgba(30, 24, 54, 0.75);
+      border: 1px solid rgba(140,100,240,0.5);
+      padding: 14px;
+      border-radius: 12px;
+      text-align: center;
+      box-shadow: 0 0 14px rgba(140,100,240,0.4);
+      line-height: 1.3;
+      font-size: 14px;
     }
 
-    input[type=file] {
-      margin-top: 8px;
-    }
-
-    .level-bar {
-      background: #222;
-      height: 25px;
-      border-radius: 4px;
-      overflow: hidden;
-      border: 1px solid #555;
-      margin-top: 8px;
-    }
-
-    .level-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #0080ff, #00ffaa);
-      width: 0%;
-      transition: width 0.5s;
-    }
-
-    .logout {
-      background: #aa2222;
-      padding: 8px 12px;
-      border: none;
-      color: white;
-      cursor: pointer;
-      border-radius: 4px;
-      float: right;
-    }
-    .logout:hover {
-      background: #dd0000;
-    }
   </style>
 </head>
 <body>
 
-<button class="logout" onclick="logout()">Logout</button>
-<h1>Temple of Logic</h1>
+<div class="header">
+  <div class="orb"></div>
+  <h1>Temple of Logic</h1>
+</div>
 
-<div id="content"></div>
+<!-- CHARACTER -->
+<div class="character-card" id="characterBox">
+  <img id="characterImg" class="character-img" src="" alt="Charakter">
+  <div id="characterName">Charakter...</div>
+  <div class="xp-box" id="xpBox">XP: ...</div>
+</div>
+
+<!-- TRAITS -->
+<div class="section-title">Eigenschaften</div>
+<div class="card-grid" id="traitsGrid"></div>
+
+<!-- ITEMS -->
+<div class="section-title">Ausrüstung</div>
+<div class="card-grid" id="itemsGrid"></div>
 
 <script>
-// ======================================================
-// Daten laden + darstellen
-// ======================================================
-
-async function initStudentSession() {
-  // Charakter/Traits/Items anlegen, falls neu
-  await fetch("/api/student/state/init", { method: "POST" });
-}
-
-async function loadData() {
-  const r = await fetch("/api/student/me");
-  const data = await r.json();
-  render(data);
-}
-
-function render(data) {
-  const { user, state, missions, levels, bonuscards } = data;
-
-  const c = document.getElementById("content");
-  c.innerHTML = "";
-
-  // --------------------------------------------------
-  // Charakterkarte
-  // --------------------------------------------------
-
-  const charCard = document.createElement("div");
-  charCard.className = "card";
-
-  charCard.innerHTML = `
-    <h2>Dein Charakter</h2>
-    <div class="row">
-      <div>
-        <img class="char-img" src="${state?.image_url || ""}">
-      </div>
-      <div>
-        <b>Name:</b> ${state?.character_name || "—"}<br><br>
-        <b>Eigenschaften:</b><br>
-        ${state?.traits?.join(", ") || "—"}<br><br>
-        <b>Ausrüstung:</b><br>
-        ${state?.items?.join(", ") || "—"}
-      </div>
-    </div>
-  `;
-
-  c.appendChild(charCard);
-
-  // --------------------------------------------------
-  // XP + Level
-  // --------------------------------------------------
-
-  const levelCard = document.createElement("div");
-  levelCard.className = "card";
-
-  // Level bestimmen
-  const lvl = determineLevel(user.xp, levels);
-
-  const fillPercent = calcLevelFill(user.xp, levels);
-
-  levelCard.innerHTML = `
-    <h2>Dein Fortschritt</h2>
-    <b>XP:</b> ${user.xp}<br>
-    <b>Level:</b> ${lvl.name}<br><br>
-    <div class="level-bar">
-      <div class="level-fill" style="width:${fillPercent}%"></div>
-    </div>
-  `;
-
-  c.appendChild(levelCard);
-
-  // --------------------------------------------------
-  // Missionen
-  // --------------------------------------------------
-
-  const missionCard = document.createElement("div");
-  missionCard.className = "card";
-
-  missionCard.innerHTML = `<h2>Missionen</h2>`;
-
-  const carousel = document.createElement("div");
-  carousel.className = "carousel";
-
-  missions.forEach(m => {
-    const div = document.createElement("div");
-    div.innerHTML = `
-      <img class="mission-img" src="${m.image_url || ""}">
-      <br>
-      <b>${m.name}</b><br>
-      XP: ${m.xp}<br>
-      ${m.require_upload ? `<input type="file" onchange="uploadMissionImage(${m.id}, this.files[0])">` : ""}
-    `;
-    carousel.appendChild(div);
-  });
-
-  missionCard.appendChild(carousel);
-  c.appendChild(missionCard);
-
-  // --------------------------------------------------
-  // Bonuskarten
-  // --------------------------------------------------
-
-  const bonusCard = document.createElement("div");
-  bonusCard.className = "card";
-  bonusCard.innerHTML = `<h2>Bonuskarten</h2>`;
-
-  const bCarousel = document.createElement("div");
-  bCarousel.className = "carousel";
-
-  bonuscards.forEach(b => {
-    if (user.xp >= b.xp) {
-      const d = document.createElement("div");
-      d.className = "bonus-card";
-      d.innerHTML = `
-        <img class="bonus-img" src="${b.image_url || ""}">
-        <div><b>${b.name}</b><br>XP-Kosten: ${b.xp}</div>
-        <button class="bonus-btn" onclick="redeemBonus(${b.id}, ${b.xp})">Einlösen</button>
-      `;
-      bCarousel.appendChild(d);
-    }
-  });
-
-  bonusCard.appendChild(bCarousel);
-  c.appendChild(bonusCard);
-}
-
-// ======================================================
-// Level Helper
-// ======================================================
-
-function determineLevel(xp, levels) {
-  if (levels.length === 0) return { name: "—", required_xp: 0 };
-
-  let last = levels[0];
-
-  for (let lvl of levels) {
-    if (xp >= lvl.required_xp) last = lvl;
-    else break;
-  }
-
-  return last;
-}
-
-function calcLevelFill(xp, levels) {
-  if (levels.length < 2) return 100;
-
-  let current = determineLevel(xp, levels);
-  let next = levels.find(l => l.required_xp > current.required_xp);
-
-  if (!next) return 100;
-
-  const dist = next.required_xp - current.required_xp;
-  const progress = xp - current.required_xp;
-
-  return Math.max(0, Math.min(100, (progress / dist) * 100));
-}
-
-// ======================================================
-// Upload
-// ======================================================
-
-async function uploadMissionImage(missionId, file) {
-  if (!file) return;
-
-  const form = new FormData();
-  form.append("image", file);
-  form.append("missionId", missionId);
-
-  const r = await fetch("/api/student/upload", {
+async function loadStudent() {
+  // 1. Server fragen, ob erster Login → dann Traits/Items/Char werden generiert
+  const res = await fetch("/api/student/firstLogin", {
     method: "POST",
-    body: form,
+    headers: { "Content-Type": "application/json" }
   });
 
-  const data = await r.json();
-  if (data.success) {
-    alert("Bild hochgeladen!");
-    loadData();
-  }
-}
+  const data = await res.json();
+  console.log("Student Data:", data);
 
-// ======================================================
-// Bonus einlösen
-// ======================================================
+  const character = data.character;
+  const traits = data.traits;
+  const items = data.items;
 
-async function redeemBonus(bonusId, xpCost) {
-  if (!confirm("Bonuskarte einlösen?")) return;
+  // ==== CHARACTER ====
+  document.getElementById("characterImg").src = character.image_url;
+  document.getElementById("characterName").innerText = character.name;
+  document.getElementById("xpBox").innerText = "XP: " + data.xp;
 
-  await fetch("/api/xp", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ studentId: null, xp: -xpCost })
+  // ==== TRAITS ====
+  const traitsGrid = document.getElementById("traitsGrid");
+  traitsGrid.innerHTML = "";
+  traits.forEach(t => {
+    let div = document.createElement("div");
+    div.className = "small-card";
+    div.innerText = t;
+    traitsGrid.appendChild(div);
   });
 
-  alert("Bonus eingelöst!");
-  location.reload();
+  // ==== ITEMS ====
+  const itemsGrid = document.getElementById("itemsGrid");
+  itemsGrid.innerHTML = "";
+  items.forEach(it => {
+    let div = document.createElement("div");
+    div.className = "small-card";
+    div.innerText = it;
+    itemsGrid.appendChild(div);
+  });
 }
 
-// ======================================================
-// Logout
-// ======================================================
-
-async function logout() {
-  await fetch("/api/logout", { method: "POST" });
-  location.href = "/login.html";
-}
-
-// ======================================================
-// Start
-// ======================================================
-
-(async () => {
-  await initStudentSession();
-  await loadData();
-})();
+loadStudent();
 </script>
 
 </body>

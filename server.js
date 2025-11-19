@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (mit Levelsystem)
+// Temple of Logic – SERVER.JS (mit Levelsystem & Traits/Items)
 // =======================================================
 
 import express from "express";
@@ -173,6 +173,8 @@ async function migrate() {
   await ensureColumn("users", "xp", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("users", "character_id", "INTEGER");
   await ensureColumn("users", "level_id", "INTEGER");
+  await ensureColumn("users", "traits", "jsonb");
+  await ensureColumn("users", "items", "jsonb");
 
   // UNIQUE (name,class)
   await pool.query(`
@@ -315,9 +317,8 @@ function isStudent(req, res, next) {
   }
   next();
 }
-
 // =======================================================
-// KLASSEN
+// KLASSEN (Admin)
 // =======================================================
 app.get("/api/class", isAdmin, async (_req, res) => {
   const r = await pool.query("SELECT id,name FROM classes ORDER BY name ASC");
@@ -350,7 +351,7 @@ app.delete("/api/class/:id", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// SCHÜLER
+// SCHÜLER (Admin)
 // =======================================================
 app.get("/api/student", isAdmin, async (req, res) => {
   const { classId } = req.query;
@@ -416,7 +417,7 @@ async function logXP(studentId, amount, missionId, source, adminId) {
 }
 
 // =======================================================
-// XP VERGABE
+// XP VERGABE (Admin)
 // =======================================================
 app.post("/api/xp", isAdmin, async (req, res) => {
   const { studentId, xp } = req.body;
@@ -458,7 +459,7 @@ app.post("/api/xpmission", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// UPLOADS
+// UPLOADS (Student + Admin)
 // =======================================================
 app.post(
   "/api/student/upload",
@@ -533,7 +534,7 @@ app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// MISSIONEN
+// MISSIONEN (Admin)
 // =======================================================
 app.post(
   "/api/missions/upload",
@@ -613,7 +614,7 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// BONUSKARTEN
+// BONUSKARTEN (Admin)
 // =======================================================
 app.post(
   "/api/bonus/upload",
@@ -693,7 +694,7 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// CHARACTERS
+// CHARACTERS (Admin)
 // =======================================================
 app.post(
   "/api/character/upload",
@@ -773,7 +774,7 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// LEVEL-API
+// LEVEL-API (Admin)
 // =======================================================
 app.get("/api/levels", isAdmin, async (_req, res) => {
   const r = await pool.query(
@@ -812,9 +813,8 @@ app.delete("/api/levels/:id", isAdmin, async (req, res) => {
 
   res.json({ success: true });
 });
-
 // =======================================================
-// STUDENT DASHBOARD
+// STUDENT DASHBOARD – /api/student/me
 // =======================================================
 app.get("/api/student/me", isStudent, async (req, res) => {
   const id = req.session.user.id;
@@ -823,6 +823,7 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     `
     SELECT 
       u.id, u.name, u.xp, u.character_id, u.level_id,
+      u.traits, u.items,
       l.name AS level_name, l.min_xp AS level_min_xp
     FROM users u
     LEFT JOIN levels l ON u.level_id = l.id
@@ -871,6 +872,9 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   });
 });
 
+// =======================================================
+// STUDENT – Charakter manuell wählen (falls du es nutzt)
+// =======================================================
 app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
   const { characterId } = req.body;
   const id = req.session.user.id;
@@ -886,8 +890,135 @@ app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
 });
 
 // =======================================================
+// STUDENT – FIRST LOGIN: zufälliger Charakter + Traits + Items
+// =======================================================
+app.post("/api/student/firstLogin", isStudent, async (req, res) => {
+  const userId = req.session.user.id;
+
+  // Aktuellen Zustand laden
+  const userRes = await pool.query(
+    `
+    SELECT character_id, traits, items, xp, level_id
+    FROM users
+    WHERE id=$1
+  `,
+    [userId]
+  );
+
+  if (!userRes.rows.length) {
+    return res.status(404).json({ success: false });
+  }
+
+  const user = userRes.rows[0];
+
+  // Wenn schon alles vorhanden → nichts neu würfeln
+  if (user.character_id && user.traits && user.items) {
+    const charRes = await pool.query("SELECT * FROM characters WHERE id=$1", [
+      user.character_id,
+    ]);
+
+    return res.json({
+      success: true,
+      firstLogin: false,
+      character: charRes.rows[0] || null,
+      traits: user.traits,
+      items: user.items,
+      xp: user.xp,
+    });
+  }
+
+  // --- 1. Charakter zufällig wählen
+  const chars = await pool.query("SELECT * FROM characters ORDER BY id ASC");
+  const charList = chars.rows;
+  if (!charList.length) {
+    return res.status(500).json({
+      success: false,
+      error: "Keine Charaktere in der Datenbank",
+    });
+  }
+
+  const randomChar =
+    charList[Math.floor(Math.random() * charList.length)];
+
+  // --- 2. 3 Traits zufällig
+  const ALL_TRAITS = [
+    "Neugierig",
+    "Ausdauernd",
+    "Kreativ",
+    "Hilfsbereit",
+    "Strukturiert",
+    "Risikofreudig",
+    "Ruhig",
+    "Zielstrebig",
+    "Analytisch",
+    "Teamorientiert",
+    "Selbstkritisch",
+    "Optimistisch",
+    "Aufmerksam",
+    "Pragmatisch",
+    "Mutig",
+    "Sorgfältig",
+    "Logisch denkend",
+    "Erfinderisch",
+    "Geduldig",
+    "Inspirierend",
+  ];
+
+  const traits = [...ALL_TRAITS]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3);
+
+  // --- 3. 3 Items zufällig
+  const ALL_ITEMS = [
+    "Zirkel der Präzision",
+    "Rechenamulett",
+    "Logikstein",
+    "Notizrolle der Klarheit",
+    "Schutzbrille der Konzentration",
+    "Zauberstift des Beweises",
+    "Kompass der Richtung",
+    "Rucksack der Ideen",
+    "Lineal des Gleichgewichts",
+    "Lampe des Einfalls",
+    "Formelbuch des Wissens",
+    "Tasche der Zufälle",
+    "Würfel der Wahrscheinlichkeit",
+    "Chronometer der Geduld",
+    "Mantel der Logik",
+    "Rechenbrett des Ausgleichs",
+    "Trank der Übersicht",
+    "Kristall des Beweises",
+    "Talisman der Motivation",
+    "Zauberstab des Verständnisses",
+  ];
+
+  const items = [...ALL_ITEMS]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3);
+
+  // --- Speichern in der Datenbank
+  await pool.query(
+    `
+    UPDATE users
+    SET character_id=$1, traits=$2::jsonb, items=$3::jsonb
+    WHERE id=$4
+  `,
+    [randomChar.id, JSON.stringify(traits), JSON.stringify(items), userId]
+  );
+
+  return res.json({
+    success: true,
+    firstLogin: true,
+    character: randomChar,
+    traits,
+    items,
+    xp: user.xp,
+  });
+});
+
+// =======================================================
 // START
 // =======================================================
 app.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Server läuft auf Port 8080 (mit Levelsystem)");
+  console.log("🚀 Server läuft auf Port 8080 (mit Levelsystem, Traits & Items)");
 });
