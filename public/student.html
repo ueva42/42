@@ -2,233 +2,166 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Temple of Logic – Student Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Temple of Logic – Student</title>
 
 <style>
-/* ========================================= */
-/* GLOBAL STYLES */
-/* ========================================= */
 body {
     margin: 0;
-    padding: 0;
     font-family: "Segoe UI", sans-serif;
-    background: linear-gradient(135deg, #0d0f18 0%, #111423 100%);
+    background: linear-gradient(135deg, #0d0f18, #111423);
     color: #d1d5db;
-    overflow-x: hidden;
+    text-align: center;
 }
 
+/* Container */
 .container {
-    width: 100%;
     max-width: 720px;
     margin: 40px auto;
-    text-align: center;
     padding-bottom: 120px;
 }
 
-/* ========================================= */
-/* HEADINGS */
-/* ========================================= */
+/* Headings */
 h1 {
-    font-size: 28px;
-    margin-bottom: 5px;
     color: #8ab4ff;
-    letter-spacing: 1px;
+    margin-bottom: 0;
 }
-
 .section-title {
-    margin-top: 35px;
     font-size: 22px;
     color: #77c8ff;
-    text-shadow: 0 0 6px #0077cc;
+    margin-top: 32px;
 }
 
-/* ========================================= */
-/* CHARACTER CARD */
-/* ========================================= */
+/* Character Card */
 .character-card {
     background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
     padding: 20px;
     border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 0 20px rgba(0, 150, 255, 0.15);
-    width: 90%;
-    margin: auto;
+    box-shadow: 0 0 20px rgba(0,150,255,0.15);
 }
-
 .character-img {
     width: 260px;
     height: 260px;
     object-fit: contain;
     border-radius: 14px;
-    margin-top: 10px;
-    box-shadow: 0 0 25px rgba(0, 150, 255, 0.4);
+    box-shadow: 0 0 25px rgba(0,150,255,0.4);
+    margin-top: 12px;
 }
 
-/* ========================================= */
-/* XP BAR */
-/* ========================================= */
+/* XP */
 .xp-box {
     margin-top: 20px;
-    font-size: 26px;
-    color: #90eeff;
-    text-shadow: 0 0 8px #0099ff;
+    font-size: 24px;
     font-weight: bold;
+    color: #90eeff;
 }
-
 .xp-bar-container {
     width: 90%;
+    margin: 12px auto;
     height: 24px;
-    margin: 15px auto;
-    border-radius: 12px;
     background: #1c2234;
+    border-radius: 12px;
     overflow: hidden;
     border: 1px solid #2f3958;
 }
-
 .xp-bar {
     height: 100%;
     width: 0%;
     background: linear-gradient(90deg, #00b7ff, #4bd6ff);
-    box-shadow: 0 0 12px rgba(0, 180, 255, 0.6);
+    box-shadow: 0 0 12px rgba(0,180,255,0.6);
     transition: width 1s ease;
 }
 
-/* Level-Up Animation */
-@keyframes levelUpPop {
-    0% { transform: scale(0.7); opacity: 0; }
-    50% { transform: scale(1.15); opacity: 1; }
-    100% { transform: scale(1); opacity: 1; }
-}
-
-.level-up-banner {
-    display: none;
-    font-size: 28px;
-    font-weight: bold;
-    color: #00eaff;
-    margin-top: 10px;
-    text-shadow: 0 0 12px #00ffff, 0 0 20px #00ccff;
-    animation: levelUpPop 0.8s ease;
-}
-
-/* ========================================= */
-/* XP FLOATING PARTICLES */
-/* ========================================= */
-.xp-float {
-    position: absolute;
-    color: #4bd6ff;
-    font-size: 20px;
-    font-weight: bold;
-    pointer-events: none;
-    animation: xpFloatUp 1.2s ease-out forwards;
-}
-
-@keyframes xpFloatUp {
-    0% { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(-50px); }
-}
-
-/* ========================================= */
-/* TRAITS AS BADGES */
-/* ========================================= */
+/* Traits */
 .trait-badge {
     display: inline-block;
-    padding: 6px 12px;
     margin: 4px;
-    background: rgba(0, 140, 255, 0.2);
-    border: 1px solid rgba(0, 180, 255, 0.4);
-    border-radius: 10px;
+    padding: 6px 10px;
     font-size: 15px;
-    box-shadow: 0 0 8px rgba(0,150,255,0.25);
+    background: rgba(0,140,255,0.2);
+    border: 1px solid rgba(0,180,255,0.4);
+    border-radius: 10px;
 }
 
-/* ========================================= */
-/* ITEMS GRID */
-/* ========================================= */
+/* Items */
 .items-grid {
+    width: 90%;
+    margin: 10px auto;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 12px;
-    width: 90%;
-    margin: 12px auto;
 }
-
 .item-card {
     background: #161b28;
     padding: 12px;
     border-radius: 10px;
     border: 1px solid #2c344a;
-    box-shadow: 0 0 12px rgba(0,0,0,0.4);
     font-size: 15px;
 }
 
-/* ========================================= */
-/* LOGOUT BUTTON (blau wie im Admin) */
-/* ========================================= */
+/* Missions */
+.mission-list {
+    width: 90%;
+    margin: 14px auto;
+    text-align: left;
+}
+.mission-entry {
+    margin: 4px 0;
+    font-size: 16px;
+    color: #d5e8ff;
+}
+
+/* Logout Button */
 .logout-button {
     position: fixed;
     top: 18px;
     right: 18px;
-    background: rgba(0, 122, 255, 0.2);
+    background: rgba(0,122,255,0.2);
     color: #7ab6ff;
     padding: 10px 18px;
-    border: 1px solid rgba(80, 150, 255, 0.6);
+    border: 1px solid rgba(80,150,255,0.6);
     border-radius: 8px;
     cursor: pointer;
     font-size: 14px;
-    transition: all 0.2s ease;
     backdrop-filter: blur(6px);
-    z-index: 2000;
+    transition: 0.2s;
 }
-
 .logout-button:hover {
-    background: rgba(80, 150, 255, 0.35);
+    background: rgba(80,150,255,0.35);
     transform: translateY(-2px);
-    box-shadow: 0 0 15px rgba(80,150,255,0.45);
 }
 
-/* ========================================= */
-/* GOODBYE OVERLAY */
-/* ========================================= */
+/* Goodbye Overlay */
 #goodbyeOverlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
     background: #000000cc;
+    color: #fff;
     display: flex;
     justify-content: center;
     align-items: center;
-    color: #ffffff;
-    font-size: 38px;
-    letter-spacing: 2px;
+    font-size: 34px;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.6s ease;
     backdrop-filter: blur(8px);
-    z-index: 9999;
+    z-index: 999;
 }
 </style>
 </head>
 
 <body>
 
-<!-- LOGOUT BUTTON -->
 <button id="logoutBtn" class="logout-button">Logout</button>
-
-<!-- GOODBYE OVERLAY -->
 <div id="goodbyeOverlay">Auf Wiedersehen!</div>
 
 <div class="container">
-
     <div class="character-card">
         <h1>Dein Charakter</h1>
-        <img id="characterImg" class="character-img" src="" alt="Charakter" />
-        <div id="levelUpBanner" class="level-up-banner">LEVEL UP!</div>
-        <div class="xp-box">
-            XP: <span id="xpValue">0</span>
-        </div>
+        <img id="characterImg" class="character-img" src="" alt="">
+        <div class="xp-box">XP: <span id="xpValue">0</span></div>
+
         <div class="xp-bar-container">
             <div id="xpBar" class="xp-bar"></div>
         </div>
@@ -240,85 +173,65 @@ h1 {
     <h2 class="section-title">Ausrüstung</h2>
     <div id="itemsGrid" class="items-grid"></div>
 
+    <h2 class="section-title">Erhaltene Missionen</h2>
+    <div id="missionList" class="mission-list"></div>
 </div>
 
 <script>
-/* ========================================= */
-/* LOAD STUDENT DATA */
-/* ========================================= */
 async function loadStudent() {
     const r = await fetch("/api/student/firstLogin", { method: "POST" });
     const data = await r.json();
 
-    // XP
-    document.getElementById("xpValue").textContent = data.xp;
-
-    // CHARACTER IMAGE
+    // Charakter
     if (data.character?.image_url) {
         document.getElementById("characterImg").src = data.character.image_url;
     }
 
-    // TRAITS
+    // XP
+    document.getElementById("xpValue").textContent = data.xp;
+
+    // XP-Balken
+    const bar = document.getElementById("xpBar");
+    const minXP = data.level.min_xp ?? 0;
+    const nextXP = data.level.next_min_xp ?? (minXP + 100);
+    const progress = Math.min(100, ((data.xp - minXP) / (nextXP - minXP)) * 100);
+    bar.style.width = progress + "%";
+
+    // Traits
     const traitsBox = document.getElementById("traitsBox");
     traitsBox.innerHTML = "";
     data.traits.forEach(t => {
-        const badge = document.createElement("div");
-        badge.className = "trait-badge";
-        badge.textContent = t;
-        traitsBox.appendChild(badge);
+        const d = document.createElement("div");
+        d.className = "trait-badge";
+        d.textContent = t;
+        traitsBox.appendChild(d);
     });
 
-    // ITEMS
-    const grid = document.getElementById("itemsGrid");
-    grid.innerHTML = "";
+    // Items
+    const itemsGrid = document.getElementById("itemsGrid");
+    itemsGrid.innerHTML = "";
     data.items.forEach(i => {
-        const div = document.createElement("div");
-        div.className = "item-card";
-        div.textContent = i;
-        grid.appendChild(div);
+        const c = document.createElement("div");
+        c.className = "item-card";
+        c.textContent = i;
+        itemsGrid.appendChild(c);
     });
 
-    // XP BAR
-    const bar = document.getElementById("xpBar");
-    const lvl = data.level;
+    // Missionen
+    const missionBox = document.getElementById("missionList");
+    missionBox.innerHTML = "";
 
-    const currentXP = data.xp;
-    const minXP = lvl.min_xp || 0;
-    const nextXP = lvl.next_min_xp || (minXP + 100);
-
-    const progress = Math.min(100, ((currentXP - minXP) / (nextXP - minXP)) * 100);
-    bar.style.width = progress + "%";
-
-    // LEVEL-UP ANIMATION
-    if (currentXP === minXP) {
-        const banner = document.getElementById("levelUpBanner");
-        banner.style.display = "block";
-        setTimeout(() => banner.style.display = "none", 2000);
-    }
-
-    // XP FLOATING PARTICLE
-    spawnXPFloat("+XP");
+    data.xp_log
+        .filter(e => e.source === "mission")
+        .forEach(entry => {
+            const row = document.createElement("div");
+            row.className = "mission-entry";
+            row.textContent = `${entry.mission_name} – +${entry.amount} XP`;
+            missionBox.appendChild(row);
+        });
 }
 
-/* ========================================= */
-/* XP FLOAT UP EFFECT */
-/* ========================================= */
-function spawnXPFloat(text) {
-    const float = document.createElement("div");
-    float.className = "xp-float";
-    float.textContent = text;
-
-    float.style.left = (50 + Math.random()*20 - 10) + "%";
-    float.style.top = "65%";
-
-    document.body.appendChild(float);
-
-    setTimeout(() => float.remove(), 1300);
-}
-
-/* ========================================= */
-/* LOGOUT + FADE OUT */
-/* ========================================= */
+/* Logout */
 document.getElementById("logoutBtn").addEventListener("click", async () => {
     const overlay = document.getElementById("goodbyeOverlay");
     overlay.style.opacity = "1";
@@ -326,15 +239,10 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
 
     await new Promise(res => setTimeout(res, 700));
 
-    await fetch("/api/logout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-    });
-
-    window.location.href = "/login.html";
+    await fetch("/api/logout", { method: "POST" });
+    location.href = "/login.html";
 });
 
-/* Start */
 loadStudent();
 </script>
 
