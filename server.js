@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (stabile Version ohne Levelsystem)
+// Temple of Logic – SERVER.JS (stabile Gesamtversion mit Levelsystem V2)
 // =======================================================
 
 import express from "express";
@@ -31,7 +31,7 @@ app.use(
     secret: "super-temp-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false }, // bei HTTPS später true
+    cookie: { secure: false },
   })
 );
 
@@ -88,7 +88,7 @@ async function migrate() {
     );
   `);
 
-  // Users (ggf. schon vorhanden – wir ergänzen nur)
+  // Users
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -135,7 +135,7 @@ async function migrate() {
     );
   `);
 
-  // Schüler-Uploads
+  // Uploads
   await pool.query(`
     CREATE TABLE IF NOT EXISTS student_uploads (
       id SERIAL PRIMARY KEY,
@@ -145,7 +145,7 @@ async function migrate() {
     );
   `);
 
-  // Bonuskarten (mit xp)
+  // Bonuskarten
   await pool.query(`
     CREATE TABLE IF NOT EXISTS bonuscards (
       id SERIAL PRIMARY KEY,
@@ -156,7 +156,6 @@ async function migrate() {
     );
   `);
 
-  // falls alte Spalte xp_cost noch existiert → weg
   await pool.query(`
     DO $$
     BEGIN
@@ -179,7 +178,7 @@ async function migrate() {
     );
   `);
 
-  // XP-Transaktionen
+  // XP Transaktionen
   await pool.query(`
     CREATE TABLE IF NOT EXISTS xp_transactions (
       id SERIAL PRIMARY KEY,
@@ -192,21 +191,22 @@ async function migrate() {
     );
   `);
 
-  await ensureColumn("xp_transactions", "amount", "INTEGER NOT NULL DEFAULT 0");
-  await ensureColumn("xp_transactions", "mission_id", "INTEGER");
-  await ensureColumn("xp_transactions", "source", "TEXT");
-  await ensureColumn("xp_transactions", "awarded_by", "INTEGER");
-
-  // ⚠️ Level-Tabelle wurde entfernt – kommt später in sauberer Version wieder dazu.
+  // ---------- LEVELSYSTEM EINBAU ----------
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS levels (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      required_xp INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
 
   // Default Admin
-  await pool.query(
-    `
+  await pool.query(`
     INSERT INTO users (name, password, role, class_id)
     VALUES ('admin', 'bruhrain', 'admin', NULL)
     ON CONFLICT (name, class_id) DO NOTHING;
-  `
-  );
+  `);
 
   console.log("Migration abgeschlossen.");
 }
@@ -243,16 +243,14 @@ app.post("/api/logout", (req, res) => {
 });
 
 function isAdmin(req, res, next) {
-  if (!req.session.user || req.session.user.role !== "admin") {
+  if (!req.session.user || req.session.user.role !== "admin")
     return res.status(403).json({ error: "Forbidden" });
-  }
   next();
 }
 
 function isStudent(req, res, next) {
-  if (!req.session.user || req.session.user.role !== "student") {
+  if (!req.session.user || req.session.user.role !== "student")
     return res.status(403).json({ error: "Forbidden" });
-  }
   next();
 }
 
@@ -277,24 +275,20 @@ app.post("/api/class", isAdmin, async (req, res) => {
 });
 
 app.delete("/api/class/:id", isAdmin, async (req, res) => {
-  const classId = parseInt(req.params.id, 10);
-  if (Number.isNaN(classId)) {
-    return res.status(400).json({ success: false, error: "Invalid class id" });
-  }
+  const classId = Number(req.params.id);
+  if (!classId) return res.json({ success: false });
 
-  // Schüler:innen der Klasse löschen
   await pool.query("DELETE FROM users WHERE class_id=$1 AND role='student'", [
     classId,
   ]);
 
-  // Klasse löschen
   await pool.query("DELETE FROM classes WHERE id=$1", [classId]);
 
   res.json({ success: true });
 });
 
 // =======================================================
-// SCHÜLER:INNEN
+// SCHÜLER
 // =======================================================
 app.get("/api/student", isAdmin, async (req, res) => {
   const { classId } = req.query;
@@ -343,15 +337,15 @@ app.post("/api/student", isAdmin, async (req, res) => {
 });
 
 app.delete("/api/student/:id", isAdmin, async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (Number.isNaN(id)) return res.json({ success: false });
+  const id = Number(req.params.id);
+  if (!id) return res.json({ success: false });
 
   await pool.query("DELETE FROM users WHERE id=$1", [id]);
   res.json({ success: true });
 });
 
 // =======================================================
-// XP-LOG / HELPER
+// XP-HISTORY
 // =======================================================
 async function logXP(studentId, amount, missionId, source, adminId) {
   await pool.query(
@@ -370,7 +364,7 @@ app.post("/api/xp", isAdmin, async (req, res) => {
   const { studentId, xp } = req.body;
   const delta = Number(xp);
 
-  if (!studentId || !delta) return res.json({ success: false });
+  if (!studentId || isNaN(delta)) return res.json({ success: false });
 
   await pool.query("UPDATE users SET xp = xp + $1 WHERE id=$2", [
     delta,
@@ -404,7 +398,7 @@ app.post("/api/xpmission", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// SCHÜLER-UPLOAD
+// UPLOAD
 // =======================================================
 app.post(
   "/api/student/upload",
@@ -443,10 +437,9 @@ app.post(
   }
 );
 
-// Admin löscht letzten Upload
 app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
-  const studentId = parseInt(req.params.studentId, 10);
-  if (Number.isNaN(studentId)) return res.json({ success: false });
+  const studentId = Number(req.params.studentId);
+  if (!studentId) return res.json({ success: false });
 
   const r = await pool.query(
     `
@@ -532,14 +525,13 @@ app.get("/api/missions", isAdmin, async (_req, res) => {
 });
 
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (Number.isNaN(id)) return res.json({ success: false });
+  const id = Number(req.params.id);
 
   const r = await pool.query("SELECT image_url FROM missions WHERE id=$1", [
     id,
   ]);
 
-  if (r.rows.length > 0 && r.rows[0].image_url) {
+  if (r.rows.length && r.rows[0].image_url) {
     const prefix = process.env.R2_PUBLIC_URL + "/";
     const key = r.rows[0].image_url.replace(prefix, "");
 
@@ -551,7 +543,7 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
         })
       );
     } catch (err) {
-      console.error("R2 delete mission image:", err);
+      console.error("Mission Delete R2:", err);
     }
   }
 
@@ -612,14 +604,13 @@ app.get("/api/bonus", isAdmin, async (_req, res) => {
 });
 
 app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (Number.isNaN(id)) return res.json({ success: false });
+  const id = Number(req.params.id);
 
   const r = await pool.query("SELECT image_url FROM bonuscards WHERE id=$1", [
     id,
   ]);
 
-  if (r.rows.length > 0 && r.rows[0].image_url) {
+  if (r.rows.length && r.rows[0].image_url) {
     const prefix = process.env.R2_PUBLIC_URL + "/";
     const key = r.rows[0].image_url.replace(prefix, "");
 
@@ -631,7 +622,7 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
         })
       );
     } catch (err) {
-      console.error("Bonus delete R2:", err);
+      console.error("Bonus Delete R2:", err);
     }
   }
 
@@ -692,14 +683,13 @@ app.get("/api/character", isAdmin, async (_req, res) => {
 });
 
 app.delete("/api/character/:id", isAdmin, async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (Number.isNaN(id)) return res.json({ success: false });
+  const id = Number(req.params.id);
 
   const r = await pool.query("SELECT image_url FROM characters WHERE id=$1", [
     id,
   ]);
 
-  if (r.rows.length > 0 && r.rows[0].image_url) {
+  if (r.rows.length && r.rows[0].image_url) {
     const prefix = process.env.R2_PUBLIC_URL + "/";
     const key = r.rows[0].image_url.replace(prefix, "");
 
@@ -711,7 +701,7 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
         })
       );
     } catch (err) {
-      console.error("Character delete R2:", err);
+      console.error("Character Delete R2:", err);
     }
   }
 
@@ -720,7 +710,7 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// STUDENT-API für student.html
+// STUDENT-DASHBOARD
 // =======================================================
 app.get("/api/student/me", isStudent, async (req, res) => {
   const id = req.session.user.id;
