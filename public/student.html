@@ -6,205 +6,279 @@
 <title>Temple of Logic – Student Dashboard</title>
 
 <style>
-    body {
-        margin: 0;
-        padding: 0;
-        font-family: "Segoe UI", sans-serif;
-        background: linear-gradient(135deg, #0d0f18 0%, #111423 100%);
-        color: #d1d5db;
-        overflow-x: hidden;
-    }
+/* ========================================= */
+/* GLOBAL STYLES */
+/* ========================================= */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", sans-serif;
+    background: linear-gradient(135deg, #0d0f18 0%, #111423 100%);
+    color: #d1d5db;
+    overflow-x: hidden;
+}
 
-    /* Container */
-    .container {
-        width: 100%;
-        max-width: 680px;
-        margin: 40px auto;
-        text-align: center;
-        padding-bottom: 80px;
-    }
+.container {
+    width: 100%;
+    max-width: 720px;
+    margin: 40px auto;
+    text-align: center;
+    padding-bottom: 120px;
+}
 
-    h1 {
-        font-size: 28px;
-        margin-bottom: 10px;
-        color: #8ab4ff;
-        letter-spacing: 1px;
-    }
+/* ========================================= */
+/* HEADINGS */
+/* ========================================= */
+h1 {
+    font-size: 28px;
+    margin-bottom: 5px;
+    color: #8ab4ff;
+    letter-spacing: 1px;
+}
 
-    /* Charakterbild */
-    .character-img {
-        width: 220px;
-        height: 220px;
-        object-fit: contain;
-        border-radius: 12px;
-        margin-top: 10px;
-        box-shadow: 0 0 20px rgba(0, 150, 255, 0.3);
-    }
+.section-title {
+    margin-top: 35px;
+    font-size: 22px;
+    color: #77c8ff;
+    text-shadow: 0 0 6px #0077cc;
+}
 
-    /* XP-Anzeige */
-    .xp-box {
-        margin-top: 25px;
-        font-size: 28px;
-        font-weight: bold;
-        color: #90eeff;
-        text-shadow: 0 0 8px #0099ff;
-    }
+/* ========================================= */
+/* CHARACTER CARD */
+/* ========================================= */
+.character-card {
+    background: rgba(255,255,255,0.05);
+    padding: 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 0 20px rgba(0, 150, 255, 0.15);
+    width: 90%;
+    margin: auto;
+}
 
-    /* Fortschrittsbalken */
-    .xp-bar-container {
-        width: 90%;
-        height: 22px;
-        margin: 15px auto;
-        border-radius: 12px;
-        background: #1c2234;
-        overflow: hidden;
-        border: 1px solid #2f3958;
-    }
+.character-img {
+    width: 260px;
+    height: 260px;
+    object-fit: contain;
+    border-radius: 14px;
+    margin-top: 10px;
+    box-shadow: 0 0 25px rgba(0, 150, 255, 0.4);
+}
 
-    .xp-bar {
-        height: 100%;
-        width: 0%;
-        background: linear-gradient(90deg, #00b7ff, #4bd6ff);
-        box-shadow: 0 0 12px rgba(0, 180, 255, 0.6);
-        transition: width 1s ease;
-    }
+/* ========================================= */
+/* XP BAR */
+/* ========================================= */
+.xp-box {
+    margin-top: 20px;
+    font-size: 26px;
+    color: #90eeff;
+    text-shadow: 0 0 8px #0099ff;
+    font-weight: bold;
+}
 
-    /* Traits & Items */
-    .section-title {
-        margin-top: 35px;
-        font-size: 22px;
-        color: #77c8ff;
-        text-shadow: 0 0 6px #0077cc;
-    }
+.xp-bar-container {
+    width: 90%;
+    height: 24px;
+    margin: 15px auto;
+    border-radius: 12px;
+    background: #1c2234;
+    overflow: hidden;
+    border: 1px solid #2f3958;
+}
 
-    .list-box {
-        margin-top: 10px;
-        background: #161b28;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #2c344a;
-        box-shadow: 0 0 10px rgba(0,0,0,0.4);
-        text-align: left;
-        width: 90%;
-        margin-left: auto;
-        margin-right: auto;
-    }
+.xp-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #00b7ff, #4bd6ff);
+    box-shadow: 0 0 12px rgba(0, 180, 255, 0.6);
+    transition: width 1s ease;
+}
 
-    .list-item {
-        margin: 6px 0;
-        font-size: 17px;
-        color: #d7eaff;
-    }
+/* Level-Up Animation */
+@keyframes levelUpPop {
+    0% { transform: scale(0.7); opacity: 0; }
+    50% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
 
-    /* Logout Button */
-    .logout-button {
-        position: fixed;
-        top: 18px;
-        right: 18px;
-        background: rgba(255, 50, 50, 0.15);
-        color: #ff4a4a;
-        padding: 10px 18px;
-        border: 1px solid rgba(255, 80, 80, 0.6);
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        transition: all 0.2s ease;
-        backdrop-filter: blur(6px);
-        z-index: 2000;
-    }
+.level-up-banner {
+    display: none;
+    font-size: 28px;
+    font-weight: bold;
+    color: #00eaff;
+    margin-top: 10px;
+    text-shadow: 0 0 12px #00ffff, 0 0 20px #00ccff;
+    animation: levelUpPop 0.8s ease;
+}
 
-    .logout-button:hover {
-        background: rgba(255, 80, 80, 0.3);
-        transform: translateY(-2px);
-        box-shadow: 0 0 15px rgba(255, 0, 0, 0.4);
-    }
+/* ========================================= */
+/* XP FLOATING PARTICLES */
+/* ========================================= */
+.xp-float {
+    position: absolute;
+    color: #4bd6ff;
+    font-size: 20px;
+    font-weight: bold;
+    pointer-events: none;
+    animation: xpFloatUp 1.2s ease-out forwards;
+}
 
-    /* Goodbye Overlay */
-    #goodbyeOverlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: #000000cc;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        color: #ffffff;
-        font-size: 38px;
-        letter-spacing: 2px;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.6s ease;
-        backdrop-filter: blur(8px);
-        z-index: 9999;
-    }
+@keyframes xpFloatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-50px); }
+}
+
+/* ========================================= */
+/* TRAITS AS BADGES */
+/* ========================================= */
+.trait-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    margin: 4px;
+    background: rgba(0, 140, 255, 0.2);
+    border: 1px solid rgba(0, 180, 255, 0.4);
+    border-radius: 10px;
+    font-size: 15px;
+    box-shadow: 0 0 8px rgba(0,150,255,0.25);
+}
+
+/* ========================================= */
+/* ITEMS GRID */
+/* ========================================= */
+.items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    width: 90%;
+    margin: 12px auto;
+}
+
+.item-card {
+    background: #161b28;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #2c344a;
+    box-shadow: 0 0 12px rgba(0,0,0,0.4);
+    font-size: 15px;
+}
+
+/* ========================================= */
+/* LOGOUT BUTTON (blau wie im Admin) */
+/* ========================================= */
+.logout-button {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    background: rgba(0, 122, 255, 0.2);
+    color: #7ab6ff;
+    padding: 10px 18px;
+    border: 1px solid rgba(80, 150, 255, 0.6);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(6px);
+    z-index: 2000;
+}
+
+.logout-button:hover {
+    background: rgba(80, 150, 255, 0.35);
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px rgba(80,150,255,0.45);
+}
+
+/* ========================================= */
+/* GOODBYE OVERLAY */
+/* ========================================= */
+#goodbyeOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000000cc;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #ffffff;
+    font-size: 38px;
+    letter-spacing: 2px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
+    backdrop-filter: blur(8px);
+    z-index: 9999;
+}
 </style>
 </head>
 
 <body>
 
-<!-- Logout -->
+<!-- LOGOUT BUTTON -->
 <button id="logoutBtn" class="logout-button">Logout</button>
 
-<!-- Goodbye Overlay -->
+<!-- GOODBYE OVERLAY -->
 <div id="goodbyeOverlay">Auf Wiedersehen!</div>
 
 <div class="container">
-    <h1>Dein Charakter</h1>
 
-    <img id="characterImg" class="character-img" src="" alt="Charakter" />
-
-    <div class="xp-box">
-        XP: <span id="xpValue">0</span>
-    </div>
-
-    <div class="xp-bar-container">
-        <div class="xp-bar" id="xpBar"></div>
+    <div class="character-card">
+        <h1>Dein Charakter</h1>
+        <img id="characterImg" class="character-img" src="" alt="Charakter" />
+        <div id="levelUpBanner" class="level-up-banner">LEVEL UP!</div>
+        <div class="xp-box">
+            XP: <span id="xpValue">0</span>
+        </div>
+        <div class="xp-bar-container">
+            <div id="xpBar" class="xp-bar"></div>
+        </div>
     </div>
 
     <h2 class="section-title">Eigenschaften</h2>
-    <div class="list-box" id="traitsBox"></div>
+    <div id="traitsBox"></div>
 
     <h2 class="section-title">Ausrüstung</h2>
-    <div class="list-box" id="itemsBox"></div>
+    <div id="itemsGrid" class="items-grid"></div>
+
 </div>
 
 <script>
+/* ========================================= */
+/* LOAD STUDENT DATA */
+/* ========================================= */
 async function loadStudent() {
     const r = await fetch("/api/student/firstLogin", { method: "POST" });
     const data = await r.json();
 
-    console.log("Student-Daten:", data);
-
+    // XP
     document.getElementById("xpValue").textContent = data.xp;
 
-    /* Charakter anzeigen */
-    if (data.character && data.character.image_url) {
+    // CHARACTER IMAGE
+    if (data.character?.image_url) {
         document.getElementById("characterImg").src = data.character.image_url;
     }
 
-    // Traits anzeigen
+    // TRAITS
     const traitsBox = document.getElementById("traitsBox");
     traitsBox.innerHTML = "";
     data.traits.forEach(t => {
-        const div = document.createElement("div");
-        div.className = "list-item";
-        div.textContent = "• " + t;
-        traitsBox.appendChild(div);
+        const badge = document.createElement("div");
+        badge.className = "trait-badge";
+        badge.textContent = t;
+        traitsBox.appendChild(badge);
     });
 
-    // Items anzeigen
-    const itemsBox = document.getElementById("itemsBox");
-    itemsBox.innerHTML = "";
+    // ITEMS
+    const grid = document.getElementById("itemsGrid");
+    grid.innerHTML = "";
     data.items.forEach(i => {
         const div = document.createElement("div");
-        div.className = "list-item";
-        div.textContent = "• " + i;
-        itemsBox.appendChild(div);
+        div.className = "item-card";
+        div.textContent = i;
+        grid.appendChild(div);
     });
 
-    // XP-Balken animieren
+    // XP BAR
     const bar = document.getElementById("xpBar");
     const lvl = data.level;
 
@@ -214,12 +288,37 @@ async function loadStudent() {
 
     const progress = Math.min(100, ((currentXP - minXP) / (nextXP - minXP)) * 100);
     bar.style.width = progress + "%";
+
+    // LEVEL-UP ANIMATION
+    if (currentXP === minXP) {
+        const banner = document.getElementById("levelUpBanner");
+        banner.style.display = "block";
+        setTimeout(() => banner.style.display = "none", 2000);
+    }
+
+    // XP FLOATING PARTICLE
+    spawnXPFloat("+XP");
 }
 
-loadStudent();
+/* ========================================= */
+/* XP FLOAT UP EFFECT */
+/* ========================================= */
+function spawnXPFloat(text) {
+    const float = document.createElement("div");
+    float.className = "xp-float";
+    float.textContent = text;
 
+    float.style.left = (50 + Math.random()*20 - 10) + "%";
+    float.style.top = "65%";
 
-// Logout + Fade-Out
+    document.body.appendChild(float);
+
+    setTimeout(() => float.remove(), 1300);
+}
+
+/* ========================================= */
+/* LOGOUT + FADE OUT */
+/* ========================================= */
 document.getElementById("logoutBtn").addEventListener("click", async () => {
     const overlay = document.getElementById("goodbyeOverlay");
     overlay.style.opacity = "1";
@@ -234,6 +333,9 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
 
     window.location.href = "/login.html";
 });
+
+/* Start */
+loadStudent();
 </script>
 
 </body>
