@@ -193,6 +193,15 @@
   </div>
 
   <script>
+    async function ensureFirstLogin() {
+      // Weist einmalig Charakter + Traits + Items zu
+      const res = await fetch("/api/student/firstLogin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      // Antwort ist egal – wichtig ist nur, dass es einmal ausgeführt wird
+    }
+
     async function loadStudent() {
       const res = await fetch("/api/student/me");
       if (!res.ok) {
@@ -208,23 +217,26 @@
       // Charakterbild
       if (character && character.image_url) {
         document.getElementById("characterImg").src = character.image_url;
+      } else {
+        // Falls kein Bild vorhanden ist – neutral lassen
+        document.getElementById("characterImg").src = "";
       }
 
       // XP
       const xp = user.xp ?? 0;
       document.getElementById("xpValue").textContent = xp;
 
-      // XP-Balken (simple Berechnung: von level_min_xp bis level_min_xp + 100)
+      // XP-Balken
       const xpBar = document.getElementById("xpBar");
       const minXP = user.level_min_xp ?? 0;
       const nextXP = minXP + 100;
       const progress = Math.min(100, ((xp - minXP) / (nextXP - minXP)) * 100);
       xpBar.style.width = (isFinite(progress) ? progress : 0) + "%";
 
-      // Traits (falls vom Server geliefert, sonst leer)
+      // Traits
       const traitsBox = document.getElementById("traitsBox");
       traitsBox.innerHTML = "";
-      const traits = user.traits || []; // falls noch nicht in DB: bleibt leer
+      const traits = user.traits || [];
       traits.forEach(t => {
         const d = document.createElement("div");
         d.className = "trait-badge";
@@ -232,7 +244,7 @@
         traitsBox.appendChild(d);
       });
 
-      // Items (falls vom Server geliefert, sonst leer)
+      // Items
       const itemsGrid = document.getElementById("itemsGrid");
       itemsGrid.innerHTML = "";
       const items = user.items || [];
@@ -243,7 +255,7 @@
         itemsGrid.appendChild(c);
       });
 
-      // Missionen (simple Liste: Name – +XP)
+      // Missionen
       const missionBox = document.getElementById("missionList");
       missionBox.innerHTML = "";
 
@@ -269,7 +281,10 @@
       window.location.href = "/login.html";
     });
 
-    loadStudent();
+    (async () => {
+      await ensureFirstLogin();
+      await loadStudent();
+    })();
   </script>
 
 </body>
