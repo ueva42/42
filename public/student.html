@@ -68,7 +68,7 @@
       margin-bottom: 16px;
     }
 
-    /* ================= CHARACTER IMAGE ================ */
+    /* Character image */
     .character-image {
       width: 240px;
       height: 400px;
@@ -78,7 +78,7 @@
       border-radius: 12px;
     }
 
-    /* ================= LEVEL BAR ===================== */
+    /* Level bar */
     .level-bar-container {
       width: 100%;
       height: 26px;
@@ -87,6 +87,7 @@
       border-radius: 12px;
       position: relative;
       overflow: hidden;
+      margin-bottom: 25px;
     }
 
     .level-bar-fill {
@@ -104,12 +105,12 @@
       text-shadow: 0 0 12px gold;
     }
 
-    /* ================= MISSIONS KARUSSELL ===================== */
+    /* Carousel */
     .carousel-wrapper {
       position: relative;
       overflow: hidden;
       width: 100%;
-      height: 440px;
+      height: 480px;
     }
 
     .carousel-track {
@@ -120,8 +121,8 @@
 
     .mission-card {
       min-width: 100%;
-      padding: 10px;
       box-sizing: border-box;
+      padding: 10px;
       text-align: center;
     }
 
@@ -148,12 +149,12 @@
       z-index: 10;
     }
 
+    .carousel-btn.prev { left: 10px; }
+    .carousel-btn.next { right: 10px; }
+
     .carousel-btn:hover {
       background: rgba(90, 70, 160, 0.8);
     }
-
-    .carousel-btn.prev { left: 10px; }
-    .carousel-btn.next { right: 10px; }
 
     .dots {
       text-align: center;
@@ -176,7 +177,7 @@
       border-radius: 8px;
     }
 
-    /* UPLOAD GRID */
+    /* uploads */
     .upload-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -196,9 +197,9 @@
       object-fit: cover;
       border-radius: 6px;
     }
-
   </style>
 </head>
+
 <body>
 
 <header>
@@ -208,24 +209,19 @@
 
 <div class="container">
 
-  <!-- CHARACTER IMAGE -->
-  <img id="characterImage" class="character-image" src="" alt="Character">
+  <img id="characterImage" class="character-image" src="" alt="character">
 
-  <!-- LEVEL BAR -->
   <div class="level-bar-container">
     <div id="levelFill" class="level-bar-fill"></div>
     <div class="level-star">★</div>
   </div>
 
-  <!-- USER INFO -->
   <h2>Dein Status</h2>
   <div class="card" id="userCard"></div>
 
-  <!-- TRAITS & ITEMS -->
   <h2>Eigenschaften & Items</h2>
   <div class="card" id="traitsItemsCard"></div>
 
-  <!-- MISSIONS -->
   <h2>Missionen</h2>
 
   <div class="carousel-wrapper">
@@ -237,11 +233,9 @@
 
   <div id="dots" class="dots"></div>
 
-  <!-- XP LOG -->
   <h2>Deine XP-History</h2>
   <div id="xpLog"></div>
 
-  <!-- UPLOADS -->
   <h2>Deine Uploads</h2>
   <div class="upload-grid" id="uploadGrid"></div>
 
@@ -254,6 +248,7 @@ async function logout() {
 }
 
 let missions = [];
+let xpPerMission = {};
 let currentMission = 0;
 
 async function loadMe() {
@@ -261,21 +256,17 @@ async function loadMe() {
   const data = await r.json();
   const u = data.user;
 
-  // CHARACTER IMAGE
   document.getElementById("characterImage").src =
     data.character ? data.character.image_url : "";
 
-  // USER CARD
   document.getElementById("userCard").innerHTML = `
     <b>Name:</b> ${u.name}<br>
     <b>XP:</b> ${u.xp}<br>
     <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
   `;
 
-  // LEVEL BAR
   updateLevelBar(u.xp, data.levels);
 
-  // TRAITS + ITEMS
   document.getElementById("traitsItemsCard").innerHTML = `
     <b>Eigenschaften:</b><br>
     ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
@@ -283,7 +274,6 @@ async function loadMe() {
     ${data.items.map(i => "• " + i).join("<br>")}
   `;
 
-  // XP LOG
   const xpDiv = document.getElementById("xpLog");
   xpDiv.innerHTML = "";
   data.xp_log.forEach(entry => {
@@ -295,7 +285,6 @@ async function loadMe() {
       </div>`;
   });
 
-  // UPLOADS
   const up = document.getElementById("uploadGrid");
   up.innerHTML = "";
   data.uploads.forEach(upl => {
@@ -332,7 +321,19 @@ function updateLevelBar(xp, levels) {
     Math.max(5, Math.min(100, progress * 100)) + "%";
 }
 
+async function loadMissionXP() {
+  const r = await fetch("/api/student/missionXP");
+  const arr = await r.json();
+
+  xpPerMission = {};
+  arr.forEach(row => {
+    xpPerMission[row.mission_id] = Number(row.total_xp);
+  });
+}
+
 async function loadMissions() {
+  await loadMissionXP();
+
   const r = await fetch("/api/student/missions");
   missions = await r.json();
 
@@ -343,11 +344,13 @@ async function loadMissions() {
   dots.innerHTML = "";
 
   missions.forEach((m, i) => {
+    const earned = xpPerMission[m.id] || 0;
+
     track.innerHTML += `
       <div class="mission-card">
         ${m.image_url ? `<img class="mission-img" src="${m.image_url}">` : ""}
         <h3>${m.name}</h3>
-        <div><b>${m.xp} XP</b></div>
+        <div><b>${m.xp} XP</b> (davon erhalten: <b>${earned}</b>)</div>
         ${m.require_upload ? `<p style="color:#fca5a5;">📎 Upload erforderlich</p>` : ""}
         ${m.require_upload ? `
           <input type="file" id="upload_${m.id}">
@@ -367,9 +370,7 @@ function updateCarousel() {
   track.style.transform = `translateX(-${currentMission * 100}%)`;
 
   const dots = document.querySelectorAll(".dot");
-  dots.forEach((d, i) => {
-    d.classList.toggle("active", i === currentMission);
-  });
+  dots.forEach((d, i) => d.classList.toggle("active", i === currentMission));
 }
 
 function nextMission() {
@@ -382,7 +383,7 @@ function prevMission() {
   updateCarousel();
 }
 
-// SWIPE SUPPORT
+// swipe
 let startX = 0;
 
 document.addEventListener("touchstart", e => {
@@ -413,6 +414,7 @@ async function uploadMission(missionId) {
   if (data.success) {
     alert("Upload erfolgreich!");
     loadMe();
+    loadMissions();
   } else {
     alert("Upload fehlgeschlagen.");
   }
