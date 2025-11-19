@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (mit Levelsystem & Traits/Items)
+// Temple of Logic – SERVER.JS (mit Levelsystem, minimaler Fix)
 // =======================================================
 
 import express from "express";
@@ -78,62 +78,8 @@ async function ensureColumn(table, col, type) {
   `);
 }
 
-// -------------------------------------------------------
-// Traits / Items – Pools
-// -------------------------------------------------------
-const TRAITS = [
-  "Neugierig – stellt viele Fragen",
-  "Ausdauernd – gibt nicht auf",
-  "Kreativ – findet ungewöhnliche Wege",
-  "Hilfsbereit – unterstützt andere",
-  "Strukturiert – plant Aufgaben klar durch",
-  "Risikofreudig – probiert neue Strategien aus",
-  "Ruhig – bleibt gelassen bei Fehlern",
-  "Zielstrebig – arbeitet konsequent auf das Ziel hin",
-  "Analytisch – zerlegt Probleme in kleine Teile",
-  "Teamorientiert – kooperiert gerne mit anderen",
-  "Selbstkritisch – reflektiert eigene Arbeit ehrlich",
-  "Optimistisch – sieht in jeder Aufgabe eine Chance",
-  "Aufmerksam – erkennt Details, die andere übersehen",
-  "Pragmatisch – wählt den einfachsten funktionierenden Weg",
-  "Mutig – stellt sich schwierigen Herausforderungen",
-  "Sorgfältig – achtet auf Genauigkeit",
-  "Logisch denkend – denkt Schritt für Schritt",
-  "Erfinderisch – entwickelt neue Lösungsstrategien",
-  "Geduldig – arbeitet ruhig und konzentriert",
-  "Inspirierend – motiviert andere durch eigenes Vorbild",
-];
-
-const ITEMS = [
-  "Zirkel der Präzision",
-  "Rechenamulett",
-  "Logikstein",
-  "Notizrolle der Klarheit",
-  "Schutzbrille der Konzentration",
-  "Zauberstift des Beweises",
-  "Kompass der Richtung",
-  "Rucksack der Ideen",
-  "Lineal des Gleichgewichts",
-  "Lampe des Einfalls",
-  "Formelbuch des Wissens",
-  "Tasche der Zufälle",
-  "Würfel der Wahrscheinlichkeit",
-  "Chronometer der Geduld",
-  "Mantel der Logik",
-  "Rechenbrett des Ausgleichs",
-  "Trank der Übersicht",
-  "Kristall des Beweises",
-  "Talisman der Motivation",
-  "Zauberstab des Verständnisses",
-];
-
-function pickThree(arr) {
-  const copy = [...arr].sort(() => Math.random() - 0.5);
-  return copy.slice(0, 3);
-}
-
 // =======================================================
-// LEVEL-FUNKTIONEN (ohne LATERAL-Quatsch)
+// LEVEL-FUNKTIONEN
 // =======================================================
 
 // Level für EINEN Schüler neu berechnen
@@ -152,9 +98,7 @@ async function updateStudentLevel(studentId) {
 
   let levelId = null;
   for (const lvl of levelRes.rows) {
-    if (xp >= lvl.min_xp) {
-      levelId = lvl.id;
-    }
+    if (xp >= lvl.min_xp) levelId = lvl.id;
   }
 
   await pool.query(
@@ -181,13 +125,9 @@ async function recalcAllStudentLevels() {
 
   for (const u of usersRes.rows) {
     let levelId = null;
-
     for (const lvl of levels) {
-      if (u.xp >= lvl.min_xp) {
-        levelId = lvl.id;
-      }
+      if (u.xp >= lvl.min_xp) levelId = lvl.id;
     }
-
     await pool.query(
       "UPDATE users SET level_id=$1 WHERE id=$2",
       [levelId, u.id]
@@ -227,8 +167,6 @@ async function migrate() {
   await ensureColumn("users", "xp", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("users", "character_id", "INTEGER");
   await ensureColumn("users", "level_id", "INTEGER");
-  await ensureColumn("users", "traits", "JSONB");
-  await ensureColumn("users", "items", "JSONB");
 
   // UNIQUE (name,class)
   await pool.query(`
@@ -340,7 +278,7 @@ app.post("/api/login", async (req, res) => {
     [username]
   );
 
-  if (r.rows.length === 0) return res.json({ success: false });
+  if (!r.rows.length) return res.json({ success: false });
 
   const user = r.rows[0];
   if (user.password !== password) return res.json({ success: false });
@@ -399,7 +337,6 @@ app.delete("/api/class/:id", isAdmin, async (req, res) => {
   await pool.query("DELETE FROM users WHERE class_id=$1 AND role='student'", [
     classId,
   ]);
-
   await pool.query("DELETE FROM classes WHERE id=$1", [classId]);
 
   res.json({ success: true });
@@ -477,7 +414,6 @@ async function logXP(studentId, amount, missionId, source, adminId) {
 app.post("/api/xp", isAdmin, async (req, res) => {
   const { studentId, xp } = req.body;
   const delta = Number(xp);
-
   if (!studentId || isNaN(delta)) return res.json({ success: false });
 
   await pool.query("UPDATE users SET xp=xp+$1 WHERE id=$2", [
@@ -514,7 +450,7 @@ app.post("/api/xpmission", isAdmin, async (req, res) => {
 });
 
 // =======================================================
-// UPLOADS
+// UPLOADS (Schüler)
 // =======================================================
 app.post(
   "/api/student/upload",
@@ -591,6 +527,13 @@ app.delete("/api/upload/:studentId", isAdmin, async (req, res) => {
 // =======================================================
 // MISSIONEN
 // =======================================================
+
+// WICHTIG: nicht mehr isAdmin, damit Schüler Missionsliste sehen können
+app.get("/api/missions", async (_req, res) => {
+  const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
+  res.json(r.rows);
+});
+
 app.post(
   "/api/missions/upload",
   isAdmin,
@@ -633,11 +576,6 @@ app.post("/api/missions", isAdmin, async (req, res) => {
   );
 
   res.json({ success: true });
-});
-
-app.get("/api/missions", isAdmin, async (_req, res) => {
-  const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
-  res.json(r.rows);
 });
 
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
@@ -863,46 +801,8 @@ app.post("/api/levels", isAdmin, async (req, res) => {
 
 app.delete("/api/levels/:id", isAdmin, async (req, res) => {
   await pool.query("DELETE FROM levels WHERE id=$1", [req.params.id]);
-
   await recalcAllStudentLevels();
-
   res.json({ success: true });
-});
-
-// =======================================================
-// STUDENT: FIRST LOGIN (Charakter + Traits + Items zuweisen)
-// =======================================================
-app.post("/api/student/firstLogin", isStudent, async (req, res) => {
-  const id = req.session.user.id;
-
-  const r = await pool.query(
-    "SELECT character_id, traits, items FROM users WHERE id=$1",
-    [id]
-  );
-  if (!r.rows.length) return res.json({ success: false });
-
-  const u = r.rows[0];
-
-  // Wenn alles schon gesetzt → nichts tun
-  if (u.character_id && u.traits && u.items) {
-    return res.json({ assigned: false });
-  }
-
-  // Random Character
-  const chars = await pool.query(
-    "SELECT id FROM characters ORDER BY RANDOM() LIMIT 1"
-  );
-  const characterId = chars.rows.length ? chars.rows[0].id : null;
-
-  const traits = pickThree(TRAITS);
-  const items = pickThree(ITEMS);
-
-  await pool.query(
-    "UPDATE users SET character_id=$1, traits=$2, items=$3 WHERE id=$4",
-    [characterId, JSON.stringify(traits), JSON.stringify(items), id]
-  );
-
-  res.json({ assigned: true });
 });
 
 // =======================================================
@@ -911,22 +811,17 @@ app.post("/api/student/firstLogin", isStudent, async (req, res) => {
 app.get("/api/student/me", isStudent, async (req, res) => {
   const id = req.session.user.id;
 
-  const userRes = await pool.query(
+  const user = await pool.query(
     `
     SELECT 
-      u.id, u.name, u.xp, 
-      u.character_id, u.level_id,
-      u.traits, u.items,
-      l.name AS level_name, 
-      l.min_xp AS level_min_xp
+      u.id, u.name, u.xp, u.character_id, u.level_id,
+      l.name AS level_name, l.min_xp AS level_min_xp
     FROM users u
     LEFT JOIN levels l ON u.level_id = l.id
     WHERE u.id=$1
   `,
     [id]
   );
-
-  const user = userRes.rows[0];
 
   const uploads = await pool.query(
     `
@@ -961,7 +856,7 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   );
 
   res.json({
-    user,
+    user: user.rows[0],
     uploads: uploads.rows,
     xp_log: xpLog.rows,
     character: character.rows[0] || null,
@@ -986,5 +881,5 @@ app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
 // START
 // =======================================================
 app.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Server läuft auf Port 8080 (mit Levelsystem & Traits/Items)");
+  console.log("🚀 Server läuft auf Port 8080 (mit Levelsystem)");
 });

@@ -312,11 +312,6 @@
   let missions = [];
   let currentMissionIndex = 0;
 
-  async function ensureFirstLogin() {
-    // weist ggf. Charakter, Traits und Items zu
-    await fetch("/api/student/firstLogin", { method: "POST" }).catch(() => {});
-  }
-
   async function loadStudent() {
     const res = await fetch("/api/student/me");
     if (!res.ok) {
@@ -349,25 +344,33 @@
     const levelName = user.level_name ? user.level_name : "Kein Level";
     document.getElementById("levelText").textContent = `Level: ${levelName}`;
 
-    // Traits
+    // Traits – optional
     const traitsBox = document.getElementById("traitsBox");
     traitsBox.innerHTML = "";
-    (user.traits || []).forEach(t => {
-      const span = document.createElement("div");
-      span.className = "trait-badge";
-      span.textContent = t;
-      traitsBox.appendChild(span);
-    });
+    if (user.traits && Array.isArray(user.traits) && user.traits.length) {
+      user.traits.forEach(t => {
+        const span = document.createElement("div");
+        span.className = "trait-badge";
+        span.textContent = t;
+        traitsBox.appendChild(span);
+      });
+    } else {
+      traitsBox.innerHTML = "<i>Noch keine Eigenschaften hinterlegt.</i>";
+    }
 
-    // Items
+    // Items – optional
     const itemsGrid = document.getElementById("itemsGrid");
     itemsGrid.innerHTML = "";
-    (user.items || []).forEach(i => {
-      const div = document.createElement("div");
-      div.className = "item-card";
-      div.textContent = i;
-      itemsGrid.appendChild(div);
-    });
+    if (user.items && Array.isArray(user.items) && user.items.length) {
+      user.items.forEach(i => {
+        const div = document.createElement("div");
+        div.className = "item-card";
+        div.textContent = i;
+        itemsGrid.appendChild(div);
+      });
+    } else {
+      itemsGrid.innerHTML = "<div class='item-card'><i>Noch keine Ausrüstung hinterlegt.</i></div>";
+    }
 
     // Erhaltene Missionen (aus xp_log, nur source="mission")
     const missionList = document.getElementById("missionList");
@@ -442,14 +445,14 @@
   }
 
   document.getElementById("prevMission").addEventListener("click", () => {
-    if (!missions || missions.length === 0) return;
+    if (!missions.length) return;
     currentMissionIndex =
       (currentMissionIndex - 1 + missions.length) % missions.length;
     updateCarouselPosition();
   });
 
   document.getElementById("nextMission").addEventListener("click", () => {
-    if (!missions || missions.length === 0) return;
+    if (!missions.length) return;
     currentMissionIndex = (currentMissionIndex + 1) % missions.length;
     updateCarouselPosition();
   });
@@ -502,7 +505,6 @@
 
   // Init
   (async () => {
-    await ensureFirstLogin();
     await loadStudent();
   })();
 </script>
