@@ -735,7 +735,823 @@ async function redeemReward(id) {
   const data = await r.json();
   if (data.success) {
     alert("Belohnung eingelöst!");
+    loadMe();<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Temple of Logic – Schüler</title>
+
+  <style>
+    /* ============================================
+       GLOBAL – Dark Fantasy Background
+       -> Lege z.B. public/library-fantasy-bg.jpg an
+    ============================================ */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at 10% 0%, rgba(76,29,149,0.7) 0, transparent 55%),
+        radial-gradient(circle at 90% 100%, rgba(30,64,175,0.7) 0, transparent 55%),
+        url("library-fantasy-bg.jpg") center/cover no-repeat fixed;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      display: flex;
+      overflow: hidden;
+      transition: margin-left 0.3s ease;
+    }
+
+    /* ============================================
+       SIDEBAR – angelehnt an Admin
+    ============================================ */
+    .sidebar {
+      width: 260px;
+      background:
+        radial-gradient(circle at top left, #020617 0, #020617 40%, #020617 100%);
+      border-right: 1px solid rgba(148,163,255,0.35);
+      box-shadow: 8px 0 35px rgba(15,23,42,0.9);
+      backdrop-filter: blur(10px);
+      padding: 20px 14px 16px 14px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      z-index: 15;
+    }
+
+    .sidebar-avatar-wrap {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    .sidebar-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(251,191,36,0.8);
+      box-shadow: 0 0 25px rgba(251,191,36,0.9);
+      background: radial-gradient(circle at 30% 20%, #facc15, #f97316 30%, #4c1d95 70%, #020617 100%);
+    }
+
+    .sidebar-title {
+      text-align: center;
+      font-size: 14px;
+      letter-spacing: 0.22em;
+      color: #e5e7eb;
+      margin-bottom: 18px;
+    }
+
+    .menu-list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .menu-item {
+      padding: 10px 16px;
+      margin: 0 2px;
+      cursor: pointer;
+      font-size: 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(129,140,248,0.4);
+      background: radial-gradient(circle at left, rgba(15,23,42,0.95), rgba(15,23,42,0.9));
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: 0.2s;
+    }
+
+    .menu-item::before {
+      content: "◆";
+      font-size: 10px;
+      opacity: 0.7;
+    }
+
+    .menu-item:hover {
+      border-color: rgba(196,181,253,0.8);
+      box-shadow: 0 0 12px rgba(129,140,248,0.8);
+      transform: translateY(-1px);
+    }
+
+    .menu-item.active {
+      background: radial-gradient(circle at left, rgba(129,140,248,0.7), rgba(30,64,175,0.9));
+      border-color: rgba(250,204,21,0.9);
+      box-shadow: 0 0 16px rgba(250,204,21,0.7);
+    }
+
+    .logout-btn {
+      margin: 10px 4px 0 4px;
+      padding: 10px 16px;
+      font-size: 14px;
+      border: none;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #020617, #111827);
+      color: #f9fafb;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(15,23,42,0.9);
+      transition: 0.2s;
+      text-align: center;
+    }
+
+    .logout-btn:hover {
+      background: linear-gradient(135deg, #111827, #1f2937);
+      box-shadow: 0 0 16px rgba(15,23,42,1);
+    }
+
+    /* ============================================
+       MOBILE HEADER
+    ============================================ */
+    .mobile-header {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 54px;
+      background: rgba(10, 10, 35, 0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(120, 90, 200, 0.35);
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      z-index: 20;
+    }
+
+    .mobile-title {
+      font-size: 16px;
+      letter-spacing: 0.12em;
+      color: #e5e7eb;
+    }
+
+    .burger {
+      width: 26px;
+      height: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .burger span {
+      height: 3px;
+      border-radius: 999px;
+      background: #e5e7eb;
+    }
+
+    .mobile-logout-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 11px;
+      background: #111827;
+      color: #e5e7eb;
+      cursor: pointer;
+    }
+
+    /* ============================================
+       MAIN AREA
+    ============================================ */
+    .main-area {
+      flex: 1;
+      padding: 25px 40px;
+      overflow-y: auto;
+    }
+
+    h1 {
+      font-size: 26px;
+      letter-spacing: 0.12em;
+      margin-top: 0;
+      margin-bottom: 24px;
+      color: #f3e8ff;
+      text-shadow: 0 0 12px rgba(129,140,248,0.9);
+    }
+
+    h2 {
+      margin-top: 0;
+      color: #e0e7ff;
+      border-bottom: 1px solid #5841a9;
+      padding-bottom: 4px;
+    }
+
+    .card {
+      background: rgba(10, 10, 35, 0.84);
+      padding: 18px;
+      border: 1px solid rgba(140, 110, 255, 0.35);
+      border-radius: 14px;
+      margin-bottom: 25px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 0 24px rgba(15,23,42,0.9);
+    }
+
+    /* ============================================
+       CHARACTER IMAGE & TRAITS
+    ============================================ */
+    .char-img {
+      width: 240px;
+      height: 400px;
+      object-fit: cover;
+      margin-bottom: 14px;
+      border-radius: 14px;
+      box-shadow: 0 0 24px rgba(129,140,248,0.8);
+      display: block;
+    }
+
+    .character-wrapper {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    /* ============================================
+       LEVEL BAR – MULTI-STEP
+    ============================================ */
+    .level-step-container {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .level-step {
+      width: 60px;
+      height: 10px;
+      background: #020617;
+      border-radius: 5px;
+      border: 1px solid #4c1d95;
+      overflow: hidden;
+    }
+
+    .level-step-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #7c3aed, #a78bfa);
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .level-step-star {
+      font-size: 20px;
+      color: gold;
+      text-shadow: 0 0 8px rgba(250,204,21,0.8);
+    }
+
+    /* ============================================
+       CAROUSEL
+    ============================================ */
+    .carousel-wrapper {
+      position: relative;
+      width: 300px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .carousel-item {
+      display: none;
+    }
+
+    .carousel-item.active {
+      display: block;
+    }
+
+    .mission-img {
+      width: 240px;
+      height: 400px;
+      object-fit: cover;
+      border-radius: 14px;
+      margin-bottom: 10px;
+      box-shadow: 0 0 18px rgba(120,80,255,0.65);
+    }
+
+    .carousel-arrow {
+      font-size: 30px;
+      cursor: pointer;
+      user-select: none;
+      padding: 5px 12px;
+      color: #e5e7eb;
+      transition: 0.2s;
+    }
+
+    .carousel-arrow:hover {
+      color: #a78bfa;
+      text-shadow: 0 0 10px rgba(167,139,250,0.9);
+    }
+
+    .dot-container {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #4c1d95;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .dot.active {
+      background: #a78bfa;
+      box-shadow: 0 0 6px #a78bfa;
+    }
+
+    /* ============================================
+       FILE UPLOAD – CUSTOM STYLE
+    ============================================ */
+    .file-upload {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .file-label {
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid #6366f1;
+      background: rgba(15,23,42,0.9);
+      color: #e5e7eb;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .file-label:hover {
+      background: rgba(55,65,81,0.95);
+      box-shadow: 0 0 10px rgba(99,102,241,0.7);
+    }
+
+    .file-name {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+
+    .btn-primary {
+      border: none;
+      margin-top: 4px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      color: #f9fafb;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: 0 0 12px rgba(59,130,246,0.7);
+      transition: 0.2s;
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #3b82f6, #a855f7);
+      box-shadow: 0 0 16px rgba(129,140,248,0.9);
+    }
+
+    /* ============================================
+       XP-Upload-Grid (falls du wieder nutzt)
+    ============================================ */
+    .upload-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 14px;
+    }
+
+    .upload-card {
+      background: rgba(10, 10, 35, 0.7);
+      border: 1px solid rgba(140,110,255,0.3);
+      border-radius: 10px;
+      padding: 8px;
+      backdrop-filter: blur(5px);
+    }
+
+    .upload-card img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+
+    /* ============================================
+       RESPONSIVE
+    ============================================ */
+    @media (max-width: 900px) {
+      body {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: -270px;
+        bottom: 0;
+        height: 100%;
+        transition: left 0.3s ease;
+      }
+
+      body.menu-open .sidebar {
+        left: 0;
+      }
+
+      .mobile-header {
+        display: flex;
+      }
+
+      .main-area {
+        padding: 70px 18px 20px 18px;
+      }
+
+      h1 {
+        display: none;
+      }
+
+      .character-wrapper {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- MOBILE HEADER -->
+  <div class="mobile-header">
+    <div class="burger" onclick="toggleMenu()">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+    <div class="mobile-title">TEMPLE OF LOGIC</div>
+    <button class="mobile-logout-btn" onclick="logout()">Logout</button>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-avatar-wrap">
+      <img id="sidebarCharacter" class="sidebar-avatar" src="" alt="Charakter">
+    </div>
+    <div class="sidebar-title">TEMPLE OF LOGIC</div>
+
+    <div class="menu-list">
+      <div class="menu-item active" onclick="showSection(event,'status')">Status</div>
+      <div class="menu-item" onclick="showSection(event,'charakter')">Charakter</div>
+      <div class="menu-item" onclick="showSection(event,'missionen')">Missionen</div>
+      <div class="menu-item" onclick="showSection(event,'belohnungen')">Belohnungen</div>
+      <div class="menu-item" onclick="showSection(event,'xp')">XP-Historie</div>
+    </div>
+
+    <button class="logout-btn" onclick="logout()">Logout</button>
+  </div>
+
+  <!-- MAIN AREA -->
+  <div class="main-area">
+    <h1>TEMPLE OF LOGIC</h1>
+
+    <!-- STATUS -->
+    <div id="status-section" class="card section">
+      <h2>Status</h2>
+      <div id="userCard"></div>
+      <div id="levelBar" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- CHARAKTER -->
+    <div id="charakter-section" class="card section" style="display:none;">
+      <h2>Charakter</h2>
+      <div class="character-wrapper">
+        <div id="characterInfo"></div>
+        <div id="traitsItemsCard"></div>
+      </div>
+    </div>
+
+    <!-- MISSIONEN -->
+    <div id="missionen-section" class="card section" style="display:none;">
+      <h2>Missionen</h2>
+      <div id="missionCarousel"></div>
+    </div>
+
+    <!-- BELOHNUNGEN -->
+    <div id="belohnungen-section" class="card section" style="display:none;">
+      <h2>Belohnungen</h2>
+      <div id="rewardCarousel"></div>
+    </div>
+
+    <!-- XP LOG -->
+    <div id="xp-section" class="card section" style="display:none;">
+      <h2>XP-Historie</h2>
+      <div id="xpLog"></div>
+    </div>
+  </div>
+
+<script>
+/* ============================================
+   MENU + SECTIONS
+============================================ */
+function toggleMenu() {
+  document.body.classList.toggle("menu-open");
+}
+
+function showSection(ev, name) {
+  document.querySelectorAll(".section").forEach(s => s.style.display = "none");
+  document.getElementById(name + "-section").style.display = "block";
+
+  document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
+  if (ev && ev.target) ev.target.classList.add("active");
+
+  if (window.innerWidth <= 900) {
+    document.body.classList.remove("menu-open");
+  }
+}
+
+/* ============================================
+   LOGOUT
+============================================ */
+async function logout() {
+  await fetch("/api/logout", { method: "POST" });
+  location.href = "/login.html";
+}
+
+/* ============================================
+   LOAD STUDENT DATA
+============================================ */
+let xpPerMission = {};
+
+async function loadMe() {
+  const r = await fetch("/api/student/me");
+  const data = await r.json();
+
+  const u = data.user;
+
+  // STATUS
+  document.getElementById("userCard").innerHTML = `
+    <b>Name:</b> ${u.name}<br>
+    <b>XP:</b> ${u.xp}<br>
+    <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
+  `;
+
+  // CHARAKTER + Avatar in Sidebar
+  const charDiv = document.getElementById("characterInfo");
+  const sidebarChar = document.getElementById("sidebarCharacter");
+
+  if (data.character) {
+    charDiv.innerHTML = `
+      <img class="char-img" src="${data.character.image_url}" alt="Charakter">
+      <div><b>${data.character.name}</b></div>
+    `;
+    if (sidebarChar) {
+      sidebarChar.src = data.character.image_url;
+      sidebarChar.style.visibility = "visible";
+    }
+  } else {
+    charDiv.innerHTML = "Kein Charakter gewählt.";
+    if (sidebarChar) {
+      sidebarChar.style.visibility = "hidden";
+    }
+  }
+
+  // TRAITS + ITEMS
+  document.getElementById("traitsItemsCard").innerHTML = `
+    <b>Eigenschaften:</b><br>
+    ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
+    <b>Items:</b><br>
+    ${data.items.map(i => "• " + i).join("<br>")}
+  `;
+
+  // XP PER MISSION (Objekt {mission_id: xpSum})
+  xpPerMission = data.xp_per_mission || {};
+
+  // XP LOG
+  const xpDiv = document.getElementById("xpLog");
+  xpDiv.innerHTML = "";
+  data.xp_log.forEach(entry => {
+    const d = new Date(entry.created_at).toLocaleString("de-DE");
+    xpDiv.innerHTML += `
+      <div style="padding:8px;border-bottom:1px solid #5841a9;font-size:14px;">
+        <b>${entry.amount} XP</b> – ${entry.mission_name || entry.source}<br>
+        <span style="opacity:0.7;">${d}</span>
+      </div>
+    `;
+  });
+
+  // LEVEL BAR
+  renderLevelBar(data.levels || [], u.xp);
+}
+
+function renderLevelBar(levels, xp) {
+  if (!levels || !levels.length) {
+    document.getElementById("levelBar").innerHTML = "<i>Noch keine Level definiert.</i>";
+    return;
+  }
+
+  let html = `<div class="level-step-container">`;
+
+  for (let i = 0; i < levels.length; i++) {
+    if (i > 0) html += `<div class="level-step-star">★</div>`;
+
+    const min = levels[i].min_xp;
+    const next = levels[i + 1]?.min_xp ?? (min || 1);
+    let pct = 0;
+
+    if (xp >= min) {
+      if (next > min) {
+        pct = Math.min(100, ((xp - min) / (next - min)) * 100);
+      } else {
+        pct = 100;
+      }
+    }
+
+    html += `
+      <div class="level-step">
+        <div class="level-step-fill" style="width:${pct}%"></div>
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+  document.getElementById("levelBar").innerHTML = html;
+}
+
+/* ============================================
+   MISSIONS & REWARDS
+============================================ */
+async function loadMissions() {
+  const r = await fetch("/api/student/missions");
+  const missions = await r.json();
+  renderCarousel("missionCarousel", missions, "mission");
+}
+
+async function loadRewards() {
+  const r = await fetch("/api/student/rewards");
+  const rewards = await r.json();
+  renderCarousel("rewardCarousel", rewards, "reward");
+}
+
+/* ============================================
+   GENERIC CAROUSEL
+============================================ */
+function renderCarousel(containerId, items, type) {
+  const container = document.getElementById(containerId);
+
+  if (!items || !items.length) {
+    container.innerHTML = "<i>Keine Einträge vorhanden.</i>";
+    return;
+  }
+
+  let slides = "";
+  items.forEach((item, idx) => {
+    slides += `
+      <div class="carousel-item ${idx === 0 ? "active" : ""}">
+        ${item.image_url ? `<img class="mission-img" src="${item.image_url}" alt="${item.name}">` : ""}
+        <h3 style="margin:8px 0 2px 0;">${item.name}</h3>
+        <div><b>${item.xp} XP</b></div>
+        ${type === "mission" ? `
+          <div style="margin-top:4px;font-size:13px;">
+            Bereits erhalten: <b>${xpPerMission[item.id] || 0} XP</b>
+          </div>
+        ` : ""}
+        ${type === "mission" && item.require_upload ? `
+          <div class="file-upload">
+            <input type="file" id="upload_${item.id}" class="file-input" onchange="updateFileLabel(${item.id})">
+            <label for="upload_${item.id}" class="file-label">Datei auswählen</label>
+            <span id="file-name-${item.id}" class="file-name">Keine Datei ausgewählt</span>
+            <button class="btn-primary" onclick="uploadMission(${item.id})">Upload senden</button>
+          </div>
+        ` : ""}
+        ${type === "reward" ? `
+          <button class="btn-primary" onclick="redeemReward(${item.id})" style="margin-top:10px;">Belohnung einlösen</button>
+        ` : ""}
+      </div>
+    `;
+  });
+
+  let dots = "";
+  items.forEach((_, idx) => {
+    dots += `<div class="dot ${idx === 0 ? "active" : ""}" onclick="jumpSlide('${containerId}', ${idx})"></div>`;
+  });
+
+  container.innerHTML = `
+    <div class="carousel-wrapper">
+      <span class="carousel-arrow" onclick="prevSlide('${containerId}')">&#10094;</span>
+      ${slides}
+      <span class="carousel-arrow" onclick="nextSlide('${containerId}')">&#10095;</span>
+    </div>
+    <div class="dot-container">${dots}</div>
+  `;
+}
+
+/* ============================================
+   CAROUSEL CONTROLS
+============================================ */
+function nextSlide(id) {
+  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
+  let index = items.findIndex(i => i.classList.contains("active"));
+  items[index].classList.remove("active");
+  index = (index + 1) % items.length;
+  items[index].classList.add("active");
+  updateDots(id, index);
+}
+
+function prevSlide(id) {
+  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
+  let index = items.findIndex(i => i.classList.contains("active"));
+  items[index].classList.remove("active");
+  index = (index - 1 + items.length) % items.length;
+  items[index].classList.add("active");
+  updateDots(id, index);
+}
+
+function jumpSlide(id, idx) {
+  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
+  items.forEach(i => i.classList.remove("active"));
+  items[idx].classList.add("active");
+  updateDots(id, idx);
+}
+
+function updateDots(id, idx) {
+  const dots = [...document.querySelectorAll(`#${id} .dot`)];
+  dots.forEach(d => d.classList.remove("active"));
+  if (dots[idx]) dots[idx].classList.add("active");
+}
+
+/* ============================================
+   FILE LABEL UPDATE
+============================================ */
+function updateFileLabel(missionId) {
+  const input = document.getElementById(`upload_${missionId}`);
+  const span = document.getElementById(`file-name-${missionId}`);
+  if (!input || !span) return;
+  span.textContent = input.files.length ? input.files[0].name : "Keine Datei ausgewählt";
+}
+
+/* ============================================
+   UPLOAD MISSION
+============================================ */
+async function uploadMission(missionId) {
+  const input = document.getElementById(`upload_${missionId}`);
+  if (!input || !input.files.length) {
+    alert("Bitte eine Datei auswählen.");
+    return;
+  }
+
+  const form = new FormData();
+  form.append("image", input.files[0]);
+  form.append("missionId", missionId);
+
+  const r = await fetch("/api/student/uploadForMission", {
+    method: "POST",
+    body: form
+  });
+
+  const data = await r.json();
+  if (data.success) {
+    alert("Upload erfolgreich!");
     loadMe();
+  } else {
+    alert("Upload fehlgeschlagen.");
+  }
+}
+
+/* ============================================
+   REWARD REDEEM
+============================================ */
+async function redeemReward(id) {
+  const r = await fetch("/api/student/redeemReward", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rewardId: id })
+  });
+
+  const data = await r.json();
+  if (data.success) {
+    alert("Belohnung eingelöst!");
+    loadMe();
+    loadRewards();
+  } else {
+    alert(data.message || "Nicht genug XP oder Fehler beim Einlösen.");
+  }
+}
+
+/* ============================================
+   INIT
+============================================ */
+loadMe();
+loadMissions();
+loadRewards();
+</script>
+
+</body>
+</html>
+
     loadRewards();
   } else {
     alert(data.message || "Nicht genug XP oder Fehler beim Einlösen.");
