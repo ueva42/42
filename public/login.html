@@ -1,151 +1,171 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<title>Streets of Logic – Login</title>
+  <meta charset="UTF-8" />
+  <title>Temple of Logic – Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
 
-<style>
-/* ===========================
-   GLOBAL – Vice City Neon
-=========================== */
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  font-family: Arial, sans-serif;
-  background:
-    linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.85)),
-    url("https://images.unsplash.com/photo-1520697830682-d71a7a6a67cf?auto=format&fit=crop&w=1600&q=80")
-    center/cover no-repeat fixed;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(168,85,247,0.30), transparent 60%),
+        radial-gradient(circle at 90% 60%, rgba(59,130,246,0.28), transparent 70%),
+        #050312;
+      font-family: "Arial", sans-serif;
+      color: #eee;
+    }
 
-/* ======================================================================
-   LOGIN CARD – Neon Glow, Vice City Colors, Cartoon Outlines
-====================================================================== */
-.login-card {
-  width: 380px;
-  padding: 32px;
-  border-radius: 20px;
-  background: rgba(10, 10, 35, 0.85);
-  border: 3px solid #ff2ec6;
-  box-shadow:
-    0 0 25px #ff2ec6,
-    0 0 55px rgba(0,255,255,0.6),
-    0 0 5px #000;
-  text-align: center;
-  animation: fadeIn 1s ease;
-}
+    .login-card {
+      width: 90%;
+      max-width: 380px;
+      padding: 32px;
+      background: rgba(20, 16, 36, 0.8);
+      border: 1px solid rgba(120, 90, 200, 0.6);
+      border-radius: 18px;
+      box-shadow: 0 0 35px rgba(80, 50, 180, 0.6);
+      backdrop-filter: blur(8px);
+      animation: fadeIn 0.8s ease-out;
+    }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
 
-/* GTA Title */
-.title {
-  font-family: Impact, sans-serif;
-  font-size: 32px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  color: #f4f0ff;
-  text-shadow:
-    0 0 10px #ff2ec6,
-    0 0 15px #00eaff,
-    3px 3px #000;
-  margin-bottom: 20px;
-}
+    .logo-orb {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 20%, #facc15, #f97316 25%, #4c1d95 70%, #020617 100%);
+      box-shadow: 0 0 20px rgba(250,204,21,0.9);
+    }
 
-/* Inputs */
-input {
-  width: 88%;
-  padding: 12px;
-  margin: 10px 0;
-  font-size: 16px;
-  border-radius: 12px;
-  border: 2px solid #00eaff;
-  outline: none;
-  background: rgba(0,0,0,0.5);
-  color: #fff;
-  box-shadow: 0 0 10px rgba(0,255,255,0.4);
-}
+    h1 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 24px;
+      font-size: 22px;
+      letter-spacing: 0.1em;
+      color: #ddd6fe;
+    }
 
-input:focus {
-  border-color: #ff50ff;
-  box-shadow: 0 0 18px #ff2ec6;
-}
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 14px;
+      border-radius: 10px;
+      border: 1px solid #463c75;
+      background: #141228;
+      color: #eee;
+      font-size: 15px;
+      box-sizing: border-box;
+      outline: none;
+      transition: 0.2s;
+    }
 
-/* Login Button */
-.login-btn {
-  width: 95%;
-  margin-top: 10px;
-  padding: 14px;
-  background: linear-gradient(135deg, #ff2ec6, #00eaff);
-  border: none;
-  border-radius: 14px;
-  font-size: 18px;
-  font-weight: bold;
-  color: #1b0033;
-  cursor: pointer;
-  text-shadow: 0 0 4px #fff;
-  box-shadow:
-    0 0 12px #ff2ec6,
-    0 0 22px #00eaff;
-  transition: 0.2s;
-}
+    input:focus {
+      border-color: #8b5cf6;
+      box-shadow: 0 0 8px rgba(139,92,246,0.8);
+    }
 
-.login-btn:hover {
-  transform: scale(1.05);
-  box-shadow:
-    0 0 22px #ff2ec6,
-    0 0 42px #00eaff;
-}
-</style>
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      margin-top: 6px;
+      background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 14px rgba(140,100,255,0.5);
+    }
+
+    .error {
+      text-align: center;
+      color: #f87171;
+      margin-bottom: 10px;
+      display: none;
+    }
+
+    @media (max-width: 480px) {
+      .login-card {
+        padding: 24px;
+        max-width: 90%;
+      }
+      h1 { font-size: 19px; }
+    }
+
+  </style>
 </head>
-
 <body>
 
 <div class="login-card">
-  <div class="title">Streets of Logic</div>
+  <div class="logo-orb"></div>
+  <h1>TEMPLE OF LOGIC</h1>
 
-  <input id="username" placeholder="Benutzername" autocomplete="off">
-  <input id="password" type="password" placeholder="Passwort">
+  <div id="errorBox" class="error">Falscher Login</div>
 
-  <button class="login-btn" onclick="login()">Login</button>
+  <input id="username" placeholder="Benutzername" autocomplete="username" />
+  <input id="password" placeholder="Passwort" type="password" autocomplete="current-password" />
 
-  <div id="error" style="margin-top:10px;color:#ff7aff;display:none;">
-    Falscher Login
-  </div>
+  <button onclick="doLogin()">Login</button>
 </div>
 
 <script>
-async function login() {
+async function doLogin() {
+
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value.trim();
+  const errorBox = document.getElementById("errorBox");
 
-  const r = await fetch("/api/login", {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ username, password })
-  });
-
-  const data = await r.json();
-
-  if (!data.success) {
-    document.getElementById("error").style.display = "block";
+  if (!username || !password) {
+    errorBox.innerText = "Bitte alles ausfüllen";
+    errorBox.style.display = "block";
     return;
   }
 
-  // weiterleiten:
+  const res = await fetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
+
+  const data = await res.json();
+
+  if (!data.success) {
+    errorBox.innerText = "Login fehlgeschlagen";
+    errorBox.style.display = "block";
+    return;
+  }
+
+  // Rollenbasierte Weiterleitung:
   if (data.role === "admin") {
-    location.href = "/admin.html";
+    window.location.href = "/admin.html";
   } else {
-    location.href = "/student.html";
+    window.location.href = "/student.html";
   }
 }
+
+/* ENTER-Taste zum Einloggen */
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    doLogin();
+  }
+});
 </script>
 
 </body>
