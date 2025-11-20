@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (FINAL, CLEAN, CHARACTER-FIRST-LOGIN)
+// Temple of Logic – SERVER.JS (FINAL GTA VERSION)
 // =======================================================
 
 import express from "express";
@@ -101,7 +101,7 @@ async function updateStudentLevel(studentId) {
 
 async function recalcAllStudentLevels() {
   const levels = (
-    await pool.query("SELECT id,min_xp FROM levels ORDER BY min_xp ASC")
+    await pool.query("SELECT id,min_xp FROM levels ORDER ORDER BY min_xp ASC")
   ).rows;
   const users = (
     await pool.query("SELECT id,xp FROM users WHERE role='student'")
@@ -279,7 +279,6 @@ function isStudent(req, res, next) {
 app.get("/api/student/me", isStudent, async (req, res) => {
   const id = req.session.user.id;
 
-  // User info
   const userData = await pool.query(
     `
     SELECT u.id,u.name,u.xp,u.character_id,u.level_id,
@@ -292,8 +291,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   );
 
   const user = userData.rows[0];
-
-  // Charakter laden, aber nur wenn character_id !== null
   let character = null;
 
   if (user.character_id) {
@@ -304,7 +301,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     character = c.rows[0] || null;
   }
 
-  // Traits & Items auto-assign
   const TRAITS = [
     "Neugierig",
     "Ausdauernd",
@@ -360,7 +356,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     ]);
   }
 
-  // XP LOG
   const xpLog = await pool.query(
     `
     SELECT t.*, m.name AS mission_name
@@ -372,7 +367,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     [id]
   );
 
-  // XP pro Mission (für Anzeige im Karussell)
   const xpPerMission = await pool.query(
     `
     SELECT mission_id, SUM(amount) AS total
@@ -388,7 +382,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     xpByMission[r.mission_id] = Number(r.total);
   });
 
-  // Uploads
   const uploads = await pool.query(
     `
     SELECT su.*, m.name AS mission_name
@@ -400,7 +393,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     [id]
   );
 
-  // Level list for progress bar
   const levels = await pool.query(
     `
     SELECT id,name,min_xp
@@ -422,7 +414,7 @@ app.get("/api/student/me", isStudent, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// STUDENT – Charakter beim ersten Login auswählen
+// STUDENT Charakterliste
 // -------------------------------------------------------
 app.get("/api/student/characterList", isStudent, async (_req, res) => {
   const r = await pool.query(
@@ -447,7 +439,7 @@ app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// STUDENT – Upload
+// STUDENT Upload für Mission
 // -------------------------------------------------------
 app.post(
   "/api/student/uploadForMission",
@@ -485,7 +477,7 @@ app.post(
 );
 
 // -------------------------------------------------------
-// STUDENT – Missionen (verfügbar)
+// STUDENT Missionsliste
 // -------------------------------------------------------
 app.get("/api/student/missions", isStudent, async (_req, res) => {
   const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
@@ -493,22 +485,15 @@ app.get("/api/student/missions", isStudent, async (_req, res) => {
 });
 
 // -------------------------------------------------------
-// STUDENT – Belohnungen (Bonuskarten)
+// STUDENT Bonuskarten
 // -------------------------------------------------------
 app.get("/api/student/rewards", isStudent, async (req, res) => {
-  const id = req.session.user.id;
-  const user = (
-    await pool.query("SELECT xp FROM users WHERE id=$1", [id])
-  ).rows[0];
-
   const r = await pool.query(
     "SELECT * FROM bonuscards ORDER BY xp ASC"
   );
-
   res.json(r.rows);
 });
 
-// Einlösen
 app.post("/api/student/redeemReward", isStudent, async (req, res) => {
   const studentId = req.session.user.id;
   const { rewardId } = req.body;
@@ -530,17 +515,16 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
   if (u.xp < cost)
     return res.json({ success: false, message: "Nicht genug XP" });
 
-  // XP abziehen, Level bleibt bestehen!
-  await pool.query(
-    "UPDATE users SET xp=xp-$1 WHERE id=$2",
-    [cost, studentId]
-  );
+  await pool.query("UPDATE users SET xp=xp-$1 WHERE id=$2", [
+    cost,
+    studentId
+  ]);
 
   res.json({ success: true });
 });
 
 // -------------------------------------------------------
-// ADMIN – Klassen / Schüler etc. (keine Änderungen hier)
+// ADMIN Klassen
 // -------------------------------------------------------
 app.get("/api/class", isAdmin, async (_req, res) => {
   const r = await pool.query(
@@ -572,7 +556,9 @@ app.delete("/api/class/:id", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// STUDENT LIST (ADMIN)
+// -------------------------------------------------------
+// ADMIN Students
+// -------------------------------------------------------
 app.get("/api/student", isAdmin, async (req, res) => {
   const { classId } = req.query;
   if (!classId) return res.json([]);
@@ -660,7 +646,7 @@ app.post("/api/xpmission", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// UPLOADS ADMIN
+// ADMIN Uploads
 // -------------------------------------------------------
 app.get("/api/uploads/:studentId", isAdmin, async (req, res) => {
   const r = await pool.query(
@@ -705,7 +691,7 @@ app.delete("/api/upload/delete/:uploadId", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// MISSIONEN ADMIN
+// ADMIN – Missionen
 // -------------------------------------------------------
 let uploadedMissionImageUrl = null;
 
@@ -777,11 +763,12 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
   await pool.query("DELETE FROM missions WHERE id=$1", [
     req.params.id
   ]);
+
   res.json({ success: true });
 });
 
 // -------------------------------------------------------
-// BONUSKARTEN ADMIN
+// ADMIN – Bonuskarten
 // -------------------------------------------------------
 let uploadedBonusImageUrl = null;
 
@@ -858,7 +845,7 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// CHARACTER ADMIN
+// ADMIN – Charaktere
 // -------------------------------------------------------
 let uploadedCharacterImageUrl = null;
 
@@ -970,8 +957,28 @@ app.delete("/api/levels/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
+// STATIC FRONTEND ROUTES (required!)
+// -------------------------------------------------------
+app.get("/login", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+app.get("/admin", isAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "admin.html"));
+});
+
+app.get("/student", isStudent, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "student.html"));
+});
+
+// Optional – falls du Charakterauswahl als eigene Seite willst
+app.get("/character-select", isStudent, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "character-select.html"));
+});
+
+// -------------------------------------------------------
 // START SERVER
 // -------------------------------------------------------
 app.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Server läuft auf Port 8080 (FINAL CHARACTER LOGIN VERSION)");
+  console.log("🚀 Server läuft auf Port 8080 (FINAL GTA VERSION)");
 });
