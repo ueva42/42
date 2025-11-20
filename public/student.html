@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <title>Temple of Logic – Schüler</title>
 
+  <!-- HINWEIS: Lege im Ordner /public eine Datei magic-library-bg.jpg ab
+       (dein mystischer Bibliotheks-/Tempel-Hintergrund). -->
+
   <style>
     /* ============================================
        GLOBAL – Dark Fantasy Library Background
@@ -16,8 +19,8 @@
 
     body {
       background:
-        linear-gradient(rgba(4,7,20,0.92), rgba(3,4,12,0.96)),
-        url("library-fantasy-bg.jpg") center/cover no-repeat fixed;
+        linear-gradient(rgba(0,0,0,0.78), rgba(0,0,0,0.90)),
+        url("magic-library-bg.jpg") center/cover no-repeat fixed;
       color: #eee;
       font-family: Arial, sans-serif;
       display: flex;
@@ -25,19 +28,13 @@
       transition: margin-left 0.3s ease;
     }
 
-    /* Wenn noch kein Charakter gewählt: Sidebar/Main verstecken */
-    body.no-character .sidebar,
-    body.no-character .main-area {
-      display: none;
-    }
-
     /* ============================================
-       SIDEBAR – wie Admin, aber mit Charakter-Kreis
+       SIDEBAR – ähnlich Admin, mit Charakterkreis
     ============================================ */
     .sidebar {
       width: 260px;
       background: radial-gradient(circle at top, #1f1638 0, #0b0a18 40%, #05040c 100%);
-      padding: 24px 18px;
+      padding: 20px 18px;
       height: 100vh;
       border-right: 2px solid #261b47;
       box-shadow: 0 0 25px rgba(0,0,0,0.9);
@@ -52,24 +49,46 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      margin-bottom: 10px;
     }
 
-    .sidebar-avatar {
+    .sidebar-avatar-orb {
       width: 40px;
       height: 40px;
       border-radius: 999px;
-      background-size: cover;
-      background-position: center;
-      border: 2px solid #a78bfa;
-      box-shadow: 0 0 14px rgba(167,139,250,0.9);
+      background: radial-gradient(circle at 30% 20%, #1e293b 0, #4c1d95 55%, #020617 100%);
+      box-shadow: 0 0 15px rgba(129,140,248,0.9);
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sidebar-avatar-orb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    .sidebar-avatar-orb.placeholder::after {
+      content: "?";
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 20px;
+      color: #e5e7eb;
     }
 
     .sidebar-title {
       margin: 0;
-      letter-spacing: 0.18em;
-      font-size: 14px;
+      letter-spacing: 0.28em;
+      font-size: 13px;
       text-transform: uppercase;
       color: #ddd6fe;
+      white-space: nowrap;
     }
 
     .nav-item {
@@ -83,6 +102,7 @@
       box-shadow: 0 5px 14px rgba(0,0,0,0.8);
       transition: 0.18s;
       margin-top: 6px;
+      font-size: 14px;
     }
 
     .nav-item:hover,
@@ -93,31 +113,32 @@
     }
 
     .nav-item svg {
-      width: 22px;
-      height: 22px;
+      width: 20px;
+      height: 20px;
       margin-right: 10px;
       fill: #a78bfa;
     }
 
-    .nav-label { font-size: 14px; }
+    .nav-label {
+      font-size: 14px;
+    }
 
     .logout-btn {
-      margin: auto 0 0 0;
-      padding: 9px 16px;
-      font-size: 13px;
+      margin-top: auto;
+      padding: 10px 16px;
+      font-size: 14px;
       border: none;
       border-radius: 999px;
-      background: linear-gradient(135deg, #111827, #312e81);
+      background: linear-gradient(135deg, #020617, #111827);
       color: white;
       cursor: pointer;
       box-shadow: 0 0 10px rgba(15,23,42,0.8);
       transition: 0.2s;
-      width: 100%;
       text-align: center;
     }
 
     .logout-btn:hover {
-      background: linear-gradient(135deg, #1f2937, #4338ca);
+      background: linear-gradient(135deg, #111827, #312e81);
       box-shadow: 0 0 16px rgba(79,70,229,0.7);
     }
 
@@ -141,9 +162,10 @@
     }
 
     .mobile-title {
-      font-size: 16px;
-      letter-spacing: 0.12em;
+      font-size: 14px;
+      letter-spacing: 0.22em;
       color: #e5e7eb;
+      text-transform: uppercase;
     }
 
     .burger {
@@ -166,7 +188,7 @@
       border-radius: 999px;
       padding: 6px 10px;
       font-size: 11px;
-      background: #111827;
+      background: #020617;
       color: #e5e7eb;
       cursor: pointer;
     }
@@ -176,15 +198,16 @@
     ============================================ */
     .main-area {
       flex: 1;
-      padding: 25px 40px;
+      padding: 24px 32px;
       overflow-y: auto;
+      box-sizing: border-box;
     }
 
     h1 {
-      font-size: 26px;
-      letter-spacing: 0.16em;
+      font-size: 24px;
+      letter-spacing: 0.25em;
       margin-top: 0;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       color: #ddd6fe;
       text-transform: uppercase;
     }
@@ -194,6 +217,9 @@
       color: #c4b5fd;
       border-bottom: 1px solid #5841a9;
       padding-bottom: 4px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 15px;
     }
 
     .card {
@@ -201,23 +227,19 @@
       padding: 18px;
       border: 1px solid rgba(140, 110, 255, 0.35);
       border-radius: 12px;
-      margin-bottom: 25px;
+      margin-bottom: 22px;
       backdrop-filter: blur(6px);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.7);
+      font-size: 14px;
+    }
+
+    .section {
+      /* zur Steuerung über showSection() */
     }
 
     /* ============================================
        CHARACTER IMAGE & TRAITS
     ============================================ */
-    .char-img {
-      width: 240px;
-      height: 400px;
-      object-fit: cover;
-      margin-bottom: 14px;
-      border-radius: 14px;
-      box-shadow: 0 0 24px rgba(129,140,248,0.8);
-      display: block;
-    }
-
     .character-wrapper {
       display: flex;
       gap: 20px;
@@ -225,8 +247,18 @@
       align-items: flex-start;
     }
 
+    .char-img {
+      width: 240px;
+      height: 400px;
+      object-fit: cover;
+      margin-bottom: 10px;
+      border-radius: 18px;
+      box-shadow: 0 0 26px rgba(129,140,248,0.9);
+      display: block;
+    }
+
     /* ============================================
-       LEVEL BAR – MULTI-STEP MIT STERNEN
+       LEVEL BAR – MULTI-STEP mit Sternen
     ============================================ */
     .level-step-container {
       display: flex;
@@ -239,7 +271,7 @@
     .level-step {
       width: 60px;
       height: 10px;
-      background: #111827;
+      background: #020617;
       border-radius: 5px;
       border: 1px solid #4c1d95;
       overflow: hidden;
@@ -253,13 +285,13 @@
     }
 
     .level-step-star {
-      font-size: 20px;
+      font-size: 18px;
       color: gold;
-      text-shadow: 0 0 8px rgba(250,204,21,0.8);
+      text-shadow: 0 0 8px rgba(250,204,21,0.9);
     }
 
     /* ============================================
-       CAROUSEL
+       CAROUSEL (Missionen & Belohnungen)
     ============================================ */
     .carousel-wrapper {
       position: relative;
@@ -280,9 +312,9 @@
       width: 240px;
       height: 400px;
       object-fit: cover;
-      border-radius: 14px;
+      border-radius: 18px;
       margin-bottom: 10px;
-      box-shadow: 0 0 18px rgba(120,80,255,0.65);
+      box-shadow: 0 0 20px rgba(120,80,255,0.7);
     }
 
     .carousel-arrow {
@@ -303,7 +335,7 @@
       display: flex;
       justify-content: center;
       gap: 6px;
-      margin-top: 10px;
+      margin-top: 8px;
     }
 
     .dot {
@@ -375,88 +407,89 @@
     }
 
     /* ============================================
-       XP-LOG / UPLOAD GRID
+       XP-Log
     ============================================ */
-    .upload-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 14px;
-    }
-
-    .upload-card {
-      background: rgba(10, 10, 35, 0.7);
-      border: 1px solid rgba(140,110,255,0.3);
-      border-radius: 10px;
-      padding: 8px;
-      backdrop-filter: blur(5px);
-    }
-
-    .upload-card img {
-      width: 100%;
-      height: 120px;
-      object-fit: cover;
-      border-radius: 6px;
+    .xp-entry {
+      padding: 8px 0;
+      border-bottom: 1px solid #4b3f86;
+      font-size: 13px;
     }
 
     /* ============================================
-       CHAR-SELECTION-OVERLAY (erster Login)
+       CHARAKTER-WAHL OVERLAY
     ============================================ */
-    #characterOverlay {
+    .char-overlay {
       position: fixed;
       inset: 0;
-      background: radial-gradient(circle at top, rgba(15,23,42,0.96), rgba(3,7,18,0.98));
+      background: rgba(3, 4, 12, 0.90);
+      backdrop-filter: blur(5px);
       display: none;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 200;
-      padding: 20px;
-      box-sizing: border-box;
+      z-index: 50;
     }
 
-    #characterOverlay h2 {
-      border: none;
-      margin-bottom: 8px;
+    .char-overlay-inner {
+      background: radial-gradient(circle at top, #1f1638 0, #020617 70%);
+      border: 1px solid #4c1d95;
+      border-radius: 18px;
+      padding: 22px;
+      max-width: 760px;
+      width: 90%;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.85);
     }
 
-    .char-select-subtitle {
+    .char-overlay-inner h2 {
+      border-bottom: none;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .char-overlay-inner p {
       font-size: 13px;
-      opacity: 0.8;
+      opacity: 0.9;
+      text-align: center;
       margin-bottom: 16px;
     }
 
-    .character-select-grid {
-      max-width: 900px;
-      width: 100%;
+    .character-choice-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 14px;
     }
 
-    .character-select-card {
-      background: rgba(15,23,42,0.9);
-      border-radius: 14px;
-      border: 1px solid rgba(129,140,248,0.7);
+    .character-choice-card {
+      background: rgba(10,10,35,0.8);
+      border-radius: 12px;
+      border: 1px solid #4338ca;
       padding: 10px;
       text-align: center;
       cursor: pointer;
       transition: 0.2s;
-      box-shadow: 0 0 15px rgba(15,23,42,0.9);
     }
 
-    .character-select-card img {
-      width: 100%;
-      height: 190px;
-      border-radius: 10px;
+    .character-choice-card:hover {
+      border-color: #a855f7;
+      box-shadow: 0 0 14px rgba(167,139,250,0.8);
+      transform: translateY(-2px);
+    }
+
+    .character-choice-card img {
+      width: 120px;
+      height: 200px;
       object-fit: cover;
-      margin-bottom: 8px;
-      box-shadow: 0 0 18px rgba(129,140,248,0.7);
+      border-radius: 12px;
+      margin-bottom: 6px;
+      box-shadow: 0 0 14px rgba(129,140,248,0.8);
     }
 
-    .character-select-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 0 24px rgba(167,139,250,0.9);
-      border-color: #c4b5fd;
+    .char-overlay-close {
+      margin-top: 14px;
+      text-align: center;
+      font-size: 12px;
+      opacity: 0.75;
     }
 
     /* ============================================
@@ -485,7 +518,7 @@
       }
 
       .main-area {
-        padding: 70px 18px 20px 18px;
+        padding: 70px 18px 18px 18px;
       }
 
       h1 {
@@ -513,12 +546,14 @@
   <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="sidebar-header">
-      <div id="sidebarAvatar" class="sidebar-avatar"></div>
+      <div id="sidebarAvatarOrb" class="sidebar-avatar-orb placeholder">
+        <img id="sidebarAvatarImg" alt="Avatar">
+      </div>
       <h2 class="sidebar-title">TEMPLE OF LOGIC</h2>
     </div>
 
     <div class="nav-item active" onclick="showSection(event,'status')">
-      <svg viewBox="0 0 24 24"><path d="M12 12c2.5 0 4.5-2 4.5-4.5S14.5 3 12 3 7.5 5 7.5 7.5 9.5 12 12 12zm0 1.5c-3 0-9 1.5-9 4.5V21h18v-3c0-3-6-4.5-9-4.5z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4V5zm3 4h10v2H7V9zm-3 4h16v2H4v-2zm3 4h6v2H7v-2z"/></svg>
       <span class="nav-label">Status</span>
     </div>
 
@@ -538,7 +573,7 @@
     </div>
 
     <div class="nav-item" onclick="showSection(event,'xp')">
-      <svg viewBox="0 0 24 24"><path d="M4 21h16v-2H4v2zm2-4h12v-3H6v3zm3-5h6V4H9v8z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/></svg>
       <span class="nav-label">XP-Historie</span>
     </div>
 
@@ -563,6 +598,9 @@
         <div id="characterInfo"></div>
         <div id="traitsItemsCard"></div>
       </div>
+      <div style="margin-top:12px;">
+        <button class="btn-primary" onclick="openCharacterOverlay(false)">Charakter ändern</button>
+      </div>
     </div>
 
     <!-- MISSIONEN -->
@@ -584,16 +622,25 @@
     </div>
   </div>
 
-  <!-- CHARAKTER-AUSWAHL-OVERLAY (ERSTER LOGIN) -->
-  <div id="characterOverlay">
-    <h2>Wähle deinen Charakter</h2>
-    <div class="char-select-subtitle">
-      Dieser Charakter begleitet dich durch den Temple of Logic.
+  <!-- CHARAKTER-WAHL OVERLAY -->
+  <div id="characterOverlay" class="char-overlay">
+    <div class="char-overlay-inner">
+      <h2>Wähle deinen Charakter</h2>
+      <p>Suche dir einen Charakter aus. Dein Bild bleibt, Items & Eigenschaften bekommst du zufällig zugewiesen.</p>
+      <div id="characterChoiceGrid" class="character-choice-grid"></div>
+      <div class="char-overlay-close">
+        (Charakterwahl ist beim ersten Login Pflicht – du kannst später im Charakter-Tab noch einmal wechseln.)
+      </div>
     </div>
-    <div id="characterSelectGrid" class="character-select-grid"></div>
   </div>
 
 <script>
+/* ============================================
+   GLOBAL STATE
+============================================ */
+let xpPerMission = {};
+let initialCharacterSelection = false;
+
 /* ============================================
    MENU + SECTIONS
 ============================================ */
@@ -606,10 +653,7 @@ function showSection(ev, name) {
   document.getElementById(name + "-section").style.display = "block";
 
   document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
-  if (ev && ev.target) {
-    let target = ev.target.closest(".nav-item");
-    if (target) target.classList.add("active");
-  }
+  if (ev && ev.currentTarget) ev.currentTarget.classList.add("active");
 
   if (window.innerWidth <= 900) {
     document.body.classList.remove("menu-open");
@@ -625,17 +669,11 @@ async function logout() {
 }
 
 /* ============================================
-   GLOBAL STATE
-============================================ */
-let xpPerMission = {};
-
-/* ============================================
    LOAD STUDENT DATA
 ============================================ */
 async function loadMe() {
   const r = await fetch("/api/student/me");
   const data = await r.json();
-
   const u = data.user;
 
   // STATUS
@@ -645,16 +683,20 @@ async function loadMe() {
     <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
   `;
 
-  // SIDEBAR-AVATAR
-  const avatar = document.getElementById("sidebarAvatar");
+  // SIDEBAR AVATAR
+  const orb = document.getElementById("sidebarAvatarOrb");
+  const img = document.getElementById("sidebarAvatarImg");
   if (data.character && data.character.image_url) {
-    avatar.style.backgroundImage = `url('${data.character.image_url}')`;
+    orb.classList.remove("placeholder");
+    img.src = data.character.image_url;
+    img.style.display = "block";
   } else {
-    avatar.style.backgroundImage =
-      "radial-gradient(circle at 30% 20%, #facc15 0, #f97316 15%, #4c1d95 70%, #020617 100%)";
+    orb.classList.add("placeholder");
+    img.src = "";
+    img.style.display = "none";
   }
 
-  // CHARAKTER-CARD
+  // CHARAKTERCARD
   const charDiv = document.getElementById("characterInfo");
   if (data.character) {
     charDiv.innerHTML = `
@@ -662,7 +704,11 @@ async function loadMe() {
       <div><b>${data.character.name}</b></div>
     `;
   } else {
-    charDiv.innerHTML = "Kein Charakter gewählt.";
+    charDiv.innerHTML = `
+      <div style="font-size:13px;opacity:0.9;">
+        Noch kein Charakter gewählt. Beim ersten Login musst du einen Charakter auswählen.
+      </div>
+    `;
   }
 
   // TRAITS + ITEMS
@@ -682,7 +728,7 @@ async function loadMe() {
   data.xp_log.forEach(entry => {
     const d = new Date(entry.created_at).toLocaleString("de-DE");
     xpDiv.innerHTML += `
-      <div style="padding:8px;border-bottom:1px solid #5841a9;font-size:14px;">
+      <div class="xp-entry">
         <b>${entry.amount} XP</b> – ${entry.mission_name || entry.source}<br>
         <span style="opacity:0.7;">${d}</span>
       </div>
@@ -690,22 +736,21 @@ async function loadMe() {
   });
 
   // LEVEL BAR
-  renderLevelBar(data.levels || [], u.xp, u.level_id);
+  renderLevelBar(data.levels || [], u.xp);
 
-  // Upload-Grid könntest du wieder einblenden, wenn du willst; derzeit nicht sichtbar.
-
-  // ERSTER LOGIN: Charakter noch nicht gesetzt -> Overlay
+  // Beim ersten Login ohne Charakter → Overlay zwingen
   if (!data.character) {
-    document.body.classList.add("no-character");
-    document.getElementById("characterOverlay").style.display = "flex";
-    await loadCharacterChoices(); // Galerie laden
+    initialCharacterSelection = true;
+    openCharacterOverlay(true);
   } else {
-    document.body.classList.remove("no-character");
-    document.getElementById("characterOverlay").style.display = "none";
+    initialCharacterSelection = false;
   }
 }
 
-function renderLevelBar(levels, xp, currentLevelId) {
+/* ============================================
+   LEVEL BAR
+============================================ */
+function renderLevelBar(levels, xp) {
   if (!levels || !levels.length) {
     document.getElementById("levelBar").innerHTML = "<i>Noch keine Level definiert.</i>";
     return;
@@ -730,52 +775,13 @@ function renderLevelBar(levels, xp, currentLevelId) {
 
     html += `
       <div class="level-step">
-        <div class="level-step-fill" style="width:${pct}%"></div>
+        <div class="level-step-fill" style="width:${pct}%;"></div>
       </div>
     `;
   }
 
   html += `</div>`;
   document.getElementById("levelBar").innerHTML = html;
-}
-
-/* ============================================
-   CHARAKTERAUSWAHL (ERSTER LOGIN)
-============================================ */
-async function loadCharacterChoices() {
-  const r = await fetch("/api/student/characters");
-  const chars = await r.json();
-  const grid = document.getElementById("characterSelectGrid");
-  grid.innerHTML = "";
-
-  if (!chars.length) {
-    grid.innerHTML = "<i>Noch keine Charaktere angelegt.</i>";
-    return;
-  }
-
-  chars.forEach(c => {
-    const div = document.createElement("div");
-    div.className = "character-select-card";
-    div.innerHTML = `
-      <img src="${c.image_url}" alt="${c.name}">
-      <div><b>${c.name}</b></div>
-    `;
-    div.addEventListener("click", () => chooseCharacter(c.id));
-    grid.appendChild(div);
-  });
-}
-
-async function chooseCharacter(id) {
-  await fetch("/api/student/selectCharacter", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ characterId: id })
-  });
-
-  // Nach Auswahl: Overlay weg, normale UI laden
-  await loadMe();
-  await loadMissions();
-  await loadRewards();
 }
 
 /* ============================================
@@ -825,7 +831,9 @@ function renderCarousel(containerId, items, type) {
           </div>
         ` : ""}
         ${type === "reward" ? `
-          <button class="btn-primary" onclick="redeemReward(${item.id})" style="margin-top:10px;">Belohnung einlösen</button>
+          <button class="btn-primary" onclick="redeemReward(${item.id})" style="margin-top:10px;">
+            Belohnung einlösen
+          </button>
         ` : ""}
       </div>
     `;
@@ -931,10 +939,64 @@ async function redeemReward(id) {
   const data = await r.json();
   if (data.success) {
     alert("Belohnung eingelöst!");
-    await loadMe();
-    await loadRewards();
+    loadMe();
+    loadRewards();
   } else {
     alert(data.message || "Nicht genug XP oder Fehler beim Einlösen.");
+  }
+}
+
+/* ============================================
+   CHARAKTER-WAHL – OVERLAY
+============================================ */
+function openCharacterOverlay(initial) {
+  const overlay = document.getElementById("characterOverlay");
+  overlay.style.display = "flex";
+  loadCharacterChoices();
+  if (initial) {
+    initialCharacterSelection = true;
+  }
+}
+
+function closeCharacterOverlay() {
+  // Beim Initial-Login nicht schließen, bevor ein Charakter gewählt ist
+  if (initialCharacterSelection) return;
+  document.getElementById("characterOverlay").style.display = "none";
+}
+
+async function loadCharacterChoices() {
+  const r = await fetch("/api/student/characterList");
+  const chars = await r.json();
+
+  const grid = document.getElementById("characterChoiceGrid");
+  grid.innerHTML = "";
+
+  chars.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "character-choice-card";
+    div.innerHTML = `
+      ${c.image_url ? `<img src="${c.image_url}" alt="${c.name}">` : ""}
+      <div><b>${c.name}</b></div>
+    `;
+    div.addEventListener("click", () => selectCharacter(c.id));
+    grid.appendChild(div);
+  });
+}
+
+async function selectCharacter(id) {
+  const r = await fetch("/api/student/selectCharacter", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ characterId: id })
+  });
+
+  const data = await r.json();
+  if (data.success) {
+    initialCharacterSelection = false;
+    document.getElementById("characterOverlay").style.display = "none";
+    loadMe();
+  } else {
+    alert("Fehler beim Speichern des Charakters.");
   }
 }
 
@@ -944,7 +1006,6 @@ async function redeemReward(id) {
 loadMe();
 loadMissions();
 loadRewards();
-showSection(null, "status");
 </script>
 
 </body>
