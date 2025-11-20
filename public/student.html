@@ -3,190 +3,216 @@
 <head>
   <meta charset="UTF-8">
   <title>Temple of Logic – Schüler</title>
+
   <style>
+    /* ============================================
+       GLOBAL STYLES – Fantasy Dark Design
+    ============================================ */
     body {
       margin: 0;
-      background:
-        radial-gradient(circle at 10% 0%, rgba(168,85,247,0.3), transparent 50%),
-        radial-gradient(circle at 90% 20%, rgba(59,130,246,0.25), transparent 55%),
-        radial-gradient(circle at 50% 100%, rgba(30,64,175,0.45), transparent 60%),
-        #020308;
+      background: 
+        linear-gradient(rgba(0,0,0,0.60), rgba(0,0,0,0.60)),
+        url("https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop")
+        center/cover no-repeat fixed;
       color: #eee;
       font-family: Arial, sans-serif;
-      overflow-x: hidden;
-    }
-
-    header {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 18px 26px;
-      background: rgba(0,0,0,0.45);
-      border-bottom: 1px solid #4c1d95;
-      backdrop-filter: blur(6px);
-      position: sticky;
-      top: 0;
-      z-index: 10;
+      height: 100vh;
+      overflow: hidden;
     }
 
-    header h1 {
-      margin: 0;
-      font-size: 20px;
-      letter-spacing: 0.12em;
-      color: #ddd6fe;
+    /* ============================================
+       SIDEBAR
+    ============================================ */
+    .sidebar {
+      width: 250px;
+      background: rgba(10, 8, 25, 0.65);
+      border-right: 1px solid rgba(120, 90, 200, 0.35);
+      backdrop-filter: blur(6px);
+      padding-top: 20px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .sidebar .logo-orb {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      margin: 0 auto 20px;
+      background: radial-gradient(circle at 30% 20%, #facc15, #f97316 25%, #4c1d95 70%, #020617 100%);
+      box-shadow: 0 0 30px rgba(250,204,21,0.85);
+    }
+
+    .menu-item {
+      padding: 14px 22px;
+      cursor: pointer;
+      font-size: 16px;
+      border-bottom: 1px solid rgba(160, 160, 255, 0.08);
+      transition: 0.2s;
+    }
+
+    .menu-item:hover, .menu-item.active {
+      background: rgba(160, 120, 255, 0.20);
     }
 
     .logout-btn {
-      background: linear-gradient(135deg, #b91c1c, #e11d48);
+      margin: auto 20px 20px 20px;
+      padding: 10px 16px;
+      font-size: 14px;
       border: none;
-      padding: 8px 14px;
-      color: white;
-      font-size: 13px;
       border-radius: 999px;
+      background: linear-gradient(135deg, #b91c1c, #e11d48);
+      color: white;
       cursor: pointer;
     }
 
-    .container {
-      max-width: 900px;
-      margin: 25px auto;
-      padding: 20px;
+    /* ============================================
+       MAIN CONTENT
+    ============================================ */
+    .main-area {
+      flex: 1;
+      padding: 25px 40px;
+      overflow-y: auto;
+    }
+
+    h1 {
+      font-size: 26px;
+      letter-spacing: 0.1em;
+      margin-bottom: 25px;
+      color: #ddd6fe;
     }
 
     h2 {
       margin-top: 25px;
-      border-bottom: 1px solid #3f2d7c;
-      padding-bottom: 6px;
       color: #c4b5fd;
+      border-bottom: 1px solid #5841a9;
+      padding-bottom: 4px;
     }
 
     .card {
-      background: radial-gradient(circle at top left, #1e1b4b 0, #020617 60%);
-      border: 1px solid #312e81;
+      background: rgba(10, 10, 35, 0.60);
+      padding: 18px;
+      border: 1px solid rgba(140, 110, 255, 0.3);
       border-radius: 12px;
-      padding: 15px;
-      margin-bottom: 16px;
+      margin-bottom: 25px;
+      backdrop-filter: blur(5px);
     }
 
-    .char-big {
+    /* ============================================
+       CHARACTER IMAGE
+    ============================================ */
+    .char-img {
       width: 240px;
       height: 400px;
       object-fit: cover;
-      display: block;
-      margin: 0 auto 10px;
-      border-radius: 12px;
-      border: none;
+      margin-bottom: 14px;
+      border-radius: 14px;
+      box-shadow: 0 0 20px rgba(130,90,255,0.6);
     }
 
+    /* ============================================
+       LEVEL BAR – MULTISTEP
+    ============================================ */
     .level-step-container {
       display: flex;
       align-items: center;
-      justify-content: center;
       gap: 6px;
       margin-top: 10px;
+      flex-wrap: wrap;
     }
-
     .level-step {
       width: 60px;
       height: 10px;
       background: #1b1537;
-      border-radius: 6px;
+      border-radius: 5px;
       border: 1px solid #4c1d95;
       overflow: hidden;
-      position: relative;
     }
-
     .level-step-fill {
       height: 100%;
       background: linear-gradient(90deg, #7c3aed, #a78bfa);
       width: 0%;
       transition: width 0.4s ease;
     }
-
     .level-step-star {
       font-size: 20px;
       color: gold;
     }
 
-    .carousel {
+    /* ============================================
+       CAROUSEL
+    ============================================ */
+    .carousel-wrapper {
       position: relative;
-      overflow: hidden;
-      margin-top: 10px;
+      width: 300px;
+      margin: 0 auto;
     }
 
-    .carousel-track {
-      display: flex;
-      transition: transform 0.4s ease;
-    }
-
-    .slide {
-      min-width: 100%;
-      box-sizing: border-box;
-      padding: 10px;
+    .carousel-item {
+      display: none;
       text-align: center;
     }
 
-    .mission-img,
-    .bonus-img {
+    .carousel-item.active {
+      display: block;
+    }
+
+    .mission-img {
       width: 240px;
       height: 400px;
       object-fit: cover;
-      border-radius: 12px;
-      border: 1px solid #4c1d95;
-      margin: 0 auto 10px;
+      border-radius: 14px;
+      margin-bottom: 10px;
+      box-shadow: 0 0 10px rgba(120,80,255,0.45);
     }
 
-    .carousel-btn {
-      position: absolute;
-      top: 40%;
-      transform: translateY(-50%);
-      background: rgba(0,0,0,0.45);
-      border: 1px solid #6d28d9;
-      color: #fff;
-      padding: 8px 12px;
-      border-radius: 999px;
+    .carousel-arrow {
+      font-size: 30px;
       cursor: pointer;
-      z-index: 5;
+      user-select: none;
+      padding: 5px 12px;
+      color: #ddd;
+      transition: 0.2s;
+    }
+    .carousel-arrow:hover {
+      color: #a78bfa;
     }
 
-    .carousel-btn.left { left: 10px; }
-    .carousel-btn.right { right: 10px; }
-
-    .dots {
+    /* Dots */
+    .dot-container {
       display: flex;
       justify-content: center;
       gap: 6px;
-      margin-top: 8px;
+      margin-top: 10px;
     }
-
     .dot {
       width: 10px;
       height: 10px;
-      background: #4c1d95;
       border-radius: 50%;
-      opacity: 0.4;
-      transition: 0.2s;
+      background: #4c1d95;
       cursor: pointer;
     }
-
     .dot.active {
-      opacity: 1;
-      transform: scale(1.2);
       background: #a78bfa;
+      box-shadow: 0 0 6px #a78bfa;
     }
 
+    /* ============================================
+       UPLOAD CARD
+    ============================================ */
     .upload-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
       gap: 14px;
     }
-
     .upload-card {
-      background: #111026;
+      background: rgba(10, 10, 35, 0.50);
+      border: 1px solid rgba(140,110,255,0.3);
+      border-radius: 10px;
       padding: 8px;
-      border-radius: 8px;
-      border: 1px solid #2d2254;
+      backdrop-filter: blur(5px);
     }
-
     .upload-card img {
       width: 100%;
       height: 120px;
@@ -194,313 +220,325 @@
       border-radius: 6px;
     }
 
-    .primary-btn {
-      padding: 6px 14px;
-      border-radius: 8px;
-      border: none;
-      background: #2563eb;
-      color: #fff;
-      cursor: pointer;
-      margin-top: 6px;
-    }
   </style>
 </head>
+
 <body>
 
-<header>
-  <h1>TEMPLE OF LOGIC – Schülerbereich</h1>
-  <button class="logout-btn" onclick="logout()">Logout</button>
-</header>
+  <!-- ====================== SIDEBAR ===================== -->
+  <div class="sidebar">
 
-<div class="container">
+    <div class="logo-orb"></div>
 
-  <h2>Dein Status</h2>
-  <div class="card">
-    <div id="userCard"></div>
-    <div id="levelBar"></div>
+    <div class="menu-item active" onclick="showSection('status')">Status</div>
+    <div class="menu-item" onclick="showSection('charakter')">Charakter</div>
+    <div class="menu-item" onclick="showSection('missionen')">Missionen</div>
+    <div class="menu-item" onclick="showSection('belohnungen')">Belohnungen</div>
+    <div class="menu-item" onclick="showSection('xp')">XP-Historie</div>
+
+    <button class="logout-btn" onclick="logout()">Logout</button>
   </div>
 
-  <h2>Dein Charakter</h2>
-  <div class="card" id="characterCard"></div>
+  <!-- ====================== MAIN AREA ===================== -->
+  <div class="main-area">
+    <h1>TEMPLE OF LOGIC</h1>
 
-  <h2>Eigenschaften & Items</h2>
-  <div class="card" id="traitsItemsCard"></div>
-
-  <h2>Missionen</h2>
-  <div class="card">
-    <div class="carousel">
-      <button class="carousel-btn left" onclick="prevMission()">❮</button>
-      <div class="carousel-track" id="missionTrack"></div>
-      <button class="carousel-btn right" onclick="nextMission()">❯</button>
+    <!-- STATUS -->
+    <div id="status-section" class="card section">
+      <h2>Status</h2>
+      <div id="userCard"></div>
+      <div id="levelBar"></div>
     </div>
-    <div class="dots" id="missionDots"></div>
-  </div>
 
-  <h2>Belohnungen</h2>
-  <div class="card">
-    <div class="carousel">
-      <button class="carousel-btn left" onclick="prevBonus()">❮</button>
-      <div class="carousel-track" id="bonusTrack"></div>
-      <button class="carousel-btn right" onclick="nextBonus()">❯</button>
+    <!-- CHARACTER -->
+    <div id="charakter-section" class="card section" style="display:none;">
+      <h2>Charakter</h2>
+      <div id="characterInfo"></div>
+      <div id="traitsItemsCard"></div>
     </div>
-    <div class="dots" id="bonusDots"></div>
+
+    <!-- MISSIONEN -->
+    <div id="missionen-section" class="card section" style="display:none;">
+      <h2>Missionen</h2>
+      <div id="missionCarousel"></div>
+    </div>
+
+    <!-- BELOHNUNGEN -->
+    <div id="belohnungen-section" class="card section" style="display:none;">
+      <h2>Belohnungen</h2>
+      <div id="rewardCarousel"></div>
+    </div>
+
+    <!-- XP LOG -->
+    <div id="xp-section" class="card section" style="display:none;">
+      <h2>XP-Historie</h2>
+      <div id="xpLog"></div>
+    </div>
+
+    <!-- UPLOADS OPTIONAL (kann wieder aktiviert werden) -->
   </div>
 
-  <h2>Deine XP-History</h2>
-  <div id="xpLog"></div>
-
-  <h2>Deine Uploads</h2>
-  <div class="upload-grid" id="uploadGrid"></div>
-
-</div>
 
 <script>
-  let missions = [];
-  let currentMission = 0;
-  let bonuses = [];
-  let currentBonus = 0;
-  let xpPerMission = {};
+/* ============================================
+   SECTION SWITCHING
+============================================ */
+function showSection(name) {
+  document.querySelectorAll(".section").forEach(s => s.style.display = "none");
+  document.querySelector(`#${name}-section`).style.display = "block";
 
-  async function logout() {
-    await fetch("/api/logout", { method: "POST" });
-    location.href = "/login.html";
-  }
+  document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
+  event.target.classList.add("active");
+}
 
-  async function loadMe() {
-    const r = await fetch("/api/student/me");
-    const data = await r.json();
+/* ============================================
+   LOGOUT
+============================================ */
+async function logout() {
+  await fetch("/api/logout", { method: "POST" });
+  location.href = "/login.html";
+}
 
-    const u = data.user;
-    xpPerMission = data.xp_per_mission || {};
+/* ============================================
+   LOAD STUDENT DATA
+============================================ */
+let xpPerMission = {};
 
-    document.getElementById("userCard").innerHTML =
-      `<b>Name:</b> ${u.name}<br>
-       <b>XP:</b> ${u.xp}<br>
-       <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)`;
+async function loadMe() {
+  const r = await fetch("/api/student/me");
+  const data = await r.json();
 
-    document.getElementById("characterCard").innerHTML = data.character
-      ? `<img class="char-big" src="${data.character.image_url}">
-         <div style="text-align:center;margin-top:5px;">${data.character.name}</div>`
-      : "Noch kein Charakter gewählt.";
+  const u = data.user;
 
-    document.getElementById("traitsItemsCard").innerHTML =
-      `<b>Eigenschaften:</b><br>${data.traits.map(t => "• " + t).join("<br>")}<br><br>
-       <b>Items:</b><br>${data.items.map(i => "• " + i).join("<br>")}`;
+  // -----------------------------------
+  // STATUSCARD
+  // -----------------------------------
+  document.getElementById("userCard").innerHTML = `
+    <b>Name:</b> ${u.name}<br>
+    <b>XP:</b> ${u.xp}<br>
+    <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
+  `;
 
-    const xpDiv = document.getElementById("xpLog");
-    xpDiv.innerHTML = "";
-    data.xp_log.forEach(e => {
-      xpDiv.innerHTML += `
-        <div style="padding:8px;border-bottom:1px solid #3c2d69;font-size:14px;">
-          <b>${e.amount} XP</b> – ${e.mission_name || e.source}<br>
-          <span style="opacity:0.7;">${new Date(e.created_at).toLocaleString("de-DE")}</span>
-        </div>`;
-    });
+  // -----------------------------------
+  // CHARACTER
+  // -----------------------------------
+  document.getElementById("characterInfo").innerHTML = data.character
+    ? `<img class="char-img" src="${data.character.image_url}">
+       <div><b>${data.character.name}</b></div>`
+    : "Kein Charakter gewählt.";
 
-    const up = document.getElementById("uploadGrid");
-    up.innerHTML = "";
-    data.uploads.forEach(upl => {
-      up.innerHTML += `
-        <div class="upload-card">
-          <img src="${upl.image_url}">
-          <div style="font-size:12px;opacity:0.8;">${upl.mission_name || "—"}</div>
-        </div>`;
-    });
+  // -----------------------------------
+  // TRAITS & ITEMS
+  // -----------------------------------
+  document.getElementById("traitsItemsCard").innerHTML = `
+    <b>Eigenschaften:</b><br>
+    ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
+    <b>Items:</b><br>
+    ${data.items.map(i => "• " + i).join("<br>")}
+  `;
 
-    renderLevelBar(u, data.levels);
-  }
+  // -----------------------------------
+  // XP PER MISSION
+  // -----------------------------------
+  xpPerMission = data.xp_per_mission || {};
 
-  function renderLevelBar(user, levels) {
-    if (!levels || !levels.length) {
-      document.getElementById("levelBar").innerHTML = "";
-      return;
+  // -----------------------------------
+  // XP LOG
+  // -----------------------------------
+  const xpDiv = document.getElementById("xpLog");
+  xpDiv.innerHTML = "";
+  data.xp_log.forEach(entry => {
+    const d = new Date(entry.created_at).toLocaleString("de-DE");
+    xpDiv.innerHTML += `
+      <div style="padding:8px;border-bottom:1px solid #5841a9;font-size:14px;">
+        <b>${entry.amount} XP</b> – ${entry.mission_name || entry.source} <br>
+        <span style="opacity:0.7;">${d}</span>
+      </div>
+    `;
+  });
+
+  // -----------------------------------
+  // LEVEL BAR
+  // -----------------------------------
+  const levels = data.levels;
+  const currentLevel = u.level_id;
+  const idx = levels.findIndex(l => l.id === currentLevel);
+
+  let html = `<div class="level-step-container">`;
+
+  for (let i = 0; i < levels.length; i++) {
+    if (i > 0) html += `<div class="level-step-star">★</div>`;
+
+    const min = levels[i].min_xp;
+    const next = levels[i + 1]?.min_xp || min;
+    let pct = 0;
+
+    if (u.xp >= min) {
+      pct = Math.min(100, ((u.xp - min) / (next - min)) * 100);
+      if (!isFinite(pct)) pct = 100;
     }
 
-    let html = `<div class="level-step-container">`;
-
-    for (let i = 0; i < levels.length; i++) {
-      if (i > 0) html += `<div class="level-step-star">★</div>`;
-
-      const min = levels[i].min_xp;
-      const nextMin = levels[i + 1]?.min_xp || min;
-      let pct = 0;
-
-      if (user.xp >= min) {
-        pct = Math.min(100, ((user.xp - min) / (nextMin - min)) * 100);
-        if (!isFinite(pct) || pct < 0) pct = 100;
-      }
-
-      html += `
-        <div class="level-step">
-          <div class="level-step-fill" style="width:${pct}%;"></div>
-        </div>
-      `;
-    }
-
-    html += `</div>`;
-    document.getElementById("levelBar").innerHTML = html;
+    html += `
+      <div class="level-step">
+        <div class="level-step-fill" style="width:${pct}%"></div>
+      </div>
+    `;
   }
 
-  async function loadMissions() {
-    const r = await fetch("/api/student/missions");
-    missions = await r.json();
+  html += `</div>`;
+  document.getElementById("levelBar").innerHTML = html;
+}
 
-    const track = document.getElementById("missionTrack");
-    const dots = document.getElementById("missionDots");
-    track.innerHTML = "";
-    dots.innerHTML = "";
+loadMe();
 
-    if (!missions.length) {
-      track.innerHTML = `<div class="slide">Noch keine Missionen.</div>`;
-      return;
-    }
+/* ============================================
+   LOAD MISSIONS & REWARDS
+============================================ */
+async function loadMissions() {
+  const r = await fetch("/api/student/missions");
+  const missions = await r.json();
 
-    missions.forEach((m, idx) => {
-      const earned = xpPerMission[m.id] || 0;
-      track.innerHTML += `
-        <div class="slide">
-          ${m.image_url ? `<img class="mission-img" src="${m.image_url}">` : ""}
-          <h3>${m.name}</h3>
-          <div><b>${m.xp} XP</b></div>
-          <div style="opacity:0.8;font-size:13px;margin-top:3px;">
-            Bereits erhalten: ${earned} XP
-          </div>
-          ${m.require_upload ? `
-            <div style="margin-top:10px;">
-              <input type="file" id="upload_${m.id}">
-              <button class="primary-btn" onclick="uploadMission(${m.id})">Upload senden</button>
-            </div>
-          ` : ""}
-        </div>`;
-      dots.innerHTML += `<div class="dot" onclick="goMission(${idx})"></div>`;
-    });
+  renderCarousel("missionCarousel", missions, "mission");
+}
+async function loadRewards() {
+  const r = await fetch("/api/student/rewards");
+  const cards = await r.json();
 
-    currentMission = 0;
-    updateMissionCarousel();
+  renderCarousel("rewardCarousel", cards, "reward");
+}
+
+/* ============================================
+   GENERIC CAROUSEL
+============================================ */
+function renderCarousel(id, items, type) {
+  const container = document.getElementById(id);
+
+  if (!items.length) {
+    container.innerHTML = "<i>Keine Inhalte verfügbar.</i>";
+    return;
   }
 
-  function updateMissionCarousel() {
-    const track = document.getElementById("missionTrack");
-    const dots = document.querySelectorAll("#missionDots .dot");
-    track.style.transform = `translateX(-${currentMission * 100}%)`;
-    dots.forEach((d, i) => d.classList.toggle("active", i === currentMission));
+  let slides = "";
+  items.forEach((item, idx) => {
+    slides += `
+      <div class="carousel-item ${idx === 0 ? "active" : ""}">
+        ${item.image_url ? `<img class="mission-img" src="${item.image_url}">` : ""}
+        <h3>${item.name}</h3>
+        <div><b>${item.xp} XP</b></div>
+        ${type === "mission" ? `
+          <div style="margin-top:5px;">Bereits erhalten: <b>${xpPerMission[item.id] || 0} XP</b></div>
+        ` : ""}
+        ${type === "mission" && item.require_upload ? `
+          <br>
+          <input type="file" id="upload_${item.id}">
+          <button onclick="uploadMission(${item.id})" style="margin-top:6px;">Upload senden</button>
+        ` : ""}
+        ${type === "reward" ? `
+          <button onclick="redeemReward(${item.id})" style="margin-top:10px;">Einlösen</button>
+        ` : ""}
+      </div>
+    `;
+  });
+
+  let dots = "";
+  items.forEach((_, idx) => {
+    dots += `<div class="dot ${idx === 0 ? "active" : ""}" onclick="jumpSlide('${id}', ${idx})"></div>`;
+  });
+
+  container.innerHTML = `
+    <div class="carousel-wrapper">
+      <span class="carousel-arrow" onclick="prevSlide('${id}')">&#10094;</span>
+      ${slides}
+      <span class="carousel-arrow" onclick="nextSlide('${id}')">&#10095;</span>
+    </div>
+    <div class="dot-container">${dots}</div>
+  `;
+}
+
+/* ============================================
+   CAROUSEL CONTROLS
+============================================ */
+function nextSlide(id) {
+  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
+  let index = items.findIndex(i => i.classList.contains("active"));
+  items[index].classList.remove("active");
+
+  index = (index + 1) % items.length;
+  items[index].classList.add("active");
+
+  updateDots(id, index);
+}
+function prevSlide(id) {
+  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
+  let index = items.findIndex(i => i.classList.contains("active"));
+  items[index].classList.remove("active");
+
+  index = (index - 1 + items.length) % items.length;
+  items[index].classList.add("active");
+
+  updateDots(id, index);
+}
+function jumpSlide(id, idx) {
+  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
+  items.forEach(i => i.classList.remove("active"));
+  items[idx].classList.add("active");
+  updateDots(id, idx);
+}
+function updateDots(id, idx) {
+  const dots = [...document.querySelectorAll(`#${id} .dot`)];
+  dots.forEach(d => d.classList.remove("active"));
+  dots[idx].classList.add("active");
+}
+
+/* ============================================
+   UPLOAD MISSION
+============================================ */
+async function uploadMission(missionId) {
+  const file = document.getElementById(`upload_${missionId}`).files[0];
+  if (!file) return alert("Bitte ein Bild auswählen!");
+
+  const form = new FormData();
+  form.append("image", file);
+  form.append("missionId", missionId);
+
+  const r = await fetch("/api/student/uploadForMission", {
+    method: "POST",
+    body: form
+  });
+
+  const data = await r.json();
+  if (data.success) {
+    alert("Upload erfolgreich!");
+    loadMe();
   }
+}
 
-  function prevMission() {
-    if (!missions.length) return;
-    currentMission = Math.max(0, currentMission - 1);
-    updateMissionCarousel();
+/* ============================================
+   REWARD REDEEM
+============================================ */
+async function redeemReward(id) {
+  const r = await fetch("/api/student/redeemReward", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rewardId: id })
+  });
+
+  const data = await r.json();
+  if (data.success) {
+    alert("Belohnung eingelöst!");
+    loadMe();
+    loadRewards();
+  } else {
+    alert("Nicht genug XP!");
   }
+}
 
-  function nextMission() {
-    if (!missions.length) return;
-    currentMission = Math.min(missions.length - 1, currentMission + 1);
-    updateMissionCarousel();
-  }
+/* ============================================
+   INIT
+============================================ */
+loadMissions();
+loadRewards();
 
-  function goMission(i) {
-    currentMission = i;
-    updateMissionCarousel();
-  }
-
-  async function uploadMission(id) {
-    const file = document.getElementById(`upload_${id}`).files[0];
-    if (!file) return alert("Bitte ein Bild auswählen!");
-
-    const fd = new FormData();
-    fd.append("image", file);
-    fd.append("missionId", id);
-
-    const r = await fetch("/api/student/uploadForMission", {
-      method: "POST",
-      body: fd
-    });
-
-    const data = await r.json();
-    if (data.success) {
-      alert("Upload erfolgreich!");
-      loadMe();
-    } else {
-      alert("Upload fehlgeschlagen.");
-    }
-  }
-
-  async function loadBonuses() {
-    const r = await fetch("/api/student/bonuscards");
-    bonuses = await r.json();
-
-    const track = document.getElementById("bonusTrack");
-    const dots = document.getElementById("bonusDots");
-    track.innerHTML = "";
-    dots.innerHTML = "";
-
-    if (!bonuses.length) {
-      track.innerHTML = `<div class="slide">Noch keine Belohnungen freigeschaltet.</div>`;
-      return;
-    }
-
-    bonuses.forEach((b, idx) => {
-      track.innerHTML += `
-        <div class="slide">
-          ${b.image_url ? `<img class="bonus-img" src="${b.image_url}">` : ""}
-          <h3>${b.name}</h3>
-          <div><b>Kosten: ${b.xp} XP</b></div>
-          <div style="opacity:0.8;font-size:13px;margin-top:4px;">
-            Du kannst diese Belohnung einlösen.
-          </div>
-          <button class="primary-btn" onclick="redeemBonus(${b.id})">Belohnung einlösen</button>
-        </div>`;
-      dots.innerHTML += `<div class="dot" onclick="goBonus(${idx})"></div>`;
-    });
-
-    currentBonus = 0;
-    updateBonusCarousel();
-  }
-
-  function updateBonusCarousel() {
-    const track = document.getElementById("bonusTrack");
-    const dots = document.querySelectorAll("#bonusDots .dot");
-    track.style.transform = `translateX(-${currentBonus * 100}%)`;
-    dots.forEach((d, i) => d.classList.toggle("active", i === currentBonus));
-  }
-
-  function prevBonus() {
-    if (!bonuses.length) return;
-    currentBonus = Math.max(0, currentBonus - 1);
-    updateBonusCarousel();
-  }
-
-  function nextBonus() {
-    if (!bonuses.length) return;
-    currentBonus = Math.min(bonuses.length - 1, currentBonus + 1);
-    updateBonusCarousel();
-  }
-
-  function goBonus(i) {
-    currentBonus = i;
-    updateBonusCarousel();
-  }
-
-  async function redeemBonus(id) {
-    const res = await fetch("/api/student/redeemBonus", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bonusId: id })
-    });
-    const data = await res.json();
-    if (!data.success) {
-      alert("Belohnung konnte nicht eingelöst werden (zu wenig XP?).");
-      return;
-    }
-    alert("Belohnung eingelöst! XP wurden abgezogen, dein Level bleibt erhalten.");
-    await loadMe();
-    await loadBonuses();
-  }
-
-  // INIT
-  loadMe();
-  loadMissions();
-  loadBonuses();
 </script>
 
 </body>
