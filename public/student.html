@@ -6,7 +6,8 @@
 
   <style>
     /* ============================================
-       GLOBAL BACKGROUND - Arcane Fantasy Library
+       GLOBAL BACKGROUND - Fantasy Library (Placeholder)
+       -> Ersetze "student-fantasy-bg.jpg" durch dein Bild
     ============================================ */
     html, body {
       margin: 0;
@@ -17,7 +18,7 @@
     body {
       background:
         linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.80)),
-        url("library-fantasy-bg.jpg") center/cover no-repeat fixed;
+        url("student-fantasy-bg.jpg") center/cover no-repeat fixed;
       color: #eee;
       font-family: Arial, sans-serif;
       display: flex;
@@ -28,7 +29,7 @@
     a { color: inherit; text-decoration: none; }
 
     /* ============================================
-       SIDEBAR (same style as Admin)
+       SIDEBAR
     ============================================ */
     .sidebar {
       width: 260px;
@@ -45,7 +46,6 @@
       z-index: 20;
     }
 
-    /* Charakterbild statt Orb */
     .sidebar-character {
       width: 110px;
       height: 110px;
@@ -113,7 +113,11 @@
       justify-content: space-between;
       cursor: pointer;
     }
-    .burger span { height: 3px; background: #e5e7eb; border-radius: 4px; }
+    .burger span {
+      height: 3px;
+      background: #e5e7eb;
+      border-radius: 4px;
+    }
 
     .mobile-title {
       font-size: 16px;
@@ -156,7 +160,7 @@
     }
 
     /* ============================================
-       CHARACTER
+       CHARACTER – Floating + Glow
     ============================================ */
     .character-wrapper {
       display: flex;
@@ -173,6 +177,20 @@
       border-radius: 14px;
       margin-bottom: 10px;
       box-shadow: 0 0 24px rgba(129,140,248,0.8);
+      animation: floatChar 4s ease-in-out infinite,
+                 glowChar 3s ease-in-out infinite;
+    }
+
+    @keyframes floatChar {
+      0%   { transform: translateY(0px); }
+      50%  { transform: translateY(-6px); }
+      100% { transform: translateY(0px); }
+    }
+
+    @keyframes glowChar {
+      0%   { box-shadow: 0 0 18px rgba(129,140,248,0.6); }
+      50%  { box-shadow: 0 0 30px rgba(167,139,250,0.95); }
+      100% { box-shadow: 0 0 18px rgba(129,140,248,0.6); }
     }
 
     #traitsItemsCard {
@@ -197,7 +215,7 @@
     }
 
     /* ============================================
-       LEVEL BAR
+       LEVEL BAR (Multi-Step)
     ============================================ */
     .level-step-container {
       display: flex;
@@ -220,7 +238,11 @@
       width: 0%;
       transition: width 0.4s ease;
     }
-    .level-star { color: gold; font-size: 20px; }
+    .level-star {
+      color: gold;
+      font-size: 20px;
+      text-shadow: 0 0 8px rgba(250,204,21,0.9);
+    }
 
     /* ============================================
        CAROUSELS
@@ -290,6 +312,7 @@
       background: rgba(15,23,42,0.9);
       cursor: pointer;
       margin-bottom: 4px;
+      font-size: 13px;
     }
     .file-name { font-size: 11px; opacity: 0.8; }
 
@@ -301,28 +324,114 @@
       color: #eee;
       cursor: pointer;
       margin-top: 4px;
+      font-size: 13px;
+    }
+
+    /* ============================================
+       LOOTBOX OVERLAY (Fantasy-Epic, nur Effekt)
+    ============================================ */
+    .lootbox-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(251,191,36,0.12), rgba(15,23,42,0.96));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      z-index: 999;
+    }
+
+    .lootbox-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .lootbox-orb {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 30% 20%, #facc15, #f97316 25%, #4c1d95 70%, #020617 100%);
+      box-shadow:
+        0 0 40px rgba(250,204,21,0.9),
+        0 0 80px rgba(129,140,248,0.9);
+      position: relative;
+      animation: lootPulse 1.6s ease-in-out infinite;
+    }
+
+    .lootbox-orb::before {
+      content: "";
+      position: absolute;
+      inset: -25%;
+      border-radius: 50%;
+      border: 2px solid rgba(250,250,250,0.3);
+      box-shadow: 0 0 30px rgba(196,181,253,0.8);
+      animation: lootRings 2s linear infinite;
+    }
+
+    .lootbox-orb::after {
+      content: "";
+      position: absolute;
+      inset: 20%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.9), transparent 60%);
+      opacity: 0.9;
+      mix-blend-mode: screen;
+      animation: lootFlash 1.6s ease-in-out infinite;
+    }
+
+    @keyframes lootPulse {
+      0%   { transform: scale(0.9); }
+      40%  { transform: scale(1.05); }
+      100% { transform: scale(0.9); }
+    }
+
+    @keyframes lootRings {
+      0%   { transform: scale(0.9) rotate(0deg); opacity: 0.7; }
+      70%  { transform: scale(1.2) rotate(160deg); opacity: 0.2; }
+      100% { transform: scale(0.9) rotate(360deg); opacity: 0.0; }
+    }
+
+    @keyframes lootFlash {
+      0%   { opacity: 0.0; }
+      40%  { opacity: 0.8; }
+      100% { opacity: 0.0; }
     }
 
     /* ============================================
        RESPONSIVE
     ============================================ */
     @media (max-width: 900px) {
-      .sidebar { left: -260px; transition: left 0.3s; }
-      body.menu-open .sidebar { left: 0; }
+      .sidebar {
+        left: -260px;
+        transition: left 0.3s;
+      }
+      body.menu-open .sidebar {
+        left: 0;
+      }
 
-      .mobile-header { display: flex; }
+      .mobile-header {
+        display: flex;
+      }
 
       .main-area {
         margin-left: 0;
         padding: 70px 18px 20px 18px;
       }
 
-      .character-wrapper { flex-direction: column; }
-      h1 { display: none; }
+      .character-wrapper {
+        flex-direction: column;
+      }
+
+      h1 {
+        display: none;
+      }
     }
   </style>
-
 </head>
+
 <body>
 
   <!-- MOBILE HEADER -->
@@ -399,6 +508,11 @@
 
   </div>
 
+  <!-- LOOTBOX OVERLAY (nur Effekt) -->
+  <div id="lootboxOverlay" class="lootbox-overlay">
+    <div class="lootbox-orb"></div>
+  </div>
+
 <script>
 /* ============================================
    MENU HANDLING
@@ -428,48 +542,77 @@ async function logout() {
 }
 
 /* ============================================
-   LOAD USER DATA
+   LOOTBOX EFFECT – Nur visueller Effekt
+============================================ */
+function triggerLootbox(_type) {
+  const overlay = document.getElementById("lootboxOverlay");
+  if (!overlay) return;
+
+  // reset animation
+  overlay.classList.remove("show");
+  void overlay.offsetWidth; // force reflow
+  overlay.classList.add("show");
+
+  setTimeout(() => {
+    overlay.classList.remove("show");
+  }, 1800);
+}
+
+/* ============================================
+   LOAD USER DATA + XP/Level Tracking
 ============================================ */
 let xpPerMission = {};
+let lastXp = null;
+let lastLevelId = null;
 
 async function loadMe() {
   const r = await fetch("/api/student/me");
   const data = await r.json();
   const u = data.user;
 
-  /* Status */
+  // XP / Level Change Detection -> Lootbox
+  if (lastXp !== null && u.xp > lastXp) {
+    triggerLootbox("xp");
+  }
+  if (lastLevelId !== null && u.level_id && u.level_id !== lastLevelId) {
+    triggerLootbox("levelup");
+  }
+  lastXp = u.xp;
+  lastLevelId = u.level_id;
+
+  // STATUS
   document.getElementById("userCard").innerHTML = `
     <b>Name:</b> ${u.name}<br>
     <b>XP:</b> ${u.xp}<br>
     <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
   `;
 
-  /* Sidebar Character Image */
+  // SIDEBAR CHARACTER
   const sidebar = document.getElementById("sidebarCharacter");
   sidebar.src = data.character?.image_url || "";
   sidebar.style.display = data.character ? "block" : "none";
 
-  /* Character section */
+  // CHARACTER SECTION
   const charBox = document.getElementById("characterInfo");
-
   if (data.character) {
     charBox.innerHTML = `
       <img class="char-img" src="${data.character.image_url}">
       <div style="margin-top:8px;font-size:18px;font-weight:bold;color:#ddd6fe;">
-          ${data.character.name}
+        ${data.character.name}
       </div>
     `;
   } else {
     charBox.innerHTML = `<div style="opacity:0.7;">Kein Charakter ausgewählt.</div>`;
   }
 
+  // TRAITS & ITEMS
   document.getElementById("traitsList").innerHTML =
     data.traits.map(t => "• " + t).join("<br>");
 
   document.getElementById("itemsList").innerHTML =
     data.items.map(i => "• " + i).join("<br>");
 
-  /* XP Log */
+  // XP LOG
   const xpDiv = document.getElementById("xpLog");
   xpDiv.innerHTML = "";
   data.xp_log.forEach(entry => {
@@ -481,26 +624,29 @@ async function loadMe() {
       </div>`;
   });
 
-  /* XP per Mission */
+  // XP pro Mission
   xpPerMission = data.xp_per_mission || {};
 
-  /* Level Bar */
-  renderLevelBar(data.levels, u.xp);
+  // Level-Bar
+  renderLevelBar(data.levels || [], u.xp);
 }
 
 /* ============================================
    LEVEL BAR
 ============================================ */
 function renderLevelBar(levels, xp) {
-  if (!levels.length) return;
+  if (!levels.length) {
+    document.getElementById("levelBar").innerHTML = "<i>Noch keine Level definiert.</i>";
+    return;
+  }
 
   let html = `<div class="level-step-container">`;
 
-  for (let i=0; i<levels.length; i++) {
-    if (i>0) html += `<div class="level-star">★</div>`;
+  for (let i = 0; i < levels.length; i++) {
+    if (i > 0) html += `<div class="level-star">★</div>`;
 
     const min = levels[i].min_xp;
-    const next = levels[i+1]?.min_xp ?? (min+1);
+    const next = levels[i + 1]?.min_xp ?? (min + 1);
 
     let pct = 0;
     if (xp >= min) {
@@ -519,7 +665,7 @@ function renderLevelBar(levels, xp) {
 }
 
 /* ============================================
-   CAROUSELS (MISSIONS + REWARDS)
+   CAROUSELS (Missionen + Belohnungen)
 ============================================ */
 async function loadMissions() {
   const r = await fetch("/api/student/missions");
@@ -535,7 +681,7 @@ async function loadRewards() {
 
 function renderCarousel(id, items, type) {
   const box = document.getElementById(id);
-  if (!items.length) {
+  if (!items || !items.length) {
     box.innerHTML = "<i>Keine Einträge vorhanden.</i>";
     return;
   }
@@ -611,7 +757,7 @@ function jumpSlide(id, idx) {
 function updateDots(id, idx) {
   const dots = [...document.querySelectorAll(`#${id} .dot`)];
   dots.forEach(d => d.classList.remove("active"));
-  dots[idx].classList.add("active");
+  if (dots[idx]) dots[idx].classList.add("active");
 }
 
 /* ============================================
@@ -625,21 +771,31 @@ function updateFileLabel(id) {
 
 async function uploadMission(id) {
   const input = document.getElementById(`upload_${id}`);
-  if (!input.files.length) { alert("Bitte eine Datei auswählen."); return; }
+  if (!input.files.length) {
+    alert("Bitte eine Datei auswählen.");
+    return;
+  }
 
   const form = new FormData();
   form.append("image", input.files[0]);
   form.append("missionId", id);
 
-  const r = await fetch("/api/student/uploadForMission", { method:"POST", body: form });
-  const data = await r.json();
+  const r = await fetch("/api/student/uploadForMission", {
+    method: "POST",
+    body: form
+  });
 
-  if (data.success) { alert("Upload erfolgreich!"); loadMe(); }
-  else alert("Fehler beim Upload.");
+  const data = await r.json();
+  if (data.success) {
+    alert("Upload erfolgreich!");
+    loadMe();
+  } else {
+    alert("Upload fehlgeschlagen.");
+  }
 }
 
 /* ============================================
-   REDEEM REWARD
+   REDEEM REWARD + Lootbox
 ============================================ */
 async function redeemReward(id) {
   const r = await fetch("/api/student/redeemReward", {
@@ -650,11 +806,11 @@ async function redeemReward(id) {
 
   const data = await r.json();
   if (data.success) {
-    alert("Belohnung eingelöst!");
+    triggerLootbox("reward");
     loadMe();
     loadRewards();
   } else {
-    alert(data.message || "Fehler.");
+    alert(data.message || "Nicht genug XP oder Fehler beim Einlösen.");
   }
 }
 
