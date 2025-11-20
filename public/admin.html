@@ -904,7 +904,7 @@ async function addMissionXPAll() {
   loadXPStudents();
 }
 
-/* ---------------------------- UPLOADS + MODAL ---------------------------- */
+/* ---------------------------- UPLOADS + MODAL . ---------------------------- */
 async function loadUploadsForStudent(studentId) {
   const r = await fetch(`/api/uploads/${studentId}`);
   const uploads = await r.json();
