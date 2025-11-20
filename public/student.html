@@ -2,14 +2,14 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Temple of Logic – Schüler</title>
+  <title>Streets of Logic – XP Edition</title>
 
-  <!-- HINWEIS: Lege im Ordner /public eine Datei magic-library-bg.jpg ab
-       (dein mystischer Bibliotheks-/Tempel-Hintergrund). -->
+  <!-- GTA-ähnliche Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&display=swap" rel="stylesheet">
 
   <style>
     /* ============================================
-       GLOBAL – Dark Fantasy Library Background
+       GLOBAL – Dark GTA Comic City Background
     ============================================ */
     html, body {
       margin: 0;
@@ -19,127 +19,159 @@
 
     body {
       background:
-        linear-gradient(rgba(0,0,0,0.78), rgba(0,0,0,0.90)),
-        url("magic-library-bg.jpg") center/cover no-repeat fixed;
-      color: #eee;
+        linear-gradient(rgba(0,0,0,0.82), rgba(0,0,0,0.9)),
+        url("https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1600&q=80")
+        center/cover no-repeat fixed;
+      color: #f9fafb;
       font-family: Arial, sans-serif;
       display: flex;
       overflow: hidden;
       transition: margin-left 0.3s ease;
     }
 
+    a { color: inherit; }
+
     /* ============================================
-       SIDEBAR – ähnlich Admin, mit Charakterkreis
+       SIDEBAR – GTA Comic Style
     ============================================ */
     .sidebar {
-      width: 260px;
-      background: radial-gradient(circle at top, #1f1638 0, #0b0a18 40%, #05040c 100%);
-      padding: 20px 18px;
-      height: 100vh;
-      border-right: 2px solid #261b47;
-      box-shadow: 0 0 25px rgba(0,0,0,0.9);
+      width: 270px;
+      background: linear-gradient(180deg, #050816 0%, #050816 35%, #030712 100%);
+      border-right: 2px solid rgba(148,163,184,0.45);
+      box-shadow: 0 0 35px rgba(0,0,0,0.95);
+      padding: 18px 18px 20px 18px;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      gap: 14px;
-      z-index: 10;
+      position: relative;
+      z-index: 15;
     }
 
     .sidebar-header {
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 10px;
+      margin-bottom: 14px;
     }
 
-    .sidebar-avatar-orb {
-      width: 40px;
-      height: 40px;
-      border-radius: 999px;
-      background: radial-gradient(circle at 30% 20%, #1e293b 0, #4c1d95 55%, #020617 100%);
-      box-shadow: 0 0 15px rgba(129,140,248,0.9);
-      position: relative;
+    .sidebar-avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
       overflow: hidden;
-      flex-shrink: 0;
-    }
-
-    .sidebar-avatar-orb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: none;
-    }
-
-    .sidebar-avatar-orb.placeholder::after {
-      content: "?";
-      position: absolute;
-      inset: 0;
+      border: 3px solid #facc15;
+      box-shadow: 0 0 16px rgba(250,204,21,0.9);
+      background: radial-gradient(circle at 30% 20%, #0ea5e9, #4f46e5 60%, #020617 100%);
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: bold;
-      font-size: 20px;
-      color: #e5e7eb;
+      font-size: 18px;
+      text-transform: uppercase;
+    }
+
+    .sidebar-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .sidebar-title-wrap {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
     }
 
     .sidebar-title {
       margin: 0;
-      letter-spacing: 0.28em;
-      font-size: 13px;
+      font-family: "Bangers", system-ui;
+      font-size: 20px;
+      letter-spacing: 0.15em;
       text-transform: uppercase;
-      color: #ddd6fe;
-      white-space: nowrap;
+      color: #f9fafb;
+      text-shadow:
+        -2px -2px 0 #000,
+        2px -2px 0 #000,
+        -2px 2px 0 #000,
+        2px 2px 0 #000,
+        0 0 14px rgba(251,191,36,0.9);
     }
 
-    .nav-item {
+    .sidebar-subtitle {
+      margin-top: 4px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: #a5b4fc;
+      opacity: 0.85;
+    }
+
+    .menu-item {
       display: flex;
       align-items: center;
-      background: radial-gradient(circle at left, #231a40 0, #141226 55%, #05040d 100%);
-      border: 1px solid #33245c;
-      padding: 10px 12px;
-      border-radius: 14px;
+      gap: 10px;
+      padding: 11px 14px;
+      margin-top: 8px;
+      border-radius: 999px;
       cursor: pointer;
-      box-shadow: 0 5px 14px rgba(0,0,0,0.8);
-      transition: 0.18s;
-      margin-top: 6px;
-      font-size: 14px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      background: radial-gradient(circle at left, #111827 0, #020617 60%);
+      border: 1px solid rgba(148,163,184,0.4);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.85);
+      transition: 0.18s ease;
     }
 
-    .nav-item:hover,
-    .nav-item.active {
-      background: radial-gradient(circle at left, #4c3aaa 0, #1c1637 55%, #070714 100%);
-      border-color: #8b5cf6;
+    .menu-item:hover {
       transform: translateX(4px);
+      border-color: #f97316;
+      box-shadow: 0 8px 20px rgba(248,250,252,0.22);
     }
 
-    .nav-item svg {
-      width: 20px;
-      height: 20px;
-      margin-right: 10px;
-      fill: #a78bfa;
+    .menu-item.active {
+      background: linear-gradient(90deg, #f97316, #a855f7);
+      border-color: #fbbf24;
+      box-shadow: 0 0 22px rgba(251,191,36,0.9);
+      color: #0f172a;
     }
 
-    .nav-label {
-      font-size: 14px;
+    .menu-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: rgba(15,23,42,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    .menu-label {
+      white-space: nowrap;
     }
 
     .logout-btn {
       margin-top: auto;
-      padding: 10px 16px;
-      font-size: 14px;
-      border: none;
+      margin-bottom: 4px;
+      padding: 9px 14px;
       border-radius: 999px;
-      background: linear-gradient(135deg, #020617, #111827);
-      color: white;
+      border: 1px solid rgba(248,113,113,0.65);
+      background: linear-gradient(135deg, #111827, #b91c1c);
+      color: #fee2e2;
       cursor: pointer;
-      box-shadow: 0 0 10px rgba(15,23,42,0.8);
-      transition: 0.2s;
-      text-align: center;
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.9);
+      transition: 0.18s ease;
     }
 
     .logout-btn:hover {
-      background: linear-gradient(135deg, #111827, #312e81);
-      box-shadow: 0 0 16px rgba(79,70,229,0.7);
+      background: linear-gradient(135deg, #7f1d1d, #ef4444);
+      box-shadow: 0 0 18px rgba(248,113,113,0.9);
+      transform: translateY(-1px);
     }
 
     /* ============================================
@@ -151,10 +183,10 @@
       top: 0;
       left: 0;
       right: 0;
-      height: 54px;
-      background: rgba(10, 10, 35, 0.92);
-      backdrop-filter: blur(8px);
-      border-bottom: 1px solid rgba(120, 90, 200, 0.35);
+      height: 58px;
+      background: linear-gradient(90deg, #020617, #0b1120);
+      border-bottom: 1px solid rgba(148,163,184,0.45);
+      backdrop-filter: blur(10px);
       align-items: center;
       justify-content: space-between;
       padding: 0 14px;
@@ -162,10 +194,16 @@
     }
 
     .mobile-title {
-      font-size: 14px;
+      font-family: "Bangers", system-ui;
+      font-size: 18px;
       letter-spacing: 0.22em;
-      color: #e5e7eb;
       text-transform: uppercase;
+      color: #f9fafb;
+      text-shadow:
+        -2px -2px 0 #000,
+        2px -2px 0 #000,
+        -2px 2px 0 #000,
+        2px 2px 0 #000;
     }
 
     .burger {
@@ -184,13 +222,15 @@
     }
 
     .mobile-logout-btn {
-      border: none;
+      border: 1px solid rgba(148,163,184,0.7);
       border-radius: 999px;
-      padding: 6px 10px;
+      padding: 5px 10px;
       font-size: 11px;
       background: #020617;
       color: #e5e7eb;
       cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
     }
 
     /* ============================================
@@ -198,43 +238,72 @@
     ============================================ */
     .main-area {
       flex: 1;
-      padding: 24px 32px;
+      padding: 28px 40px;
       overflow-y: auto;
       box-sizing: border-box;
     }
 
     h1 {
-      font-size: 24px;
-      letter-spacing: 0.25em;
-      margin-top: 0;
-      margin-bottom: 20px;
-      color: #ddd6fe;
+      font-family: "Bangers", system-ui;
+      font-size: 30px;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
+      margin-top: 0;
+      margin-bottom: 22px;
+      color: #f9fafb;
+      text-shadow:
+        -3px -3px 0 #000,
+        3px -3px 0 #000,
+        -3px 3px 0 #000,
+        3px 3px 0 #000,
+        0 0 22px rgba(249,115,22,0.9);
     }
 
     h2 {
       margin-top: 0;
-      color: #c4b5fd;
-      border-bottom: 1px solid #5841a9;
-      padding-bottom: 4px;
-      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+      font-family: "Bebas Neue", system-ui;
+      font-size: 22px;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      font-size: 15px;
+      color: #e5e7eb;
+      border-bottom: 1px solid rgba(148,163,184,0.55);
+      padding-bottom: 4px;
     }
 
     .card {
-      background: rgba(10, 10, 35, 0.78);
+      background: linear-gradient(145deg, rgba(15,23,42,0.93), rgba(15,23,42,0.95));
       padding: 18px;
-      border: 1px solid rgba(140, 110, 255, 0.35);
-      border-radius: 12px;
-      margin-bottom: 22px;
-      backdrop-filter: blur(6px);
-      box-shadow: 0 10px 24px rgba(0,0,0,0.7);
-      font-size: 14px;
+      border-radius: 18px;
+      margin-bottom: 26px;
+      border: 1px solid rgba(148,163,184,0.55);
+      box-shadow: 0 14px 40px rgba(15,23,42,0.95);
+      backdrop-filter: blur(8px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top left, rgba(251,191,36,0.1), transparent 60%);
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
+    .card > * {
+      position: relative;
+      z-index: 1;
     }
 
     .section {
-      /* zur Steuerung über showSection() */
+      animation: fadeIn 0.25s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
     /* ============================================
@@ -242,23 +311,52 @@
     ============================================ */
     .character-wrapper {
       display: flex;
-      gap: 20px;
+      gap: 22px;
       flex-wrap: wrap;
       align-items: flex-start;
     }
 
+    .char-img-wrapper {
+      position: relative;
+      width: 220px;
+    }
+
     .char-img {
-      width: 240px;
-      height: 400px;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
       object-fit: cover;
-      margin-bottom: 10px;
-      border-radius: 18px;
-      box-shadow: 0 0 26px rgba(129,140,248,0.9);
       display: block;
+      box-shadow:
+        0 0 0 4px #020617,
+        0 0 0 6px #f97316,
+        0 0 22px rgba(249,115,22,0.9);
+    }
+
+    .char-name {
+      margin-top: 10px;
+      font-family: "Bebas Neue", system-ui;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-size: 18px;
+    }
+
+    .char-traits {
+      flex: 1;
+      min-width: 220px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .char-traits b {
+      font-family: "Bebas Neue", system-ui;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 15px;
     }
 
     /* ============================================
-       LEVEL BAR – MULTI-STEP mit Sternen
+       LEVEL BAR – MULTI-STEP
     ============================================ */
     .level-step-container {
       display: flex;
@@ -269,33 +367,34 @@
     }
 
     .level-step {
-      width: 60px;
-      height: 10px;
+      width: 62px;
+      height: 11px;
       background: #020617;
-      border-radius: 5px;
-      border: 1px solid #4c1d95;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.7);
       overflow: hidden;
+      box-shadow: inset 0 0 6px rgba(15,23,42,0.9);
     }
 
     .level-step-fill {
       height: 100%;
-      background: linear-gradient(90deg, #7c3aed, #a78bfa);
+      background: linear-gradient(90deg, #22c55e, #facc15);
       width: 0%;
-      transition: width 0.4s ease;
+      transition: width 0.35s ease;
     }
 
     .level-step-star {
       font-size: 18px;
-      color: gold;
-      text-shadow: 0 0 8px rgba(250,204,21,0.9);
+      color: #facc15;
+      text-shadow: 0 0 10px rgba(250,204,21,0.95);
     }
 
     /* ============================================
-       CAROUSEL (Missionen & Belohnungen)
+       CAROUSEL
     ============================================ */
     .carousel-wrapper {
       position: relative;
-      width: 300px;
+      width: 320px;
       margin: 0 auto;
       text-align: center;
     }
@@ -309,51 +408,54 @@
     }
 
     .mission-img {
-      width: 240px;
-      height: 400px;
+      width: 230px;
+      height: 230px;
+      border-radius: 30px;
       object-fit: cover;
-      border-radius: 18px;
       margin-bottom: 10px;
-      box-shadow: 0 0 20px rgba(120,80,255,0.7);
+      box-shadow:
+        0 0 0 4px #020617,
+        0 0 0 5px #a855f7,
+        0 0 24px rgba(168,85,247,0.9);
     }
 
     .carousel-arrow {
       font-size: 30px;
       cursor: pointer;
       user-select: none;
-      padding: 5px 12px;
+      padding: 6px 12px;
       color: #e5e7eb;
       transition: 0.2s;
     }
 
     .carousel-arrow:hover {
-      color: #a78bfa;
-      text-shadow: 0 0 10px rgba(167,139,250,0.9);
+      color: #f97316;
+      text-shadow: 0 0 14px rgba(249,115,22,0.9);
     }
 
     .dot-container {
       display: flex;
       justify-content: center;
       gap: 6px;
-      margin-top: 8px;
+      margin-top: 10px;
     }
 
     .dot {
       width: 9px;
       height: 9px;
       border-radius: 50%;
-      background: #4c1d95;
+      background: #4b5563;
       cursor: pointer;
       transition: 0.2s;
     }
 
     .dot.active {
-      background: #a78bfa;
-      box-shadow: 0 0 6px #a78bfa;
+      background: #f97316;
+      box-shadow: 0 0 8px rgba(249,115,22,0.9);
     }
 
     /* ============================================
-       FILE UPLOAD – CUSTOM STYLE
+       FILE UPLOAD – CUSTOM STYLE (GTA Tag)
     ============================================ */
     .file-upload {
       display: flex;
@@ -368,19 +470,23 @@
     }
 
     .file-label {
-      padding: 8px 14px;
+      padding: 8px 16px;
       border-radius: 999px;
-      border: 1px solid #6366f1;
-      background: rgba(15,23,42,0.9);
-      color: #e5e7eb;
-      font-size: 13px;
+      border: 1px solid #f97316;
+      background: #020617;
+      color: #f9fafb;
+      font-size: 12px;
       cursor: pointer;
-      transition: 0.2s;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      transition: 0.18s ease;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.85);
     }
 
     .file-label:hover {
-      background: rgba(55,65,81,0.95);
-      box-shadow: 0 0 10px rgba(99,102,241,0.7);
+      background: #111827;
+      box-shadow: 0 0 16px rgba(249,115,22,0.9);
+      transform: translateY(-1px);
     }
 
     .file-name {
@@ -393,103 +499,33 @@
       margin-top: 4px;
       padding: 8px 16px;
       border-radius: 999px;
-      background: linear-gradient(135deg, #2563eb, #7c3aed);
-      color: #f9fafb;
-      font-size: 13px;
+      background: linear-gradient(135deg, #22c55e, #a855f7);
+      color: #0f172a;
+      font-size: 12px;
       cursor: pointer;
-      box-shadow: 0 0 12px rgba(59,130,246,0.7);
-      transition: 0.2s;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      box-shadow: 0 8px 20px rgba(8,47,73,0.95);
+      transition: 0.18s ease;
     }
 
     .btn-primary:hover {
-      background: linear-gradient(135deg, #3b82f6, #a855f7);
-      box-shadow: 0 0 16px rgba(129,140,248,0.9);
+      background: linear-gradient(135deg, #4ade80, #f97316);
+      box-shadow: 0 0 18px rgba(45,212,191,0.9);
+      transform: translateY(-1px);
     }
 
     /* ============================================
-       XP-Log
+       XP LOG
     ============================================ */
     .xp-entry {
-      padding: 8px 0;
-      border-bottom: 1px solid #4b3f86;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(148,163,184,0.4);
       font-size: 13px;
     }
 
-    /* ============================================
-       CHARAKTER-WAHL OVERLAY
-    ============================================ */
-    .char-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(3, 4, 12, 0.90);
-      backdrop-filter: blur(5px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 50;
-    }
-
-    .char-overlay-inner {
-      background: radial-gradient(circle at top, #1f1638 0, #020617 70%);
-      border: 1px solid #4c1d95;
-      border-radius: 18px;
-      padding: 22px;
-      max-width: 760px;
-      width: 90%;
-      max-height: 85vh;
-      overflow-y: auto;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.85);
-    }
-
-    .char-overlay-inner h2 {
-      border-bottom: none;
-      text-align: center;
-      margin-bottom: 10px;
-    }
-
-    .char-overlay-inner p {
-      font-size: 13px;
-      opacity: 0.9;
-      text-align: center;
-      margin-bottom: 16px;
-    }
-
-    .character-choice-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 14px;
-    }
-
-    .character-choice-card {
-      background: rgba(10,10,35,0.8);
-      border-radius: 12px;
-      border: 1px solid #4338ca;
-      padding: 10px;
-      text-align: center;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    .character-choice-card:hover {
-      border-color: #a855f7;
-      box-shadow: 0 0 14px rgba(167,139,250,0.8);
-      transform: translateY(-2px);
-    }
-
-    .character-choice-card img {
-      width: 120px;
-      height: 200px;
-      object-fit: cover;
-      border-radius: 12px;
-      margin-bottom: 6px;
-      box-shadow: 0 0 14px rgba(129,140,248,0.8);
-    }
-
-    .char-overlay-close {
-      margin-top: 14px;
-      text-align: center;
-      font-size: 12px;
-      opacity: 0.75;
+    .xp-entry b {
+      color: #facc15;
     }
 
     /* ============================================
@@ -503,7 +539,7 @@
       .sidebar {
         position: fixed;
         top: 0;
-        left: -260px;
+        left: -290px;
         bottom: 0;
         height: 100%;
         transition: left 0.3s ease;
@@ -518,7 +554,7 @@
       }
 
       .main-area {
-        padding: 70px 18px 18px 18px;
+        padding: 72px 16px 20px 16px;
       }
 
       h1 {
@@ -527,8 +563,14 @@
 
       .character-wrapper {
         flex-direction: column;
+        align-items: center;
+      }
+
+      .carousel-wrapper {
+        width: 100%;
       }
     }
+
   </style>
 </head>
 
@@ -537,44 +579,46 @@
   <!-- MOBILE HEADER -->
   <div class="mobile-header">
     <div class="burger" onclick="toggleMenu()">
-      <span></span><span></span><span></span>
+      <span></span>
+      <span></span>
+      <span></span>
     </div>
-    <div class="mobile-title">TEMPLE OF LOGIC</div>
+    <div class="mobile-title">STREETS OF LOGIC</div>
     <button class="mobile-logout-btn" onclick="logout()">Logout</button>
   </div>
 
   <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="sidebar-header">
-      <div id="sidebarAvatarOrb" class="sidebar-avatar-orb placeholder">
-        <img id="sidebarAvatarImg" alt="Avatar">
+      <div class="sidebar-avatar">
+        <img id="sidebarAvatar" src="" alt="" style="display:none;">
+        <span id="sidebarInitials" style="display:none;">SL</span>
       </div>
-      <h2 class="sidebar-title">TEMPLE OF LOGIC</h2>
+      <div class="sidebar-title-wrap">
+        <h2 class="sidebar-title">STREETS OF LOGIC</h2>
+        <span class="sidebar-subtitle">XP EDITION</span>
+      </div>
     </div>
 
-    <div class="nav-item active" onclick="showSection(event,'status')">
-      <svg viewBox="0 0 24 24"><path d="M4 5h16v2H4V5zm3 4h10v2H7V9zm-3 4h16v2H4v-2zm3 4h6v2H7v-2z"/></svg>
-      <span class="nav-label">Status</span>
+    <div class="menu-item active" onclick="showSection(event,'status')">
+      <div class="menu-icon">S</div>
+      <span class="menu-label">Status</span>
     </div>
-
-    <div class="nav-item" onclick="showSection(event,'charakter')">
-      <svg viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4zm0 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/></svg>
-      <span class="nav-label">Charakter</span>
+    <div class="menu-item" onclick="showSection(event,'charakter')">
+      <div class="menu-icon">C</div>
+      <span class="menu-label">Charakter</span>
     </div>
-
-    <div class="nav-item" onclick="showSection(event,'missionen')">
-      <svg viewBox="0 0 24 24"><path d="M3 3v18l9-4 9 4V3H3zm16 2v11.1l-7-3.1-7 3.1V5h14z"/></svg>
-      <span class="nav-label">Missionen</span>
+    <div class="menu-item" onclick="showSection(event,'missionen')">
+      <div class="menu-icon">M</div>
+      <span class="menu-label">Missionen</span>
     </div>
-
-    <div class="nav-item" onclick="showSection(event,'belohnungen')">
-      <svg viewBox="0 0 24 24"><path d="M4 6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v1c0 .6.4 1 1 1h3c.6 0 1-.4 1-1V6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v3.1c-.9.2-1.6.9-1.8 1.8-.2.9.1 1.9.8 2.5.3.3.6.5 1 .6V18c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1V15c.4-.1.7-.3 1-.6.7-.7 1-1.6.8-2.5-.2-.9-.9-1.6-1.8-1.8V6z"/></svg>
-      <span class="nav-label">Belohnungen</span>
+    <div class="menu-item" onclick="showSection(event,'belohnungen')">
+      <div class="menu-icon">B</div>
+      <span class="menu-label">Belohnungen</span>
     </div>
-
-    <div class="nav-item" onclick="showSection(event,'xp')">
-      <svg viewBox="0 0 24 24"><path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/></svg>
-      <span class="nav-label">XP-Historie</span>
+    <div class="menu-item" onclick="showSection(event,'xp')">
+      <div class="menu-icon">XP</div>
+      <span class="menu-label">XP-Historie</span>
     </div>
 
     <button class="logout-btn" onclick="logout()">Logout</button>
@@ -582,24 +626,23 @@
 
   <!-- MAIN AREA -->
   <div class="main-area">
-    <h1>TEMPLE OF LOGIC</h1>
+    <h1>STREETS OF LOGIC – XP EDITION</h1>
 
     <!-- STATUS -->
     <div id="status-section" class="card section">
       <h2>Status</h2>
       <div id="userCard"></div>
-      <div id="levelBar" style="margin-top:12px;"></div>
+      <div id="levelBar" style="margin-top:10px;"></div>
     </div>
 
     <!-- CHARAKTER -->
     <div id="charakter-section" class="card section" style="display:none;">
       <h2>Charakter</h2>
       <div class="character-wrapper">
-        <div id="characterInfo"></div>
-        <div id="traitsItemsCard"></div>
-      </div>
-      <div style="margin-top:12px;">
-        <button class="btn-primary" onclick="openCharacterOverlay(false)">Charakter ändern</button>
+        <div class="char-img-wrapper">
+          <div id="characterInfo"></div>
+        </div>
+        <div id="traitsItemsCard" class="char-traits"></div>
       </div>
     </div>
 
@@ -622,25 +665,7 @@
     </div>
   </div>
 
-  <!-- CHARAKTER-WAHL OVERLAY -->
-  <div id="characterOverlay" class="char-overlay">
-    <div class="char-overlay-inner">
-      <h2>Wähle deinen Charakter</h2>
-      <p>Suche dir einen Charakter aus. Dein Bild bleibt, Items & Eigenschaften bekommst du zufällig zugewiesen.</p>
-      <div id="characterChoiceGrid" class="character-choice-grid"></div>
-      <div class="char-overlay-close">
-        (Charakterwahl ist beim ersten Login Pflicht – du kannst später im Charakter-Tab noch einmal wechseln.)
-      </div>
-    </div>
-  </div>
-
 <script>
-/* ============================================
-   GLOBAL STATE
-============================================ */
-let xpPerMission = {};
-let initialCharacterSelection = false;
-
 /* ============================================
    MENU + SECTIONS
 ============================================ */
@@ -650,10 +675,14 @@ function toggleMenu() {
 
 function showSection(ev, name) {
   document.querySelectorAll(".section").forEach(s => s.style.display = "none");
-  document.getElementById(name + "-section").style.display = "block";
+  const section = document.getElementById(name + "-section");
+  if (section) section.style.display = "block";
 
-  document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
-  if (ev && ev.currentTarget) ev.currentTarget.classList.add("active");
+  document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
+  if (ev && ev.target) {
+    const item = ev.target.closest(".menu-item");
+    if (item) item.classList.add("active");
+  }
 
   if (window.innerWidth <= 900) {
     document.body.classList.remove("menu-open");
@@ -671,42 +700,58 @@ async function logout() {
 /* ============================================
    LOAD STUDENT DATA
 ============================================ */
+let xpPerMission = {};
+
 async function loadMe() {
   const r = await fetch("/api/student/me");
   const data = await r.json();
+
   const u = data.user;
 
   // STATUS
   document.getElementById("userCard").innerHTML = `
-    <b>Name:</b> ${u.name}<br>
-    <b>XP:</b> ${u.xp}<br>
-    <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
+    <div style="font-size:14px;line-height:1.6;">
+      <b>Name:</b> ${u.name}<br>
+      <b>XP:</b> ${u.xp}<br>
+      <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
+    </div>
   `;
 
   // SIDEBAR AVATAR
-  const orb = document.getElementById("sidebarAvatarOrb");
-  const img = document.getElementById("sidebarAvatarImg");
+  const avatarImg = document.getElementById("sidebarAvatar");
+  const avatarInitials = document.getElementById("sidebarInitials");
+
   if (data.character && data.character.image_url) {
-    orb.classList.remove("placeholder");
-    img.src = data.character.image_url;
-    img.style.display = "block";
+    avatarImg.src = data.character.image_url;
+    avatarImg.style.display = "block";
+    avatarInitials.style.display = "none";
   } else {
-    orb.classList.add("placeholder");
-    img.src = "";
-    img.style.display = "none";
+    avatarImg.style.display = "none";
+    avatarInitials.style.display = "block";
+    avatarInitials.textContent = (u.name || "SL")
+      .split(" ")
+      .map(p => p[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   }
 
-  // CHARAKTERCARD
+  // CHARAKTER
   const charDiv = document.getElementById("characterInfo");
   if (data.character) {
     charDiv.innerHTML = `
       <img class="char-img" src="${data.character.image_url}" alt="Charakter">
-      <div><b>${data.character.name}</b></div>
+      <div class="char-name">${data.character.name}</div>
     `;
   } else {
     charDiv.innerHTML = `
-      <div style="font-size:13px;opacity:0.9;">
-        Noch kein Charakter gewählt. Beim ersten Login musst du einen Charakter auswählen.
+      <div style="width:220px;height:220px;border-radius:50%;
+                  display:flex;align-items:center;justify-content:center;
+                  background:radial-gradient(circle at 30% 20%,#0ea5e9,#4f46e5 60%,#020617 100%);
+                  box-shadow:0 0 0 4px #020617,0 0 0 6px #a855f7,0 0 24px rgba(168,85,247,0.9);">
+        <span style="font-family:'Bebas Neue',system-ui;letter-spacing:0.18em;font-size:18px;text-transform:uppercase;">
+          Kein Charakter
+        </span>
       </div>
     `;
   }
@@ -719,7 +764,7 @@ async function loadMe() {
     ${data.items.map(i => "• " + i).join("<br>")}
   `;
 
-  // XP PER MISSION
+  // XP PER MISSION (Objekt {mission_id: xpSum})
   xpPerMission = data.xp_per_mission || {};
 
   // XP LOG
@@ -737,19 +782,8 @@ async function loadMe() {
 
   // LEVEL BAR
   renderLevelBar(data.levels || [], u.xp);
-
-  // Beim ersten Login ohne Charakter → Overlay zwingen
-  if (!data.character) {
-    initialCharacterSelection = true;
-    openCharacterOverlay(true);
-  } else {
-    initialCharacterSelection = false;
-  }
 }
 
-/* ============================================
-   LEVEL BAR
-============================================ */
 function renderLevelBar(levels, xp) {
   if (!levels || !levels.length) {
     document.getElementById("levelBar").innerHTML = "<i>Noch keine Level definiert.</i>";
@@ -775,7 +809,7 @@ function renderLevelBar(levels, xp) {
 
     html += `
       <div class="level-step">
-        <div class="level-step-fill" style="width:${pct}%;"></div>
+        <div class="level-step-fill" style="width:${pct}%"></div>
       </div>
     `;
   }
@@ -815,25 +849,25 @@ function renderCarousel(containerId, items, type) {
     slides += `
       <div class="carousel-item ${idx === 0 ? "active" : ""}">
         ${item.image_url ? `<img class="mission-img" src="${item.image_url}" alt="${item.name}">` : ""}
-        <h3 style="margin:8px 0 2px 0;">${item.name}</h3>
-        <div><b>${item.xp} XP</b></div>
+        <h3 style="margin:8px 0 2px 0;font-family:'Bebas Neue',system-ui;letter-spacing:0.14em;text-transform:uppercase;">
+          ${item.name}
+        </h3>
+        <div style="font-size:13px;"><b>${item.xp} XP</b></div>
         ${type === "mission" ? `
-          <div style="margin-top:4px;font-size:13px;">
+          <div style="margin-top:4px;font-size:12px;">
             Bereits erhalten: <b>${xpPerMission[item.id] || 0} XP</b>
           </div>
         ` : ""}
         ${type === "mission" && item.require_upload ? `
           <div class="file-upload">
             <input type="file" id="upload_${item.id}" class="file-input" onchange="updateFileLabel(${item.id})">
-            <label for="upload_${item.id}" class="file-label">Datei auswählen</label>
+            <label for="upload_${item.id}" class="file-label">Beweis hochladen</label>
             <span id="file-name-${item.id}" class="file-name">Keine Datei ausgewählt</span>
             <button class="btn-primary" onclick="uploadMission(${item.id})">Upload senden</button>
           </div>
         ` : ""}
         ${type === "reward" ? `
-          <button class="btn-primary" onclick="redeemReward(${item.id})" style="margin-top:10px;">
-            Belohnung einlösen
-          </button>
+          <button class="btn-primary" onclick="redeemReward(${item.id})" style="margin-top:10px;">Belohnung einlösen</button>
         ` : ""}
       </div>
     `;
@@ -943,60 +977,6 @@ async function redeemReward(id) {
     loadRewards();
   } else {
     alert(data.message || "Nicht genug XP oder Fehler beim Einlösen.");
-  }
-}
-
-/* ============================================
-   CHARAKTER-WAHL – OVERLAY
-============================================ */
-function openCharacterOverlay(initial) {
-  const overlay = document.getElementById("characterOverlay");
-  overlay.style.display = "flex";
-  loadCharacterChoices();
-  if (initial) {
-    initialCharacterSelection = true;
-  }
-}
-
-function closeCharacterOverlay() {
-  // Beim Initial-Login nicht schließen, bevor ein Charakter gewählt ist
-  if (initialCharacterSelection) return;
-  document.getElementById("characterOverlay").style.display = "none";
-}
-
-async function loadCharacterChoices() {
-  const r = await fetch("/api/student/characterList");
-  const chars = await r.json();
-
-  const grid = document.getElementById("characterChoiceGrid");
-  grid.innerHTML = "";
-
-  chars.forEach(c => {
-    const div = document.createElement("div");
-    div.className = "character-choice-card";
-    div.innerHTML = `
-      ${c.image_url ? `<img src="${c.image_url}" alt="${c.name}">` : ""}
-      <div><b>${c.name}</b></div>
-    `;
-    div.addEventListener("click", () => selectCharacter(c.id));
-    grid.appendChild(div);
-  });
-}
-
-async function selectCharacter(id) {
-  const r = await fetch("/api/student/selectCharacter", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ characterId: id })
-  });
-
-  const data = await r.json();
-  if (data.success) {
-    initialCharacterSelection = false;
-    document.getElementById("characterOverlay").style.display = "none";
-    loadMe();
-  } else {
-    alert("Fehler beim Speichern des Charakters.");
   }
 }
 
