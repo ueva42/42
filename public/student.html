@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <title>Streets of Logic – XP Edition</title>
 
-  <!-- GTA-ähnliche Fonts -->
+  <!-- GTA-Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&display=swap" rel="stylesheet">
 
   <style>
     /* ============================================
-       GLOBAL – Dark GTA Comic City Background
+       GLOBAL – Dark GTA Comic Background
     ============================================ */
     html, body {
       margin: 0;
@@ -32,19 +32,19 @@
     a { color: inherit; }
 
     /* ============================================
-       SIDEBAR – GTA Comic Style
+       SIDEBAR – GTA Style
     ============================================ */
     .sidebar {
       width: 270px;
       background: linear-gradient(180deg, #050816 0%, #050816 35%, #030712 100%);
       border-right: 2px solid rgba(148,163,184,0.45);
       box-shadow: 0 0 35px rgba(0,0,0,0.95);
-      padding: 18px 18px 20px 18px;
+      padding: 18px;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
       position: relative;
-      z-index: 15;
+      z-index: 20;
     }
 
     .sidebar-header {
@@ -68,6 +68,12 @@
       font-weight: bold;
       font-size: 18px;
       text-transform: uppercase;
+      transition: 0.2s ease;
+    }
+
+    .sidebar-avatar:hover {
+      transform: scale(1.04);
+      box-shadow: 0 0 20px rgba(250,204,21,0.9);
     }
 
     .sidebar-avatar img {
@@ -85,7 +91,7 @@
 
     .sidebar-title {
       margin: 0;
-      font-family: "Bangers", system-ui;
+      font-family: "Bangers";
       font-size: 20px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
@@ -107,6 +113,11 @@
       opacity: 0.85;
     }
 
+
+
+    /* ============================================
+       MENU ITEMS
+    ============================================ */
     .menu-item {
       display: flex;
       align-items: center;
@@ -130,11 +141,23 @@
       box-shadow: 0 8px 20px rgba(248,250,252,0.22);
     }
 
+    .menu-item:hover .menu-icon {
+      background: #f97316;
+      color: #000;
+      box-shadow: 0 0 12px rgba(249,115,22,0.9);
+    }
+
     .menu-item.active {
       background: linear-gradient(90deg, #f97316, #a855f7);
       border-color: #fbbf24;
       box-shadow: 0 0 22px rgba(251,191,36,0.9);
       color: #0f172a;
+    }
+
+    .menu-item.active .menu-icon {
+      background: #facc15;
+      color: #000;
+      box-shadow: 0 0 18px rgba(250,204,21,0.9);
     }
 
     .menu-icon {
@@ -148,13 +171,8 @@
       font-size: 12px;
     }
 
-    .menu-label {
-      white-space: nowrap;
-    }
-
     .logout-btn {
       margin-top: auto;
-      margin-bottom: 4px;
       padding: 9px 14px;
       border-radius: 999px;
       border: 1px solid rgba(248,113,113,0.65);
@@ -183,32 +201,32 @@
       top: 0;
       left: 0;
       right: 0;
-      height: 58px;
+      height: 60px;
       background: linear-gradient(90deg, #020617, #0b1120);
-      border-bottom: 1px solid rgba(148,163,184,0.45);
-      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(148,163,184,0.3);
+      backdrop-filter: blur(12px);
       align-items: center;
       justify-content: space-between;
-      padding: 0 14px;
-      z-index: 20;
+      padding: 0 16px;
+      z-index: 1000;
     }
 
     .mobile-title {
-      font-family: "Bangers", system-ui;
-      font-size: 18px;
-      letter-spacing: 0.22em;
+      font-family: "Bangers";
+      font-size: 19px;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: #f9fafb;
+      color: #fefce8;
       text-shadow:
-        -2px -2px 0 #000,
+       -2px -2px 0 #000,
         2px -2px 0 #000,
-        -2px 2px 0 #000,
-        2px 2px 0 #000;
+       -2px  2px 0 #000,
+        2px  2px 0 #000;
     }
 
     .burger {
-      width: 26px;
-      height: 20px;
+      width: 28px;
+      height: 22px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -217,360 +235,410 @@
 
     .burger span {
       height: 3px;
-      border-radius: 999px;
       background: #e5e7eb;
+      border-radius: 999px;
+      box-shadow: 0 0 6px rgba(255,255,255,0.6);
     }
 
     .mobile-logout-btn {
-      border: 1px solid rgba(148,163,184,0.7);
+      border: 1px solid rgba(148,163,184,0.6);
+      padding: 6px 12px;
       border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 11px;
       background: #020617;
       color: #e5e7eb;
       cursor: pointer;
-      text-transform: uppercase;
+      font-size: 12px;
       letter-spacing: 0.12em;
+      text-transform: uppercase;
     }
+
+    .mobile-logout-btn:hover {
+      color: #f97316;
+      border-color: #f97316;
+      box-shadow: 0 0 12px rgba(249,115,22,0.6);
+    }
+
 
     /* ============================================
        MAIN AREA
     ============================================ */
     .main-area {
       flex: 1;
-      padding: 28px 40px;
+      padding: 32px 45px;
       overflow-y: auto;
       box-sizing: border-box;
     }
 
     h1 {
-      font-family: "Bangers", system-ui;
-      font-size: 30px;
-      letter-spacing: 0.22em;
+      font-family: "Bangers";
+      font-size: 32px;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      margin-top: 0;
-      margin-bottom: 22px;
-      color: #f9fafb;
+      margin: 0 0 26px;
+      color: #fefce8;
       text-shadow:
         -3px -3px 0 #000,
-        3px -3px 0 #000,
-        -3px 3px 0 #000,
-        3px 3px 0 #000,
-        0 0 22px rgba(249,115,22,0.9);
+         3px -3px 0 #000,
+        -3px  3px 0 #000,
+         3px  3px 0 #000,
+         0 0 25px rgba(249,115,22,0.9);
     }
 
     h2 {
       margin-top: 0;
       margin-bottom: 10px;
-      font-family: "Bebas Neue", system-ui;
-      font-size: 22px;
+      font-family: "Bebas Neue";
+      font-size: 24px;
       letter-spacing: 0.16em;
       text-transform: uppercase;
       color: #e5e7eb;
+      padding-bottom: 6px;
       border-bottom: 1px solid rgba(148,163,184,0.55);
-      padding-bottom: 4px;
     }
 
+
+    /* ============================================
+       CARD
+    ============================================ */
     .card {
-      background: linear-gradient(145deg, rgba(15,23,42,0.93), rgba(15,23,42,0.95));
-      padding: 18px;
-      border-radius: 18px;
-      margin-bottom: 26px;
+      background: linear-gradient(
+        145deg,
+        rgba(15,23,42,0.94),
+        rgba(15,23,42,0.97)
+      );
+      padding: 22px;
+      border-radius: 22px;
       border: 1px solid rgba(148,163,184,0.55);
-      box-shadow: 0 14px 40px rgba(15,23,42,0.95);
-      backdrop-filter: blur(8px);
+      margin-bottom: 30px;
+      box-shadow:
+        0 14px 40px rgba(0,0,0,0.9),
+        inset 0 0 0 1px rgba(255,255,255,0.04);
+      backdrop-filter: blur(10px);
       position: relative;
       overflow: hidden;
+      animation: fadeIn 0.25s ease-out;
     }
 
     .card::before {
       content: "";
       position: absolute;
       inset: 0;
-      background: radial-gradient(circle at top left, rgba(251,191,36,0.1), transparent 60%);
+      background: radial-gradient(
+        circle at 15% 10%,
+        rgba(251,191,36,0.14),
+        transparent 60%
+      );
       opacity: 0.8;
-      pointer-events: none;
-    }
-
-    .card > * {
-      position: relative;
-      z-index: 1;
-    }
-
-    .section {
-      animation: fadeIn 0.25s ease-out;
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to   { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     /* ============================================
-       CHARACTER IMAGE & TRAITS
+       STATUS
+    ============================================ */
+    #userCard {
+      font-size: 15px;
+      line-height: 1.6;
+      padding-left: 4px;
+    }
+
+    /* ============================================
+       LEVEL BAR
+    ============================================ */
+    .level-step-container {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .level-step {
+      width: 70px;
+      height: 12px;
+      border-radius: 999px;
+      background: #0f172a;
+      border: 1px solid rgba(148,163,184,0.7);
+      overflow: hidden;
+      box-shadow: inset 0 0 6px rgba(0,0,0,0.8);
+    }
+
+    .level-step-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4ade80, #facc15);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .level-step-star {
+      font-size: 20px;
+      color: #facc15;
+      text-shadow: 0 0 12px rgba(250,204,21,0.9);
+    }
+
+    /* ============================================
+       CHARAKTER
     ============================================ */
     .character-wrapper {
       display: flex;
-      gap: 22px;
+      gap: 28px;
       flex-wrap: wrap;
       align-items: flex-start;
     }
 
     .char-img-wrapper {
-      position: relative;
-      width: 220px;
+      width: 230px;
+      text-align: center;
     }
 
     .char-img {
-      width: 220px;
-      height: 220px;
+      width: 230px;
+      height: 230px;
       border-radius: 50%;
       object-fit: cover;
-      display: block;
       box-shadow:
-        0 0 0 4px #020617,
-        0 0 0 6px #f97316,
-        0 0 22px rgba(249,115,22,0.9);
+        0 0 0 4px #000,
+        0 0 0 5px #f97316,
+        0 0 25px rgba(249,115,22,0.9);
     }
 
     .char-name {
-      margin-top: 10px;
-      font-family: "Bebas Neue", system-ui;
+      margin-top: 6px;
+      font-family: "Bebas Neue";
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      font-size: 18px;
-    }
-
-    .char-traits {
-      flex: 1;
-      min-width: 220px;
-      font-size: 14px;
-      line-height: 1.5;
+      font-size: 20px;
     }
 
     .char-traits b {
-      font-family: "Bebas Neue", system-ui;
-      letter-spacing: 0.14em;
+      font-family: "Bebas Neue";
+      letter-spacing: 0.15em;
       text-transform: uppercase;
       font-size: 15px;
+      color: #fefce8;
     }
 
-    /* ============================================
-       LEVEL BAR – MULTI-STEP
-    ============================================ */
-    .level-step-container {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 10px;
-      flex-wrap: wrap;
-    }
-
-    .level-step {
-      width: 62px;
-      height: 11px;
-      background: #020617;
-      border-radius: 999px;
-      border: 1px solid rgba(148,163,184,0.7);
-      overflow: hidden;
-      box-shadow: inset 0 0 6px rgba(15,23,42,0.9);
-    }
-
-    .level-step-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #22c55e, #facc15);
-      width: 0%;
-      transition: width 0.35s ease;
-    }
-
-    .level-step-star {
-      font-size: 18px;
-      color: #facc15;
-      text-shadow: 0 0 10px rgba(250,204,21,0.95);
-    }
 
     /* ============================================
        CAROUSEL
     ============================================ */
     .carousel-wrapper {
       position: relative;
-      width: 320px;
+      width: 330px;
       margin: 0 auto;
       text-align: center;
+      padding-top: 10px;
     }
 
     .carousel-item {
       display: none;
+      animation: fadeSlide 0.25s ease-out;
     }
 
     .carousel-item.active {
       display: block;
     }
 
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     .mission-img {
-      width: 230px;
-      height: 230px;
-      border-radius: 30px;
+      width: 240px;
+      height: 240px;
+      border-radius: 28px;
       object-fit: cover;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       box-shadow:
-        0 0 0 4px #020617,
+        0 0 0 4px #000,
         0 0 0 5px #a855f7,
-        0 0 24px rgba(168,85,247,0.9);
+        0 0 25px rgba(168,85,247,0.9),
+        inset 0 0 50px rgba(0,0,0,0.4);
+    }
+
+    .carousel-item h3 {
+      font-family: "Bebas Neue";
+      margin: 8px 0 4px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 22px;
+      color: #f9fafb;
+      text-shadow:
+        -2px -2px 0 #000,
+         2px -2px 0 #000,
+        -2px  2px 0 #000,
+         2px  2px 0 #000;
+    }
+
+    .carousel-item b {
+      color: #facc15;
+      text-shadow: 0 0 10px rgba(250,204,21,0.9);
     }
 
     .carousel-arrow {
-      font-size: 30px;
+      font-size: 34px;
       cursor: pointer;
       user-select: none;
-      padding: 6px 12px;
+      padding: 8px 14px;
       color: #e5e7eb;
       transition: 0.2s;
+      text-shadow: 0 0 10px rgba(149,157,167,0.6);
     }
 
     .carousel-arrow:hover {
       color: #f97316;
-      text-shadow: 0 0 14px rgba(249,115,22,0.9);
+      text-shadow: 0 0 18px rgba(249,115,22,0.9);
+      transform: scale(1.12);
     }
 
     .dot-container {
+      margin-top: 12px;
       display: flex;
       justify-content: center;
-      gap: 6px;
-      margin-top: 10px;
+      gap: 8px;
     }
 
     .dot {
-      width: 9px;
-      height: 9px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
       background: #4b5563;
-      cursor: pointer;
       transition: 0.2s;
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(0,0,0,0.7);
     }
 
     .dot.active {
       background: #f97316;
-      box-shadow: 0 0 8px rgba(249,115,22,0.9);
+      box-shadow: 0 0 10px rgba(249,115,22,0.9);
+      transform: scale(1.2);
     }
 
-    /* ============================================
-       FILE UPLOAD – CUSTOM STYLE (GTA Tag)
-    ============================================ */
+    /* FILE UPLOAD */
     .file-upload {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 6px;
-      margin-top: 8px;
+      margin-top: 12px;
+      gap: 8px;
     }
 
-    .file-input {
-      display: none;
-    }
+    .file-input { display: none; }
 
     .file-label {
-      padding: 8px 16px;
+      padding: 8px 20px;
       border-radius: 999px;
-      border: 1px solid #f97316;
+      border: 2px solid #f97316;
       background: #020617;
       color: #f9fafb;
-      font-size: 12px;
-      cursor: pointer;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      transition: 0.18s ease;
+      cursor: pointer;
+      font-size: 12px;
       box-shadow: 0 6px 14px rgba(0,0,0,0.85);
+      transition: 0.18s ease;
     }
 
     .file-label:hover {
       background: #111827;
-      box-shadow: 0 0 16px rgba(249,115,22,0.9);
+      box-shadow: 0 0 14px rgba(249,115,22,0.9);
       transform: translateY(-1px);
     }
 
     .file-name {
       font-size: 11px;
-      opacity: 0.8;
+      opacity: 0.7;
     }
 
     .btn-primary {
       border: none;
-      margin-top: 4px;
-      padding: 8px 16px;
+      padding: 8px 20px;
       border-radius: 999px;
       background: linear-gradient(135deg, #22c55e, #a855f7);
       color: #0f172a;
-      font-size: 12px;
+      font-size: 13px;
       cursor: pointer;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.15em;
       text-transform: uppercase;
-      box-shadow: 0 8px 20px rgba(8,47,73,0.95);
+      box-shadow: 0 8px 22px rgba(8,47,73,0.95);
       transition: 0.18s ease;
     }
 
     .btn-primary:hover {
       background: linear-gradient(135deg, #4ade80, #f97316);
-      box-shadow: 0 0 18px rgba(45,212,191,0.9);
+      box-shadow: 0 0 20px rgba(45,212,191,0.9);
+      transform: translateY(-1px) scale(1.03);
+    }
+
+    /* REWARD BUTTON */
+    .btn-primary-reward {
+      border: none;
+      margin-top: 12px;
+      padding: 9px 20px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #facc15, #f97316);
+      color: #0f172a;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.9);
+      transition: 0.18s ease;
+    }
+
+    .btn-primary-reward:hover {
+      background: linear-gradient(135deg, #fde047, #fb923c);
+      box-shadow: 0 0 18px rgba(251,191,36,0.9);
       transform: translateY(-1px);
     }
 
-    /* ============================================
-       XP LOG
-    ============================================ */
+    /* XP LOG */
     .xp-entry {
-      padding: 8px 10px;
-      border-bottom: 1px solid rgba(148,163,184,0.4);
-      font-size: 13px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(148,163,184,0.23);
+      font-size: 14px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 14px;
+      margin-bottom: 10px;
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.7),
+                  0 4px 14px rgba(0,0,0,0.7);
+      transition: 0.2s;
+    }
+
+    .xp-entry:hover {
+      background: rgba(249,115,22,0.08);
+      transform: translateX(4px);
+      box-shadow:
+        0 0 12px rgba(249,115,22,0.35),
+        0 4px 18px rgba(0,0,0,0.7);
     }
 
     .xp-entry b {
       color: #facc15;
+      text-shadow: 0 0 12px rgba(250,204,21,0.95);
+      font-size: 15px;
     }
 
-    /* ============================================
-       RESPONSIVE
-    ============================================ */
     @media (max-width: 900px) {
-      body {
-        flex-direction: column;
+      body { flex-direction: column; }
+      .sidebar { 
+        position: fixed; 
+        left: -290px; 
+        top: 0; 
+        transition: left 0.3s; 
       }
-
-      .sidebar {
-        position: fixed;
-        top: 0;
-        left: -290px;
-        bottom: 0;
-        height: 100%;
-        transition: left 0.3s ease;
-      }
-
-      body.menu-open .sidebar {
-        left: 0;
-      }
-
-      .mobile-header {
-        display: flex;
-      }
-
-      .main-area {
-        padding: 72px 16px 20px 16px;
-      }
-
-      h1 {
-        display: none;
-      }
-
-      .character-wrapper {
-        flex-direction: column;
-        align-items: center;
-      }
-
-      .carousel-wrapper {
-        width: 100%;
-      }
+      body.menu-open .sidebar { left: 0; }
+      .mobile-header { display: flex; }
+      .main-area { padding: 75px 18px 25px; }
+      h1 { display: none; }
+      .character-wrapper { flex-direction: column; align-items: center; }
+      .carousel-wrapper { width: 100%; }
     }
-
   </style>
 </head>
 
@@ -579,9 +647,7 @@
   <!-- MOBILE HEADER -->
   <div class="mobile-header">
     <div class="burger" onclick="toggleMenu()">
-      <span></span>
-      <span></span>
-      <span></span>
+      <span></span><span></span><span></span>
     </div>
     <div class="mobile-title">STREETS OF LOGIC</div>
     <button class="mobile-logout-btn" onclick="logout()">Logout</button>
@@ -594,6 +660,7 @@
         <img id="sidebarAvatar" src="" alt="" style="display:none;">
         <span id="sidebarInitials" style="display:none;">SL</span>
       </div>
+
       <div class="sidebar-title-wrap">
         <h2 class="sidebar-title">STREETS OF LOGIC</h2>
         <span class="sidebar-subtitle">XP EDITION</span>
@@ -602,23 +669,27 @@
 
     <div class="menu-item active" onclick="showSection(event,'status')">
       <div class="menu-icon">S</div>
-      <span class="menu-label">Status</span>
+      <span>Status</span>
     </div>
+
     <div class="menu-item" onclick="showSection(event,'charakter')">
       <div class="menu-icon">C</div>
-      <span class="menu-label">Charakter</span>
+      <span>Charakter</span>
     </div>
+
     <div class="menu-item" onclick="showSection(event,'missionen')">
       <div class="menu-icon">M</div>
-      <span class="menu-label">Missionen</span>
+      <span>Missionen</span>
     </div>
+
     <div class="menu-item" onclick="showSection(event,'belohnungen')">
       <div class="menu-icon">B</div>
-      <span class="menu-label">Belohnungen</span>
+      <span>Belohnungen</span>
     </div>
+
     <div class="menu-item" onclick="showSection(event,'xp')">
       <div class="menu-icon">XP</div>
-      <span class="menu-label">XP-Historie</span>
+      <span>XP-Historie</span>
     </div>
 
     <button class="logout-btn" onclick="logout()">Logout</button>
@@ -632,7 +703,7 @@
     <div id="status-section" class="card section">
       <h2>Status</h2>
       <div id="userCard"></div>
-      <div id="levelBar" style="margin-top:10px;"></div>
+      <div id="levelBar"></div>
     </div>
 
     <!-- CHARAKTER -->
@@ -666,17 +737,15 @@
   </div>
 
 <script>
-/* ============================================
-   MENU + SECTIONS
-============================================ */
+/* MENU */
 function toggleMenu() {
   document.body.classList.toggle("menu-open");
 }
 
 function showSection(ev, name) {
   document.querySelectorAll(".section").forEach(s => s.style.display = "none");
-  const section = document.getElementById(name + "-section");
-  if (section) section.style.display = "block";
+  const sec = document.getElementById(name + "-section");
+  if (sec) sec.style.display = "block";
 
   document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
   if (ev && ev.target) {
@@ -684,40 +753,30 @@ function showSection(ev, name) {
     if (item) item.classList.add("active");
   }
 
-  if (window.innerWidth <= 900) {
-    document.body.classList.remove("menu-open");
-  }
+  if (window.innerWidth <= 900) document.body.classList.remove("menu-open");
 }
 
-/* ============================================
-   LOGOUT
-============================================ */
+/* LOGOUT */
 async function logout() {
   await fetch("/api/logout", { method: "POST" });
   location.href = "/login.html";
 }
 
-/* ============================================
-   LOAD STUDENT DATA
-============================================ */
+/* LOAD STUDENT DATA */
 let xpPerMission = {};
 
 async function loadMe() {
   const r = await fetch("/api/student/me");
   const data = await r.json();
-
   const u = data.user;
 
-  // STATUS
   document.getElementById("userCard").innerHTML = `
-    <div style="font-size:14px;line-height:1.6;">
-      <b>Name:</b> ${u.name}<br>
-      <b>XP:</b> ${u.xp}<br>
-      <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
-    </div>
+    <b>Name:</b> ${u.name}<br>
+    <b>XP:</b> ${u.xp}<br>
+    <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
   `;
 
-  // SIDEBAR AVATAR
+  /* SIDEBAR AVATAR */
   const avatarImg = document.getElementById("sidebarAvatar");
   const avatarInitials = document.getElementById("sidebarInitials");
 
@@ -730,33 +789,30 @@ async function loadMe() {
     avatarInitials.style.display = "block";
     avatarInitials.textContent = (u.name || "SL")
       .split(" ")
-      .map(p => p[0])
+      .map(x => x[0])
       .join("")
       .toUpperCase()
       .slice(0, 2);
   }
 
-  // CHARAKTER
+  /* CHARACTER */
   const charDiv = document.getElementById("characterInfo");
   if (data.character) {
     charDiv.innerHTML = `
-      <img class="char-img" src="${data.character.image_url}" alt="Charakter">
+      <img class="char-img" src="${data.character.image_url}">
       <div class="char-name">${data.character.name}</div>
     `;
   } else {
     charDiv.innerHTML = `
-      <div style="width:220px;height:220px;border-radius:50%;
+      <div style="width:230px;height:230px;border-radius:50%;
+                  background:radial-gradient(circle,#4f46e5,#020617);
                   display:flex;align-items:center;justify-content:center;
-                  background:radial-gradient(circle at 30% 20%,#0ea5e9,#4f46e5 60%,#020617 100%);
-                  box-shadow:0 0 0 4px #020617,0 0 0 6px #a855f7,0 0 24px rgba(168,85,247,0.9);">
-        <span style="font-family:'Bebas Neue',system-ui;letter-spacing:0.18em;font-size:18px;text-transform:uppercase;">
-          Kein Charakter
-        </span>
-      </div>
-    `;
+                  box-shadow:0 0 20px rgba(168,85,247,0.9);">
+        <span style="font-family:'Bebas Neue';letter-spacing:0.18em;">Kein Charakter</span>
+      </div>`;
   }
 
-  // TRAITS + ITEMS
+  /* TRAITS + ITEMS */
   document.getElementById("traitsItemsCard").innerHTML = `
     <b>Eigenschaften:</b><br>
     ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
@@ -764,83 +820,63 @@ async function loadMe() {
     ${data.items.map(i => "• " + i).join("<br>")}
   `;
 
-  // XP PER MISSION (Objekt {mission_id: xpSum})
   xpPerMission = data.xp_per_mission || {};
 
-  // XP LOG
-  const xpDiv = document.getElementById("xpLog");
-  xpDiv.innerHTML = "";
-  data.xp_log.forEach(entry => {
-    const d = new Date(entry.created_at).toLocaleString("de-DE");
-    xpDiv.innerHTML += `
+  /* XP LOG */
+  const xpLog = document.getElementById("xpLog");
+  xpLog.innerHTML = "";
+  data.xp_log.forEach(x => {
+    const d = new Date(x.created_at).toLocaleString("de-DE");
+    xpLog.innerHTML += `
       <div class="xp-entry">
-        <b>${entry.amount} XP</b> – ${entry.mission_name || entry.source}<br>
-        <span style="opacity:0.7;">${d}</span>
-      </div>
-    `;
+        <b>${x.amount} XP</b> – ${x.mission_name || x.source}<br>
+        <span>${d}</span>
+      </div>`;
   });
 
-  // LEVEL BAR
-  renderLevelBar(data.levels || [], u.xp);
+  renderLevelBar(data.levels, u.xp);
 }
 
 function renderLevelBar(levels, xp) {
   if (!levels || !levels.length) {
-    document.getElementById("levelBar").innerHTML = "<i>Noch keine Level definiert.</i>";
+    document.getElementById("levelBar").innerHTML = "<i>Noch keine Level.</i>";
     return;
   }
 
   let html = `<div class="level-step-container">`;
-
   for (let i = 0; i < levels.length; i++) {
     if (i > 0) html += `<div class="level-step-star">★</div>`;
 
     const min = levels[i].min_xp;
     const next = levels[i + 1]?.min_xp ?? (min || 1);
-    let pct = 0;
 
-    if (xp >= min) {
-      if (next > min) {
-        pct = Math.min(100, ((xp - min) / (next - min)) * 100);
-      } else {
-        pct = 100;
-      }
-    }
+    let pct = 0;
+    if (xp >= min) pct = Math.min(100, ((xp - min) / (next - min)) * 100);
 
     html += `
       <div class="level-step">
         <div class="level-step-fill" style="width:${pct}%"></div>
-      </div>
-    `;
+      </div>`;
   }
-
   html += `</div>`;
   document.getElementById("levelBar").innerHTML = html;
 }
 
-/* ============================================
-   MISSIONS & REWARDS
-============================================ */
+/* MISSIONS + REWARDS */
 async function loadMissions() {
   const r = await fetch("/api/student/missions");
-  const missions = await r.json();
-  renderCarousel("missionCarousel", missions, "mission");
+  renderCarousel("missionCarousel", await r.json(), "mission");
 }
 
 async function loadRewards() {
   const r = await fetch("/api/student/rewards");
-  const rewards = await r.json();
-  renderCarousel("rewardCarousel", rewards, "reward");
+  renderCarousel("rewardCarousel", await r.json(), "reward");
 }
 
-/* ============================================
-   GENERIC CAROUSEL
-============================================ */
 function renderCarousel(containerId, items, type) {
   const container = document.getElementById(containerId);
-
-  if (!items || !items.length) {
-    container.innerHTML = "<i>Keine Einträge vorhanden.</i>";
+  if (!items.length) {
+    container.innerHTML = "<i>Keine Einträge.</i>";
     return;
   }
 
@@ -848,65 +884,61 @@ function renderCarousel(containerId, items, type) {
   items.forEach((item, idx) => {
     slides += `
       <div class="carousel-item ${idx === 0 ? "active" : ""}">
-        ${item.image_url ? `<img class="mission-img" src="${item.image_url}" alt="${item.name}">` : ""}
-        <h3 style="margin:8px 0 2px 0;font-family:'Bebas Neue',system-ui;letter-spacing:0.14em;text-transform:uppercase;">
-          ${item.name}
-        </h3>
-        <div style="font-size:13px;"><b>${item.xp} XP</b></div>
+        ${item.image_url ? `<img class="mission-img" src="${item.image_url}">` : ""}
+        <h3>${item.name}</h3>
+        <div><b>${item.xp} XP</b></div>
+
         ${type === "mission" ? `
-          <div style="margin-top:4px;font-size:12px;">
+          <div style="font-size:12px;margin-top:4px;">
             Bereits erhalten: <b>${xpPerMission[item.id] || 0} XP</b>
           </div>
         ` : ""}
+
         ${type === "mission" && item.require_upload ? `
           <div class="file-upload">
             <input type="file" id="upload_${item.id}" class="file-input" onchange="updateFileLabel(${item.id})">
             <label for="upload_${item.id}" class="file-label">Beweis hochladen</label>
-            <span id="file-name-${item.id}" class="file-name">Keine Datei ausgewählt</span>
+            <span id="file-name-${item.id}" class="file-name">Keine Datei</span>
             <button class="btn-primary" onclick="uploadMission(${item.id})">Upload senden</button>
           </div>
         ` : ""}
+
         ${type === "reward" ? `
-          <button class="btn-primary" onclick="redeemReward(${item.id})" style="margin-top:10px;">Belohnung einlösen</button>
+          <button class="btn-primary-reward" onclick="redeemReward(${item.id})">Einlösen</button>
         ` : ""}
-      </div>
-    `;
+      </div>`;
   });
 
-  let dots = "";
-  items.forEach((_, idx) => {
-    dots += `<div class="dot ${idx === 0 ? "active" : ""}" onclick="jumpSlide('${containerId}', ${idx})"></div>`;
-  });
+  let dots = items.map((_, i) =>
+    `<div class="dot ${i === 0 ? "active" : ""}" onclick="jumpSlide('${containerId}',${i})"></div>`
+  ).join("");
 
   container.innerHTML = `
     <div class="carousel-wrapper">
       <span class="carousel-arrow" onclick="prevSlide('${containerId}')">&#10094;</span>
-      ${slides}
+        ${slides}
       <span class="carousel-arrow" onclick="nextSlide('${containerId}')">&#10095;</span>
     </div>
-    <div class="dot-container">${dots}</div>
-  `;
+    <div class="dot-container">${dots}</div>`;
 }
 
-/* ============================================
-   CAROUSEL CONTROLS
-============================================ */
+/* CAROUSEL CONTROLS */
 function nextSlide(id) {
   const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let index = items.findIndex(i => i.classList.contains("active"));
-  items[index].classList.remove("active");
-  index = (index + 1) % items.length;
-  items[index].classList.add("active");
-  updateDots(id, index);
+  let idx = items.findIndex(i => i.classList.contains("active"));
+  items[idx].classList.remove("active");
+  idx = (idx + 1) % items.length;
+  items[idx].classList.add("active");
+  updateDots(id, idx);
 }
 
 function prevSlide(id) {
   const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let index = items.findIndex(i => i.classList.contains("active"));
-  items[index].classList.remove("active");
-  index = (index - 1 + items.length) % items.length;
-  items[index].classList.add("active");
-  updateDots(id, index);
+  let idx = items.findIndex(i => i.classList.contains("active"));
+  items[idx].classList.remove("active");
+  idx = (idx - 1 + items.length) % items.length;
+  items[idx].classList.add("active");
+  updateDots(id, idx);
 }
 
 function jumpSlide(id, idx) {
@@ -918,71 +950,51 @@ function jumpSlide(id, idx) {
 
 function updateDots(id, idx) {
   const dots = [...document.querySelectorAll(`#${id} .dot`)];
-  dots.forEach(d => d.classList.remove("active"));
-  if (dots[idx]) dots[idx].classList.add("active");
+  dots.forEach(x => x.classList.remove("active"));
+  dots[idx].classList.add("active");
 }
 
-/* ============================================
-   FILE LABEL UPDATE
-============================================ */
-function updateFileLabel(missionId) {
-  const input = document.getElementById(`upload_${missionId}`);
-  const span = document.getElementById(`file-name-${missionId}`);
+/* FILE LABEL */
+function updateFileLabel(id) {
+  const input = document.getElementById(`upload_${id}`);
+  const span = document.getElementById(`file-name-${id}`);
   if (!input || !span) return;
-  span.textContent = input.files.length ? input.files[0].name : "Keine Datei ausgewählt";
+  span.textContent = input.files.length ? input.files[0].name : "Keine Datei";
 }
 
-/* ============================================
-   UPLOAD MISSION
-============================================ */
-async function uploadMission(missionId) {
-  const input = document.getElementById(`upload_${missionId}`);
-  if (!input || !input.files.length) {
-    alert("Bitte eine Datei auswählen.");
-    return;
-  }
+/* UPLOAD */
+async function uploadMission(id) {
+  const inp = document.getElementById(`upload_${id}`);
+  if (!inp.files.length) return alert("Bitte Datei wählen!");
 
-  const form = new FormData();
-  form.append("image", input.files[0]);
-  form.append("missionId", missionId);
+  const fd = new FormData();
+  fd.append("image", inp.files[0]);
+  fd.append("missionId", id);
 
-  const r = await fetch("/api/student/uploadForMission", {
-    method: "POST",
-    body: form
-  });
-
+  const r = await fetch("/api/student/uploadForMission", { method: "POST", body: fd });
   const data = await r.json();
   if (data.success) {
     alert("Upload erfolgreich!");
     loadMe();
-  } else {
-    alert("Upload fehlgeschlagen.");
-  }
+  } else alert("Fehler beim Upload.");
 }
 
-/* ============================================
-   REWARD REDEEM
-============================================ */
+/* REWARD */
 async function redeemReward(id) {
   const r = await fetch("/api/student/redeemReward", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ rewardId: id })
   });
-
   const data = await r.json();
   if (data.success) {
     alert("Belohnung eingelöst!");
     loadMe();
     loadRewards();
-  } else {
-    alert(data.message || "Nicht genug XP oder Fehler beim Einlösen.");
-  }
+  } else alert(data.message || "Fehler.");
 }
 
-/* ============================================
-   INIT
-============================================ */
+/* INIT */
 loadMe();
 loadMissions();
 loadRewards();
