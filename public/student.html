@@ -1,1004 +1,585 @@
 <!DOCTYPE html>
 <html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <title>Streets of Logic – XP Edition</title>
 
-  <!-- GTA-Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&display=swap" rel="stylesheet">
+<head>
+  <meta charset="UTF-8" />
+  <title>Streets of Logic – Student</title>
+
+  <!-- GTA Comic Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bebas+Neue&display=swap" rel="stylesheet">
 
   <style>
-    /* ============================================
-       GLOBAL – Dark GTA Comic Background
-    ============================================ */
-    html, body {
+    /* ========================================================
+       GLOBAL – GTA Neon Comic Style
+    ======================================================== */
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
       margin: 0;
       padding: 0;
       height: 100%;
-    }
-
-    body {
-      background:
-        linear-gradient(rgba(0,0,0,0.82), rgba(0,0,0,0.9)),
-        url("https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1600&q=80")
-        center/cover no-repeat fixed;
-      color: #f9fafb;
-      font-family: Arial, sans-serif;
-      display: flex;
       overflow: hidden;
-      transition: margin-left 0.3s ease;
-    }
-
-    a { color: inherit; }
-
-    /* ============================================
-       SIDEBAR – GTA Style
-    ============================================ */
-    .sidebar {
-      width: 270px;
-      background: linear-gradient(180deg, #050816 0%, #050816 35%, #030712 100%);
-      border-right: 2px solid rgba(148,163,184,0.45);
-      box-shadow: 0 0 35px rgba(0,0,0,0.95);
-      padding: 18px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      z-index: 20;
-    }
-
-    .sidebar-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-
-    .sidebar-avatar {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      overflow: hidden;
-      border: 3px solid #facc15;
-      box-shadow: 0 0 16px rgba(250,204,21,0.9);
-      background: radial-gradient(circle at 30% 20%, #0ea5e9, #4f46e5 60%, #020617 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      font-size: 18px;
-      text-transform: uppercase;
-      transition: 0.2s ease;
-    }
-
-    .sidebar-avatar:hover {
-      transform: scale(1.04);
-      box-shadow: 0 0 20px rgba(250,204,21,0.9);
-    }
-
-    .sidebar-avatar img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .sidebar-title-wrap {
-      display: flex;
-      flex-direction: column;
-      line-height: 1.1;
-    }
-
-    .sidebar-title {
-      margin: 0;
-      font-family: "Bangers";
-      font-size: 20px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: #f9fafb;
-      text-shadow:
-        -2px -2px 0 #000,
-        2px -2px 0 #000,
-        -2px 2px 0 #000,
-        2px 2px 0 #000,
-        0 0 14px rgba(251,191,36,0.9);
-    }
-
-    .sidebar-subtitle {
-      margin-top: 4px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      color: #a5b4fc;
-      opacity: 0.85;
-    }
-
-
-
-    /* ============================================
-       MENU ITEMS
-    ============================================ */
-    .menu-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 11px 14px;
-      margin-top: 8px;
-      border-radius: 999px;
-      cursor: pointer;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      background: radial-gradient(circle at left, #111827 0, #020617 60%);
-      border: 1px solid rgba(148,163,184,0.4);
-      box-shadow: 0 6px 14px rgba(0,0,0,0.85);
-      transition: 0.18s ease;
-    }
-
-    .menu-item:hover {
-      transform: translateX(4px);
-      border-color: #f97316;
-      box-shadow: 0 8px 20px rgba(248,250,252,0.22);
-    }
-
-    .menu-item:hover .menu-icon {
-      background: #f97316;
-      color: #000;
-      box-shadow: 0 0 12px rgba(249,115,22,0.9);
-    }
-
-    .menu-item.active {
-      background: linear-gradient(90deg, #f97316, #a855f7);
-      border-color: #fbbf24;
-      box-shadow: 0 0 22px rgba(251,191,36,0.9);
-      color: #0f172a;
-    }
-
-    .menu-item.active .menu-icon {
-      background: #facc15;
-      color: #000;
-      box-shadow: 0 0 18px rgba(250,204,21,0.9);
-    }
-
-    .menu-icon {
-      width: 18px;
-      height: 18px;
-      border-radius: 4px;
-      background: rgba(15,23,42,0.85);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-    }
-
-    .logout-btn {
-      margin-top: auto;
-      padding: 9px 14px;
-      border-radius: 999px;
-      border: 1px solid rgba(248,113,113,0.65);
-      background: linear-gradient(135deg, #111827, #b91c1c);
-      color: #fee2e2;
-      cursor: pointer;
-      font-size: 12px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.9);
-      transition: 0.18s ease;
-    }
-
-    .logout-btn:hover {
-      background: linear-gradient(135deg, #7f1d1d, #ef4444);
-      box-shadow: 0 0 18px rgba(248,113,113,0.9);
-      transform: translateY(-1px);
-    }
-
-    /* ============================================
-       MOBILE HEADER
-    ============================================ */
-    .mobile-header {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 60px;
-      background: linear-gradient(90deg, #020617, #0b1120);
-      border-bottom: 1px solid rgba(148,163,184,0.3);
-      backdrop-filter: blur(12px);
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 16px;
-      z-index: 1000;
-    }
-
-    .mobile-title {
-      font-family: "Bangers";
-      font-size: 19px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: #fefce8;
-      text-shadow:
-       -2px -2px 0 #000,
-        2px -2px 0 #000,
-       -2px  2px 0 #000,
-        2px  2px 0 #000;
-    }
-
-    .burger {
-      width: 28px;
-      height: 22px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      cursor: pointer;
-    }
-
-    .burger span {
-      height: 3px;
-      background: #e5e7eb;
-      border-radius: 999px;
-      box-shadow: 0 0 6px rgba(255,255,255,0.6);
-    }
-
-    .mobile-logout-btn {
-      border: 1px solid rgba(148,163,184,0.6);
-      padding: 6px 12px;
-      border-radius: 999px;
       background: #020617;
-      color: #e5e7eb;
-      cursor: pointer;
-      font-size: 12px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
+      font-family: Arial, sans-serif;
+      color: #f8fafc;
     }
 
-    .mobile-logout-btn:hover {
-      color: #f97316;
-      border-color: #f97316;
-      box-shadow: 0 0 12px rgba(249,115,22,0.6);
+    /* ========================================================
+       SWIPER CONTAINER
+    ======================================================== */
+    .swiper-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      transition: transform 0.35s ease;
     }
 
-
-    /* ============================================
-       MAIN AREA
-    ============================================ */
-    .main-area {
-      flex: 1;
-      padding: 32px 45px;
+    .slide {
+      min-width: 100vw;
+      height: 100vh;
+      padding: 40px;
       overflow-y: auto;
-      box-sizing: border-box;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      background:
+        linear-gradient(rgba(0,0,0,0.82), rgba(0,0,0,0.94)),
+        url("https://images.unsplash.com/photo-1508097332050-4ffcbf3a7a82?auto=format&fit=crop&w=1600&q=80")
+        center/cover no-repeat;
     }
 
+    /* ========================================================
+       HEADERS
+    ======================================================== */
     h1 {
       font-family: "Bangers";
-      font-size: 32px;
-      letter-spacing: 0.18em;
+      font-size: 34px;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
-      margin: 0 0 26px;
+      text-align: center;
       color: #fefce8;
       text-shadow:
         -3px -3px 0 #000,
-         3px -3px 0 #000,
-        -3px  3px 0 #000,
-         3px  3px 0 #000,
-         0 0 25px rgba(249,115,22,0.9);
+        3px -3px 0 #000,
+        -3px 3px 0 #000,
+        3px 3px 0 #000,
+        0 0 20px rgba(255, 203, 55, 0.95);
     }
 
     h2 {
-      margin-top: 0;
-      margin-bottom: 10px;
       font-family: "Bebas Neue";
-      font-size: 24px;
-      letter-spacing: 0.16em;
+      font-size: 26px;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: #e5e7eb;
-      padding-bottom: 6px;
-      border-bottom: 1px solid rgba(148,163,184,0.55);
+      border-bottom: 1px solid rgba(255,255,255,0.2);
+      padding-bottom: 4px;
+      margin-bottom: 14px;
     }
 
+    /* ========================================================
+       NAV DOTS (Swipe Navigation)
+    ======================================================== */
+    .nav-dots {
+      position: fixed;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 999;
+    }
 
-    /* ============================================
-       CARD
-    ============================================ */
+    .nav-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #4b5563;
+      cursor: pointer;
+      transition: 0.2s;
+      box-shadow: 0 0 6px rgba(0,0,0,0.8);
+    }
+
+    .nav-dot.active {
+      background: #f97316;
+      box-shadow: 0 0 8px rgba(249,115,22,0.9);
+    }
+
+    /* ========================================================
+       CARDS
+    ======================================================== */
     .card {
-      background: linear-gradient(
-        145deg,
-        rgba(15,23,42,0.94),
-        rgba(15,23,42,0.97)
-      );
-      padding: 22px;
-      border-radius: 22px;
-      border: 1px solid rgba(148,163,184,0.55);
-      margin-bottom: 30px;
-      box-shadow:
-        0 14px 40px rgba(0,0,0,0.9),
-        inset 0 0 0 1px rgba(255,255,255,0.04);
-      backdrop-filter: blur(10px);
+      background: rgba(15,23,42,0.88);
+      padding: 20px;
+      border-radius: 20px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.85);
+      border: 1px solid rgba(255,255,255,0.08);
       position: relative;
       overflow: hidden;
-      animation: fadeIn 0.25s ease-out;
     }
 
     .card::before {
       content: "";
       position: absolute;
       inset: 0;
-      background: radial-gradient(
-        circle at 15% 10%,
-        rgba(251,191,36,0.14),
-        transparent 60%
-      );
-      opacity: 0.8;
+      background: radial-gradient(circle at top left,
+          rgba(251,191,36,0.18),
+          transparent 60%);
+      pointer-events: none;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(5px); }
-      to { opacity: 1; transform: translateY(0); }
+    /* ========================================================
+       CHARACTER
+    ======================================================== */
+    .char-img {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin: 0 auto 10px auto;
+      box-shadow:
+        0 0 0 4px #020617,
+        0 0 0 6px #f97316,
+        0 0 20px rgba(249,115,22,0.9);
     }
 
-    /* ============================================
-       STATUS
-    ============================================ */
-    #userCard {
-      font-size: 15px;
-      line-height: 1.6;
-      padding-left: 4px;
+    .char-name {
+      text-align: center;
+      font-family: "Bebas Neue";
+      font-size: 22px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
     }
 
-    /* ============================================
+    /* ========================================================
        LEVEL BAR
-    ============================================ */
-    .level-step-container {
+    ======================================================== */
+    .level-bar-container {
+      margin-top: 12px;
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: 6px;
       flex-wrap: wrap;
-      margin-top: 14px;
+      justify-content: center;
     }
 
     .level-step {
-      width: 70px;
-      height: 12px;
+      width: 60px;
+      height: 10px;
       border-radius: 999px;
       background: #0f172a;
-      border: 1px solid rgba(148,163,184,0.7);
+      border: 1px solid #475569;
       overflow: hidden;
-      box-shadow: inset 0 0 6px rgba(0,0,0,0.8);
     }
 
-    .level-step-fill {
+    .level-fill {
       height: 100%;
-      background: linear-gradient(90deg, #4ade80, #facc15);
+      background: linear-gradient(90deg, #22c55e, #facc15);
       width: 0%;
       transition: width 0.3s ease;
     }
 
-    .level-step-star {
-      font-size: 20px;
-      color: #facc15;
-      text-shadow: 0 0 12px rgba(250,204,21,0.9);
-    }
-
-    /* ============================================
-       CHARAKTER
-    ============================================ */
-    .character-wrapper {
-      display: flex;
-      gap: 28px;
-      flex-wrap: wrap;
-      align-items: flex-start;
-    }
-
-    .char-img-wrapper {
-      width: 230px;
-      text-align: center;
-    }
-
-    .char-img {
-      width: 230px;
-      height: 230px;
-      border-radius: 50%;
-      object-fit: cover;
-      box-shadow:
-        0 0 0 4px #000,
-        0 0 0 5px #f97316,
-        0 0 25px rgba(249,115,22,0.9);
-    }
-
-    .char-name {
-      margin-top: 6px;
-      font-family: "Bebas Neue";
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      font-size: 20px;
-    }
-
-    .char-traits b {
-      font-family: "Bebas Neue";
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      font-size: 15px;
-      color: #fefce8;
-    }
-
-
-    /* ============================================
+    /* ========================================================
        CAROUSEL
-    ============================================ */
-    .carousel-wrapper {
-      position: relative;
-      width: 330px;
-      margin: 0 auto;
-      text-align: center;
-      padding-top: 10px;
-    }
-
+    ======================================================== */
     .carousel-item {
+      text-align: center;
       display: none;
-      animation: fadeSlide 0.25s ease-out;
     }
 
     .carousel-item.active {
       display: block;
     }
 
-    @keyframes fadeSlide {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .mission-img {
-      width: 240px;
-      height: 240px;
-      border-radius: 28px;
+    .carousel-img {
+      width: 230px;
+      height: 230px;
+      border-radius: 18px;
       object-fit: cover;
-      margin-bottom: 12px;
       box-shadow:
-        0 0 0 4px #000,
-        0 0 0 5px #a855f7,
-        0 0 25px rgba(168,85,247,0.9),
-        inset 0 0 50px rgba(0,0,0,0.4);
-    }
-
-    .carousel-item h3 {
-      font-family: "Bebas Neue";
-      margin: 8px 0 4px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      font-size: 22px;
-      color: #f9fafb;
-      text-shadow:
-        -2px -2px 0 #000,
-         2px -2px 0 #000,
-        -2px  2px 0 #000,
-         2px  2px 0 #000;
-    }
-
-    .carousel-item b {
-      color: #facc15;
-      text-shadow: 0 0 10px rgba(250,204,21,0.9);
+        0 0 0 4px #020617,
+        0 0 0 6px #a855f7,
+        0 0 22px rgba(168,85,247,0.9);
     }
 
     .carousel-arrow {
-      font-size: 34px;
       cursor: pointer;
+      font-size: 30px;
       user-select: none;
-      padding: 8px 14px;
       color: #e5e7eb;
       transition: 0.2s;
-      text-shadow: 0 0 10px rgba(149,157,167,0.6);
     }
 
     .carousel-arrow:hover {
       color: #f97316;
-      text-shadow: 0 0 18px rgba(249,115,22,0.9);
-      transform: scale(1.12);
+      text-shadow: 0 0 12px rgba(249,115,22,0.9);
     }
 
     .dot-container {
-      margin-top: 12px;
       display: flex;
+      gap: 6px;
       justify-content: center;
-      gap: 8px;
+      margin-top: 10px;
     }
 
     .dot {
-      width: 10px;
-      height: 10px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: #4b5563;
-      transition: 0.2s;
       cursor: pointer;
-      box-shadow: 0 0 6px rgba(0,0,0,0.7);
     }
 
     .dot.active {
       background: #f97316;
-      box-shadow: 0 0 10px rgba(249,115,22,0.9);
-      transform: scale(1.2);
+      box-shadow: 0 0 8px rgba(249,115,22,0.9);
     }
 
-    /* FILE UPLOAD */
-    .file-upload {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-top: 12px;
-      gap: 8px;
-    }
-
-    .file-input { display: none; }
-
-    .file-label {
-      padding: 8px 20px;
+    /* ========================================================
+       BUTTONS
+    ======================================================== */
+    .btn {
+      margin-top: 10px;
+      padding: 10px 20px;
       border-radius: 999px;
-      border: 2px solid #f97316;
-      background: #020617;
-      color: #f9fafb;
-      letter-spacing: 0.12em;
+      background: linear-gradient(135deg, #22c55e, #f97316);
+      border: none;
+      color: #0f172a;
       text-transform: uppercase;
+      letter-spacing: 0.12em;
+      cursor: pointer;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.85);
+      transition: 0.18s;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.05);
+    }
+
+    /* ========================================================
+       FILE UPLOAD
+    ======================================================== */
+    .file-label {
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: #111827;
+      border: 1px solid #f97316;
       cursor: pointer;
       font-size: 12px;
-      box-shadow: 0 6px 14px rgba(0,0,0,0.85);
-      transition: 0.18s ease;
-    }
-
-    .file-label:hover {
-      background: #111827;
-      box-shadow: 0 0 14px rgba(249,115,22,0.9);
-      transform: translateY(-1px);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.8);
     }
 
     .file-name {
       font-size: 11px;
-      opacity: 0.7;
+      opacity: 0.8;
+      margin-top: 4px;
     }
 
-    .btn-primary {
-      border: none;
-      padding: 8px 20px;
-      border-radius: 999px;
-      background: linear-gradient(135deg, #22c55e, #a855f7);
-      color: #0f172a;
-      font-size: 13px;
-      cursor: pointer;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      box-shadow: 0 8px 22px rgba(8,47,73,0.95);
-      transition: 0.18s ease;
+    .hidden {
+      display: none;
     }
 
-    .btn-primary:hover {
-      background: linear-gradient(135deg, #4ade80, #f97316);
-      box-shadow: 0 0 20px rgba(45,212,191,0.9);
-      transform: translateY(-1px) scale(1.03);
-    }
-
-    /* REWARD BUTTON */
-    .btn-primary-reward {
-      border: none;
-      margin-top: 12px;
-      padding: 9px 20px;
-      border-radius: 999px;
-      background: linear-gradient(135deg, #facc15, #f97316);
-      color: #0f172a;
-      font-size: 13px;
-      font-weight: bold;
-      cursor: pointer;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.9);
-      transition: 0.18s ease;
-    }
-
-    .btn-primary-reward:hover {
-      background: linear-gradient(135deg, #fde047, #fb923c);
-      box-shadow: 0 0 18px rgba(251,191,36,0.9);
-      transform: translateY(-1px);
-    }
-
-    /* XP LOG */
-    .xp-entry {
-      padding: 10px 12px;
-      border-bottom: 1px solid rgba(148,163,184,0.23);
-      font-size: 14px;
-      background: rgba(255,255,255,0.02);
-      border-radius: 14px;
-      margin-bottom: 10px;
-      box-shadow: 0 0 0 2px rgba(0,0,0,0.7),
-                  0 4px 14px rgba(0,0,0,0.7);
-      transition: 0.2s;
-    }
-
-    .xp-entry:hover {
-      background: rgba(249,115,22,0.08);
-      transform: translateX(4px);
-      box-shadow:
-        0 0 12px rgba(249,115,22,0.35),
-        0 4px 18px rgba(0,0,0,0.7);
-    }
-
-    .xp-entry b {
-      color: #facc15;
-      text-shadow: 0 0 12px rgba(250,204,21,0.95);
-      font-size: 15px;
-    }
-
+    /* ========================================================
+       MOBILE
+    ======================================================== */
     @media (max-width: 900px) {
-      body { flex-direction: column; }
-      .sidebar { 
-        position: fixed; 
-        left: -290px; 
-        top: 0; 
-        transition: left 0.3s; 
+      .slide {
+        padding: 20px;
       }
-      body.menu-open .sidebar { left: 0; }
-      .mobile-header { display: flex; }
-      .main-area { padding: 75px 18px 25px; }
-      h1 { display: none; }
-      .character-wrapper { flex-direction: column; align-items: center; }
-      .carousel-wrapper { width: 100%; }
+
+      h1 {
+        font-size: 25px;
+      }
     }
   </style>
 </head>
 
 <body>
 
-  <!-- MOBILE HEADER -->
-  <div class="mobile-header">
-    <div class="burger" onclick="toggleMenu()">
-      <span></span><span></span><span></span>
-    </div>
-    <div class="mobile-title">STREETS OF LOGIC</div>
-    <button class="mobile-logout-btn" onclick="logout()">Logout</button>
+  <!-- DOT NAVIGATION -->
+  <div class="nav-dots">
+    <div class="nav-dot active" onclick="goToSlide(0)"></div>
+    <div class="nav-dot" onclick="goToSlide(1)"></div>
+    <div class="nav-dot" onclick="goToSlide(2)"></div>
+    <div class="nav-dot" onclick="goToSlide(3)"></div>
+    <div class="nav-dot" onclick="goToSlide(4)"></div>
   </div>
 
-  <!-- SIDEBAR -->
-  <div class="sidebar">
-    <div class="sidebar-header">
-      <div class="sidebar-avatar">
-        <img id="sidebarAvatar" src="" alt="" style="display:none;">
-        <span id="sidebarInitials" style="display:none;">SL</span>
-      </div>
+  <!-- SWIPER -->
+  <div id="swiper" class="swiper-container">
 
-      <div class="sidebar-title-wrap">
-        <h2 class="sidebar-title">STREETS OF LOGIC</h2>
-        <span class="sidebar-subtitle">XP EDITION</span>
+    <!-- SLIDE 1: STATUS -->
+    <div class="slide">
+      <h1>Status</h1>
+      <div class="card">
+        <div id="userCard"></div>
+        <div id="levelBar" class="level-bar-container"></div>
       </div>
     </div>
 
-    <div class="menu-item active" onclick="showSection(event,'status')">
-      <div class="menu-icon">S</div>
-      <span>Status</span>
-    </div>
-
-    <div class="menu-item" onclick="showSection(event,'charakter')">
-      <div class="menu-icon">C</div>
-      <span>Charakter</span>
-    </div>
-
-    <div class="menu-item" onclick="showSection(event,'missionen')">
-      <div class="menu-icon">M</div>
-      <span>Missionen</span>
-    </div>
-
-    <div class="menu-item" onclick="showSection(event,'belohnungen')">
-      <div class="menu-icon">B</div>
-      <span>Belohnungen</span>
-    </div>
-
-    <div class="menu-item" onclick="showSection(event,'xp')">
-      <div class="menu-icon">XP</div>
-      <span>XP-Historie</span>
-    </div>
-
-    <button class="logout-btn" onclick="logout()">Logout</button>
-  </div>
-
-  <!-- MAIN AREA -->
-  <div class="main-area">
-    <h1>STREETS OF LOGIC – XP EDITION</h1>
-
-    <!-- STATUS -->
-    <div id="status-section" class="card section">
-      <h2>Status</h2>
-      <div id="userCard"></div>
-      <div id="levelBar"></div>
-    </div>
-
-    <!-- CHARAKTER -->
-    <div id="charakter-section" class="card section" style="display:none;">
-      <h2>Charakter</h2>
-      <div class="character-wrapper">
-        <div class="char-img-wrapper">
-          <div id="characterInfo"></div>
-        </div>
-        <div id="traitsItemsCard" class="char-traits"></div>
+    <!-- SLIDE 2: CHARAKTER -->
+    <div class="slide">
+      <h1>Charakter</h1>
+      <div class="card">
+        <div id="characterSection"></div>
+        <div id="traitsItems"></div>
       </div>
     </div>
 
-    <!-- MISSIONEN -->
-    <div id="missionen-section" class="card section" style="display:none;">
-      <h2>Missionen</h2>
+    <!-- SLIDE 3: MISSIONEN -->
+    <div class="slide">
+      <h1>Missionen</h1>
       <div id="missionCarousel"></div>
     </div>
 
-    <!-- BELOHNUNGEN -->
-    <div id="belohnungen-section" class="card section" style="display:none;">
-      <h2>Belohnungen</h2>
+    <!-- SLIDE 4: BELOHNUNGEN -->
+    <div class="slide">
+      <h1>Belohnungen</h1>
       <div id="rewardCarousel"></div>
     </div>
 
-    <!-- XP LOG -->
-    <div id="xp-section" class="card section" style="display:none;">
-      <h2>XP-Historie</h2>
-      <div id="xpLog"></div>
+    <!-- SLIDE 5: XP-LOG -->
+    <div class="slide">
+      <h1>XP Historie</h1>
+      <div class="card">
+        <div id="xpLog"></div>
+      </div>
     </div>
+
   </div>
 
-<script>
-/* MENU */
-function toggleMenu() {
-  document.body.classList.toggle("menu-open");
-}
+  <script>
+    /* ============================================================
+       SWIPER NAVIGATION
+    ============================================================ */
+    let currentSlide = 0;
 
-function showSection(ev, name) {
-  document.querySelectorAll(".section").forEach(s => s.style.display = "none");
-  const sec = document.getElementById(name + "-section");
-  if (sec) sec.style.display = "block";
+    function goToSlide(i) {
+      currentSlide = i;
+      document.getElementById("swiper").style.transform = `translateX(-${i * 100}vw)`;
 
-  document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
-  if (ev && ev.target) {
-    const item = ev.target.closest(".menu-item");
-    if (item) item.classList.add("active");
-  }
+      document.querySelectorAll(".nav-dot").forEach((d, idx) => {
+        d.classList.toggle("active", idx === i);
+      });
+    }
 
-  if (window.innerWidth <= 900) document.body.classList.remove("menu-open");
-}
+    /* ============================================================
+       LOGOUT
+    ============================================================ */
+    async function logout() {
+      await fetch("/api/logout", { method: "POST" });
+      location.href = "/login.html";
+    }
 
-/* LOGOUT */
-async function logout() {
-  await fetch("/api/logout", { method: "POST" });
-  location.href = "/login.html";
-}
+    /* ============================================================
+       LOAD STUDENT DATA
+    ============================================================ */
+    let xpPerMission = {};
 
-/* LOAD STUDENT DATA */
-let xpPerMission = {};
+    async function loadMe() {
+      const r = await fetch("/api/student/me");
+      const data = await r.json();
 
-async function loadMe() {
-  const r = await fetch("/api/student/me");
-  const data = await r.json();
-  const u = data.user;
+      const u = data.user;
 
-  document.getElementById("userCard").innerHTML = `
-    <b>Name:</b> ${u.name}<br>
-    <b>XP:</b> ${u.xp}<br>
-    <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
-  `;
+      // STATUS CARD
+      document.getElementById("userCard").innerHTML = `
+        <div style="font-size:16px;line-height:1.6;">
+          <b>Name:</b> ${u.name}<br>
+          <b>XP:</b> ${u.xp}<br>
+          <b>Level:</b> ${u.level_name || "-"}<br>
+        </div>
+      `;
 
-  /* SIDEBAR AVATAR */
-  const avatarImg = document.getElementById("sidebarAvatar");
-  const avatarInitials = document.getElementById("sidebarInitials");
+      // LEVEL BAR
+      renderLevelBar(data.levels, u.xp);
 
-  if (data.character && data.character.image_url) {
-    avatarImg.src = data.character.image_url;
-    avatarImg.style.display = "block";
-    avatarInitials.style.display = "none";
-  } else {
-    avatarImg.style.display = "none";
-    avatarInitials.style.display = "block";
-    avatarInitials.textContent = (u.name || "SL")
-      .split(" ")
-      .map(x => x[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  }
+      // CHARACTER
+      if (data.character) {
+        document.getElementById("characterSection").innerHTML = `
+          <img src="${data.character.image_url}" class="char-img">
+          <div class="char-name">${data.character.name}</div>
+        `;
+      }
 
-  /* CHARACTER */
-  const charDiv = document.getElementById("characterInfo");
-  if (data.character) {
-    charDiv.innerHTML = `
-      <img class="char-img" src="${data.character.image_url}">
-      <div class="char-name">${data.character.name}</div>
-    `;
-  } else {
-    charDiv.innerHTML = `
-      <div style="width:230px;height:230px;border-radius:50%;
-                  background:radial-gradient(circle,#4f46e5,#020617);
-                  display:flex;align-items:center;justify-content:center;
-                  box-shadow:0 0 20px rgba(168,85,247,0.9);">
-        <span style="font-family:'Bebas Neue';letter-spacing:0.18em;">Kein Charakter</span>
-      </div>`;
-  }
+      // TRAITS + ITEMS
+      document.getElementById("traitsItems").innerHTML = `
+        <b>Eigenschaften:</b><br>
+        ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
+        <b>Items:</b><br>
+        ${data.items.map(i => "• " + i).join("<br>")}
+      `;
 
-  /* TRAITS + ITEMS */
-  document.getElementById("traitsItemsCard").innerHTML = `
-    <b>Eigenschaften:</b><br>
-    ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
-    <b>Items:</b><br>
-    ${data.items.map(i => "• " + i).join("<br>")}
-  `;
-
-  xpPerMission = data.xp_per_mission || {};
-
-  /* XP LOG */
-  const xpLog = document.getElementById("xpLog");
-  xpLog.innerHTML = "";
-  data.xp_log.forEach(x => {
-    const d = new Date(x.created_at).toLocaleString("de-DE");
-    xpLog.innerHTML += `
-      <div class="xp-entry">
-        <b>${x.amount} XP</b> – ${x.mission_name || x.source}<br>
-        <span>${d}</span>
-      </div>`;
-  });
-
-  renderLevelBar(data.levels, u.xp);
-}
-
-function renderLevelBar(levels, xp) {
-  if (!levels || !levels.length) {
-    document.getElementById("levelBar").innerHTML = "<i>Noch keine Level.</i>";
-    return;
-  }
-
-  let html = `<div class="level-step-container">`;
-  for (let i = 0; i < levels.length; i++) {
-    if (i > 0) html += `<div class="level-step-star">★</div>`;
-
-    const min = levels[i].min_xp;
-    const next = levels[i + 1]?.min_xp ?? (min || 1);
-
-    let pct = 0;
-    if (xp >= min) pct = Math.min(100, ((xp - min) / (next - min)) * 100);
-
-    html += `
-      <div class="level-step">
-        <div class="level-step-fill" style="width:${pct}%"></div>
-      </div>`;
-  }
-  html += `</div>`;
-  document.getElementById("levelBar").innerHTML = html;
-}
-
-/* MISSIONS + REWARDS */
-async function loadMissions() {
-  const r = await fetch("/api/student/missions");
-  renderCarousel("missionCarousel", await r.json(), "mission");
-}
-
-async function loadRewards() {
-  const r = await fetch("/api/student/rewards");
-  renderCarousel("rewardCarousel", await r.json(), "reward");
-}
-
-function renderCarousel(containerId, items, type) {
-  const container = document.getElementById(containerId);
-  if (!items.length) {
-    container.innerHTML = "<i>Keine Einträge.</i>";
-    return;
-  }
-
-  let slides = "";
-  items.forEach((item, idx) => {
-    slides += `
-      <div class="carousel-item ${idx === 0 ? "active" : ""}">
-        ${item.image_url ? `<img class="mission-img" src="${item.image_url}">` : ""}
-        <h3>${item.name}</h3>
-        <div><b>${item.xp} XP</b></div>
-
-        ${type === "mission" ? `
-          <div style="font-size:12px;margin-top:4px;">
-            Bereits erhalten: <b>${xpPerMission[item.id] || 0} XP</b>
+      // XP LOG
+      const xpDiv = document.getElementById("xpLog");
+      data.xp_log.forEach(entry => {
+        const d = new Date(entry.created_at).toLocaleString("de-DE");
+        xpDiv.innerHTML += `
+          <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.1);">
+            <b>${entry.amount} XP</b> – ${entry.mission_name || entry.source}<br>
+            <span style="opacity:0.6;">${d}</span>
           </div>
-        ` : ""}
+        `;
+      });
 
-        ${type === "mission" && item.require_upload ? `
-          <div class="file-upload">
-            <input type="file" id="upload_${item.id}" class="file-input" onchange="updateFileLabel(${item.id})">
-            <label for="upload_${item.id}" class="file-label">Beweis hochladen</label>
-            <span id="file-name-${item.id}" class="file-name">Keine Datei</span>
-            <button class="btn-primary" onclick="uploadMission(${item.id})">Upload senden</button>
+      xpPerMission = data.xp_per_mission || {};
+    }
+
+    function renderLevelBar(levels, xp) {
+      let html = "";
+
+      for (let i = 0; i < levels.length; i++) {
+        const min = levels[i].min_xp;
+        const next = levels[i + 1]?.min_xp ?? (min || 1);
+        let pct = 0;
+
+        if (xp >= min) {
+          pct = Math.min(100, ((xp - min) / (next - min)) * 100);
+        }
+
+        html += `
+          <div class="level-step">
+            <div class="level-fill" style="width:${pct}%"></div>
           </div>
-        ` : ""}
+        `;
+      }
 
-        ${type === "reward" ? `
-          <button class="btn-primary-reward" onclick="redeemReward(${item.id})">Einlösen</button>
-        ` : ""}
-      </div>`;
-  });
+      document.getElementById("levelBar").innerHTML = html;
+    }
 
-  let dots = items.map((_, i) =>
-    `<div class="dot ${i === 0 ? "active" : ""}" onclick="jumpSlide('${containerId}',${i})"></div>`
-  ).join("");
+    /* ============================================================
+       CAROUSELS (MISSION + REWARD)
+    ============================================================ */
+    function renderCarousel(containerId, items, type) {
+      const container = document.getElementById(containerId);
 
-  container.innerHTML = `
-    <div class="carousel-wrapper">
-      <span class="carousel-arrow" onclick="prevSlide('${containerId}')">&#10094;</span>
-        ${slides}
-      <span class="carousel-arrow" onclick="nextSlide('${containerId}')">&#10095;</span>
-    </div>
-    <div class="dot-container">${dots}</div>`;
-}
+      if (!items.length) {
+        container.innerHTML = "<i>Keine Einträge vorhanden.</i>";
+        return;
+      }
 
-/* CAROUSEL CONTROLS */
-function nextSlide(id) {
-  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let idx = items.findIndex(i => i.classList.contains("active"));
-  items[idx].classList.remove("active");
-  idx = (idx + 1) % items.length;
-  items[idx].classList.add("active");
-  updateDots(id, idx);
-}
+      let idx = 0;
 
-function prevSlide(id) {
-  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let idx = items.findIndex(i => i.classList.contains("active"));
-  items[idx].classList.remove("active");
-  idx = (idx - 1 + items.length) % items.length;
-  items[idx].classList.add("active");
-  updateDots(id, idx);
-}
+      function update() {
+        container.innerHTML = `
+          <div class="card" style="text-align:center;">
+            <div class="carousel-item active">
+              ${items[idx].image_url
+                ? `<img src="${items[idx].image_url}" class="carousel-img"/>`
+                : ""}
+              <h2>${items[idx].name}</h2>
+              <div><b>${items[idx].xp} XP</b></div>
+              ${type === "mission" && items[idx].require_upload
+                ? renderUpload(items[idx].id)
+                : ""}
+              ${type === "reward"
+                ? `<button class="btn" onclick="redeemReward(${items[idx].id})">Einlösen</button>`
+                : ""}
+            </div>
 
-function jumpSlide(id, idx) {
-  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  items.forEach(i => i.classList.remove("active"));
-  items[idx].classList.add("active");
-  updateDots(id, idx);
-}
+            <div style="margin-top:10px;">
+              <span class="carousel-arrow" onclick="prev()">&#10094;</span>
+              <span class="carousel-arrow" onclick="next()">&#10095;</span>
+            </div>
+          </div>
 
-function updateDots(id, idx) {
-  const dots = [...document.querySelectorAll(`#${id} .dot`)];
-  dots.forEach(x => x.classList.remove("active"));
-  dots[idx].classList.add("active");
-}
+          <div class="dot-container">
+            ${items.map((_, i) =>
+              `<div class="dot ${i === idx ? "active" : ""}" onclick="jump(${i})"></div>`
+            ).join("")}
+          </div>
+        `;
+      }
 
-/* FILE LABEL */
-function updateFileLabel(id) {
-  const input = document.getElementById(`upload_${id}`);
-  const span = document.getElementById(`file-name-${id}`);
-  if (!input || !span) return;
-  span.textContent = input.files.length ? input.files[0].name : "Keine Datei";
-}
+      function next() { idx = (idx + 1) % items.length; update(); }
+      function prev() { idx = (idx - 1 + items.length) % items.length; update(); }
+      function jump(i) { idx = i; update(); }
 
-/* UPLOAD */
-async function uploadMission(id) {
-  const inp = document.getElementById(`upload_${id}`);
-  if (!inp.files.length) return alert("Bitte Datei wählen!");
+      window[containerId + "_next"] = next;
+      window[containerId + "_prev"] = prev;
+      window[containerId + "_jump"] = jump;
 
-  const fd = new FormData();
-  fd.append("image", inp.files[0]);
-  fd.append("missionId", id);
+      update();
+    }
 
-  const r = await fetch("/api/student/uploadForMission", { method: "POST", body: fd });
-  const data = await r.json();
-  if (data.success) {
-    alert("Upload erfolgreich!");
+    function renderUpload(id) {
+      return `
+        <div style="margin-top:10px;">
+          <input type="file" id="upload_${id}" class="hidden" onchange="updateFileName(${id})">
+          <label for="upload_${id}" class="file-label">Beweis hochladen</label>
+          <div id="file-name-${id}" class="file-name">Keine Datei ausgewählt</div>
+          <button class="btn" onclick="uploadMission(${id})">Senden</button>
+        </div>
+      `;
+    }
+
+    function updateFileName(id) {
+      const input = document.getElementById(`upload_${id}`);
+      const label = document.getElementById(`file-name-${id}`);
+      label.textContent = input.files.length ? input.files[0].name : "Keine Datei ausgewählt";
+    }
+
+    async function uploadMission(id) {
+      const input = document.getElementById(`upload_${id}`);
+      if (!input.files.length) return alert("Bitte Datei auswählen");
+
+      const form = new FormData();
+      form.append("image", input.files[0]);
+      form.append("missionId", id);
+
+      const r = await fetch("/api/student/uploadForMission", {
+        method: "POST",
+        body: form
+      });
+
+      const d = await r.json();
+      if (d.success) {
+        alert("Upload erfolgreich!");
+        loadMe();
+      } else {
+        alert("Fehler beim Upload");
+      }
+    }
+
+    async function redeemReward(id) {
+      const r = await fetch("/api/student/redeemReward", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rewardId: id })
+      });
+
+      const d = await r.json();
+      if (!d.success) return alert(d.message || "Fehler");
+      alert("Belohnung eingelöst!");
+      loadMe();
+      loadRewards();
+    }
+
+    async function loadMissions() {
+      const r = await fetch("/api/student/missions");
+      const missions = await r.json();
+      renderCarousel("missionCarousel", missions, "mission");
+    }
+
+    async function loadRewards() {
+      const r = await fetch("/api/student/rewards");
+      const rewards = await r.json();
+      renderCarousel("rewardCarousel", rewards, "reward");
+    }
+
+    /* INITIAL LOAD */
     loadMe();
-  } else alert("Fehler beim Upload.");
-}
-
-/* REWARD */
-async function redeemReward(id) {
-  const r = await fetch("/api/student/redeemReward", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ rewardId: id })
-  });
-  const data = await r.json();
-  if (data.success) {
-    alert("Belohnung eingelöst!");
-    loadMe();
+    loadMissions();
     loadRewards();
-  } else alert(data.message || "Fehler.");
-}
-
-/* INIT */
-loadMe();
-loadMissions();
-loadRewards();
-</script>
-
+  </script>
 </body>
 </html>
