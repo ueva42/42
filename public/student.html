@@ -10,7 +10,6 @@
   <style>
     /* ============================================
        GLOBAL – Dark GTA HUD / Neon City Background
-       (Funktional identisch zu deiner Version 2)
     ============================================ */
     html, body {
       margin: 0;
@@ -19,8 +18,6 @@
     }
 
     body {
-      /* Neuer Hintergrund im Stil von Login/Admin (ohne Foto),
-         damit alles wie ein einheitliches GTA-HUD aussieht */
       background:
         radial-gradient(circle at 10% 0%, rgba(255,184,108,0.18) 0, transparent 50%),
         radial-gradient(circle at 90% 20%, rgba(255,46,99,0.26) 0, transparent 55%),
@@ -544,6 +541,129 @@
     }
 
     /* ============================================
+       CHARACTER SELECT OVERLAY
+    ============================================ */
+    .character-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(15,23,42,0.98), rgba(3,7,18,0.98));
+      display: none; /* wird per JS auf flex gesetzt */
+      align-items: center;
+      justify-content: center;
+      z-index: 40;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .character-overlay-inner {
+      max-width: 1000px;
+      width: 100%;
+      max-height: 90vh;
+      background: linear-gradient(145deg, rgba(15,23,42,0.96), rgba(15,23,42,0.99));
+      border-radius: 24px;
+      border: 1px solid rgba(251,191,36,0.7);
+      box-shadow:
+        0 0 34px rgba(251,191,36,0.35),
+        0 20px 60px rgba(0,0,0,0.95);
+      padding: 20px 24px 24px 24px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .character-overlay-title {
+      font-family: "Bangers", system-ui;
+      font-size: 26px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      text-align: center;
+      margin: 0 0 8px 0;
+      color: #fef9c3;
+      text-shadow:
+        -2px -2px 0 #000,
+        2px -2px 0 #000,
+        -2px 2px 0 #000,
+        2px 2px 0 #000,
+        0 0 16px rgba(251,191,36,0.95);
+    }
+
+    .character-overlay-sub {
+      text-align: center;
+      font-size: 13px;
+      color: #e5e7eb;
+      opacity: 0.9;
+      margin-bottom: 14px;
+    }
+
+    .character-choice-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .character-choice-card {
+      width: 150px;
+      cursor: pointer;
+      text-align: center;
+      padding: 10px 10px 12px 10px;
+      border-radius: 20px;
+      background: radial-gradient(circle at top, #020617, #020617 55%, #030712 100%);
+      border: 1px solid rgba(148,163,184,0.7);
+      box-shadow:
+        0 8px 24px rgba(0,0,0,0.9),
+        0 0 14px rgba(15,23,42,0.95);
+      transition: 0.18s ease;
+    }
+
+    .character-choice-card:hover {
+      transform: translateY(-4px) scale(1.03);
+      border-color: #f97316;
+      box-shadow:
+        0 10px 28px rgba(0,0,0,0.95),
+        0 0 18px rgba(249,115,22,0.85);
+    }
+
+    .character-choice-img-wrap {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 8px auto;
+      border-radius: 50%;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 3px #020617,
+        0 0 0 4px #f97316,
+        0 0 20px rgba(249,115,22,0.9);
+    }
+
+    .character-choice-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .character-choice-name {
+      font-family: "Bebas Neue", system-ui;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 14px;
+      color: #e5e7eb;
+    }
+
+    .character-overlay-close {
+      position: absolute;
+      top: 10px;
+      right: 14px;
+      font-size: 22px;
+      cursor: pointer;
+      color: #9ca3af;
+      text-shadow: 0 0 6px #000;
+      display: none; /* bewusst deaktiviert, damit Charakterwahl erzwungen ist */
+    }
+
+    /* ============================================
        RESPONSIVE
     ============================================ */
     @media (max-width: 900px) {
@@ -583,6 +703,14 @@
 
       .carousel-wrapper {
         width: 100%;
+      }
+
+      .character-overlay-inner {
+        padding: 14px 12px 18px 12px;
+      }
+
+      .character-choice-card {
+        width: 130px;
       }
     }
 
@@ -680,6 +808,20 @@
     </div>
   </div>
 
+  <!-- CHARACTER SELECT OVERLAY (FIRST LOGIN) -->
+  <div id="characterOverlay" class="character-overlay">
+    <div class="character-overlay-inner">
+      <div class="character-overlay-close" onclick="closeCharacterOverlay()">×</div>
+      <h2 class="character-overlay-title">WÄHLE DEINEN CHARAKTER</h2>
+      <div class="character-overlay-sub">
+        Klicke auf ein Bild, um deinen In-Game-Charakter für Streets of Logic festzulegen.
+      </div>
+      <div id="characterChoices" class="character-choice-grid">
+        <!-- wird per JS gefüllt -->
+      </div>
+    </div>
+  </div>
+
 <script>
 /* ============================================
    MENU + SECTIONS
@@ -710,6 +852,78 @@ function showSection(ev, name) {
 async function logout() {
   await fetch("/api/logout", { method: "POST" });
   location.href = "/login.html";
+}
+
+/* ============================================
+   CHARACTER OVERLAY – FIRST LOGIN
+============================================ */
+let characterListLoaded = false;
+
+async function openCharacterOverlay() {
+  const overlay = document.getElementById("characterOverlay");
+  overlay.style.display = "flex";
+
+  if (!characterListLoaded) {
+    try {
+      const r = await fetch("/api/student/characterList");
+      const chars = await r.json();
+      renderCharacterChoices(chars);
+      characterListLoaded = true;
+    } catch (e) {
+      console.error("Fehler beim Laden der Charakterliste", e);
+      document.getElementById("characterChoices").innerHTML =
+        "<p>Fehler beim Laden der Charaktere.</p>";
+    }
+  }
+}
+
+// absichtlich nicht nutzbar, um die Auswahl zu erzwingen – aber vorhanden,
+// falls du später einen "Später wählen"-Button einbauen willst.
+function closeCharacterOverlay() {
+  // document.getElementById("characterOverlay").style.display = "none";
+}
+
+function renderCharacterChoices(chars) {
+  const container = document.getElementById("characterChoices");
+  container.innerHTML = "";
+
+  if (!chars || !chars.length) {
+    container.innerHTML = "<p>Es wurden noch keine Charaktere angelegt.</p>";
+    return;
+  }
+
+  chars.forEach(ch => {
+    const card = document.createElement("div");
+    card.className = "character-choice-card";
+    card.innerHTML = `
+      <div class="character-choice-img-wrap">
+        <img src="${ch.image_url || ""}" alt="${ch.name}">
+      </div>
+      <div class="character-choice-name">${ch.name || ""}</div>
+    `;
+    card.onclick = () => selectCharacter(ch.id);
+    container.appendChild(card);
+  });
+}
+
+async function selectCharacter(characterId) {
+  try {
+    const r = await fetch("/api/student/selectCharacter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ characterId })
+    });
+    const data = await r.json();
+    if (data.success) {
+      // Nach erfolgreicher Auswahl: Seite neu laden
+      location.reload();
+    } else {
+      alert(data.message || "Charakter konnte nicht gespeichert werden.");
+    }
+  } catch (e) {
+    console.error(e);
+    alert("Fehler beim Speichern des Charakters.");
+  }
 }
 
 /* ============================================
@@ -751,7 +965,7 @@ async function loadMe() {
       .slice(0, 2);
   }
 
-  // CHARAKTER
+  // CHARAKTER-BEREICH
   const charDiv = document.getElementById("characterInfo");
   if (data.character) {
     charDiv.innerHTML = `
@@ -797,6 +1011,11 @@ async function loadMe() {
 
   // LEVEL BAR
   renderLevelBar(data.levels || [], u.xp);
+
+  // ⬅ WICHTIG: Wenn noch kein Charakter gesetzt ist → Auswahl öffnen
+  if (!data.character) {
+    openCharacterOverlay();
+  }
 }
 
 function renderLevelBar(levels, xp) {
