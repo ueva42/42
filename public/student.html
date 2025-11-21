@@ -33,6 +33,76 @@
     a { color: inherit; }
 
     /* ============================================
+       LOADING SCREEN – STREETS OF LOGIC
+    ============================================ */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, #020617 0, #020617 40%, #111827 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .loading-overlay.hide {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    .loading-content {
+      text-align: center;
+      max-width: 900px;
+      width: 90%;
+    }
+
+    .loading-image {
+      max-width: 100%;
+      border-radius: 24px;
+      box-shadow:
+        0 0 0 4px #020617,
+        0 0 0 6px #f97316,
+        0 30px 80px rgba(0,0,0,0.9);
+      display: block;
+      margin: 0 auto 18px auto;
+    }
+
+    .loading-bar {
+      width: 70%;
+      max-width: 520px;
+      height: 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(248,250,252,0.7);
+      background: rgba(15,23,42,0.9);
+      margin: 0 auto;
+      overflow: hidden;
+      box-shadow: 0 0 16px rgba(248,250,252,0.35);
+    }
+
+    .loading-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #22c55e, #eab308, #f97316, #a855f7);
+      animation: loadingFill 1.4s ease-in-out infinite;
+    }
+
+    .loading-hint {
+      margin-top: 10px;
+      font-size: 13px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #e5e7eb;
+      opacity: 0.9;
+    }
+
+    @keyframes loadingFill {
+      0%   { width: 10%; transform: translateX(-20%); }
+      50%  { width: 80%; transform: translateX(10%); }
+      100% { width: 30%; transform: translateX(120%); }
+    }
+
+    /* ============================================
        SIDEBAR – GTA Comic / Control Center Style
     ============================================ */
     .sidebar {
@@ -712,12 +782,33 @@
       .character-choice-card {
         width: 130px;
       }
+
+      .loading-image {
+        border-radius: 18px;
+      }
+
+      .loading-hint {
+        font-size: 11px;
+      }
     }
 
   </style>
 </head>
 
 <body>
+
+  <!-- LOADING OVERLAY -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-content">
+      <img src="assets/loading-screen.png" alt="Streets of Logic Loading" class="loading-image">
+      <div class="loading-bar">
+        <div class="loading-bar-fill"></div>
+      </div>
+      <div class="loading-hint">
+        Lädt deine Streets of Logic – XP-Daten …
+      </div>
+    </div>
+  </div>
 
   <!-- MOBILE HEADER -->
   <div class="mobile-header">
@@ -823,6 +914,27 @@
   </div>
 
 <script>
+/* ============================================
+   LOADING OVERLAY CONTROL
+============================================ */
+let loaderHidden = false;
+
+function hideLoader() {
+  if (loaderHidden) return;
+  loaderHidden = true;
+  const overlay = document.getElementById("loadingOverlay");
+  if (!overlay) return;
+  overlay.classList.add("hide");
+  setTimeout(() => {
+    overlay.style.display = "none";
+  }, 450);
+}
+
+// Fallback, falls irgendetwas beim Laden hängt:
+window.addEventListener("load", () => {
+  setTimeout(hideLoader, 2000);
+});
+
 /* ============================================
    MENU + SECTIONS
 ============================================ */
@@ -1012,10 +1124,13 @@ async function loadMe() {
   // LEVEL BAR
   renderLevelBar(data.levels || [], u.xp);
 
-  // ⬅ WICHTIG: Wenn noch kein Charakter gesetzt ist → Auswahl öffnen
+  // WICHTIG: Wenn noch kein Charakter gesetzt ist → Auswahl öffnen
   if (!data.character) {
     openCharacterOverlay();
   }
+
+  // Loader nach erfolgreichem Laden der wichtigsten Daten ausblenden
+  hideLoader();
 }
 
 function renderLevelBar(levels, xp) {
