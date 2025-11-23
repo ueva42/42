@@ -670,6 +670,23 @@ app.delete("/api/student/:id", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// **NEU**: Passwort-Reset für Schüler:innen
+app.post("/api/student/resetPassword", isAdmin, async (req, res) => {
+  const { studentId } = req.body;
+  if (!studentId) {
+    return res.json({ success: false, message: "studentId fehlt" });
+  }
+
+  const newPassword = generateTempPassword();
+
+  await pool.query(
+    "UPDATE users SET password=$1, first_login=TRUE WHERE id=$2",
+    [newPassword, studentId]
+  );
+
+  res.json({ success: true, password: newPassword });
+});
+
 // -------------------------------------------------------
 // XP Vergabe
 // -------------------------------------------------------
