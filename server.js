@@ -138,6 +138,27 @@ async function recalcAllStudentLevels() {
     );
   }
 }
+// -------------------------------------------------------
+// AUTO-FIX: doppelte User (name + school_id) bereinigen
+// -------------------------------------------------------
+await pool.query(`
+  -- Schritt 1: Doppelte Benutzer innerhalb derselben Schule entfernen
+  DELETE FROM users u
+  USING users u2
+  WHERE u.name = u2.name
+    AND u.school_id = u2.school_id
+    AND u.id > u2.id;
+`);
+
+await pool.query(`
+  -- Schritt 2: Falls es Benutzer ohne school_id gibt, ebenfalls Duplikate bereinigen
+  DELETE FROM users u
+  USING users u2
+  WHERE u.name = u2.name
+    AND u.school_id IS NULL
+    AND u2.school_id IS NULL
+    AND u.id > u2.id;
+`);
 
 // -------------------------------------------------------
 // MIGRATION – NEU & STABIL
