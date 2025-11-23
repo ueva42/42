@@ -125,12 +125,6 @@
       min-height: 16px;
       text-align: center;
     }
-    .hint {
-      margin-top: 10px;
-      font-size: 11px;
-      color: #9ca3af;
-      text-align: center;
-    }
   </style>
 </head>
 <body>
@@ -147,10 +141,6 @@
     <button onclick="doLogin()">Login</button>
 
     <div id="error" class="error"></div>
-    <div class="hint">
-      Admin-Login: <b>admin / bruhrain</b><br>
-      Schüler:innen-Zugang siehe Klassenübersicht im Admin.
-    </div>
   </div>
 
   <script>
@@ -179,6 +169,9 @@
 
     if (data.role === "admin") {
       location.href = "/admin";
+    } else if (data.firstLogin) {
+      // Erst-Login: auf Seite zur Passwort-Änderung
+      location.href = "/first-login.html";
     } else {
       location.href = "/student";
     }

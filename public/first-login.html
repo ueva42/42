@@ -2,90 +2,203 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Passwort festlegen – Streets of Logic</title>
-
+  <title>Streets of Logic – Erst-Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&display=swap" rel="stylesheet">
   <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
     body {
-      margin:0;
-      height:100vh;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      background:#050816;
-      color:#f9fafb;
-      font-family:Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(255,184,108,0.18) 0, transparent 50%),
+        radial-gradient(circle at 90% 20%, rgba(255,46,99,0.26) 0, transparent 55%),
+        radial-gradient(circle at 50% 100%, rgba(56,189,248,0.25) 0, transparent 60%),
+        #050816;
+      font-family: Arial, sans-serif;
+      color: #f9fafb;
     }
     .card {
-      width:350px;
-      padding:20px;
-      border-radius:20px;
-      background:#0f172a;
-      border:1px solid #f97316;
-      box-shadow:0 0 20px rgba(249,115,22,0.6);
+      width: 360px;
+      max-width: 90vw;
+      background: radial-gradient(circle at top left, #020617 0, #020617 55%, #030712 100%);
+      border-radius: 20px;
+      padding: 22px 22px 20px 22px;
+      box-shadow:
+        0 18px 50px rgba(0,0,0,0.95),
+        0 0 22px rgba(15,23,42,0.9);
+      border: 1px solid rgba(148,163,184,0.6);
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at top left, rgba(251,191,36,0.18), transparent 60%),
+        radial-gradient(circle at bottom right, rgba(59,130,246,0.16), transparent 60%);
+    }
+    .card > * {
+      position: relative;
+      z-index: 1;
+    }
+    h1 {
+      margin: 0 0 6px 0;
+      font-family: "Bangers", system-ui;
+      font-size: 24px;
+      letter-spacing: 0.20em;
+      text-transform: uppercase;
+      text-align: center;
+      color: #fef9c3;
+      text-shadow:
+        -2px -2px 0 #000,
+        2px -2px 0 #000,
+        -2px 2px 0 #000,
+        2px 2px 0 #000,
+        0 0 18px rgba(251,191,36,0.95);
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 4px;
+      color: #e5e7eb;
     }
     input {
-      width:100%;
-      padding:10px;
-      margin-bottom:12px;
-      border-radius:999px;
-      border:1px solid #f97316;
-      background:#020617;
-      color:white;
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid #4b5563;
+      background: #020617;
+      color: #f9fafb;
+      font-size: 13px;
+      outline: none;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+      transition: border 0.15s ease, box-shadow 0.15s ease;
+    }
+    input:focus {
+      border-color: #f97316;
+      box-shadow: 0 0 0 1px rgba(249,115,22,0.7);
     }
     button {
-      width:100%;
-      padding:10px;
-      border-radius:999px;
-      background:#f97316;
-      border:none;
-      cursor:pointer;
-      color:#020617;
-      font-weight:bold;
+      width: 100%;
+      border: none;
+      border-radius: 999px;
+      padding: 9px 0;
+      margin-top: 4px;
+      font-size: 13px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: linear-gradient(135deg, #22c55e, #a855f7);
+      color: #0f172a;
+      box-shadow:
+        0 8px 22px rgba(8,47,73,0.95),
+        0 0 16px rgba(168,85,247,0.8);
+      transition: 0.16s ease;
+    }
+    button:hover {
+      background: linear-gradient(135deg, #4ade80, #f97316);
+      transform: translateY(-1px);
+      box-shadow:
+        0 10px 26px rgba(8,47,73,1),
+        0 0 20px rgba(249,115,22,0.9);
+    }
+    .error {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #fecaca;
+      min-height: 16px;
+      text-align: center;
+    }
+    .hint {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #9ca3af;
+      text-align: center;
     }
   </style>
 </head>
 <body>
+  <div class="card">
+    <h1>STREETS OF LOGIC</h1>
+    <div class="subtitle">XP EDITION – ERST-LOGIN</div>
 
-<div class="card">
-  <h2 style="margin-top:0;">Neues Passwort setzen</h2>
+    <div class="hint">
+      Du bist mit einem Einmalpasswort eingeloggt.<br>
+      Lege jetzt dein eigenes Passwort fest.
+    </div>
 
-  <input id="pw1" type="password" placeholder="Neues Passwort">
-  <input id="pw2" type="password" placeholder="Passwort wiederholen">
+    <label for="currentPassword">Aktuelles Einmalpasswort</label>
+    <input id="currentPassword" type="password" autocomplete="current-password">
 
-  <button onclick="save()">Speichern</button>
+    <label for="newPassword">Neues Passwort</label>
+    <input id="newPassword" type="password" autocomplete="new-password">
 
-  <div id="err" style="color:#ff7b7b; margin-top:10px; display:none;">
-    Passwörter stimmen nicht überein.
+    <label for="newPassword2">Neues Passwort (Wiederholung)</label>
+    <input id="newPassword2" type="password" autocomplete="new-password">
+
+    <button onclick="doFirstLogin()">Passwort setzen</button>
+
+    <div id="error" class="error"></div>
   </div>
-</div>
 
-<script>
-async function save() {
-  const pw1 = document.getElementById("pw1").value.trim();
-  const pw2 = document.getElementById("pw2").value.trim();
-  const err = document.getElementById("err");
+  <script>
+  async function doFirstLogin() {
+    const currentPassword = document.getElementById("currentPassword").value.trim();
+    const newPassword = document.getElementById("newPassword").value.trim();
+    const newPassword2 = document.getElementById("newPassword2").value.trim();
+    const errorDiv = document.getElementById("error");
+    errorDiv.textContent = "";
 
-  if (pw1 !== pw2) {
-    err.style.display = "block";
-    return;
-  }
+    if (!currentPassword || !newPassword || !newPassword2) {
+      errorDiv.textContent = "Bitte alle Felder ausfüllen.";
+      return;
+    }
 
-  const r = await fetch("/api/set-new-password", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ newPassword: pw1 })
-  });
+    if (newPassword !== newPassword2) {
+      errorDiv.textContent = "Die neuen Passwörter stimmen nicht überein.";
+      return;
+    }
 
-  const data = await r.json();
+    if (newPassword.length < 4) {
+      errorDiv.textContent = "Neues Passwort sollte mindestens 4 Zeichen lang sein.";
+      return;
+    }
 
-  if (data.success) {
+    const r = await fetch("/api/first-login", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+
+    const data = await r.json();
+    if (!data.success) {
+      errorDiv.textContent = data.message || "Fehler beim Setzen des Passworts.";
+      return;
+    }
+
+    // Nach erfolgreichem Setzen → normales Schüler-Dashboard
     location.href = "/student";
-  } else {
-    err.textContent = data.message || "Fehler";
-    err.style.display = "block";
   }
-}
-</script>
 
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") doFirstLogin();
+  });
+  </script>
 </body>
 </html>

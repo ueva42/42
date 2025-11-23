@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (FINAL GTA VERSION)
+// Temple of Logic – SERVER.JS (FINAL GTA VERSION + FIRST LOGIN)
 // =======================================================
 
 import express from "express";
@@ -60,7 +60,7 @@ const r2 = new S3Client({
 const upload = multer({ storage: multer.memoryStorage() });
 
 // -------------------------------------------------------
-// Helper: Spalten anlegen, wenn sie fehlen (momentan ungenutzt)
+// Helper: Spalten anlegen, wenn sie fehlen
 // -------------------------------------------------------
 async function ensureColumn(table, col, type) {
   await pool.query(`
@@ -74,6 +74,18 @@ async function ensureColumn(table, col, type) {
       END IF;
     END$$;
   `);
+}
+
+// -------------------------------------------------------
+// Helper: Temp-Passwort generieren (6-stellig, alphanumerisch)
+// -------------------------------------------------------
+function generateTempPassword(length = 6) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  let pw = "";
+  for (let i = 0; i < length; i++) {
+    pw += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return pw;
 }
 
 // -------------------------------------------------------
@@ -100,15 +112,12 @@ async function updateStudentLevel(studentId) {
 }
 
 async function recalcAllStudentLevels() {
-  const levelsRes = await pool.query(
-    "SELECT id,min_xp FROM levels ORDER BY min_xp ASC"
-  );
-  const levels = levelsRes.rows;
-
-  const usersRes = await pool.query(
-    "SELECT id,xp FROM users WHERE role='student'"
-  );
-  const users = usersRes.rows;
+  const levels = (
+    await pool.query("SELECT id,min_xp FROM levels ORDER BY min_xp ASC")
+  ).rows;
+  const users = (
+    await pool.query("SELECT id,xp FROM users WHERE role='student'")
+  ).rows;
 
   for (const u of users) {
     let levelId = null;
@@ -150,6 +159,9 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+
+  // first_login-Flag ergänzen
+  await ensureColumn("users", "first_login", "BOOLEAN NOT NULL DEFAULT FALSE");
 
   // uniqueness (name + class)
   await pool.query(`
@@ -229,8 +241,8 @@ async function migrate() {
 
   // default admin
   await pool.query(`
-    INSERT INTO users (name,password,role)
-    VALUES ('admin','bruhrain','admin')
+    INSERT INTO users (name,password,role,first_login)
+    VALUES ('admin','bruhrain','admin',FALSE)
     ON CONFLICT DO NOTHING
   `);
 
@@ -245,7 +257,10 @@ await migrate();
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
-  const r = await pool.query("SELECT * FROM users WHERE name=$1", [username]);
+  const r = await pool.query(
+    "SELECT id,name,password,role,class_id,first_login FROM users WHERE name=$1",
+    [username]
+  );
   if (!r.rows.length) return res.json({ success: false });
 
   const user = r.rows[0];
@@ -257,7 +272,11 @@ app.post("/api/login", async (req, res) => {
     class_id: user.class_id
   };
 
-  res.json({ success: true, role: user.role });
+  res.json({
+    success: true,
+    role: user.role,
+    firstLogin: !!user.first_login
+  });
 });
 
 app.post("/api/logout", (req, res) => {
@@ -275,6 +294,55 @@ function isStudent(req, res, next) {
     return res.status(403).json({ error: "Forbidden" });
   next();
 }
+
+// -------------------------------------------------------
+// FIRST LOGIN – Passwort ändern
+// -------------------------------------------------------
+app.post("/api/first-login", isStudent, async (req, res) => {
+  const studentId = req.session.user.id;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.json({
+      success: false,
+      message: "Bitte alle Felder ausfüllen."
+    });
+  }
+
+  const r = await pool.query(
+    "SELECT password,first_login FROM users WHERE id=$1",
+    [studentId]
+  );
+  if (!r.rows.length) {
+    return res.json({
+      success: false,
+      message: "Benutzer nicht gefunden."
+    });
+  }
+
+  const user = r.rows[0];
+
+  if (!user.first_login) {
+    return res.json({
+      success: false,
+      message: "Erst-Login bereits abgeschlossen."
+    });
+  }
+
+  if (user.password !== currentPassword) {
+    return res.json({
+      success: false,
+      message: "Aktuelles Einmalpasswort ist falsch."
+    });
+  }
+
+  await pool.query(
+    "UPDATE users SET password=$1, first_login=FALSE WHERE id=$2",
+    [newPassword, studentId]
+  );
+
+  res.json({ success: true });
+});
 
 // -------------------------------------------------------
 // STUDENT – Dashboard mit Charakterwahl
@@ -560,7 +628,7 @@ app.delete("/api/class/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// ADMIN Students
+// ADMIN Students – mit Auto-Passwort & first_login = true
 // -------------------------------------------------------
 app.get("/api/student", isAdmin, async (req, res) => {
   const { classId } = req.query;
@@ -580,15 +648,18 @@ app.get("/api/student", isAdmin, async (req, res) => {
 });
 
 app.post("/api/student", isAdmin, async (req, res) => {
-  const { name, password, classId } = req.body;
+  const { name, classId } = req.body;
+  if (!name || !classId) return res.json({ success: false });
+
+  const tempPassword = generateTempPassword();
 
   await pool.query(
     `
-    INSERT INTO users (name,password,role,class_id,xp)
-    VALUES ($1,$2,'student',$3,0)
+    INSERT INTO users (name,password,role,class_id,xp,first_login)
+    VALUES ($1,$2,'student',$3,0,TRUE)
     ON CONFLICT (name,class_id) DO NOTHING
   `,
-    [name, password, classId]
+    [name, tempPassword, classId]
   );
 
   res.json({ success: true });
@@ -597,31 +668,6 @@ app.post("/api/student", isAdmin, async (req, res) => {
 app.delete("/api/student/:id", isAdmin, async (req, res) => {
   await pool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
   res.json({ success: true });
-});
-
-// -------------------------------------------------------
-// ADMIN – Passwort-Reset für Schüler:innen
-// -------------------------------------------------------
-function generateTempPassword() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let pw = "";
-  for (let i = 0; i < 6; i++) {
-    pw += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return pw;
-}
-
-app.post("/api/student/resetPassword", isAdmin, async (req, res) => {
-  const { studentId } = req.body;
-  if (!studentId) return res.json({ success: false });
-
-  const newPw = generateTempPassword();
-  await pool.query("UPDATE users SET password=$1 WHERE id=$2", [
-    newPw,
-    studentId
-  ]);
-
-  res.json({ success: true, password: newPw });
 });
 
 // -------------------------------------------------------
@@ -991,6 +1037,10 @@ app.get("/login", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
+app.get("/first-login", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "first-login.html"));
+});
+
 app.get("/admin", isAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "admin.html"));
 });
@@ -1008,5 +1058,5 @@ app.get("/character-select", isStudent, (req, res) => {
 // START SERVER
 // -------------------------------------------------------
 app.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Server läuft auf Port 8080 (FINAL GTA VERSION)");
+  console.log("🚀 Server läuft auf Port 8080 (FINAL GTA VERSION + FIRST LOGIN)");
 });
