@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Superadmin – Streets of Logic</title>
 
-  <!-- Google Fonts -->
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
@@ -14,280 +14,262 @@
 
     body {
       margin: 0;
-      display: flex;
+      font-family: "Roboto", sans-serif;
       height: 100vh;
+      display: flex;
       background:
         radial-gradient(circle at 10% 0%, rgba(255,184,108,0.18) 0, transparent 50%),
-        radial-gradient(circle at 90% 20%, rgba(255,46,99,0.26) 0, transparent 55%),
-        radial-gradient(circle at 50% 100%, rgba(56,189,248,0.25) 0, transparent 60%),
+        radial-gradient(circle at 90% 20%, rgba(255,46,99,0.25) 0, transparent 55%),
+        radial-gradient(circle at 50% 100%, rgba(56,189,248,0.22) 0, transparent 60%),
         #050816;
-      color: #f9fafb;
-      font-family: "Roboto", sans-serif;
+      color: #f3f4f6;
     }
 
     /* SIDEBAR */
     .sidebar {
-      width: 240px;
-      background: rgba(15,23,42,0.96);
-      border-right: 2px solid rgba(15,23,42,1);
-      outline: 2px solid rgba(15,23,42,0.6);
-      padding: 25px 18px;
+      width: 260px;
+      background: rgba(15,23,42,0.95);
+      border-right: 2px solid rgba(148,163,184,0.15);
+      padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
-      box-shadow: 0 0 25px rgba(0,0,0,0.6);
+      box-shadow: 0 0 30px rgba(0,0,0,0.8);
     }
 
     .logo-wrap {
       display: flex;
       align-items: center;
       gap: 12px;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
     }
 
     .orb {
-      width: 42px;
-      height: 42px;
-      background:
-        radial-gradient(circle at 30% 20%, #ffe066 0, #ff9800 25%, #f97316 40%, #7c2d12 70%, #020617 100%);
+      width: 46px;
+      height: 46px;
       border-radius: 50%;
-      box-shadow:
-        0 0 12px rgba(255,224,102,1),
-        0 0 20px rgba(249,115,22,0.9);
+      background: radial-gradient(circle at 30% 20%, #ffe066 0, #ff9800 25%, #f97316 40%, #7c2d12 70%, #020617 100%);
+      box-shadow: 0 0 14px rgba(255,224,102,1), 0 0 26px rgba(249,115,22,0.9);
       border: 2px solid #111827;
     }
 
-    .title {
-      font-family: "Bangers", cursive;
+    .logo-title h1 {
+      font-family: "Bangers";
       font-size: 22px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: #fffbeb;
-      text-shadow:
-        0 0 6px rgba(0,0,0,0.9),
-        0 0 18px rgba(255,212,128,0.9);
+      letter-spacing: 0.18em;
       margin: 0;
-      line-height: 1.1;
+      color: #fff8e1;
+      text-shadow: 0 0 6px black, 0 0 18px rgba(255,212,128,0.9);
     }
 
-    .sub {
-      font-size: 10px;
-      letter-spacing: 0.2em;
+    .logo-sub {
+      font-size: 11px;
       color: #9ca3af;
       text-transform: uppercase;
+      letter-spacing: 0.18em;
       margin-top: 2px;
     }
 
-    .nav {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: 15px;
-    }
-
-    .nav button {
-      width: 100%;
-      padding: 10px;
-      background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 10px;
-      text-align: left;
+    .nav-btn {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
       color: #e5e7eb;
+      font-size: 14px;
       cursor: pointer;
+      text-align: left;
+      transition: 0.15s;
+    }
+
+    .nav-btn:hover {
+      background: rgba(255,255,255,0.12);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    }
+
+    .logout-btn {
+      margin-top: auto;
+      padding: 12px;
+      border-radius: 14px;
+      border: none;
+      background: linear-gradient(135deg, #ef4444, #b91c1c);
+      color: white;
       font-size: 13px;
-      transition: 0.15s ease;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.8);
     }
 
-    .nav button:hover {
-      background: #1e293b;
-      border-color: #f97316;
-      box-shadow: 0 0 6px rgba(249,115,22,0.5);
-    }
-
-    .nav button.active {
-      background: #1e293b;
-      border-color: #f97316;
-      color: #fef3c7;
-    }
-
-    /* CONTENT */
-    .content {
+    /* MAIN PANEL */
+    .main {
       flex: 1;
-      padding: 28px 35px;
-      overflow-y: auto;
-    }
-
-    .card {
-      background: rgba(15,23,42,0.9);
-      padding: 20px 25px;
-      border-radius: 16px;
-      border: 1px solid rgba(255,255,255,0.05);
-      box-shadow: 0 12px 35px rgba(0,0,0,0.95);
-      margin-bottom: 25px;
+      padding: 40px;
     }
 
     h2 {
-      margin: 0 0 15px;
-      font-family: "Bangers", cursive;
-      color: #fffbeb;
-      letter-spacing: 0.12em;
-      text-shadow:
-        0 0 12px rgba(255,212,128,0.9),
-        0 0 24px rgba(255,184,108,0.8);
+      font-family: "Bangers";
+      letter-spacing: 0.14em;
+      font-size: 28px;
+      color: #fff6d4;
+      text-shadow: 0 0 12px rgba(255,212,128,0.6);
+      margin-top: 0;
     }
 
     label {
-      display: block;
-      font-size: 11px;
+      font-size: 12px;
       text-transform: uppercase;
-      margin-top: 12px;
-      margin-bottom: 4px;
-      letter-spacing: 0.1em;
-    }
-
-    input {
-      width: 100%;
-      padding: 8px;
-      border-radius: 10px;
-      border: 1px solid #4b5563;
-      background: #020617;
       color: #e5e7eb;
-      outline: none;
-      margin-bottom: 10px;
-    }
-
-    input:focus {
-      border-color: #f97316;
-      box-shadow: 0 0 6px rgba(249,115,22,0.7);
-    }
-
-    .btn {
-      margin-top: 12px;
-      padding: 10px 14px;
-      border-radius: 10px;
-      border: none;
-      cursor: pointer;
-      background: linear-gradient(120deg, #22c55e, #16a34a);
-      font-size: 13px;
-      text-transform: uppercase;
       letter-spacing: 0.12em;
+      margin-top: 16px;
+      display: block;
+    }
+
+    input, select {
+      width: 360px;
+      padding: 10px 12px;
+      background: #020617;
+      border: 1px solid #4b5563;
+      border-radius: 12px;
+      color: #e5e7eb;
+      font-size: 14px;
+      margin-top: 4px;
+      outline: none;
+      transition: 0.15s;
+    }
+
+    input:focus, select:focus {
+      border-color: #f97316;
+      box-shadow: 0 0 0 1px rgba(249,115,22,0.9);
+    }
+
+    .btn-green {
+      margin-top: 18px;
+      padding: 10px 20px;
+      border-radius: 14px;
+      border: none;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
       color: #020617;
-      font-weight: 600;
-      box-shadow:
-        0 5px 14px rgba(0,0,0,0.95),
-        0 0 16px rgba(52,211,153,0.75);
-      transform: skewX(-6deg);
-      transition: 0.15s ease;
+      text-transform: uppercase;
+      font-size: 14px;
+      letter-spacing: 0.12em;
+      cursor: pointer;
+      box-shadow: 0 5px 16px rgba(34,197,94,0.7);
     }
 
-    .btn:hover {
-      filter: brightness(1.05);
-      transform: skewX(-6deg) translateY(-1px);
-    }
-
-    .list-item {
-      padding: 10px;
-      background: rgba(255,255,255,0.05);
-      margin-bottom: 6px;
-      border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.08);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .danger {
-      background: linear-gradient(120deg, #ef4444, #b91c1c);
-      color: #fff;
-      transform: skewX(-6deg);
-    }
-
-    .danger:hover {
-      filter: brightness(1.08);
+    .list-box {
+      margin-top: 30px;
+      padding: 20px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
     }
   </style>
 </head>
-
 <body>
 
-<!-- SIDEBAR -->
 <div class="sidebar">
   <div class="logo-wrap">
     <div class="orb"></div>
-    <div>
-      <div class="title">STREETS OF LOGIC</div>
-      <div class="sub">SUPERADMIN</div>
+    <div class="logo-title">
+      <h1>STREETS OF LOGIC</h1>
+      <div class="logo-sub">SUPERADMIN</div>
     </div>
   </div>
 
-  <div class="nav">
-    <button class="active" onclick="showTab('schools')">Schulen</button>
-    <button onclick="showTab('admins')">Admins</button>
-    <button onclick="showTab('system')">Systemstatus</button>
-    <button onclick="showTab('reset')">Installation / Reset</button>
-  </div>
+  <button class="nav-btn" onclick="showPanel('schools')">Schulen</button>
+  <button class="nav-btn" onclick="showPanel('admins')">Admins</button>
+  <button class="nav-btn" onclick="showPanel('system')">Systemstatus</button>
+  <button class="nav-btn" onclick="showPanel('install')">Installation / Reset</button>
+
+  <button class="logout-btn" onclick="logout()">Logout</button>
 </div>
 
-<!-- CONTENT -->
-<div class="content">
+<div class="main" id="panelArea">
 
-  <!-- SCHOOLS -->
-  <div id="tab-schools" class="card">
-    <h2>Schulen verwalten</h2>
-
-    <label>Neue Schule anlegen</label>
-    <input id="schoolName" placeholder="z. B. ADSZ">
-    <button class="btn" onclick="createSchool()">Schule anlegen</button>
-
-    <h3 style="margin-top:20px;">Bestehende Schulen</h3>
-    <div id="schoolList"></div>
-  </div>
-
-  <!-- ADMINS -->
-  <div id="tab-admins" class="card" style="display:none;">
+  <div id="panel_admins" style="display:block;">
     <h2>Admins verwalten</h2>
 
     <label>Benutzername</label>
     <input id="adminName">
 
     <label>Schule</label>
-    <select id="adminSchool"></select>
+    <select id="schoolSelect"></select>
 
-    <button class="btn" onclick="createAdmin()">Admin erstellen</button>
+    <button class="btn-green" onclick="createAdmin()">Admin erstellen</button>
 
-    <h3 style="margin-top:20px;">Bestehende Admins</h3>
-    <div id="adminList"></div>
-  </div>
-
-  <!-- SYSTEM -->
-  <div id="tab-system" class="card" style="display:none;">
-    <h2>Systemstatus</h2>
-
-    <p>Alles läuft stabil ✔</p>
-    <p>Railway OK, Cloudflare OK</p>
-  </div>
-
-  <!-- RESET -->
-  <div id="tab-reset" class="card" style="display:none;">
-    <h2>Installation / Reset</h2>
-    <p>Achtung: Dieser Vorgang löscht alle Daten der Schule.</p>
-    <button class="btn danger">Hard Reset ausführen</button>
+    <div class="list-box">
+      <h3>Bestehende Admins</h3>
+      <div id="adminList"></div>
+    </div>
   </div>
 
 </div>
 
 <script>
-function showTab(name) {
-  document.querySelectorAll(".nav button").forEach(b => b.classList.remove("active"));
-  document.querySelectorAll(".content .card").forEach(c => c.style.display = "none");
-
-  document.querySelector(`[onclick="showTab('${name}')"]`).classList.add("active");
-  document.getElementById("tab-" + name).style.display = "block";
+function showPanel(id) {
+  document.querySelectorAll("#panelArea > div").forEach(div => div.style.display = "none");
+  document.getElementById("panel_" + id).style.display = "block";
 }
 
-// TODO: später API anbinden
-function createSchool() { alert("Schule angelegt (Mock)"); }
-function createAdmin() { alert("Admin erstellt (Mock)"); }
+async function logout() {
+  await fetch("/api/logout", { method: "POST" });
+  location.href = "/login";
+}
 
+async function loadSchools() {
+  const r = await fetch("/api/superadmin/schools");
+  const data = await r.json();
+
+  const sel = document.getElementById("schoolSelect");
+  sel.innerHTML = "";
+
+  data.forEach(s => {
+    const o = document.createElement("option");
+    o.value = s.id;
+    o.textContent = s.name;
+    sel.appendChild(o);
+  });
+}
+
+async function createAdmin() {
+  const name = document.getElementById("adminName").value.trim();
+  const school = document.getElementById("schoolSelect").value;
+
+  if (!name || !school) return alert("Bitte alles ausfüllen.");
+
+  const r = await fetch("/api/superadmin/admins", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, schoolId: school })
+  });
+
+  const data = await r.json();
+  if (data.success) {
+    alert("Admin angelegt (Einmalpasswort wird automatisch gesetzt).");
+    loadAdmins();
+  }
+}
+
+async function loadAdmins() {
+  const r = await fetch("/api/superadmin/admins");
+  const data = await r.json();
+
+  const box = document.getElementById("adminList");
+  box.innerHTML = "";
+
+  data.forEach(a => {
+    const div = document.createElement("div");
+    div.style.padding = "6px 0";
+    div.textContent = a.name + " (" + a.school_name + ")";
+    box.appendChild(div);
+  });
+}
+
+loadSchools();
+loadAdmins();
 </script>
 
 </body>
