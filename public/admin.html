@@ -619,7 +619,9 @@
       <div class="panel">
         <h3>Schüler:in anlegen</h3>
         <input id="studentName" placeholder="Name" />
-        <input id="studentPassword" placeholder="Passwort" />
+        <p class="hint">
+          Beim Anlegen wird automatisch ein einmaliges Passwort erzeugt (Erst-Login).
+        </p>
         <button class="action" onclick="addStudent()">Anlegen</button>
       </div>
     </div>
@@ -1012,20 +1014,19 @@ async function loadClassStudents() {
   });
 }
 
+/* 🔥 ANGEPASST: Schüler anlegen ohne eigenes Passwort-Feld */
 async function addStudent() {
   const classId = document.getElementById("classManageSelect").value;
   const name = document.getElementById("studentName").value.trim();
-  const password = document.getElementById("studentPassword").value.trim();
-  if (!classId || !name || !password) return;
+  if (!classId || !name) return;
 
   await fetch("/api/student", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({name, password, classId})
+    body: JSON.stringify({name, classId})
   });
 
   document.getElementById("studentName").value = "";
-  document.getElementById("studentPassword").value = "";
   loadClassStudents();
   loadXPStudents();
 }
