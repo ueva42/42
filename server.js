@@ -1,5 +1,6 @@
 // =======================================================
 // Temple of Logic – SERVER.JS (MULTI-SCHOOL + SUPERADMIN)
+// Bereinigte Version mit Admin-Dedupe & sauberem Upsert
 // =======================================================
 
 import express from "express";
@@ -143,7 +144,7 @@ async function recalcAllStudentLevels() {
 }
 
 // -------------------------------------------------------
-// MIGRATION – Multi-School + Superadmin
+// MIGRATION – Multi-School + Superadmin + Admin-Dedupe
 // -------------------------------------------------------
 async function migrate() {
   console.log("🔧 Starte Migration…");
@@ -175,10 +176,11 @@ async function migrate() {
     )
   `);
 
-  // Zusatzspalten
+  // Zusatzspalten für Users
   await ensureColumn("users", "first_login", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("users", "school_id", "INTEGER");
 
+  // UNIQUE (name, class_id) für Schüler:innen
   await pool.query(`
     DO $$
     BEGIN
@@ -193,7 +195,7 @@ async function migrate() {
     END$$;
   `);
 
-  // Tabellen für Gameplay
+  // Klassen
   await pool.query(`
     CREATE TABLE IF NOT EXISTS classes (
       id SERIAL PRIMARY KEY,
@@ -225,6 +227,7 @@ async function migrate() {
     END$$;
   `);
 
+  // Missions
   await pool.query(`
     CREATE TABLE IF NOT EXISTS missions (
       id SERIAL PRIMARY KEY,
@@ -237,6 +240,7 @@ async function migrate() {
   `);
   await ensureColumn("missions", "school_id", "INTEGER");
 
+  // Student Uploads
   await pool.query(`
     CREATE TABLE IF NOT EXISTS student_uploads (
       id SERIAL PRIMARY KEY,
@@ -248,6 +252,7 @@ async function migrate() {
   `);
   await ensureColumn("student_uploads", "school_id", "INTEGER");
 
+  // Bonuskarten
   await pool.query(`
     CREATE TABLE IF NOT EXISTS bonuscards (
       id SERIAL PRIMARY KEY,
@@ -259,6 +264,7 @@ async function migrate() {
   `);
   await ensureColumn("bonuscards", "school_id", "INTEGER");
 
+  // Charaktere
   await pool.query(`
     CREATE TABLE IF NOT EXISTS characters (
       id SERIAL PRIMARY KEY,
@@ -269,6 +275,7 @@ async function migrate() {
   `);
   await ensureColumn("characters", "school_id", "INTEGER");
 
+  // XP-Transaktionen
   await pool.query(`
     CREATE TABLE IF NOT EXISTS xp_transactions (
       id SERIAL PRIMARY KEY,
@@ -282,6 +289,7 @@ async function migrate() {
   `);
   await ensureColumn("xp_transactions", "school_id", "INTEGER");
 
+  // Level
   await pool.query(`
     CREATE TABLE IF NOT EXISTS levels (
       id SERIAL PRIMARY KEY,
@@ -306,7 +314,7 @@ async function migrate() {
     defaultSchoolId = ins.rows[0].id;
   }
 
-  // Bestehende Daten dieser Schule zuordnen
+  // Bestehende Daten dieser Schule zuordnen (Fallback)
   await pool.query(
     "UPDATE users SET school_id=$1 WHERE school_id IS NULL",
     [defaultSchoolId]
@@ -340,12 +348,40 @@ async function migrate() {
     [defaultSchoolId]
   );
 
-  // Default-Admin für ADSZ (falls noch nicht vorhanden)
+  // 🔥 Admin-Dubletten bereinigen (vor Unique-Index)
+  // Gleicher Name + gleiche Schule + gleiche Rolle => nur kleinste id behalten
+  await pool.query(`
+    DELETE FROM users u
+    USING users u2
+    WHERE u.id > u2.id
+      AND u.name = u2.name
+      AND COALESCE(u.school_id, -1) = COALESCE(u2.school_id, -1)
+      AND u.role = u2.role
+  `);
+
+  // 🔒 Eindeutigkeit für (name, school_id, role) – wichtig für Admin/Superadmin
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'i'
+          AND c.relname = 'users_admin_unique'
+      ) THEN
+        CREATE UNIQUE INDEX users_admin_unique
+        ON users(name, school_id, role);
+      END IF;
+    END$$;
+  `);
+
+  // Default-Admin für ADSZ
   await pool.query(
     `
     INSERT INTO users (name,password,role,school_id,first_login)
     VALUES ('admin','bruhrain','admin',$1,FALSE)
-    ON CONFLICT (name,class_id) DO NOTHING
+    ON CONFLICT (name, school_id, role) DO NOTHING
   `,
     [defaultSchoolId]
   );
@@ -355,12 +391,12 @@ async function migrate() {
     `
     INSERT INTO users (name,password,role,school_id,first_login)
     VALUES ('ueva42','bruhrain','superadmin',$1,FALSE)
-    ON CONFLICT (name,class_id) DO NOTHING
+    ON CONFLICT (name, school_id, role) DO NOTHING
   `,
     [defaultSchoolId]
   );
 
-  console.log("Migration abgeschlossen.");
+  console.log("✅ Migration abgeschlossen.");
 }
 
 await migrate();
@@ -398,6 +434,9 @@ app.post("/api/logout", (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
 });
 
+// -------------------------------------------------------
+// Middlewares
+// -------------------------------------------------------
 function isAdmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== "admin")
     return res.status(403).json({ error: "Forbidden" });
@@ -1402,7 +1441,7 @@ app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
     `
     INSERT INTO users (name,password,role,school_id,first_login)
     VALUES ($1,$2,'admin',$3,TRUE)
-    ON CONFLICT (name,class_id) DO NOTHING
+    ON CONFLICT (name, school_id, role) DO NOTHING
   `,
     [name, tempPassword, schoolId]
   );
@@ -1478,5 +1517,5 @@ app.get("/character-select", isStudent, (req, res) => {
 // START SERVER
 // -------------------------------------------------------
 app.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Server läuft auf Port 8080 (MULTI-SCHOOL + SUPERADMIN)");
+  console.log("🚀 Server läuft auf Port 8080 (MULTI-SCHOOL + SUPERADMIN, Admin-Dedupe aktiv)");
 });
