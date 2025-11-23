@@ -607,6 +607,8 @@
         <h3>Klassenliste</h3>
         <select id="classManageSelect" onchange="loadClassStudents()"></select>
         <button class="delete" onclick="deleteClass()">Klasse löschen</button>
+        <!-- NEU: Passwortkarten-Button -->
+        <button class="action" onclick="printPasswordCards()">Passwortkarten drucken</button>
 
         <table id="classStudentTable">
           <thead>
@@ -1014,7 +1016,7 @@ async function loadClassStudents() {
   });
 }
 
-/* 🔥 ANGEPASST: Schüler anlegen ohne eigenes Passwort-Feld */
+/* 🔥 Schüler anlegen – Passwort wird automatisch erzeugt (Server) */
 async function addStudent() {
   const classId = document.getElementById("classManageSelect").value;
   const name = document.getElementById("studentName").value.trim();
@@ -1050,6 +1052,13 @@ async function resetStudentPassword(id) {
     if (cell) cell.textContent = data.password;
     alert(`Neues Passwort für die Schülerin/den Schüler: ${data.password}`);
   }
+}
+
+/* NEU: Passwortkarten drucken */
+function printPasswordCards() {
+  const classId = document.getElementById("classManageSelect").value;
+  if (!classId) return;
+  window.open(`/password-cards.html?classId=${classId}`, "_blank");
 }
 
 /* ---------------------------- MISSIONEN ---------------------------- */
