@@ -250,7 +250,6 @@ async function migrate() {
 }
 
 await migrate();
-
 // -------------------------------------------------------
 // AUTH
 // -------------------------------------------------------
@@ -345,7 +344,7 @@ app.post("/api/first-login", isStudent, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// STUDENT – Dashboard mit Charakterwahl
+// STUDENT – Dashboard
 // -------------------------------------------------------
 app.get("/api/student/me", isStudent, async (req, res) => {
   const id = req.session.user.id;
@@ -373,35 +372,15 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   }
 
   const TRAITS = [
-    "Neugierig",
-    "Ausdauernd",
-    "Kreativ",
-    "Hilfsbereit",
-    "Strukturiert",
-    "Ruhig",
-    "Zielstrebig",
-    "Analytisch",
-    "Teamorientiert",
-    "Sorgfältig",
-    "Mutig",
-    "Risikofreudig",
-    "Optimistisch",
-    "Aufmerksam",
-    "Pragmatisch"
+    "Neugierig","Ausdauernd","Kreativ","Hilfsbereit","Strukturiert",
+    "Ruhig","Zielstrebig","Analytisch","Teamorientiert","Sorgfältig",
+    "Mutig","Risikofreudig","Optimistisch","Aufmerksam","Pragmatisch"
   ];
   const ITEMS = [
-    "Zirkel der Präzision",
-    "Rechenamulett",
-    "Logikstein",
-    "Zauberstift",
-    "Kompass",
-    "Rucksack",
-    "Lineal",
-    "Lampe",
-    "Formelbuch"
+    "Zirkel der Präzision","Rechenamulett","Logikstein","Zauberstift",
+    "Kompass","Rucksack","Lineal","Lampe","Formelbuch"
   ];
-  const pick3 = arr =>
-    [...arr].sort(() => Math.random() - 0.5).slice(0, 3);
+  const pick3 = arr => [...arr].sort(() => Math.random() - 0.5).slice(0, 3);
 
   const traitItem = await pool.query(
     "SELECT traits,items FROM users WHERE id=$1",
@@ -520,9 +499,7 @@ app.post(
     const { missionId } = req.body;
     const studentId = req.session.user.id;
 
-    const fileName = `uploads/${studentId}_${missionId}_${Date.now()}_${
-      req.file.originalname
-    }`;
+    const fileName = `uploads/${studentId}_${missionId}_${Date.now()}_${req.file.originalname}`;
 
     await r2.send(
       new PutObjectCommand({
@@ -548,20 +525,15 @@ app.post(
 );
 
 // -------------------------------------------------------
-// STUDENT Missionsliste
+// STUDENT Missionsliste & Rewards
 // -------------------------------------------------------
 app.get("/api/student/missions", isStudent, async (_req, res) => {
   const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
   res.json(r.rows);
 });
 
-// -------------------------------------------------------
-// STUDENT Bonuskarten
-// -------------------------------------------------------
 app.get("/api/student/rewards", isStudent, async (req, res) => {
-  const r = await pool.query(
-    "SELECT * FROM bonuscards ORDER BY xp ASC"
-  );
+  const r = await pool.query("SELECT * FROM bonuscards ORDER BY xp ASC");
   res.json(r.rows);
 });
 
@@ -569,19 +541,17 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
   const studentId = req.session.user.id;
   const { rewardId } = req.body;
 
-  const r = await pool.query(
-    "SELECT xp FROM bonuscards WHERE id=$1",
-    [rewardId]
-  );
+  const r = await pool.query("SELECT xp FROM bonuscards WHERE id=$1", [
+    rewardId
+  ]);
 
   if (!r.rows.length)
     return res.json({ success: false, message: "Reward nicht gefunden" });
 
   const cost = Number(r.rows[0].xp);
 
-  const u = (
-    await pool.query("SELECT xp FROM users WHERE id=$1", [studentId])
-  ).rows[0];
+  const u = (await pool.query("SELECT xp FROM users WHERE id=$1", [studentId]))
+    .rows[0];
 
   if (u.xp < cost)
     return res.json({ success: false, message: "Nicht genug XP" });
@@ -598,9 +568,7 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
 // ADMIN Klassen
 // -------------------------------------------------------
 app.get("/api/class", isAdmin, async (_req, res) => {
-  const r = await pool.query(
-    "SELECT id,name FROM classes ORDER BY name ASC"
-  );
+  const r = await pool.query("SELECT id,name FROM classes ORDER BY name ASC");
   res.json(r.rows);
 });
 
@@ -628,7 +596,7 @@ app.delete("/api/class/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// ADMIN Students – mit Auto-Passwort & first_login = true
+// ADMIN Students – Auto-Passwort & Passwort-Reset
 // -------------------------------------------------------
 app.get("/api/student", isAdmin, async (req, res) => {
   const { classId } = req.query;
@@ -670,7 +638,7 @@ app.delete("/api/student/:id", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// **NEU**: Passwort-Reset für Schüler:innen
+// **NEU – Passwort-Reset**
 app.post("/api/student/resetPassword", isAdmin, async (req, res) => {
   const { studentId } = req.body;
   if (!studentId) {
@@ -686,56 +654,6 @@ app.post("/api/student/resetPassword", isAdmin, async (req, res) => {
 
   res.json({ success: true, password: newPassword });
 });
-
-// -------------------------------------------------------
-// XP Vergabe
-// -------------------------------------------------------
-async function logXP(studentId, amount, missionId, source, adminId) {
-  await pool.query(
-    `
-    INSERT INTO xp_transactions (student_id,amount,mission_id,source,awarded_by)
-    VALUES ($1,$2,$3,$4,$5)
-  `,
-    [studentId, amount, missionId, source, adminId]
-  );
-}
-
-app.post("/api/xp", isAdmin, async (req, res) => {
-  const { studentId, xp } = req.body;
-  const delta = Number(xp);
-
-  await pool.query("UPDATE users SET xp=xp+$1 WHERE id=$2", [
-    delta,
-    studentId
-  ]);
-
-  await logXP(studentId, delta, null, "direct", req.session.user.id);
-  await updateStudentLevel(studentId);
-
-  res.json({ success: true });
-});
-
-app.post("/api/xpmission", isAdmin, async (req, res) => {
-  const { studentId, missionId } = req.body;
-
-  const m = await pool.query("SELECT xp FROM missions WHERE id=$1", [
-    missionId
-  ]);
-  if (!m.rows.length) return res.json({ success: false });
-
-  const xp = m.rows[0].xp;
-
-  await pool.query("UPDATE users SET xp=xp+$1 WHERE id=$2", [
-    xp,
-    studentId
-  ]);
-
-  await logXP(studentId, xp, missionId, "mission", req.session.user.id);
-  await updateStudentLevel(studentId);
-
-  res.json({ success: true });
-});
-
 // -------------------------------------------------------
 // ADMIN Uploads
 // -------------------------------------------------------
@@ -1048,6 +966,26 @@ app.delete("/api/levels/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
+// NEU: EXPORT PASSWORT-KARTEN
+// -------------------------------------------------------
+app.get("/api/exportPasswords", isAdmin, async (req, res) => {
+  const { classId } = req.query;
+  if (!classId) return res.json([]);
+
+  const r = await pool.query(
+    `
+      SELECT id,name,password
+      FROM users
+      WHERE role='student' AND class_id=$1
+      ORDER BY name ASC
+    `,
+    [classId]
+  );
+
+  res.json(r.rows);
+});
+
+// -------------------------------------------------------
 // STATIC FRONTEND ROUTES
 // -------------------------------------------------------
 app.get("/login", (_req, res) => {
@@ -1066,7 +1004,7 @@ app.get("/student", isStudent, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "student.html"));
 });
 
-// Optional – falls du Charakterauswahl als eigene Seite willst
+// optional: separate character selection page
 app.get("/character-select", isStudent, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "character-select.html"));
 });
@@ -1075,5 +1013,5 @@ app.get("/character-select", isStudent, (req, res) => {
 // START SERVER
 // -------------------------------------------------------
 app.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Server läuft auf Port 8080 (FINAL GTA VERSION + FIRST LOGIN)");
+  console.log("🚀 Server läuft auf Port 8080 (FINAL GTA VERSION + EXPORT + FIRST LOGIN)");
 });
