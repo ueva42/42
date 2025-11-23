@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (FINAL GTA VERSION + FIRST LOGIN)
+// Temple of Logic – SERVER.JS (MULTI-SCHOOL + SUPERADMIN)
 // =======================================================
 
 import express from "express";
@@ -89,15 +89,21 @@ function generateTempPassword(length = 6) {
 }
 
 // -------------------------------------------------------
-// LEVEL-FUNKTIONEN
+// LEVEL-FUNKTIONEN (schulabhängig)
 // -------------------------------------------------------
 async function updateStudentLevel(studentId) {
-  const r = await pool.query("SELECT xp FROM users WHERE id=$1", [studentId]);
+  const r = await pool.query(
+    "SELECT xp,school_id FROM users WHERE id=$1",
+    [studentId]
+  );
   if (!r.rows.length) return;
 
   const xp = r.rows[0].xp;
+  const schoolId = r.rows[0].school_id;
+
   const levels = await pool.query(
-    "SELECT id,min_xp FROM levels ORDER BY min_xp ASC"
+    "SELECT id,min_xp FROM levels WHERE school_id=$1 ORDER BY min_xp ASC",
+    [schoolId]
   );
 
   let newLevel = null;
@@ -112,18 +118,23 @@ async function updateStudentLevel(studentId) {
 }
 
 async function recalcAllStudentLevels() {
-  const levels = (
-    await pool.query("SELECT id,min_xp FROM levels ORDER BY min_xp ASC")
-  ).rows;
   const users = (
-    await pool.query("SELECT id,xp FROM users WHERE role='student'")
+    await pool.query("SELECT id,xp,school_id FROM users WHERE role='student'")
   ).rows;
 
   for (const u of users) {
+    const levels = (
+      await pool.query(
+        "SELECT id,min_xp FROM levels WHERE school_id=$1 ORDER BY min_xp ASC",
+        [u.school_id]
+      )
+    ).rows;
+
     let levelId = null;
     for (const l of levels) {
       if (u.xp >= l.min_xp) levelId = l.id;
     }
+
     await pool.query("UPDATE users SET level_id=$1 WHERE id=$2", [
       levelId,
       u.id
@@ -132,18 +143,22 @@ async function recalcAllStudentLevels() {
 }
 
 // -------------------------------------------------------
-// MIGRATION
+// MIGRATION – Multi-School + Superadmin
 // -------------------------------------------------------
 async function migrate() {
   console.log("🔧 Starte Migration…");
 
+  // Schulen
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS classes (
+    CREATE TABLE IF NOT EXISTS schools (
       id SERIAL PRIMARY KEY,
-      name TEXT UNIQUE NOT NULL
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
     )
   `);
 
+  // Users
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -160,10 +175,10 @@ async function migrate() {
     )
   `);
 
-  // first_login-Flag ergänzen
+  // Zusatzspalten
   await ensureColumn("users", "first_login", "BOOLEAN NOT NULL DEFAULT FALSE");
+  await ensureColumn("users", "school_id", "INTEGER");
 
-  // uniqueness (name + class)
   await pool.query(`
     DO $$
     BEGIN
@@ -178,6 +193,38 @@ async function migrate() {
     END$$;
   `);
 
+  // Tabellen für Gameplay
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS classes (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL
+    )
+  `);
+  await ensureColumn("classes", "school_id", "INTEGER");
+
+  // Klassen-Unique (name,school_id)
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name='classes'
+          AND constraint_name='classes_name_key'
+      ) THEN
+        ALTER TABLE classes DROP CONSTRAINT classes_name_key;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name='classes'
+          AND constraint_name='classes_name_school_unique'
+      ) THEN
+        ALTER TABLE classes
+        ADD CONSTRAINT classes_name_school_unique UNIQUE(name,school_id);
+      END IF;
+    END$$;
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS missions (
       id SERIAL PRIMARY KEY,
@@ -188,6 +235,7 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await ensureColumn("missions", "school_id", "INTEGER");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS student_uploads (
@@ -198,6 +246,7 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await ensureColumn("student_uploads", "school_id", "INTEGER");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS bonuscards (
@@ -208,6 +257,7 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await ensureColumn("bonuscards", "school_id", "INTEGER");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS characters (
@@ -217,6 +267,7 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await ensureColumn("characters", "school_id", "INTEGER");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS xp_transactions (
@@ -229,6 +280,7 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await ensureColumn("xp_transactions", "school_id", "INTEGER");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS levels (
@@ -238,18 +290,81 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await ensureColumn("levels", "school_id", "INTEGER");
 
-  // default admin
-  await pool.query(`
-    INSERT INTO users (name,password,role,first_login)
-    VALUES ('admin','bruhrain','admin',FALSE)
-    ON CONFLICT DO NOTHING
-  `);
+  // Default-Schule ADSZ / adsz
+  let defaultSchoolId;
+  const sres = await pool.query(
+    "SELECT id,slug FROM schools WHERE slug='adsz'"
+  );
+  if (sres.rows.length) {
+    defaultSchoolId = sres.rows[0].id;
+  } else {
+    const ins = await pool.query(
+      "INSERT INTO schools (name,slug) VALUES ('ADSZ','adsz') RETURNING id"
+    );
+    defaultSchoolId = ins.rows[0].id;
+  }
+
+  // Bestehende Daten dieser Schule zuordnen
+  await pool.query(
+    "UPDATE users SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE classes SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE missions SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE bonuscards SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE characters SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE levels SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE student_uploads SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE xp_transactions SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+
+  // Default-Admin für ADSZ (falls noch nicht vorhanden)
+  await pool.query(
+    `
+    INSERT INTO users (name,password,role,school_id,first_login)
+    VALUES ('admin','bruhrain','admin',$1,FALSE)
+    ON CONFLICT (name,class_id) DO NOTHING
+  `,
+    [defaultSchoolId]
+  );
+
+  // Superadmin ueva42/bruhrain
+  await pool.query(
+    `
+    INSERT INTO users (name,password,role,school_id,first_login)
+    VALUES ('ueva42','bruhrain','superadmin',$1,FALSE)
+    ON CONFLICT (name,class_id) DO NOTHING
+  `,
+    [defaultSchoolId]
+  );
 
   console.log("Migration abgeschlossen.");
 }
 
 await migrate();
+
 // -------------------------------------------------------
 // AUTH
 // -------------------------------------------------------
@@ -257,7 +372,7 @@ app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
   const r = await pool.query(
-    "SELECT id,name,password,role,class_id,first_login FROM users WHERE name=$1",
+    "SELECT id,name,password,role,class_id,school_id,first_login FROM users WHERE name=$1",
     [username]
   );
   if (!r.rows.length) return res.json({ success: false });
@@ -268,7 +383,8 @@ app.post("/api/login", async (req, res) => {
   req.session.user = {
     id: user.id,
     role: user.role,
-    class_id: user.class_id
+    class_id: user.class_id,
+    school_id: user.school_id
   };
 
   res.json({
@@ -294,8 +410,14 @@ function isStudent(req, res, next) {
   next();
 }
 
+function isSuperadmin(req, res, next) {
+  if (!req.session.user || req.session.user.role !== "superadmin")
+    return res.status(403).json({ error: "Forbidden" });
+  next();
+}
+
 // -------------------------------------------------------
-// FIRST LOGIN – Passwort ändern
+// FIRST LOGIN – Passwort ändern (Schüler)
 // -------------------------------------------------------
 app.post("/api/first-login", isStudent, async (req, res) => {
   const studentId = req.session.user.id;
@@ -344,14 +466,14 @@ app.post("/api/first-login", isStudent, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// STUDENT – Dashboard
+// STUDENT – Dashboard mit Charakterwahl
 // -------------------------------------------------------
 app.get("/api/student/me", isStudent, async (req, res) => {
   const id = req.session.user.id;
 
   const userData = await pool.query(
     `
-    SELECT u.id,u.name,u.xp,u.character_id,u.level_id,
+    SELECT u.id,u.name,u.xp,u.character_id,u.level_id,u.school_id,
            l.name AS level_name,l.min_xp AS level_min_xp
     FROM users u
     LEFT JOIN levels l ON l.id = u.level_id
@@ -372,15 +494,35 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   }
 
   const TRAITS = [
-    "Neugierig","Ausdauernd","Kreativ","Hilfsbereit","Strukturiert",
-    "Ruhig","Zielstrebig","Analytisch","Teamorientiert","Sorgfältig",
-    "Mutig","Risikofreudig","Optimistisch","Aufmerksam","Pragmatisch"
+    "Neugierig",
+    "Ausdauernd",
+    "Kreativ",
+    "Hilfsbereit",
+    "Strukturiert",
+    "Ruhig",
+    "Zielstrebig",
+    "Analytisch",
+    "Teamorientiert",
+    "Sorgfältig",
+    "Mutig",
+    "Risikofreudig",
+    "Optimistisch",
+    "Aufmerksam",
+    "Pragmatisch"
   ];
   const ITEMS = [
-    "Zirkel der Präzision","Rechenamulett","Logikstein","Zauberstift",
-    "Kompass","Rucksack","Lineal","Lampe","Formelbuch"
+    "Zirkel der Präzision",
+    "Rechenamulett",
+    "Logikstein",
+    "Zauberstift",
+    "Kompass",
+    "Rucksack",
+    "Lineal",
+    "Lampe",
+    "Formelbuch"
   ];
-  const pick3 = arr => [...arr].sort(() => Math.random() - 0.5).slice(0, 3);
+  const pick3 = arr =>
+    [...arr].sort(() => Math.random() - 0.5).slice(0, 3);
 
   const traitItem = await pool.query(
     "SELECT traits,items FROM users WHERE id=$1",
@@ -447,8 +589,10 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     `
     SELECT id,name,min_xp
     FROM levels
+    WHERE school_id=$1
     ORDER BY min_xp ASC
-  `
+  `,
+    [user.school_id]
   );
 
   res.json({
@@ -466,9 +610,11 @@ app.get("/api/student/me", isStudent, async (req, res) => {
 // -------------------------------------------------------
 // STUDENT Charakterliste
 // -------------------------------------------------------
-app.get("/api/student/characterList", isStudent, async (_req, res) => {
+app.get("/api/student/characterList", isStudent, async (req, res) => {
+  const schoolId = req.session.user.school_id;
   const r = await pool.query(
-    "SELECT id,name,image_url FROM characters ORDER BY id ASC"
+    "SELECT id,name,image_url FROM characters WHERE school_id=$1 ORDER BY id ASC",
+    [schoolId]
   );
   res.json(r.rows);
 });
@@ -498,8 +644,11 @@ app.post(
   async (req, res) => {
     const { missionId } = req.body;
     const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
 
-    const fileName = `uploads/${studentId}_${missionId}_${Date.now()}_${req.file.originalname}`;
+    const fileName = `uploads/${schoolId}_${studentId}_${missionId}_${Date.now()}_${
+      req.file.originalname
+    }`;
 
     await r2.send(
       new PutObjectCommand({
@@ -514,10 +663,10 @@ app.post(
 
     await pool.query(
       `
-      INSERT INTO student_uploads (student_id,mission_id,image_url)
-      VALUES ($1,$2,$3)
+      INSERT INTO student_uploads (student_id,mission_id,image_url,school_id)
+      VALUES ($1,$2,$3,$4)
     `,
-      [studentId, missionId, url]
+      [studentId, missionId, url, schoolId]
     );
 
     res.json({ success: true, url });
@@ -525,33 +674,47 @@ app.post(
 );
 
 // -------------------------------------------------------
-// STUDENT Missionsliste & Rewards
+// STUDENT Missionsliste
 // -------------------------------------------------------
-app.get("/api/student/missions", isStudent, async (_req, res) => {
-  const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
+app.get("/api/student/missions", isStudent, async (req, res) => {
+  const schoolId = req.session.user.school_id;
+  const r = await pool.query(
+    "SELECT * FROM missions WHERE school_id=$1 ORDER BY id DESC",
+    [schoolId]
+  );
   res.json(r.rows);
 });
 
+// -------------------------------------------------------
+// STUDENT Bonuskarten
+// -------------------------------------------------------
 app.get("/api/student/rewards", isStudent, async (req, res) => {
-  const r = await pool.query("SELECT * FROM bonuscards ORDER BY xp ASC");
+  const schoolId = req.session.user.school_id;
+  const r = await pool.query(
+    "SELECT * FROM bonuscards WHERE school_id=$1 ORDER BY xp ASC",
+    [schoolId]
+  );
   res.json(r.rows);
 });
 
 app.post("/api/student/redeemReward", isStudent, async (req, res) => {
   const studentId = req.session.user.id;
+  const schoolId = req.session.user.school_id;
   const { rewardId } = req.body;
 
-  const r = await pool.query("SELECT xp FROM bonuscards WHERE id=$1", [
-    rewardId
-  ]);
+  const r = await pool.query(
+    "SELECT xp FROM bonuscards WHERE id=$1 AND school_id=$2",
+    [rewardId, schoolId]
+  );
 
   if (!r.rows.length)
     return res.json({ success: false, message: "Reward nicht gefunden" });
 
   const cost = Number(r.rows[0].xp);
 
-  const u = (await pool.query("SELECT xp FROM users WHERE id=$1", [studentId]))
-    .rows[0];
+  const u = (
+    await pool.query("SELECT xp FROM users WHERE id=$1", [studentId])
+  ).rows[0];
 
   if (u.xp < cost)
     return res.json({ success: false, message: "Nicht genug XP" });
@@ -567,18 +730,23 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
 // -------------------------------------------------------
 // ADMIN Klassen
 // -------------------------------------------------------
-app.get("/api/class", isAdmin, async (_req, res) => {
-  const r = await pool.query("SELECT id,name FROM classes ORDER BY name ASC");
+app.get("/api/class", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
+  const r = await pool.query(
+    "SELECT id,name FROM classes WHERE school_id=$1 ORDER BY name ASC",
+    [schoolId]
+  );
   res.json(r.rows);
 });
 
 app.post("/api/class", isAdmin, async (req, res) => {
   const { name } = req.body;
+  const schoolId = req.session.user.school_id;
   if (!name) return res.json({ success: false });
 
   await pool.query(
-    "INSERT INTO classes (name) VALUES ($1) ON CONFLICT (name) DO NOTHING",
-    [name]
+    "INSERT INTO classes (name,school_id) VALUES ($1,$2) ON CONFLICT (name,school_id) DO NOTHING",
+    [name, schoolId]
   );
 
   res.json({ success: true });
@@ -586,30 +754,36 @@ app.post("/api/class", isAdmin, async (req, res) => {
 
 app.delete("/api/class/:id", isAdmin, async (req, res) => {
   const id = Number(req.params.id);
+  const schoolId = req.session.user.school_id;
 
-  await pool.query("DELETE FROM users WHERE class_id=$1 AND role='student'", [
-    id
-  ]);
-  await pool.query("DELETE FROM classes WHERE id=$1", [id]);
+  await pool.query(
+    "DELETE FROM users WHERE class_id=$1 AND role='student' AND school_id=$2",
+    [id, schoolId]
+  );
+  await pool.query(
+    "DELETE FROM classes WHERE id=$1 AND school_id=$2",
+    [id, schoolId]
+  );
 
   res.json({ success: true });
 });
 
 // -------------------------------------------------------
-// ADMIN Students – Auto-Passwort & Passwort-Reset
+// ADMIN Students – mit Auto-Passwort & first_login = true
 // -------------------------------------------------------
 app.get("/api/student", isAdmin, async (req, res) => {
   const { classId } = req.query;
+  const schoolId = req.session.user.school_id;
   if (!classId) return res.json([]);
 
   const r = await pool.query(
     `
     SELECT id,name,password,xp
     FROM users
-    WHERE role='student' AND class_id=$1
+    WHERE role='student' AND class_id=$1 AND school_id=$2
     ORDER BY name ASC
   `,
-    [classId]
+    [classId, schoolId]
   );
 
   res.json(r.rows);
@@ -617,65 +791,132 @@ app.get("/api/student", isAdmin, async (req, res) => {
 
 app.post("/api/student", isAdmin, async (req, res) => {
   const { name, classId } = req.body;
+  const schoolId = req.session.user.school_id;
   if (!name || !classId) return res.json({ success: false });
 
   const tempPassword = generateTempPassword();
 
   await pool.query(
     `
-    INSERT INTO users (name,password,role,class_id,xp,first_login)
-    VALUES ($1,$2,'student',$3,0,TRUE)
+    INSERT INTO users (name,password,role,class_id,school_id,xp,first_login)
+    VALUES ($1,$2,'student',$3,$4,0,TRUE)
     ON CONFLICT (name,class_id) DO NOTHING
   `,
-    [name, tempPassword, classId]
+    [name, tempPassword, classId, schoolId]
   );
 
   res.json({ success: true });
 });
 
 app.delete("/api/student/:id", isAdmin, async (req, res) => {
-  await pool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
+  const schoolId = req.session.user.school_id;
+  await pool.query(
+    "DELETE FROM users WHERE id=$1 AND school_id=$2",
+    [req.params.id, schoolId]
+  );
   res.json({ success: true });
 });
 
-// **NEU – Passwort-Reset**
+// Passwort-Reset für Schüler:innen
 app.post("/api/student/resetPassword", isAdmin, async (req, res) => {
   const { studentId } = req.body;
+  const schoolId = req.session.user.school_id;
   if (!studentId) {
     return res.json({ success: false, message: "studentId fehlt" });
   }
 
   const newPassword = generateTempPassword();
 
-  await pool.query(
-    "UPDATE users SET password=$1, first_login=TRUE WHERE id=$2",
-    [newPassword, studentId]
+  const r = await pool.query(
+    "UPDATE users SET password=$1, first_login=TRUE WHERE id=$2 AND school_id=$3 RETURNING id",
+    [newPassword, studentId, schoolId]
   );
+
+  if (!r.rows.length) {
+    return res.json({ success: false, message: "Schüler:in nicht gefunden" });
+  }
 
   res.json({ success: true, password: newPassword });
 });
+
+// -------------------------------------------------------
+// XP Vergabe
+// -------------------------------------------------------
+async function logXP(studentId, amount, missionId, source, adminId, schoolId) {
+  await pool.query(
+    `
+    INSERT INTO xp_transactions (student_id,amount,mission_id,source,awarded_by,school_id)
+    VALUES ($1,$2,$3,$4,$5,$6)
+  `,
+    [studentId, amount, missionId, source, adminId, schoolId]
+  );
+}
+
+app.post("/api/xp", isAdmin, async (req, res) => {
+  const { studentId, xp } = req.body;
+  const delta = Number(xp);
+  const adminId = req.session.user.id;
+  const schoolId = req.session.user.school_id;
+
+  await pool.query("UPDATE users SET xp=xp+$1 WHERE id=$2", [
+    delta,
+    studentId
+  ]);
+
+  await logXP(studentId, delta, null, "direct", adminId, schoolId);
+  await updateStudentLevel(studentId);
+
+  res.json({ success: true });
+});
+
+app.post("/api/xpmission", isAdmin, async (req, res) => {
+  const { studentId, missionId } = req.body;
+  const adminId = req.session.user.id;
+  const schoolId = req.session.user.school_id;
+
+  const m = await pool.query(
+    "SELECT xp FROM missions WHERE id=$1 AND school_id=$2",
+    [missionId, schoolId]
+  );
+  if (!m.rows.length) return res.json({ success: false });
+
+  const xp = m.rows[0].xp;
+
+  await pool.query("UPDATE users SET xp=xp+$1 WHERE id=$2", [
+    xp,
+    studentId
+  ]);
+
+  await logXP(studentId, xp, missionId, "mission", adminId, schoolId);
+  await updateStudentLevel(studentId);
+
+  res.json({ success: true });
+});
+
 // -------------------------------------------------------
 // ADMIN Uploads
 // -------------------------------------------------------
 app.get("/api/uploads/:studentId", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
   const r = await pool.query(
     `
     SELECT su.*, m.name AS mission_name
     FROM student_uploads su
     LEFT JOIN missions m ON m.id = su.mission_id
-    WHERE su.student_id=$1
+    WHERE su.student_id=$1 AND su.school_id=$2
     ORDER BY su.created_at DESC
   `,
-    [req.params.studentId]
+    [req.params.studentId, schoolId]
   );
 
   res.json(r.rows);
 });
 
 app.delete("/api/upload/delete/:uploadId", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
   const r = await pool.query(
-    "SELECT image_url FROM student_uploads WHERE id=$1",
-    [req.params.uploadId]
+    "SELECT image_url FROM student_uploads WHERE id=$1 AND school_id=$2",
+    [req.params.uploadId, schoolId]
   );
   if (!r.rows.length) return res.json({ success: false });
 
@@ -692,9 +933,10 @@ app.delete("/api/upload/delete/:uploadId", isAdmin, async (req, res) => {
     );
   } catch {}
 
-  await pool.query("DELETE FROM student_uploads WHERE id=$1", [
-    req.params.uploadId
-  ]);
+  await pool.query(
+    "DELETE FROM student_uploads WHERE id=$1 AND school_id=$2",
+    [req.params.uploadId, schoolId]
+  );
 
   res.json({ success: true });
 });
@@ -711,7 +953,8 @@ app.post(
   async (req, res) => {
     if (!req.file) return res.json({ success: false });
 
-    const fileName = `missions/${Date.now()}_${req.file.originalname}`;
+    const schoolId = req.session.user.school_id;
+    const fileName = `missions/${schoolId}_${Date.now()}_${req.file.originalname}`;
 
     await r2.send(
       new PutObjectCommand({
@@ -731,28 +974,34 @@ app.post(
 
 app.post("/api/missions", isAdmin, async (req, res) => {
   const { name, xp, imageUrl, requireUpload } = req.body;
+  const schoolId = req.session.user.school_id;
 
   await pool.query(
     `
-    INSERT INTO missions (name,xp,image_url,require_upload)
-    VALUES ($1,$2,$3,$4)
+    INSERT INTO missions (name,xp,image_url,require_upload,school_id)
+    VALUES ($1,$2,$3,$4,$5)
   `,
-    [name, Number(xp), imageUrl || uploadedMissionImageUrl, !!requireUpload]
+    [name, Number(xp), imageUrl || uploadedMissionImageUrl, !!requireUpload, schoolId]
   );
 
   uploadedMissionImageUrl = null;
   res.json({ success: true });
 });
 
-app.get("/api/missions", isAdmin, async (_req, res) => {
-  const r = await pool.query("SELECT * FROM missions ORDER BY id DESC");
+app.get("/api/missions", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
+  const r = await pool.query(
+    "SELECT * FROM missions WHERE school_id=$1 ORDER BY id DESC",
+    [schoolId]
+  );
   res.json(r.rows);
 });
 
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
   const r = await pool.query(
-    "SELECT image_url FROM missions WHERE id=$1",
-    [req.params.id]
+    "SELECT image_url FROM missions WHERE id=$1 AND school_id=$2",
+    [req.params.id, schoolId]
   );
 
   if (r.rows.length && r.rows[0].image_url) {
@@ -769,9 +1018,10 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
     } catch {}
   }
 
-  await pool.query("DELETE FROM missions WHERE id=$1", [
-    req.params.id
-  ]);
+  await pool.query(
+    "DELETE FROM missions WHERE id=$1 AND school_id=$2",
+    [req.params.id, schoolId]
+  );
 
   res.json({ success: true });
 });
@@ -788,7 +1038,8 @@ app.post(
   async (req, res) => {
     if (!req.file) return res.json({ success: false });
 
-    const fileName = `bonuscards/${Date.now()}_${req.file.originalname}`;
+    const schoolId = req.session.user.school_id;
+    const fileName = `bonuscards/${schoolId}_${Date.now()}_${req.file.originalname}`;
 
     await r2.send(
       new PutObjectCommand({
@@ -808,28 +1059,34 @@ app.post(
 
 app.post("/api/bonus", isAdmin, async (req, res) => {
   const { name, xp, imageUrl } = req.body;
+  const schoolId = req.session.user.school_id;
 
   await pool.query(
     `
-    INSERT INTO bonuscards (name,xp,image_url)
-    VALUES ($1,$2,$3)
+    INSERT INTO bonuscards (name,xp,image_url,school_id)
+    VALUES ($1,$2,$3,$4)
   `,
-    [name, Number(xp), imageUrl || uploadedBonusImageUrl]
+    [name, Number(xp), imageUrl || uploadedBonusImageUrl, schoolId]
   );
 
   uploadedBonusImageUrl = null;
   res.json({ success: true });
 });
 
-app.get("/api/bonus", isAdmin, async (_req, res) => {
-  const r = await pool.query("SELECT * FROM bonuscards ORDER BY id DESC");
+app.get("/api/bonus", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
+  const r = await pool.query(
+    "SELECT * FROM bonuscards WHERE school_id=$1 ORDER BY id DESC",
+    [schoolId]
+  );
   res.json(r.rows);
 });
 
 app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
   const r = await pool.query(
-    "SELECT image_url FROM bonuscards WHERE id=$1",
-    [req.params.id]
+    "SELECT image_url FROM bonuscards WHERE id=$1 AND school_id=$2",
+    [req.params.id, schoolId]
   );
 
   if (r.rows.length && r.rows[0].image_url) {
@@ -846,9 +1103,10 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
     } catch {}
   }
 
-  await pool.query("DELETE FROM bonuscards WHERE id=$1", [
-    req.params.id
-  ]);
+  await pool.query(
+    "DELETE FROM bonuscards WHERE id=$1 AND school_id=$2",
+    [req.params.id, schoolId]
+  );
 
   res.json({ success: true });
 });
@@ -865,7 +1123,8 @@ app.post(
   async (req, res) => {
     if (!req.file) return res.json({ success: false });
 
-    const fileName = `characters/${Date.now()}_${req.file.originalname}`;
+    const schoolId = req.session.user.school_id;
+    const fileName = `characters/${schoolId}_${Date.now()}_${req.file.originalname}`;
 
     await r2.send(
       new PutObjectCommand({
@@ -885,28 +1144,34 @@ app.post(
 
 app.post("/api/character", isAdmin, async (req, res) => {
   const { name, imageUrl } = req.body;
+  const schoolId = req.session.user.school_id;
 
   await pool.query(
     `
-    INSERT INTO characters (name,image_url)
-    VALUES ($1,$2)
+    INSERT INTO characters (name,image_url,school_id)
+    VALUES ($1,$2,$3)
   `,
-    [name, imageUrl || uploadedCharacterImageUrl]
+    [name, imageUrl || uploadedCharacterImageUrl, schoolId]
   );
 
   uploadedCharacterImageUrl = null;
   res.json({ success: true });
 });
 
-app.get("/api/character", isAdmin, async (_req, res) => {
-  const r = await pool.query("SELECT * FROM characters ORDER BY id DESC");
+app.get("/api/character", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
+  const r = await pool.query(
+    "SELECT * FROM characters WHERE school_id=$1 ORDER BY id DESC",
+    [schoolId]
+  );
   res.json(r.rows);
 });
 
 app.delete("/api/character/:id", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
   const r = await pool.query(
-    "SELECT image_url FROM characters WHERE id=$1",
-    [req.params.id]
+    "SELECT image_url FROM characters WHERE id=$1 AND school_id=$2",
+    [req.params.id, schoolId]
   );
 
   if (r.rows.length && r.rows[0].image_url) {
@@ -923,9 +1188,10 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
     } catch {}
   }
 
-  await pool.query("DELETE FROM characters WHERE id=$1", [
-    req.params.id
-  ]);
+  await pool.query(
+    "DELETE FROM characters WHERE id=$1 AND school_id=$2",
+    [req.params.id, schoolId]
+  );
 
   res.json({ success: true });
 });
@@ -933,57 +1199,146 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 // -------------------------------------------------------
 // LEVEL ADMIN
 // -------------------------------------------------------
-app.get("/api/levels", isAdmin, async (_req, res) => {
+app.get("/api/levels", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
   const r = await pool.query(
-    "SELECT id,name,min_xp FROM levels ORDER BY min_xp ASC"
+    "SELECT id,name,min_xp FROM levels WHERE school_id=$1 ORDER BY min_xp ASC",
+    [schoolId]
   );
   res.json(r.rows);
 });
 
 app.post("/api/levels", isAdmin, async (req, res) => {
   let { name, minXp } = req.body;
+  const schoolId = req.session.user.school_id;
   minXp = Number(minXp);
 
-  const existing = await pool.query("SELECT COUNT(*) FROM levels");
+  const existing = await pool.query(
+    "SELECT COUNT(*) FROM levels WHERE school_id=$1",
+    [schoolId]
+  );
   const count = Number(existing.rows[0].count);
 
   if (count === 0 && minXp !== 0) minXp = 0;
 
-  await pool.query("INSERT INTO levels (name,min_xp) VALUES ($1,$2)", [
-    name,
-    minXp
-  ]);
+  await pool.query(
+    "INSERT INTO levels (name,min_xp,school_id) VALUES ($1,$2,$3)",
+    [name, minXp, schoolId]
+  );
 
   await recalcAllStudentLevels();
   res.json({ success: true });
 });
 
 app.delete("/api/levels/:id", isAdmin, async (req, res) => {
-  await pool.query("DELETE FROM levels WHERE id=$1", [req.params.id]);
+  const schoolId = req.session.user.school_id;
+  await pool.query(
+    "DELETE FROM levels WHERE id=$1 AND school_id=$2",
+    [req.params.id, schoolId]
+  );
   await recalcAllStudentLevels();
 
   res.json({ success: true });
 });
 
 // -------------------------------------------------------
-// NEU: EXPORT PASSWORT-KARTEN
+// SUPERADMIN – Schulen & Admins
 // -------------------------------------------------------
-app.get("/api/exportPasswords", isAdmin, async (req, res) => {
-  const { classId } = req.query;
-  if (!classId) return res.json([]);
 
+// Schulen-Liste
+app.get("/api/superadmin/schools", isSuperadmin, async (_req, res) => {
   const r = await pool.query(
-    `
-      SELECT id,name,password
-      FROM users
-      WHERE role='student' AND class_id=$1
-      ORDER BY name ASC
-    `,
-    [classId]
+    "SELECT id,name,slug FROM schools ORDER BY name ASC"
   );
-
   res.json(r.rows);
 });
+
+// Schule anlegen
+app.post("/api/superadmin/schools", isSuperadmin, async (req, res) => {
+  const { name, slug } = req.body;
+  if (!name || !slug) return res.json({ success: false });
+
+  await pool.query(
+    "INSERT INTO schools (name,slug) VALUES ($1,$2) ON CONFLICT (slug) DO NOTHING",
+    [name, slug]
+  );
+
+  res.json({ success: true });
+});
+
+// Schule löschen (ACHTUNG: löscht keine abhängigen Daten, das könntest du später ergänzen)
+app.delete("/api/superadmin/schools/:id", isSuperadmin, async (req, res) => {
+  await pool.query("DELETE FROM schools WHERE id=$1", [req.params.id]);
+  res.json({ success: true });
+});
+
+// Admin-Liste
+app.get("/api/superadmin/admins", isSuperadmin, async (_req, res) => {
+  const r = await pool.query(
+    `
+    SELECT u.id,u.name,u.password,s.slug,s.name AS school_name
+    FROM users u
+    JOIN schools s ON u.school_id = s.id
+    WHERE u.role='admin'
+    ORDER BY s.name, u.name
+  `
+  );
+  res.json(r.rows);
+});
+
+// Admin anlegen (Einmalpasswort)
+app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
+  const { name, slug } = req.body;
+  if (!name || !slug) return res.json({ success: false });
+
+  const s = await pool.query("SELECT id FROM schools WHERE slug=$1", [slug]);
+  if (!s.rows.length) {
+    return res.json({ success: false, message: "Schule nicht gefunden" });
+  }
+  const schoolId = s.rows[0].id;
+
+  const tempPassword = generateTempPassword();
+
+  await pool.query(
+    `
+    INSERT INTO users (name,password,role,school_id,first_login)
+    VALUES ($1,$2,'admin',$3,TRUE)
+    ON CONFLICT (name,class_id) DO NOTHING
+  `,
+    [name, tempPassword, schoolId]
+  );
+
+  res.json({ success: true });
+});
+
+// Admin-Passwort resetten
+app.post(
+  "/api/superadmin/admins/reset/:id",
+  isSuperadmin,
+  async (req, res) => {
+    const newPassword = generateTempPassword();
+    const r = await pool.query(
+      "UPDATE users SET password=$1, first_login=TRUE WHERE id=$2 AND role='admin' RETURNING id",
+      [newPassword, req.params.id]
+    );
+    if (!r.rows.length) {
+      return res.json({ success: false, message: "Admin nicht gefunden" });
+    }
+    res.json({ success: true, password: newPassword });
+  }
+);
+
+// Admin löschen
+app.delete(
+  "/api/superadmin/admins/:id",
+  isSuperadmin,
+  async (req, res) => {
+    await pool.query("DELETE FROM users WHERE id=$1 AND role='admin'", [
+      req.params.id
+    ]);
+    res.json({ success: true });
+  }
+);
 
 // -------------------------------------------------------
 // STATIC FRONTEND ROUTES
@@ -1004,7 +1359,11 @@ app.get("/student", isStudent, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "student.html"));
 });
 
-// optional: separate character selection page
+app.get("/superadmin", isSuperadmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "superadmin.html"));
+});
+
+// Optional – falls du Charakterauswahl als eigene Seite willst
 app.get("/character-select", isStudent, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "character-select.html"));
 });
@@ -1013,5 +1372,5 @@ app.get("/character-select", isStudent, (req, res) => {
 // START SERVER
 // -------------------------------------------------------
 app.listen(process.env.PORT || 8080, () => {
-  console.log("🚀 Server läuft auf Port 8080 (FINAL GTA VERSION + EXPORT + FIRST LOGIN)");
+  console.log("🚀 Server läuft auf Port 8080 (MULTI-SCHOOL + SUPERADMIN)");
 });

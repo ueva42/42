@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Superadmin – Streets of Logic</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      background: #050816;
+      color: #f9fafb;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: 260px;
+      background: #0f172a;
+      box-shadow: 4px 0 20px rgba(0,0,0,0.6);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .sidebar h2 {
+      font-family: "Bangers", sans-serif;
+      font-size: 22px;
+      text-transform: uppercase;
+      text-align: center;
+      margin: 0 0 20px 0;
+      letter-spacing: 2px;
+      color: #fef9c3;
+      text-shadow: 0 0 12px #facc15;
+    }
+
+    .menu-item {
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      border: 1px solid #4b5563;
+      background: #1e293b;
+      transition: 0.15s;
+      user-select: none;
+    }
+
+    .menu-item:hover {
+      background: #334155;
+      transform: translateX(2px);
+    }
+
+    /* MAIN CONTENT */
+    .content {
+      flex-grow: 1;
+      padding: 25px;
+      overflow-y: auto;
+    }
+
+    h1 {
+      font-family: "Bangers";
+      font-size: 34px;
+      letter-spacing: 3px;
+      margin-top: 0;
+      color: #fef9c3;
+      text-shadow: 0 0 12px #facc15;
+    }
+
+    .section {
+      background: #0f172a;
+      padding: 20px;
+      border-radius: 16px;
+      margin-bottom: 25px;
+      border: 1px solid #475569;
+    }
+
+    .section h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+      color: #38bdf8;
+      font-family: "Bebas Neue";
+      letter-spacing: 2px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+
+    input {
+      width: 260px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      border-radius: 12px;
+      border: 1px solid #475569;
+      background: #1e293b;
+      color: white;
+    }
+
+    button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #06b6d4, #3b82f6);
+      cursor: pointer;
+      color: #0f172a;
+      font-weight: bold;
+      margin-top: 6px;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      color: #e2e8f0;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid #475569;
+    }
+
+    td button {
+      padding: 5px 10px;
+      border-radius: 8px;
+    }
+
+    .danger {
+      background: #ef4444;
+    }
+
+    .danger:hover {
+      background: #dc2626;
+    }
+
+    .small {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <h2>Superadmin</h2>
+
+    <div class="menu-item" onclick="showSection('schools')">🏫 Schulen</div>
+    <div class="menu-item" onclick="showSection('admins')">🛡️ Admins</div>
+
+    <div class="menu-item" onclick="logout()">🚪 Logout</div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <h1>SUPERADMIN PANEL</h1>
+
+    <!-- Schulen -->
+    <div id="schools" class="section" style="display:block;">
+      <h3>Schulen verwalten</h3>
+
+      <label>Neue Schule anlegen</label>
+      <input id="schoolName" placeholder="Schulname z.B. ADSZ">
+      <input id="schoolSlug" placeholder="Slug z.B. adsz">
+
+      <button onclick="createSchool()">➕ Schule erstellen</button>
+
+      <h3>Alle Schulen</h3>
+      <table id="schoolTable"></table>
+    </div>
+
+    <!-- Admins -->
+    <div id="admins" class="section" style="display:none;">
+      <h3>Admins verwalten</h3>
+
+      <label>Admin-Name</label>
+      <input id="adminName" placeholder="Name">
+
+      <label>Schule</label>
+      <input id="adminSchool" placeholder="Slug z.B. adsz">
+
+      <button onclick="createAdmin()">➕ Admin erstellen</button>
+
+      <h3>Alle Admins</h3>
+      <table id="adminTable"></table>
+    </div>
+  </div>
+
+<script>
+/* ---------- VIEW SWITCHING ---------- */
+function showSection(id) {
+  document.getElementById("schools").style.display = "none";
+  document.getElementById("admins").style.display = "none";
+  document.getElementById(id).style.display = "block";
+}
+
+/* ---------- API: Schulen ---------- */
+
+async function loadSchools() {
+  const r = await fetch("/api/superadmin/schools");
+  const data = await r.json();
+
+  let html = `
+    <tr><th>Name</th><th>Slug</th><th>Aktionen</th></tr>
+  `;
+
+  data.forEach(s => {
+    html += `
+      <tr>
+        <td>${s.name}</td>
+        <td>${s.slug}</td>
+        <td>
+          <button class="danger" onclick="deleteSchool(${s.id})">🗑️</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  document.getElementById("schoolTable").innerHTML = html;
+}
+
+async function createSchool() {
+  const name = document.getElementById("schoolName").value.trim();
+  const slug = document.getElementById("schoolSlug").value.trim();
+
+  if (!name || !slug) return alert("Bitte alle Felder ausfüllen.");
+
+  const r = await fetch("/api/superadmin/schools", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name, slug })
+  });
+
+  loadSchools();
+}
+
+async function deleteSchool(id) {
+  if (!confirm("Schule wirklich löschen?")) return;
+  await fetch(`/api/superadmin/schools/${id}`, { method: "DELETE" });
+  loadSchools();
+}
+
+/* ---------- API: Admins ---------- */
+
+async function loadAdmins() {
+  const r = await fetch("/api/superadmin/admins");
+  const data = await r.json();
+
+  let html = `
+    <tr><th>Name</th><th>Schule</th><th>Passwort</th><th>Aktionen</th></tr>
+  `;
+
+  data.forEach(a => {
+    html += `
+      <tr>
+        <td>${a.name}</td>
+        <td>${a.slug}</td>
+        <td class="small">${a.temp_password || "-"}</td>
+        <td>
+          <button onclick="resetAdmin(${a.id})">🔁 Reset</button>
+          <button class="danger" onclick="deleteAdmin(${a.id})">🗑️</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  document.getElementById("adminTable").innerHTML = html;
+}
+
+async function createAdmin() {
+  const name = document.getElementById("adminName").value.trim();
+  const slug = document.getElementById("adminSchool").value.trim();
+
+  if (!name || !slug) return alert("Bitte alles ausfüllen.");
+
+  await fetch("/api/superadmin/admins", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name, slug })
+  });
+
+  loadAdmins();
+}
+
+async function resetAdmin(id) {
+  const r = await fetch(`/api/superadmin/admins/reset/${id}`, { method: "POST" });
+  loadAdmins();
+}
+
+async function deleteAdmin(id) {
+  if (!confirm("Admin löschen?")) return;
+  await fetch(`/api/superadmin/admins/${id}`, { method: "DELETE" });
+  loadAdmins();
+}
+
+/* ---------- LOGOUT ---------- */
+function logout() {
+  fetch("/api/logout", { method: "POST" }).then(() => {
+    location.href = "/login";
+  });
+}
+
+/* ---------- INIT ---------- */
+loadSchools();
+loadAdmins();
+</script>
+
+</body>
+</html>

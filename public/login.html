@@ -1,16 +1,23 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Streets of Logic – Login</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&display=swap" rel="stylesheet">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
+    * {
+      box-sizing: border-box;
     }
+
     body {
+      margin: 0;
+      height: 100vh;
+      font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -19,167 +26,270 @@
         radial-gradient(circle at 90% 20%, rgba(255,46,99,0.26) 0, transparent 55%),
         radial-gradient(circle at 50% 100%, rgba(56,189,248,0.25) 0, transparent 60%),
         #050816;
-      font-family: Arial, sans-serif;
       color: #f9fafb;
     }
-    .card {
-      width: 360px;
-      max-width: 90vw;
-      background: radial-gradient(circle at top left, #020617 0, #020617 55%, #030712 100%);
+
+    .frame {
+      width: 370px;
+      max-width: 95vw;
+      background: rgba(15,23,42,0.96);
       border-radius: 20px;
-      padding: 22px 22px 20px 22px;
+      border: 2px solid rgba(15,23,42,1);
+      outline: 2px solid rgba(15,23,42,0.6);
       box-shadow:
-        0 18px 50px rgba(0,0,0,0.95),
+        0 12px 35px rgba(0,0,0,0.95),
         0 0 22px rgba(15,23,42,0.9);
-      border: 1px solid rgba(148,163,184,0.6);
+      padding: 20px 22px 22px;
       position: relative;
-      overflow: hidden;
     }
-    .card::before {
+
+    .frame::before {
       content: "";
       position: absolute;
       inset: 0;
+      border-radius: 20px;
+      border: 1px solid rgba(248,250,252,0.04);
       pointer-events: none;
+    }
+
+    .title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .logo-orb {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
       background:
-        radial-gradient(circle at top left, rgba(251,191,36,0.18), transparent 60%),
-        radial-gradient(circle at bottom right, rgba(59,130,246,0.16), transparent 60%);
+        radial-gradient(circle at 30% 20%, #ffe066 0, #ff9800 25%, #f97316 40%, #7c2d12 70%, #020617 100%);
+      box-shadow:
+        0 0 12px rgba(255,224,102,1),
+        0 0 24px rgba(249,115,22,0.9);
+      border: 2px solid #111827;
+      flex-shrink: 0;
     }
-    .card > * {
-      position: relative;
-      z-index: 1;
-    }
+
     h1 {
-      margin: 0 0 6px 0;
-      font-family: "Bangers", system-ui;
-      font-size: 26px;
-      letter-spacing: 0.22em;
+      font-family: "Bangers", cursive;
+      letter-spacing: 0.2em;
+      font-size: 24px;
       text-transform: uppercase;
-      text-align: center;
-      color: #fef9c3;
-      text-shadow:
-        -2px -2px 0 #000,
-        2px -2px 0 #000,
-        -2px 2px 0 #000,
-        2px 2px 0 #000,
-        0 0 18px rgba(251,191,36,0.95);
+      color: #fffbeb;
+      text-shadow: 0 0 6px rgba(0,0,0,0.9),
+                   0 0 18px rgba(255,212,128,0.9);
+      margin: 0;
+      line-height: 1.1;
     }
+
     .subtitle {
-      text-align: center;
-      font-size: 11px;
-      letter-spacing: 0.18em;
+      font-size: 10px;
       text-transform: uppercase;
+      letter-spacing: 0.2em;
       color: #9ca3af;
-      margin-bottom: 16px;
+      margin-top: 2px;
     }
+
+    .badge {
+      margin-top: 6px;
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      background: linear-gradient(120deg, #22c55e, #16a34a);
+      color: #020617;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.9);
+      transform: skewX(-8deg);
+    }
+
+    .hint {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+
     label {
       display: block;
-      font-size: 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #d1d5db;
+      margin-top: 12px;
       margin-bottom: 4px;
-      color: #e5e7eb;
     }
+
     input {
       width: 100%;
-      padding: 8px 10px;
+      padding: 7px 11px;
       border-radius: 999px;
       border: 1px solid #4b5563;
       background: #020617;
-      color: #f9fafb;
+      color: #e5e7eb;
       font-size: 13px;
       outline: none;
-      margin-bottom: 10px;
-      box-sizing: border-box;
-      transition: border 0.15s ease, box-shadow 0.15s ease;
+      transition: border 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
     }
+
     input:focus {
       border-color: #f97316;
+      background: #020617;
       box-shadow: 0 0 0 1px rgba(249,115,22,0.7);
     }
-    button {
+
+    .btn-login {
       width: 100%;
+      margin-top: 16px;
       border: none;
       border-radius: 999px;
-      padding: 9px 0;
-      margin-top: 4px;
-      font-size: 13px;
-      letter-spacing: 0.16em;
+      padding: 8px 14px;
+      font-size: 12px;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
+      font-weight: 600;
       cursor: pointer;
-      background: linear-gradient(135deg, #22c55e, #a855f7);
-      color: #0f172a;
+      background: linear-gradient(120deg, #22c55e, #16a34a);
+      color: #020617;
       box-shadow:
-        0 8px 22px rgba(8,47,73,0.95),
-        0 0 16px rgba(168,85,247,0.8);
-      transition: 0.16s ease;
+        0 5px 14px rgba(0,0,0,0.95),
+        0 0 16px rgba(34,197,94,0.7);
+      transform: skewX(-8deg);
+      transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
     }
-    button:hover {
-      background: linear-gradient(135deg, #4ade80, #f97316);
-      transform: translateY(-1px);
+
+    .btn-login:hover {
+      filter: brightness(1.05);
+      transform: skewX(-8deg) translateY(-1px);
       box-shadow:
-        0 10px 26px rgba(8,47,73,1),
-        0 0 20px rgba(249,115,22,0.9);
+        0 7px 18px rgba(0,0,0,0.96),
+        0 0 18px rgba(52,211,153,0.85);
     }
+
     .error {
       margin-top: 10px;
-      font-size: 12px;
+      font-size: 11px;
       color: #fecaca;
-      min-height: 16px;
+      background: rgba(127,29,29,0.3);
+      border: 1px solid rgba(248,113,113,0.7);
+      border-radius: 10px;
+      padding: 6px 9px;
+    }
+
+    .foot {
+      margin-top: 14px;
+      font-size: 10px;
+      color: #9ca3af;
       text-align: center;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>STREETS OF LOGIC</h1>
-    <div class="subtitle">XP EDITION – LOGIN</div>
 
-    <label for="username">Name</label>
-    <input id="username" autocomplete="username">
-
-    <label for="password">Passwort</label>
-    <input id="password" type="password" autocomplete="current-password">
-
-    <button onclick="doLogin()">Login</button>
-
-    <div id="error" class="error"></div>
+<div class="frame">
+  <div class="title-wrap">
+    <div class="logo-orb"></div>
+    <div>
+      <h1>STREETS OF LOGIC</h1>
+      <div class="subtitle">LOGIN TERMINAL</div>
+    </div>
   </div>
 
-  <script>
+  <div class="badge">XP SYSTEM – SCHOOL EDITION</div>
+
+  <p class="hint">
+    Bitte <b>Benutzername</b> und <b>Passwort</b> eingeben.
+    <br>Beim ersten Login mit Einmalpasswort wirst du automatisch zum
+    <b>Passwort-Reset</b> weitergeleitet.
+  </p>
+
+  <label for="username">Benutzername</label>
+  <input id="username" autocomplete="username" />
+
+  <label for="password">Passwort</label>
+  <input id="password" type="password" autocomplete="current-password" />
+
+  <button class="btn-login" id="loginButton" onclick="doLogin()">Login</button>
+
+  <div id="errorBox" class="error" style="display:none;"></div>
+
+  <div class="foot">
+    Temple of Logic – ADSZ
+  </div>
+</div>
+
+<script>
   async function doLogin() {
+    const btn = document.getElementById("loginButton");
+    const errorBox = document.getElementById("errorBox");
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value.trim();
-    const errorDiv = document.getElementById("error");
-    errorDiv.textContent = "";
+
+    errorBox.style.display = "none";
+    errorBox.textContent = "";
 
     if (!username || !password) {
-      errorDiv.textContent = "Bitte Name und Passwort eingeben.";
+      errorBox.textContent = "Bitte Benutzername und Passwort eingeben.";
+      errorBox.style.display = "block";
       return;
     }
 
-    const r = await fetch("/api/login", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ username, password })
-    });
+    btn.disabled = true;
+    btn.textContent = "Checkin...";
 
-    const data = await r.json();
-    if (!data.success) {
-      errorDiv.textContent = "Login fehlgeschlagen. Name oder Passwort falsch.";
-      return;
-    }
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
 
-    if (data.role === "admin") {
-      location.href = "/admin";
-    } else if (data.firstLogin) {
-      // Erst-Login: auf Seite zur Passwort-Änderung
-      location.href = "/first-login.html";
-    } else {
-      location.href = "/student";
+      const data = await res.json();
+
+      if (!data.success) {
+        errorBox.textContent = "Login fehlgeschlagen. Bitte prüfe Benutzername und Passwort.";
+        errorBox.style.display = "block";
+        btn.disabled = false;
+        btn.textContent = "Login";
+        return;
+      }
+
+      // Erst-Login? -> Passwort ändern Seite
+      if (data.firstLogin) {
+        window.location.href = "/first-login.html";
+        return;
+      }
+
+      // Admin oder Superadmin -> Admin-Oberfläche
+      if (data.role === "admin" || data.role === "superadmin") {
+        window.location.href = "/admin";
+        return;
+      }
+
+      // Standard: Schüler-Dashboard
+      window.location.href = "/student";
+
+    } catch (err) {
+      console.error(err);
+      errorBox.textContent = "Serverfehler oder keine Verbindung. Bitte später erneut versuchen.";
+      errorBox.style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "Login";
     }
   }
 
+  // Enter-Taste triggert Login
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") doLogin();
+    if (e.key === "Enter") {
+      doLogin();
+    }
   });
-  </script>
+</script>
+
 </body>
 </html>
