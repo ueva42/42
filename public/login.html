@@ -1,220 +1,192 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <title>Login – Streets of Logic</title>
-
-  <!-- GTA-Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bebas+Neue&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
-
+  <meta charset="UTF-8">
+  <title>Streets of Logic – Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; }
-
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      overflow: hidden;
-      font-family: "Roboto", sans-serif;
     }
-
     body {
       display: flex;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
       background:
-        linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.92)),
-        url("https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1600&q=80")
-        center/cover no-repeat fixed;
+        radial-gradient(circle at 10% 0%, rgba(255,184,108,0.18) 0, transparent 50%),
+        radial-gradient(circle at 90% 20%, rgba(255,46,99,0.26) 0, transparent 55%),
+        radial-gradient(circle at 50% 100%, rgba(56,189,248,0.25) 0, transparent 60%),
+        #050816;
+      font-family: Arial, sans-serif;
       color: #f9fafb;
     }
-
-    .login-card {
-      width: 100%;
-      max-width: 420px;
-      padding: 28px;
-      border-radius: 30px;
-      border: 2px solid rgba(148,163,184,0.5);
-      background: linear-gradient(
-        145deg,
-        rgba(15,23,42,0.93),
-        rgba(15,23,42,0.96)
-      );
+    .card {
+      width: 360px;
+      max-width: 90vw;
+      background: radial-gradient(circle at top left, #020617 0, #020617 55%, #030712 100%);
+      border-radius: 20px;
+      padding: 22px 22px 20px 22px;
       box-shadow:
-        0 0 35px rgba(0,0,0,0.95),
-        inset 0 0 50px rgba(0,0,0,0.35);
-      animation: fadeIn 0.5s ease-out;
+        0 18px 50px rgba(0,0,0,0.95),
+        0 0 22px rgba(15,23,42,0.9);
+      border: 1px solid rgba(148,163,184,0.6);
       position: relative;
+      overflow: hidden;
     }
-
-    .login-card::before {
+    .card::before {
       content: "";
       position: absolute;
       inset: 0;
       pointer-events: none;
-      background: radial-gradient(circle at 20% 10%, rgba(249,115,22,0.18), transparent 60%);
+      background:
+        radial-gradient(circle at top left, rgba(251,191,36,0.18), transparent 60%),
+        radial-gradient(circle at bottom right, rgba(59,130,246,0.16), transparent 60%);
     }
-
-    .logo-orb {
-      width: 85px;
-      height: 85px;
-      margin: 0 auto 12px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 30% 20%, #facc15, #f97316 40%, #b91c1c 70%, #000);
-      border: 3px solid #000;
-      box-shadow:
-        0 0 25px rgba(250,204,21,0.9),
-        0 6px 14px rgba(0,0,0,0.9);
-      animation: float 3.5s ease-in-out infinite;
+    .card > * {
+      position: relative;
+      z-index: 1;
     }
-
-    @keyframes float {
-      0% { transform: translateY(0); }
-      50% { transform: translateY(-6px); }
-      100% { transform: translateY(0); }
-    }
-
     h1 {
-      margin: 0 0 18px;
-      text-align: center;
+      margin: 0 0 6px 0;
       font-family: "Bangers", system-ui;
-      font-size: 30px;
-      letter-spacing: 0.25em;
-      color: #fefce8;
+      font-size: 26px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      text-align: center;
+      color: #fef9c3;
       text-shadow:
-        -3px -3px 0 #000,
-         3px -3px 0 #000,
-        -3px  3px 0 #000,
-         3px  3px 0 #000,
-         0 0 25px rgba(249,115,22,0.9);
+        -2px -2px 0 #000,
+        2px -2px 0 #000,
+        -2px 2px 0 #000,
+        2px 2px 0 #000,
+        0 0 18px rgba(251,191,36,0.95);
     }
-
+    .subtitle {
+      text-align: center;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 4px;
+      color: #e5e7eb;
+    }
     input {
       width: 100%;
-      padding: 12px 14px;
-      margin-bottom: 12px;
+      padding: 8px 10px;
       border-radius: 999px;
-      border: 2px solid rgba(148,163,184,0.35);
-      background: rgba(15,23,42,0.95);
+      border: 1px solid #4b5563;
+      background: #020617;
       color: #f9fafb;
-      font-size: 14px;
-      letter-spacing: 0.04em;
+      font-size: 13px;
       outline: none;
-      box-shadow:
-        inset 0 0 6px rgba(0,0,0,0.9),
-        0 3px 10px rgba(0,0,0,0.4);
-      transition: 0.15s ease;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+      transition: border 0.15s ease, box-shadow 0.15s ease;
     }
-
     input:focus {
       border-color: #f97316;
-      box-shadow:
-        inset 0 0 8px rgba(0,0,0,0.9),
-        0 0 14px rgba(249,115,22,0.8);
+      box-shadow: 0 0 0 1px rgba(249,115,22,0.7);
     }
-
-    input::placeholder {
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      font-size: 11px;
-      color: #9ca3af;
-    }
-
-    .error {
-      display: none;
-      background: rgba(239,68,68,0.12);
-      color: #fecaca;
-      border: 1px solid #b91c1c;
-      padding: 6px 10px;
-      border-radius: 999px;
-      margin-bottom: 12px;
-      text-align: center;
-      font-size: 13px;
-      letter-spacing: 0.05em;
-    }
-
     button {
       width: 100%;
-      padding: 12px 16px;
+      border: none;
       border-radius: 999px;
-      border: 2px solid #000;
-      background: linear-gradient(135deg, #facc15, #f97316);
-      font-family: "Bangers";
-      font-size: 20px;
-      letter-spacing: 0.2em;
-      cursor: pointer;
-      color: #000;
+      padding: 9px 0;
+      margin-top: 4px;
+      font-size: 13px;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
+      cursor: pointer;
+      background: linear-gradient(135deg, #22c55e, #a855f7);
+      color: #0f172a;
       box-shadow:
-        0 5px 0 #000,
-        0 0 20px rgba(250,204,21,0.75);
-      transition: 0.1s ease;
+        0 8px 22px rgba(8,47,73,0.95),
+        0 0 16px rgba(168,85,247,0.8);
+      transition: 0.16s ease;
     }
-
     button:hover {
-      filter: brightness(1.06);
+      background: linear-gradient(135deg, #4ade80, #f97316);
+      transform: translateY(-1px);
       box-shadow:
-        0 5px 0 #000,
-        0 0 26px rgba(249,115,22,0.9);
+        0 10px 26px rgba(8,47,73,1),
+        0 0 20px rgba(249,115,22,0.9);
     }
-
-    button:active {
-      transform: translateY(3px);
-      box-shadow:
-        0 2px 0 #000,
-        0 0 10px rgba(0,0,0,0.8);
+    .error {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #fecaca;
+      min-height: 16px;
+      text-align: center;
     }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to   { opacity: 1; transform: translateY(0); }
+    .hint {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #9ca3af;
+      text-align: center;
     }
   </style>
 </head>
-
 <body>
-
-  <div class="login-card">
-    <div class="logo-orb"></div>
+  <div class="card">
     <h1>STREETS OF LOGIC</h1>
+    <div class="subtitle">XP EDITION – LOGIN</div>
 
-    <div id="error" class="error">Falsche Zugangsdaten</div>
+    <label for="username">Name</label>
+    <input id="username" autocomplete="username">
 
-    <input id="username" placeholder="Benutzername" />
-    <input id="password" type="password" placeholder="Passwort" />
+    <label for="password">Passwort</label>
+    <input id="password" type="password" autocomplete="current-password">
 
-    <button onclick="login()">LOGIN</button>
+    <button onclick="doLogin()">Login</button>
+
+    <div id="error" class="error"></div>
+    <div class="hint">
+      Admin-Login: <b>admin / bruhrain</b><br>
+      Schüler:innen-Zugang siehe Klassenübersicht im Admin.
+    </div>
   </div>
 
   <script>
-    async function login() {
-      const username = document.getElementById("username").value.trim();
-      const password = document.getElementById("password").value.trim();
-      const error = document.getElementById("error");
+  async function doLogin() {
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value.trim();
+    const errorDiv = document.getElementById("error");
+    errorDiv.textContent = "";
 
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (!res.ok) {
-        error.style.display = "block";
-        return;
-      }
-
-      const data = await res.json();
-      if (data.role === "admin") location.href = "/admin";
-      else location.href = "/student";
+    if (!username || !password) {
+      errorDiv.textContent = "Bitte Name und Passwort eingeben.";
+      return;
     }
 
-    // 👉 ENTER-Taste aktiviert Login
-    document.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") {
-        login();
-      }
+    const r = await fetch("/api/login", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ username, password })
     });
-  </script>
 
+    const data = await r.json();
+    if (!data.success) {
+      errorDiv.textContent = "Login fehlgeschlagen. Name oder Passwort falsch.";
+      return;
+    }
+
+    if (data.role === "admin") {
+      location.href = "/admin";
+    } else {
+      location.href = "/student";
+    }
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") doLogin();
+  });
+  </script>
 </body>
 </html>

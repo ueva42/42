@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Passwort festlegen – Streets of Logic</title>
+
+  <style>
+    body {
+      margin:0;
+      height:100vh;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      background:#050816;
+      color:#f9fafb;
+      font-family:Arial, sans-serif;
+    }
+    .card {
+      width:350px;
+      padding:20px;
+      border-radius:20px;
+      background:#0f172a;
+      border:1px solid #f97316;
+      box-shadow:0 0 20px rgba(249,115,22,0.6);
+    }
+    input {
+      width:100%;
+      padding:10px;
+      margin-bottom:12px;
+      border-radius:999px;
+      border:1px solid #f97316;
+      background:#020617;
+      color:white;
+    }
+    button {
+      width:100%;
+      padding:10px;
+      border-radius:999px;
+      background:#f97316;
+      border:none;
+      cursor:pointer;
+      color:#020617;
+      font-weight:bold;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2 style="margin-top:0;">Neues Passwort setzen</h2>
+
+  <input id="pw1" type="password" placeholder="Neues Passwort">
+  <input id="pw2" type="password" placeholder="Passwort wiederholen">
+
+  <button onclick="save()">Speichern</button>
+
+  <div id="err" style="color:#ff7b7b; margin-top:10px; display:none;">
+    Passwörter stimmen nicht überein.
+  </div>
+</div>
+
+<script>
+async function save() {
+  const pw1 = document.getElementById("pw1").value.trim();
+  const pw2 = document.getElementById("pw2").value.trim();
+  const err = document.getElementById("err");
+
+  if (pw1 !== pw2) {
+    err.style.display = "block";
+    return;
+  }
+
+  const r = await fetch("/api/set-new-password", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ newPassword: pw1 })
+  });
+
+  const data = await r.json();
+
+  if (data.success) {
+    location.href = "/student";
+  } else {
+    err.textContent = data.message || "Fehler";
+    err.style.display = "block";
+  }
+}
+</script>
+
+</body>
+</html>

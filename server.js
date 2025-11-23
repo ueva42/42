@@ -60,7 +60,7 @@ const r2 = new S3Client({
 const upload = multer({ storage: multer.memoryStorage() });
 
 // -------------------------------------------------------
-// Helper: Spalten anlegen, wenn sie fehlen
+// Helper: Spalten anlegen, wenn sie fehlen (momentan ungenutzt)
 // -------------------------------------------------------
 async function ensureColumn(table, col, type) {
   await pool.query(`
@@ -100,12 +100,15 @@ async function updateStudentLevel(studentId) {
 }
 
 async function recalcAllStudentLevels() {
-  const levels = (
-    await pool.query("SELECT id,min_xp FROM levels ORDER ORDER BY min_xp ASC")
-  ).rows;
-  const users = (
-    await pool.query("SELECT id,xp FROM users WHERE role='student'")
-  ).rows;
+  const levelsRes = await pool.query(
+    "SELECT id,min_xp FROM levels ORDER BY min_xp ASC"
+  );
+  const levels = levelsRes.rows;
+
+  const usersRes = await pool.query(
+    "SELECT id,xp FROM users WHERE role='student'"
+  );
+  const users = usersRes.rows;
 
   for (const u of users) {
     let levelId = null;
@@ -597,6 +600,31 @@ app.delete("/api/student/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
+// ADMIN – Passwort-Reset für Schüler:innen
+// -------------------------------------------------------
+function generateTempPassword() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let pw = "";
+  for (let i = 0; i < 6; i++) {
+    pw += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return pw;
+}
+
+app.post("/api/student/resetPassword", isAdmin, async (req, res) => {
+  const { studentId } = req.body;
+  if (!studentId) return res.json({ success: false });
+
+  const newPw = generateTempPassword();
+  await pool.query("UPDATE users SET password=$1 WHERE id=$2", [
+    newPw,
+    studentId
+  ]);
+
+  res.json({ success: true, password: newPw });
+});
+
+// -------------------------------------------------------
 // XP Vergabe
 // -------------------------------------------------------
 async function logXP(studentId, amount, missionId, source, adminId) {
@@ -957,7 +985,7 @@ app.delete("/api/levels/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// STATIC FRONTEND ROUTES (required!)
+// STATIC FRONTEND ROUTES
 // -------------------------------------------------------
 app.get("/login", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));

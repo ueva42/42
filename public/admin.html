@@ -610,7 +610,7 @@
 
         <table id="classStudentTable">
           <thead>
-            <tr><th>Name</th><th>Passwort</th><th>Löschen</th></tr>
+            <tr><th>Name</th><th>Passwort</th><th>Reset</th><th>Löschen</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -904,7 +904,7 @@ async function addMissionXPAll() {
   loadXPStudents();
 }
 
-/* ---------------------------- UPLOADS + MODAL . ---------------------------- */
+/* ---------------------------- UPLOADS + MODAL ---------------------------- */
 async function loadUploadsForStudent(studentId) {
   const r = await fetch(`/api/uploads/${studentId}`);
   const uploads = await r.json();
@@ -1004,7 +1004,8 @@ async function loadClassStudents() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${s.name}</td>
-      <td>${s.password}</td>
+      <td id="pw_${s.id}">${s.password}</td>
+      <td><button class="action" onclick="resetStudentPassword(${s.id})">Reset</button></td>
       <td><button class="delete" onclick="deleteStudent(${s.id})">X</button></td>
     `;
     tbody.appendChild(tr);
@@ -1033,6 +1034,21 @@ async function deleteStudent(id) {
   await fetch(`/api/student/${id}`, { method:"DELETE" });
   loadClassStudents();
   loadXPStudents();
+}
+
+/* Passwort-Reset */
+async function resetStudentPassword(id) {
+  const r = await fetch("/api/student/resetPassword", {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify({ studentId: id })
+  });
+  const data = await r.json();
+  if (data.success) {
+    const cell = document.getElementById(`pw_${id}`);
+    if (cell) cell.textContent = data.password;
+    alert(`Neues Passwort für die Schülerin/den Schüler: ${data.password}`);
+  }
 }
 
 /* ---------------------------- MISSIONEN ---------------------------- */
