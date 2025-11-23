@@ -179,6 +179,7 @@ async function migrate() {
   await ensureColumn("users", "first_login", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("users", "school_id", "INTEGER");
 
+  // altes Unique ggf. lassen – für jetzt reicht das
   await pool.query(`
     DO $$
     BEGIN
@@ -1242,7 +1243,7 @@ app.delete("/api/levels/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// SUPERADMIN – Schulen & Admins
+// SUPERADMIN – Schulen & Admins & Status/Reset
 // -------------------------------------------------------
 
 // Schulen-Liste
@@ -1266,7 +1267,7 @@ app.post("/api/superadmin/schools", isSuperadmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// Schule löschen (ACHTUNG: löscht keine abhängigen Daten, das könntest du später ergänzen)
+// Schule löschen (nur Schule selbst, keine Kaskade – bewusst vorsichtig)
 app.delete("/api/superadmin/schools/:id", isSuperadmin, async (req, res) => {
   await pool.query("DELETE FROM schools WHERE id=$1", [req.params.id]);
   res.json({ success: true });
@@ -1286,7 +1287,7 @@ app.get("/api/superadmin/admins", isSuperadmin, async (_req, res) => {
   res.json(r.rows);
 });
 
-// Admin anlegen (Einmalpasswort)
+// Admin anlegen (Einmalpasswort zurückgeben)
 app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
   const { name, slug } = req.body;
   if (!name || !slug) return res.json({ success: false });
@@ -1308,7 +1309,7 @@ app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
     [name, tempPassword, schoolId]
   );
 
-  res.json({ success: true });
+  res.json({ success: true, password: tempPassword });
 });
 
 // Admin-Passwort resetten
@@ -1339,6 +1340,55 @@ app.delete(
     res.json({ success: true });
   }
 );
+
+// Systemstatus pro Schule
+app.get("/api/superadmin/system-status", isSuperadmin, async (_req, res) => {
+  const r = await pool.query(`
+    SELECT
+      s.id,
+      s.name,
+      s.slug,
+      (SELECT COUNT(*) FROM users u WHERE u.school_id = s.id AND u.role = 'superadmin') AS superadmins,
+      (SELECT COUNT(*) FROM users u WHERE u.school_id = s.id AND u.role = 'admin') AS admins,
+      (SELECT COUNT(*) FROM users u WHERE u.school_id = s.id AND u.role = 'student') AS students,
+      (SELECT COUNT(*) FROM classes c WHERE c.school_id = s.id) AS classes,
+      (SELECT COUNT(*) FROM missions m WHERE m.school_id = s.id) AS missions,
+      (SELECT COUNT(*) FROM bonuscards b WHERE b.school_id = s.id) AS bonuscards,
+      (SELECT COUNT(*) FROM characters c2 WHERE c2.school_id = s.id) AS characters,
+      (SELECT COUNT(*) FROM levels l WHERE l.school_id = s.id) AS levels,
+      (SELECT COUNT(*) FROM student_uploads su WHERE su.school_id = s.id) AS uploads,
+      (SELECT COUNT(*) FROM xp_transactions xt WHERE xt.school_id = s.id) AS xp_entries
+    FROM schools s
+    ORDER BY s.name ASC
+  `);
+
+  res.json(r.rows);
+});
+
+// Schule "leeren" (Daten der Schule – Schüler, Klassen, Missionen, etc.)
+app.post("/api/superadmin/reset-school", isSuperadmin, async (req, res) => {
+  const { schoolId } = req.body;
+  if (!schoolId) {
+    return res.json({ success: false, message: "schoolId fehlt" });
+  }
+
+  const id = Number(schoolId);
+
+  // Reihenfolge beachten wegen FK
+  await pool.query("DELETE FROM xp_transactions WHERE school_id=$1", [id]);
+  await pool.query("DELETE FROM student_uploads WHERE school_id=$1", [id]);
+  await pool.query(
+    "DELETE FROM users WHERE school_id=$1 AND role='student'",
+    [id]
+  );
+  await pool.query("DELETE FROM classes WHERE school_id=$1", [id]);
+  await pool.query("DELETE FROM missions WHERE school_id=$1", [id]);
+  await pool.query("DELETE FROM bonuscards WHERE school_id=$1", [id]);
+  await pool.query("DELETE FROM characters WHERE school_id=$1", [id]);
+  await pool.query("DELETE FROM levels WHERE school_id=$1", [id]);
+
+  res.json({ success: true });
+});
 
 // -------------------------------------------------------
 // STATIC FRONTEND ROUTES
