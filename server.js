@@ -179,7 +179,6 @@ async function migrate() {
   await ensureColumn("users", "first_login", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("users", "school_id", "INTEGER");
 
-  // altes Unique ggf. lassen – für jetzt reicht das
   await pool.query(`
     DO $$
     BEGIN
@@ -757,16 +756,23 @@ app.delete("/api/class/:id", isAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const schoolId = req.session.user.school_id;
 
-  await pool.query(
-    "DELETE FROM users WHERE class_id=$1 AND role='student' AND school_id=$2",
-    [id, schoolId]
-  );
-  await pool.query(
-    "DELETE FROM classes WHERE id=$1 AND school_id=$2",
-    [id, schoolId]
-  );
+  try {
+    await pool.query(
+      "DELETE FROM users WHERE class_id=$1 AND role='student' AND school_id=$2",
+      [id, schoolId]
+    );
+    await pool.query(
+      "DELETE FROM classes WHERE id=$1 AND school_id=$2",
+      [id, schoolId]
+    );
 
-  res.json({ success: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting class", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Fehler beim Löschen der Klasse" });
+  }
 });
 
 // -------------------------------------------------------
@@ -811,11 +817,18 @@ app.post("/api/student", isAdmin, async (req, res) => {
 
 app.delete("/api/student/:id", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
-  await pool.query(
-    "DELETE FROM users WHERE id=$1 AND school_id=$2",
-    [req.params.id, schoolId]
-  );
-  res.json({ success: true });
+  try {
+    await pool.query(
+      "DELETE FROM users WHERE id=$1 AND school_id=$2",
+      [req.params.id, schoolId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting student", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Fehler beim Löschen der Schülerin/des Schülers" });
+  }
 });
 
 // Passwort-Reset für Schüler:innen
@@ -915,31 +928,44 @@ app.get("/api/uploads/:studentId", isAdmin, async (req, res) => {
 
 app.delete("/api/upload/delete/:uploadId", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
-  const r = await pool.query(
-    "SELECT image_url FROM student_uploads WHERE id=$1 AND school_id=$2",
-    [req.params.uploadId, schoolId]
-  );
-  if (!r.rows.length) return res.json({ success: false });
-
-  const url = r.rows[0].image_url;
-  const prefix = process.env.R2_PUBLIC_URL + "/";
-  const key = url.replace(prefix, "");
+  const uploadId = Number(req.params.uploadId);
 
   try {
-    await r2.send(
-      new DeleteObjectCommand({
-        Bucket: process.env.R2_BUCKET,
-        Key: key
-      })
+    const r = await pool.query(
+      "SELECT image_url FROM student_uploads WHERE id=$1 AND school_id=$2",
+      [uploadId, schoolId]
     );
-  } catch {}
+    if (!r.rows.length) {
+      return res.json({ success: false });
+    }
 
-  await pool.query(
-    "DELETE FROM student_uploads WHERE id=$1 AND school_id=$2",
-    [req.params.uploadId, schoolId]
-  );
+    const url = r.rows[0].image_url;
+    const prefix = (process.env.R2_PUBLIC_URL || "") + "/";
+    const key = url.replace(prefix, "");
 
-  res.json({ success: true });
+    try {
+      await r2.send(
+        new DeleteObjectCommand({
+          Bucket: process.env.R2_BUCKET,
+          Key: key
+        })
+      );
+    } catch (err) {
+      console.error("R2 delete error (upload)", err);
+    }
+
+    await pool.query(
+      "DELETE FROM student_uploads WHERE id=$1 AND school_id=$2",
+      [uploadId, schoolId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting upload", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Fehler beim Löschen des Uploads" });
+  }
 });
 
 // -------------------------------------------------------
@@ -1000,31 +1026,52 @@ app.get("/api/missions", isAdmin, async (req, res) => {
 
 app.delete("/api/missions/:id", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
-  const r = await pool.query(
-    "SELECT image_url FROM missions WHERE id=$1 AND school_id=$2",
-    [req.params.id, schoolId]
-  );
+  const missionId = Number(req.params.id);
 
-  if (r.rows.length && r.rows[0].image_url) {
-    const prefix = process.env.R2_PUBLIC_URL + "/";
-    const key = r.rows[0].image_url.replace(prefix, "");
+  try {
+    const r = await pool.query(
+      "SELECT image_url FROM missions WHERE id=$1 AND school_id=$2",
+      [missionId, schoolId]
+    );
 
-    try {
-      await r2.send(
-        new DeleteObjectCommand({
-          Bucket: process.env.R2_BUCKET,
-          Key: key
-        })
-      );
-    } catch {}
+    if (r.rows.length && r.rows[0].image_url) {
+      const prefix = (process.env.R2_PUBLIC_URL || "") + "/";
+      const key = r.rows[0].image_url.replace(prefix, "");
+
+      try {
+        await r2.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.R2_BUCKET,
+            Key: key
+          })
+        );
+      } catch (err) {
+        console.error("R2 delete error (mission)", err);
+      }
+    }
+
+    // Referenzen bereinigen: Uploads + XP-Transaktionen
+    await pool.query(
+      "DELETE FROM student_uploads WHERE mission_id=$1 AND school_id=$2",
+      [missionId, schoolId]
+    );
+    await pool.query(
+      "UPDATE xp_transactions SET mission_id=NULL WHERE mission_id=$1 AND school_id=$2",
+      [missionId, schoolId]
+    );
+
+    await pool.query(
+      "DELETE FROM missions WHERE id=$1 AND school_id=$2",
+      [missionId, schoolId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting mission", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Fehler beim Löschen der Mission" });
   }
-
-  await pool.query(
-    "DELETE FROM missions WHERE id=$1 AND school_id=$2",
-    [req.params.id, schoolId]
-  );
-
-  res.json({ success: true });
 });
 
 // -------------------------------------------------------
@@ -1085,31 +1132,42 @@ app.get("/api/bonus", isAdmin, async (req, res) => {
 
 app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
-  const r = await pool.query(
-    "SELECT image_url FROM bonuscards WHERE id=$1 AND school_id=$2",
-    [req.params.id, schoolId]
-  );
+  const bonusId = Number(req.params.id);
 
-  if (r.rows.length && r.rows[0].image_url) {
-    const prefix = process.env.R2_PUBLIC_URL + "/";
-    const key = r.rows[0].image_url.replace(prefix, "");
+  try {
+    const r = await pool.query(
+      "SELECT image_url FROM bonuscards WHERE id=$1 AND school_id=$2",
+      [bonusId, schoolId]
+    );
 
-    try {
-      await r2.send(
-        new DeleteObjectCommand({
-          Bucket: process.env.R2_BUCKET,
-          Key: key
-        })
-      );
-    } catch {}
+    if (r.rows.length && r.rows[0].image_url) {
+      const prefix = (process.env.R2_PUBLIC_URL || "") + "/";
+      const key = r.rows[0].image_url.replace(prefix, "");
+
+      try {
+        await r2.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.R2_BUCKET,
+            Key: key
+          })
+        );
+      } catch (err) {
+        console.error("R2 delete error (bonus)", err);
+      }
+    }
+
+    await pool.query(
+      "DELETE FROM bonuscards WHERE id=$1 AND school_id=$2",
+      [bonusId, schoolId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting bonuscard", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Fehler beim Löschen der Bonuskarte" });
   }
-
-  await pool.query(
-    "DELETE FROM bonuscards WHERE id=$1 AND school_id=$2",
-    [req.params.id, schoolId]
-  );
-
-  res.json({ success: true });
 });
 
 // -------------------------------------------------------
@@ -1170,31 +1228,48 @@ app.get("/api/character", isAdmin, async (req, res) => {
 
 app.delete("/api/character/:id", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
-  const r = await pool.query(
-    "SELECT image_url FROM characters WHERE id=$1 AND school_id=$2",
-    [req.params.id, schoolId]
-  );
+  const charId = Number(req.params.id);
 
-  if (r.rows.length && r.rows[0].image_url) {
-    const prefix = process.env.R2_PUBLIC_URL + "/";
-    const key = r.rows[0].image_url.replace(prefix, "");
+  try {
+    const r = await pool.query(
+      "SELECT image_url FROM characters WHERE id=$1 AND school_id=$2",
+      [charId, schoolId]
+    );
 
-    try {
-      await r2.send(
-        new DeleteObjectCommand({
-          Bucket: process.env.R2_BUCKET,
-          Key: key
-        })
-      );
-    } catch {}
+    if (r.rows.length && r.rows[0].image_url) {
+      const prefix = (process.env.R2_PUBLIC_URL || "") + "/";
+      const key = r.rows[0].image_url.replace(prefix, "");
+
+      try {
+        await r2.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.R2_BUCKET,
+            Key: key
+          })
+        );
+      } catch (err) {
+        console.error("R2 delete error (character)", err);
+      }
+    }
+
+    // Schüler-Referenzen auf diesen Charakter löschen
+    await pool.query(
+      "UPDATE users SET character_id=NULL WHERE character_id=$1 AND school_id=$2",
+      [charId, schoolId]
+    );
+
+    await pool.query(
+      "DELETE FROM characters WHERE id=$1 AND school_id=$2",
+      [charId, schoolId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting character", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Fehler beim Löschen des Charakters" });
   }
-
-  await pool.query(
-    "DELETE FROM characters WHERE id=$1 AND school_id=$2",
-    [req.params.id, schoolId]
-  );
-
-  res.json({ success: true });
 });
 
 // -------------------------------------------------------
@@ -1233,17 +1308,33 @@ app.post("/api/levels", isAdmin, async (req, res) => {
 
 app.delete("/api/levels/:id", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
-  await pool.query(
-    "DELETE FROM levels WHERE id=$1 AND school_id=$2",
-    [req.params.id, schoolId]
-  );
-  await recalcAllStudentLevels();
+  const levelId = Number(req.params.id);
 
-  res.json({ success: true });
+  try {
+    // Referenzen bei Schülern entfernen
+    await pool.query(
+      "UPDATE users SET level_id=NULL WHERE level_id=$1 AND school_id=$2",
+      [levelId, schoolId]
+    );
+
+    await pool.query(
+      "DELETE FROM levels WHERE id=$1 AND school_id=$2",
+      [levelId, schoolId]
+    );
+
+    await recalcAllStudentLevels();
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting level", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Fehler beim Löschen des Levels" });
+  }
 });
 
 // -------------------------------------------------------
-// SUPERADMIN – Schulen & Admins & Status/Reset
+// SUPERADMIN – Schulen & Admins
 // -------------------------------------------------------
 
 // Schulen-Liste
@@ -1267,10 +1358,17 @@ app.post("/api/superadmin/schools", isSuperadmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// Schule löschen (nur Schule selbst, keine Kaskade – bewusst vorsichtig)
+// Schule löschen (ohne abhängige Daten – bewusst vorsichtig)
 app.delete("/api/superadmin/schools/:id", isSuperadmin, async (req, res) => {
-  await pool.query("DELETE FROM schools WHERE id=$1", [req.params.id]);
-  res.json({ success: true });
+  try {
+    await pool.query("DELETE FROM schools WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting school", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Fehler beim Löschen der Schule" });
+  }
 });
 
 // Admin-Liste
@@ -1287,7 +1385,7 @@ app.get("/api/superadmin/admins", isSuperadmin, async (_req, res) => {
   res.json(r.rows);
 });
 
-// Admin anlegen (Einmalpasswort zurückgeben)
+// Admin anlegen (Einmalpasswort)
 app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
   const { name, slug } = req.body;
   if (!name || !slug) return res.json({ success: false });
@@ -1309,7 +1407,7 @@ app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
     [name, tempPassword, schoolId]
   );
 
-  res.json({ success: true, password: tempPassword });
+  res.json({ success: true });
 });
 
 // Admin-Passwort resetten
@@ -1334,61 +1432,19 @@ app.delete(
   "/api/superadmin/admins/:id",
   isSuperadmin,
   async (req, res) => {
-    await pool.query("DELETE FROM users WHERE id=$1 AND role='admin'", [
-      req.params.id
-    ]);
-    res.json({ success: true });
+    try {
+      await pool.query("DELETE FROM users WHERE id=$1 AND role='admin'", [
+        req.params.id
+      ]);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting admin", err);
+      res
+        .status(500)
+        .json({ success: false, message: "Fehler beim Löschen des Admins" });
+    }
   }
 );
-
-// Systemstatus pro Schule
-app.get("/api/superadmin/system-status", isSuperadmin, async (_req, res) => {
-  const r = await pool.query(`
-    SELECT
-      s.id,
-      s.name,
-      s.slug,
-      (SELECT COUNT(*) FROM users u WHERE u.school_id = s.id AND u.role = 'superadmin') AS superadmins,
-      (SELECT COUNT(*) FROM users u WHERE u.school_id = s.id AND u.role = 'admin') AS admins,
-      (SELECT COUNT(*) FROM users u WHERE u.school_id = s.id AND u.role = 'student') AS students,
-      (SELECT COUNT(*) FROM classes c WHERE c.school_id = s.id) AS classes,
-      (SELECT COUNT(*) FROM missions m WHERE m.school_id = s.id) AS missions,
-      (SELECT COUNT(*) FROM bonuscards b WHERE b.school_id = s.id) AS bonuscards,
-      (SELECT COUNT(*) FROM characters c2 WHERE c2.school_id = s.id) AS characters,
-      (SELECT COUNT(*) FROM levels l WHERE l.school_id = s.id) AS levels,
-      (SELECT COUNT(*) FROM student_uploads su WHERE su.school_id = s.id) AS uploads,
-      (SELECT COUNT(*) FROM xp_transactions xt WHERE xt.school_id = s.id) AS xp_entries
-    FROM schools s
-    ORDER BY s.name ASC
-  `);
-
-  res.json(r.rows);
-});
-
-// Schule "leeren" (Daten der Schule – Schüler, Klassen, Missionen, etc.)
-app.post("/api/superadmin/reset-school", isSuperadmin, async (req, res) => {
-  const { schoolId } = req.body;
-  if (!schoolId) {
-    return res.json({ success: false, message: "schoolId fehlt" });
-  }
-
-  const id = Number(schoolId);
-
-  // Reihenfolge beachten wegen FK
-  await pool.query("DELETE FROM xp_transactions WHERE school_id=$1", [id]);
-  await pool.query("DELETE FROM student_uploads WHERE school_id=$1", [id]);
-  await pool.query(
-    "DELETE FROM users WHERE school_id=$1 AND role='student'",
-    [id]
-  );
-  await pool.query("DELETE FROM classes WHERE school_id=$1", [id]);
-  await pool.query("DELETE FROM missions WHERE school_id=$1", [id]);
-  await pool.query("DELETE FROM bonuscards WHERE school_id=$1", [id]);
-  await pool.query("DELETE FROM characters WHERE school_id=$1", [id]);
-  await pool.query("DELETE FROM levels WHERE school_id=$1", [id]);
-
-  res.json({ success: true });
-});
 
 // -------------------------------------------------------
 // STATIC FRONTEND ROUTES
