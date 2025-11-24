@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (MULTI-SCHOOL + SUPERADMIN, STABIL)
+// Temple of Logic – SERVER.JS (MULTI-SCHOOL + SUPERADMIN, STABIL + ADMIN-PASSWORTWECHSEL)
 // =======================================================
 
 import express from "express";
@@ -303,7 +303,7 @@ async function migrate() {
     END$$;
   `);
 
-  // User unique pro Schule (für Admin/Superadmin/Student ohne Klasse)
+  // User unique pro Schule (Admin / Superadmin / Schüler ohne Klasse)
   await pool.query(`
     DO $$
     BEGIN
@@ -431,7 +431,7 @@ async function migrate() {
       AND u.id > u2.id;
   `);
 
-  // Default-Admin für ADSZ
+  // Default-Admin für ADSZ (ohne First-Login-Zwang)
   await pool.query(
     `
     INSERT INTO users (name,password,role,school_id,first_login)
@@ -441,7 +441,7 @@ async function migrate() {
     [defaultSchoolId]
   );
 
-  // Superadmin ueva42
+  // Superadmin ueva42 (ohne First-Login-Zwang)
   await pool.query(
     `
     INSERT INTO users (name,password,role,school_id,first_login)
@@ -487,7 +487,7 @@ app.post("/api/login", async (req, res) => {
   res.json({
     success: true,
     role: user.role,
-    firstLogin: !!user.first_login
+    firstLogin: user.role === "student" ? !!user.first_login : false
   });
 });
 
@@ -517,7 +517,7 @@ function isSuperadmin(req, res, next) {
 }
 
 // -------------------------------------------------------
-// FIRST LOGIN – Passwort ändern (Schüler)
+// FIRST LOGIN – Passwort ändern (nur Schüler)
 // -------------------------------------------------------
 app.post("/api/first-login", isStudent, async (req, res) => {
   const studentId = req.session.user.id;
@@ -558,6 +558,67 @@ app.post("/api/first-login", isStudent, async (req, res) => {
   await pool.query(
     "UPDATE users SET password=$1, first_login=FALSE WHERE id=$2",
     [newPassword, studentId]
+  );
+
+  res.json({ success: true });
+});
+
+// -------------------------------------------------------
+// ADMIN – Profil & Passwort ändern
+// -------------------------------------------------------
+
+// Admin-Profil (für Sidebar Anzeige)
+app.get("/api/admin/me", isAdmin, async (req, res) => {
+  const id = req.session.user.id;
+  const r = await pool.query(
+    `
+    SELECT u.id,u.name,u.role,u.school_id,s.name AS school_name,s.slug
+    FROM users u
+    JOIN schools s ON s.id = u.school_id
+    WHERE u.id=$1
+  `,
+    [id]
+  );
+  if (!r.rows.length) {
+    return res.json({ success: false });
+  }
+  res.json({ success: true, admin: r.rows[0] });
+});
+
+// Admin-Passwort ändern
+app.post("/api/admin/changePassword", isAdmin, async (req, res) => {
+  const adminId = req.session.user.id;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.json({
+      success: false,
+      message: "Bitte aktuelles und neues Passwort angeben."
+    });
+  }
+
+  const r = await pool.query(
+    "SELECT password FROM users WHERE id=$1 AND role='admin'",
+    [adminId]
+  );
+  if (!r.rows.length) {
+    return res.json({
+      success: false,
+      message: "Admin nicht gefunden."
+    });
+  }
+
+  const user = r.rows[0];
+  if (user.password !== currentPassword) {
+    return res.json({
+      success: false,
+      message: "Aktuelles Passwort ist falsch."
+    });
+  }
+
+  await pool.query(
+    "UPDATE users SET password=$1 WHERE id=$2",
+    [newPassword, adminId]
   );
 
   res.json({ success: true });
@@ -1459,7 +1520,7 @@ app.get("/api/superadmin/admins", isSuperadmin, async (_req, res) => {
   res.json(r.rows);
 });
 
-// Admin anlegen
+// Admin anlegen – ohne First-Login-Zwang, Passwort änderbar im Admin-Profil
 app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
   const { name, slug } = req.body;
   if (!name || !slug) return res.json({ success: false });
@@ -1475,7 +1536,7 @@ app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
   await pool.query(
     `
     INSERT INTO users (name,password,role,school_id,first_login)
-    VALUES ($1,$2,'admin',$3,TRUE)
+    VALUES ($1,$2,'admin',$3,FALSE)
     ON CONFLICT (name,school_id) DO NOTHING
   `,
     [name, tempPassword, schoolId]
@@ -1484,14 +1545,14 @@ app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// Admin-Passwort resetten
+// Admin-Passwort resetten (ohne First-Login, ändern im Admin-Profil)
 app.post(
   "/api/superadmin/admins/reset/:id",
   isSuperadmin,
   async (req, res) => {
     const newPassword = generateTempPassword();
     const r = await pool.query(
-      "UPDATE users SET password=$1, first_login=TRUE WHERE id=$2 AND role='admin' RETURNING id",
+      "UPDATE users SET password=$1 WHERE id=$2 AND role='admin' RETURNING id",
       [newPassword, req.params.id]
     );
     if (!r.rows.length) {
@@ -1569,23 +1630,19 @@ app.post("/api/superadmin/reset-school", isSuperadmin, async (req, res) => {
   if (!id) return res.json({ success: false, message: "schoolId fehlt" });
 
   try {
-    // Level / Charakter-Referenzen bei Users entfernen
     await pool.query(
       "UPDATE users SET level_id=NULL, character_id=NULL WHERE school_id=$1",
       [id]
     );
 
-    // XP und Uploads zuerst löschen
     await pool.query("DELETE FROM xp_transactions WHERE school_id=$1", [id]);
     await pool.query("DELETE FROM student_uploads WHERE school_id=$1", [id]);
 
-    // Schüler:innen löschen (Admins/Superadmins bleiben)
     await pool.query(
       "DELETE FROM users WHERE school_id=$1 AND role='student'",
       [id]
     );
 
-    // Klassen, Missionen, Bonuskarten, Charaktere, Levels löschen
     await pool.query("DELETE FROM classes WHERE school_id=$1", [id]);
     await pool.query("DELETE FROM missions WHERE school_id=$1", [id]);
     await pool.query("DELETE FROM bonuscards WHERE school_id=$1", [id]);
@@ -1625,7 +1682,7 @@ app.get("/superadmin", isSuperadmin, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "superadmin.html"));
 });
 
-// optional – eigene Seite für Charakterauswahl
+// optionale Seite für Charakterauswahl
 app.get("/character-select", isStudent, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "character-select.html"));
 });
