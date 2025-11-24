@@ -1,5 +1,5 @@
 // =======================================================
-// Temple of Logic – SERVER.JS (MULTI-SCHOOL + SUPERADMIN, STABIL + ADMIN-PASSWORTWECHSEL)
+// Temple of Logic – SERVER.JS (MULTI-SCHOOL + SUPERADMIN, STABIL + ADMIN-PASSWORTWECHSEL + DEFAULT-SEED)
 // =======================================================
 
 import express from "express";
@@ -142,6 +142,64 @@ async function recalcAllStudentLevels() {
 }
 
 // -------------------------------------------------------
+// DEFAULT-SEED PRO SCHULE
+// -------------------------------------------------------
+async function seedSchoolDefaults(schoolId) {
+  // LEVELS
+  const lvlCount = (
+    await pool.query("SELECT COUNT(*) FROM levels WHERE school_id=$1", [schoolId])
+  ).rows[0];
+  if (Number(lvlCount.count) === 0) {
+    await pool.query(`
+      INSERT INTO levels (name,min_xp,school_id) VALUES
+        ('Rookie', 0, $1),
+        ('Street Pro', 100, $1),
+        ('Logic Legend', 250, $1)
+    `, [schoolId]);
+  }
+
+  // MISSIONEN
+  const missionCount = (
+    await pool.query("SELECT COUNT(*) FROM missions WHERE school_id=$1", [schoolId])
+  ).rows[0];
+  if (Number(missionCount.count) === 0) {
+    await pool.query(`
+      INSERT INTO missions (name,xp,image_url,require_upload,school_id) VALUES
+        ('Warm-Up: Konzentrations-Drive', 10, NULL, false, $1),
+        ('Math Hustle: Gleichungsjagd', 20, NULL, true,  $1),
+        ('Logic Run: Rätsel-Checkpoint', 30, NULL, true,  $1)
+    `, [schoolId]);
+  }
+
+  // BONUSKARTEN
+  const bonusCount = (
+    await pool.query("SELECT COUNT(*) FROM bonuscards WHERE school_id=$1", [schoolId])
+  ).rows[0];
+  if (Number(bonusCount.count) === 0) {
+    await pool.query(`
+      INSERT INTO bonuscards (name,xp,image_url,school_id) VALUES
+        ('5-Minuten Chill-Break', 30, NULL, $1),
+        ('Hausaufgaben-Joker (1x)', 60, NULL, $1),
+        ('Boss-Seat: Wunschplatz', 90, NULL, $1)
+    `, [schoolId]);
+  }
+
+  // CHARACTERS
+  const charCount = (
+    await pool.query("SELECT COUNT(*) FROM characters WHERE school_id=$1", [schoolId])
+  ).rows[0];
+  if (Number(charCount.count) === 0) {
+    await pool.query(`
+      INSERT INTO characters (name,image_url,school_id) VALUES
+        ('Nova Drift', NULL, $1),
+        ('Pixel Rydah', NULL, $1),
+        ('Logic Lynx', NULL, $1),
+        ('Neon Vibes', NULL, $1)
+    `, [schoolId]);
+  }
+}
+
+// -------------------------------------------------------
 // MIGRATION
 // -------------------------------------------------------
 async function migrate() {
@@ -260,6 +318,35 @@ async function migrate() {
   `);
   await ensureColumn("levels", "school_id", "INTEGER");
 
+  // -------- LEVEL-CONSTRAINT FIX --------
+  // Alte Unique-Constraint nur auf min_xp weg, neue auf (school_id,min_xp)
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name='levels'
+          AND constraint_name='levels_min_xp_unique'
+      ) THEN
+        ALTER TABLE levels DROP CONSTRAINT levels_min_xp_unique;
+      END IF;
+    END$$;
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name='levels'
+          AND constraint_name='levels_school_min_xp_unique'
+      ) THEN
+        ALTER TABLE levels
+          ADD CONSTRAINT levels_school_min_xp_unique UNIQUE(school_id, min_xp);
+      END IF;
+    END$$;
+  `);
+
   // ---------------------------
   // DUPLIKATE USERS BEREINIGEN
   // ---------------------------
@@ -285,7 +372,7 @@ async function migrate() {
   `);
 
   // ---------------------------
-  // UNIQUE CONSTRAINTS
+  // UNIQUE CONSTRAINTS Users / Classes
   // ---------------------------
 
   // Schüler unique pro Klasse
@@ -450,6 +537,12 @@ async function migrate() {
   `,
     [defaultSchoolId]
   );
+
+  // ------- DEFAULT-SEED FÜR ALLE SCHULEN, DIE ES GIBT --------
+  const allSchools = await pool.query("SELECT id FROM schools");
+  for (const row of allSchools.rows) {
+    await seedSchoolDefaults(row.id);
+  }
 
   console.log("✔️ Migration fertig.");
 }
@@ -1481,14 +1574,20 @@ app.post("/api/superadmin/schools", isSuperadmin, async (req, res) => {
   const { name, slug } = req.body;
   if (!name || !slug) return res.json({ success: false });
 
-  await pool.query(
+  const ins = await pool.query(
     `
     INSERT INTO schools (name,slug)
     VALUES ($1,$2)
     ON CONFLICT (slug) DO NOTHING
+    RETURNING id
   `,
     [name, slug]
   );
+
+  if (ins.rows.length) {
+    const newId = ins.rows[0].id;
+    await seedSchoolDefaults(newId);
+  }
 
   res.json({ success: true });
 });
@@ -1648,6 +1747,9 @@ app.post("/api/superadmin/reset-school", isSuperadmin, async (req, res) => {
     await pool.query("DELETE FROM bonuscards WHERE school_id=$1", [id]);
     await pool.query("DELETE FROM characters WHERE school_id=$1", [id]);
     await pool.query("DELETE FROM levels WHERE school_id=$1", [id]);
+
+    // nach Reset wieder Default-Daten
+    await seedSchoolDefaults(id);
 
     res.json({ success: true });
   } catch (err) {
