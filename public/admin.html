@@ -149,7 +149,6 @@
         0 5px 12px rgba(0,0,0,0.95),
         0 0 12px rgba(249,115,22,0.7);
     }
-
     .nav-item.active {
       background: linear-gradient(120deg, #f97316, #ec4899);
       border-color: #facc15;
@@ -345,7 +344,6 @@
       margin-top: 8px;
       font-size: 13px;
     }
-
     thead tr th {
       font-size: 11px;
       text-transform: uppercase;
@@ -515,7 +513,6 @@
       <div class="sidebar-subtitle">CONTROL&nbsp;CENTER</div>
     </div>
   </div>
-
   <!-- XP ganz oben -->
   <div class="nav-item active" onclick="showTab('xpTab', event)">
     <svg viewBox="0 0 24 24"><path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/></svg>
@@ -569,7 +566,6 @@
         <div class="page-subtitle">XP EDITION – ADMIN CONTROL</div>
       </div>
     </div>
-
     <!-- XP TAB -->
     <div id="xpTab" class="tab">
       <div class="panel">
@@ -645,7 +641,6 @@
         <button class="action" onclick="addStudent()">Anlegen</button>
       </div>
     </div>
-
     <!-- MISSIONEN -->
     <div id="missionTab" class="tab hidden">
       <div class="panel">
@@ -725,7 +720,6 @@
         </table>
       </div>
     </div>
-
     <!-- LEVEL -->
     <div id="levelTab" class="tab hidden">
       <div class="panel">
@@ -792,7 +786,6 @@
     <button id="modalBack" onclick="closeModal()">Zurück</button>
   </div>
 </div>
-
 <script>
 /* ---------------------------- TABS ---------------------------- */
 function showTab(id, ev) {
@@ -904,7 +897,6 @@ async function addXPAll() {
   }
   loadXPStudents();
 }
-
 /* ---------------------------- XP MISSION ---------------------------- */
 async function loadMissionsForXP() {
   const r = await fetch("/api/missions");
@@ -962,18 +954,20 @@ async function loadUploadsForStudent(studentId) {
   const cell = document.getElementById(`uploadCell_${studentId}`);
   if (!cell) return;
 
-  if (!uploads.length) {
+  if (uploads.length === 0) {
     cell.innerHTML = "—";
     return;
   }
 
-  cell.innerHTML = uploads.map(u => `
-    <img 
-      src="${u.image_url}" 
-      class="thumb" 
-      onclick="openModal('${u.image_url}', ${u.id})"
-    >
-  `).join("");
+  cell.innerHTML = uploads
+    .map(u => `
+      <img 
+        src="${u.image_url}" 
+        class="thumb" 
+        onclick="openModal('${u.image_url}', ${u.id})"
+      >
+    `)
+    .join("");
 }
 
 let currentUploadId = null;
@@ -1039,7 +1033,6 @@ async function deleteClass() {
   loadClassesForManage();
   loadXPInit();
 }
-
 async function loadClassStudents() {
   const classId = document.getElementById("classManageSelect").value;
   if (!classId) return;
@@ -1368,6 +1361,7 @@ async function changeAdminPassword() {
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({ currentPassword: current, newPassword: neu })
     });
+
     const data = await r.json();
 
     if (data.success) {

@@ -660,7 +660,7 @@ app.post("/api/first-login", isStudent, async (req, res) => {
 // ADMIN – Profil & Passwort ändern
 // -------------------------------------------------------
 
-// Admin-Profil (für Sidebar Anzeige)
+// Admin-Profil (für Profil-Tab im Admin-Frontend)
 app.get("/api/admin/me", isAdmin, async (req, res) => {
   const id = req.session.user.id;
   const r = await pool.query(
@@ -675,11 +675,22 @@ app.get("/api/admin/me", isAdmin, async (req, res) => {
   if (!r.rows.length) {
     return res.json({ success: false });
   }
-  res.json({ success: true, admin: r.rows[0] });
+
+  const admin = r.rows[0];
+
+  // genau das, was admin.html erwartet:
+  // data.name / data.school / optional role & slug
+  res.json({
+    success: true,
+    name: admin.name,
+    school: admin.school_name,
+    role: admin.role,
+    slug: admin.slug
+  });
 });
 
-// Admin-Passwort ändern
-app.post("/api/admin/changePassword", isAdmin, async (req, res) => {
+// Admin-Passwort ändern – Route passend zu admin.html: /api/admin/change-password
+app.post("/api/admin/change-password", isAdmin, async (req, res) => {
   const adminId = req.session.user.id;
   const { currentPassword, newPassword } = req.body;
 
@@ -716,7 +727,6 @@ app.post("/api/admin/changePassword", isAdmin, async (req, res) => {
 
   res.json({ success: true });
 });
-
 // -------------------------------------------------------
 // STUDENT – Dashboard / Profil
 // -------------------------------------------------------
@@ -955,7 +965,6 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
 
   res.json({ success: true });
 });
-
 // -------------------------------------------------------
 // ADMIN – Klassen
 // -------------------------------------------------------
@@ -1556,7 +1565,6 @@ app.delete("/api/levels/:id", isAdmin, async (req, res) => {
       .json({ success: false, message: "Fehler beim Löschen des Levels" });
   }
 });
-
 // -------------------------------------------------------
 // SUPERADMIN – Schulen, Admins, Status, Reset
 // -------------------------------------------------------
