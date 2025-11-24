@@ -33,75 +33,94 @@
     a { color: inherit; }
 
     /* ============================================
-       LOADING SCREEN – STREETS OF LOGIC
+       LOADING SCREEN – VARIANTE A
     ============================================ */
     .loading-overlay {
       position: fixed;
       inset: 0;
-      background: radial-gradient(circle at top, #020617 0, #020617 40%, #111827 100%);
+      background: radial-gradient(circle at center, #020617 0%, #111827 100%);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 9999;
+      transition: opacity 0.8s ease;
     }
 
     .loading-overlay.hide {
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.4s ease;
     }
 
     .loading-content {
       text-align: center;
-      max-width: 900px;
+      max-width: 780px;
       width: 90%;
+      animation: fadeIn 1.2s ease forwards;
     }
 
     .loading-image {
       max-width: 100%;
-      border-radius: 24px;
+      border-radius: 22px;
+      margin: 0 auto 20px auto;
       box-shadow:
-        0 0 0 4px #020617,
-        0 0 0 6px #f97316,
-        0 30px 80px rgba(0,0,0,0.9);
-      display: block;
-      margin: 0 auto 18px auto;
+        0 0 0 4px rgba(0,0,0,0.8),
+        0 0 22px #f97316,
+        0 0 44px rgba(249,115,22,0.5),
+        0 0 70px rgba(249,115,22,0.25);
     }
 
     .loading-bar {
-      width: 70%;
-      max-width: 520px;
-      height: 12px;
+      width: 80%;
+      max-width: 540px;
+      height: 16px;
       border-radius: 999px;
-      border: 1px solid rgba(248,250,252,0.7);
-      background: rgba(15,23,42,0.9);
+      border: 1px solid rgba(255,255,255,0.4);
+      background: rgba(8,15,30,0.95);
       margin: 0 auto;
       overflow: hidden;
-      box-shadow: 0 0 16px rgba(248,250,252,0.35);
+      box-shadow:
+        0 0 10px rgba(255,255,255,0.4),
+        0 0 25px rgba(252,211,77,0.25);
     }
 
     .loading-bar-fill {
       width: 0%;
       height: 100%;
-      background: linear-gradient(90deg, #22c55e, #eab308, #f97316, #a855f7);
-      animation: loadingFill 3.1s ease-in-out infinite;
+      background: linear-gradient(90deg,
+        #22c55e,
+        #a3e635,
+        #facc15,
+        #fb923c,
+        #f97316,
+        #c084fc
+      );
+      box-shadow: 0 0 20px rgba(249,115,22,0.95);
+      animation: loadingA 7s ease-in-out forwards;
+    }
+
+    @keyframes loadingA {
+      0%   { width: 0%; }
+      20%  { width: 20%; }
+      40%  { width: 55%; }
+      70%  { width: 80%; }
+      90%  { width: 92%; }
+      100% { width: 100%; }
     }
 
     .loading-hint {
-      margin-top: 10px;
-      font-size: 13px;
-      letter-spacing: 0.16em;
+      margin-top: 12px;
+      font-size: 14px;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       color: #e5e7eb;
-      opacity: 0.9;
+      opacity: 0.92;
+      text-shadow: 0 0 6px rgba(255,255,255,0.25);
     }
 
-    @keyframes loadingFill {
-      0%   { width: 10%; transform: translateX(-20%); }
-      50%  { width: 80%; transform: translateX(10%); }
-      100% { width: 30%; transform: translateX(120%); }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
-
     /* ============================================
        SIDEBAR – GTA Comic / Control Center Style
     ============================================ */
@@ -310,7 +329,6 @@
       text-transform: uppercase;
       letter-spacing: 0.12em;
     }
-
     /* ============================================
        MAIN AREA
     ============================================ */
@@ -535,7 +553,6 @@
       background: #f97316;
       box-shadow: 0 0 8px rgba(249,115,22,0.9);
     }
-
     /* ============================================
        FILE UPLOAD – CUSTOM STYLE (GTA Tag)
     ============================================ */
@@ -617,7 +634,7 @@
       position: fixed;
       inset: 0;
       background: radial-gradient(circle at top, rgba(15,23,42,0.98), rgba(3,7,18,0.98));
-      display: none; /* wird per JS auf flex gesetzt */
+      display: none;
       align-items: center;
       justify-content: center;
       z-index: 40;
@@ -730,7 +747,7 @@
       cursor: pointer;
       color: #9ca3af;
       text-shadow: 0 0 6px #000;
-      display: none; /* bewusst deaktiviert, damit Charakterwahl erzwungen ist */
+      display: none;
     }
 
     /* ============================================
@@ -791,12 +808,10 @@
         font-size: 11px;
       }
     }
-
   </style>
 </head>
 
 <body>
-
   <!-- LOADING OVERLAY -->
   <div id="loadingOverlay" class="loading-overlay">
     <div class="loading-content">
@@ -813,9 +828,7 @@
   <!-- MOBILE HEADER -->
   <div class="mobile-header">
     <div class="burger" onclick="toggleMenu()">
-      <span></span>
-      <span></span>
-      <span></span>
+      <span></span><span></span><span></span>
     </div>
     <div class="mobile-title">STREETS OF LOGIC</div>
     <button class="mobile-logout-btn" onclick="logout()">Logout</button>
@@ -835,24 +848,19 @@
     </div>
 
     <div class="menu-item active" onclick="showSection(event,'status')">
-      <div class="menu-icon">S</div>
-      <span class="menu-label">Status</span>
+      <div class="menu-icon">S</div><span class="menu-label">Status</span>
     </div>
     <div class="menu-item" onclick="showSection(event,'charakter')">
-      <div class="menu-icon">C</div>
-      <span class="menu-label">Charakter</span>
+      <div class="menu-icon">C</div><span class="menu-label">Charakter</span>
     </div>
     <div class="menu-item" onclick="showSection(event,'missionen')">
-      <div class="menu-icon">M</div>
-      <span class="menu-label">Missionen</span>
+      <div class="menu-icon">M</div><span class="menu-label">Missionen</span>
     </div>
     <div class="menu-item" onclick="showSection(event,'belohnungen')">
-      <div class="menu-icon">B</div>
-      <span class="menu-label">Belohnungen</span>
+      <div class="menu-icon">B</div><span class="menu-label">Belohnungen</span>
     </div>
     <div class="menu-item" onclick="showSection(event,'xp')">
-      <div class="menu-icon">XP</div>
-      <span class="menu-label">XP-Historie</span>
+      <div class="menu-icon">XP</div><span class="menu-label">XP-Historie</span>
     </div>
 
     <button class="logout-btn" onclick="logout()">Logout</button>
@@ -862,14 +870,12 @@
   <div class="main-area">
     <h1>STREETS OF LOGIC – XP EDITION</h1>
 
-    <!-- STATUS -->
     <div id="status-section" class="card section">
       <h2>Status</h2>
       <div id="userCard"></div>
       <div id="levelBar" style="margin-top:10px;"></div>
     </div>
 
-    <!-- CHARAKTER -->
     <div id="charakter-section" class="card section" style="display:none;">
       <h2>Charakter</h2>
       <div class="character-wrapper">
@@ -880,36 +886,30 @@
       </div>
     </div>
 
-    <!-- MISSIONEN -->
     <div id="missionen-section" class="card section" style="display:none;">
       <h2>Missionen</h2>
       <div id="missionCarousel"></div>
     </div>
 
-    <!-- BELOHNUNGEN -->
     <div id="belohnungen-section" class="card section" style="display:none;">
       <h2>Belohnungen</h2>
       <div id="rewardCarousel"></div>
     </div>
 
-    <!-- XP LOG -->
     <div id="xp-section" class="card section" style="display:none;">
       <h2>XP-Historie</h2>
       <div id="xpLog"></div>
     </div>
   </div>
 
-  <!-- CHARACTER SELECT OVERLAY (FIRST LOGIN) -->
+  <!-- CHARACTER SELECT OVERLAY -->
   <div id="characterOverlay" class="character-overlay">
     <div class="character-overlay-inner">
-      <div class="character-overlay-close" onclick="closeCharacterOverlay()">×</div>
       <h2 class="character-overlay-title">WÄHLE DEINEN CHARAKTER</h2>
       <div class="character-overlay-sub">
-        Klicke auf ein Bild, um deinen In-Game-Charakter für Streets of Logic festzulegen.
+        Klicke auf ein Bild, um deinen Charakter festzulegen.
       </div>
-      <div id="characterChoices" class="character-choice-grid">
-        <!-- wird per JS gefüllt -->
-      </div>
+      <div id="characterChoices" class="character-choice-grid"></div>
     </div>
   </div>
 
@@ -925,18 +925,16 @@ function hideLoader() {
   const overlay = document.getElementById("loadingOverlay");
   if (!overlay) return;
   overlay.classList.add("hide");
-  setTimeout(() => {
-    overlay.style.display = "none";
-  }, 450);
+  setTimeout(() => { overlay.style.display = "none"; }, 450);
 }
 
-// Fallback, falls irgendetwas beim Laden hängt:
+// Falls etwas hängt → nach 12 Sekunden weg
 window.addEventListener("load", () => {
   setTimeout(hideLoader, 12000);
 });
 
 /* ============================================
-   MENU + SECTIONS
+   MENU
 ============================================ */
 function toggleMenu() {
   document.body.classList.toggle("menu-open");
@@ -948,14 +946,9 @@ function showSection(ev, name) {
   if (section) section.style.display = "block";
 
   document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
-  if (ev && ev.target) {
-    const item = ev.target.closest(".menu-item");
-    if (item) item.classList.add("active");
-  }
+  if (ev) ev.target.closest(".menu-item").classList.add("active");
 
-  if (window.innerWidth <= 900) {
-    document.body.classList.remove("menu-open");
-  }
+  if (window.innerWidth <= 900) document.body.classList.remove("menu-open");
 }
 
 /* ============================================
@@ -967,7 +960,7 @@ async function logout() {
 }
 
 /* ============================================
-   CHARACTER OVERLAY – FIRST LOGIN
+   CHARACTER OVERLAY
 ============================================ */
 let characterListLoaded = false;
 
@@ -982,232 +975,166 @@ async function openCharacterOverlay() {
       renderCharacterChoices(chars);
       characterListLoaded = true;
     } catch (e) {
-      console.error("Fehler beim Laden der Charakterliste", e);
+      console.error(e);
       document.getElementById("characterChoices").innerHTML =
         "<p>Fehler beim Laden der Charaktere.</p>";
     }
   }
 }
 
-// absichtlich nicht nutzbar, um die Auswahl zu erzwingen – aber vorhanden,
-// falls du später einen "Später wählen"-Button einbauen willst.
-function closeCharacterOverlay() {
-  // document.getElementById("characterOverlay").style.display = "none";
-}
-
 function renderCharacterChoices(chars) {
-  const container = document.getElementById("characterChoices");
-  container.innerHTML = "";
-
-  if (!chars || !chars.length) {
-    container.innerHTML = "<p>Es wurden noch keine Charaktere angelegt.</p>";
+  const c = document.getElementById("characterChoices");
+  c.innerHTML = "";
+  if (!chars.length) {
+    c.innerHTML = "<p>Keine Charaktere angelegt.</p>";
     return;
   }
-
   chars.forEach(ch => {
-    const card = document.createElement("div");
-    card.className = "character-choice-card";
-    card.innerHTML = `
+    const d = document.createElement("div");
+    d.className = "character-choice-card";
+    d.innerHTML = `
       <div class="character-choice-img-wrap">
-        <img src="${ch.image_url || ""}" alt="${ch.name}">
+        <img src="${ch.image_url}" alt="${ch.name}">
       </div>
-      <div class="character-choice-name">${ch.name || ""}</div>
+      <div class="character-choice-name">${ch.name}</div>
     `;
-    card.onclick = () => selectCharacter(ch.id);
-    container.appendChild(card);
+    d.onclick = () => selectCharacter(ch.id);
+    c.appendChild(d);
   });
 }
 
 async function selectCharacter(characterId) {
-  try {
-    const r = await fetch("/api/student/selectCharacter", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ characterId })
-    });
-    const data = await r.json();
-    if (data.success) {
-      // Nach erfolgreicher Auswahl: Seite neu laden
-      location.reload();
-    } else {
-      alert(data.message || "Charakter konnte nicht gespeichert werden.");
-    }
-  } catch (e) {
-    console.error(e);
-    alert("Fehler beim Speichern des Charakters.");
-  }
+  const r = await fetch("/api/student/selectCharacter", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ characterId })
+  });
+  const data = await r.json();
+  if (data.success) location.reload();
+  else alert(data.message || "Fehler beim Speichern.");
 }
 
 /* ============================================
-   LOAD STUDENT DATA
+   STUDENT DATA
 ============================================ */
 let xpPerMission = {};
 
 async function loadMe() {
   const r = await fetch("/api/student/me");
   const data = await r.json();
-
   const u = data.user;
 
-  // STATUS
   document.getElementById("userCard").innerHTML = `
     <div style="font-size:14px;line-height:1.6;">
       <b>Name:</b> ${u.name}<br>
       <b>XP:</b> ${u.xp}<br>
-      <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp || 0} XP)
+      <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp})
     </div>
   `;
 
-  // SIDEBAR AVATAR
-  const avatarImg = document.getElementById("sidebarAvatar");
-  const avatarInitials = document.getElementById("sidebarInitials");
+  const avatar = document.getElementById("sidebarAvatar");
+  const initials = document.getElementById("sidebarInitials");
 
   if (data.character && data.character.image_url) {
-    avatarImg.src = data.character.image_url;
-    avatarImg.style.display = "block";
-    avatarInitials.style.display = "none";
+    avatar.src = data.character.image_url;
+    avatar.style.display = "block";
+    initials.style.display = "none";
   } else {
-    avatarImg.style.display = "none";
-    avatarInitials.style.display = "block";
-    avatarInitials.textContent = (u.name || "SL")
-      .split(" ")
-      .map(p => p[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+    avatar.style.display = "none";
+    initials.style.display = "block";
+    initials.textContent = u.name.split(" ").map(x => x[0]).join("").toUpperCase();
   }
 
-  // CHARAKTER-BEREICH
-  const charDiv = document.getElementById("characterInfo");
   if (data.character) {
-    charDiv.innerHTML = `
-      <img class="char-img" src="${data.character.image_url}" alt="Charakter">
+    document.getElementById("characterInfo").innerHTML = `
+      <img class="char-img" src="${data.character.image_url}">
       <div class="char-name">${data.character.name}</div>
     `;
-  } else {
-    charDiv.innerHTML = `
-      <div style="width:220px;height:220px;border-radius:50%;
-                  display:flex;align-items:center;justify-content:center;
-                  background:radial-gradient(circle at 30% 20%,#0ea5e9,#4f46e5 60%,#020617 100%);
-                  box-shadow:0 0 0 4px #020617,0 0 0 6px #a855f7,0 0 24px rgba(168,85,247,0.9);">
-        <span style="font-family:'Bebas Neue',system-ui;letter-spacing:0.18em;font-size:18px;text-transform:uppercase;">
-          Kein Charakter
-        </span>
-      </div>
-    `;
   }
 
-  // TRAITS + ITEMS
   document.getElementById("traitsItemsCard").innerHTML = `
     <b>Eigenschaften:</b><br>
-    ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
+    ${data.traits.map(t => "• "+t).join("<br>")}<br><br>
     <b>Items:</b><br>
-    ${data.items.map(i => "• " + i).join("<br>")}
+    ${data.items.map(i => "• "+i).join("<br>")}
   `;
 
-  // XP PER MISSION (Objekt {mission_id: xpSum})
   xpPerMission = data.xp_per_mission || {};
-
-  // XP LOG
   const xpDiv = document.getElementById("xpLog");
   xpDiv.innerHTML = "";
-  data.xp_log.forEach(entry => {
-    const d = new Date(entry.created_at).toLocaleString("de-DE");
+
+  data.xp_log.forEach(e => {
+    const d = new Date(e.created_at).toLocaleString("de-DE");
     xpDiv.innerHTML += `
       <div class="xp-entry">
-        <b>${entry.amount} XP</b> – ${entry.mission_name || entry.source}<br>
+        <b>${e.amount} XP</b> – ${e.mission_name || e.source}<br>
         <span style="opacity:0.7;">${d}</span>
-      </div>
-    `;
+      </div>`;
   });
 
-  // LEVEL BAR
-  renderLevelBar(data.levels || [], u.xp);
+  renderLevelBar(data.levels, u.xp);
 
-  // WICHTIG: Wenn noch kein Charakter gesetzt ist → Auswahl öffnen
-  if (!data.character) {
-    openCharacterOverlay();
-  }
+  if (!data.character) openCharacterOverlay();
 
-  // Loader nach erfolgreichem Laden der wichtigsten Daten ausblenden
   hideLoader();
 }
 
+/* ============================================
+   LEVEL BAR
+============================================ */
 function renderLevelBar(levels, xp) {
-  if (!levels || !levels.length) {
-    document.getElementById("levelBar").innerHTML = "<i>Noch keine Level definiert.</i>";
-    return;
-  }
-
   let html = `<div class="level-step-container">`;
-
   for (let i = 0; i < levels.length; i++) {
     if (i > 0) html += `<div class="level-step-star">★</div>`;
-
     const min = levels[i].min_xp;
-    const next = levels[i + 1]?.min_xp ?? (min || 1);
-    let pct = 0;
-
-    if (xp >= min) {
-      if (next > min) {
-        pct = Math.min(100, ((xp - min) / (next - min)) * 100);
-      } else {
-        pct = 100;
-      }
-    }
-
+    const next = levels[i+1]?.min_xp || min;
+    let pct = xp >= min ? Math.min(100, ((xp - min)/(next - min))*100) : 0;
     html += `
       <div class="level-step">
         <div class="level-step-fill" style="width:${pct}%"></div>
-      </div>
-    `;
+      </div>`;
   }
-
   html += `</div>`;
   document.getElementById("levelBar").innerHTML = html;
 }
 
 /* ============================================
-   MISSIONS & REWARDS
+   MISSIONS + REWARDS
 ============================================ */
 async function loadMissions() {
   const r = await fetch("/api/student/missions");
-  const missions = await r.json();
-  renderCarousel("missionCarousel", missions, "mission");
+  renderCarousel("missionCarousel", await r.json(), "mission");
 }
 
 async function loadRewards() {
   const r = await fetch("/api/student/rewards");
-  const rewards = await r.json();
-  renderCarousel("rewardCarousel", rewards, "reward");
+  renderCarousel("rewardCarousel", await r.json(), "reward");
 }
 
 /* ============================================
-   GENERIC CAROUSEL
+   CAROUSEL
 ============================================ */
-function renderCarousel(containerId, items, type) {
-  const container = document.getElementById(containerId);
-
-  if (!items || !items.length) {
-    container.innerHTML = "<i>Keine Einträge vorhanden.</i>";
+function renderCarousel(id, items, type) {
+  const c = document.getElementById(id);
+  if (!items.length) {
+    c.innerHTML = "<i>Keine Einträge.</i>";
     return;
   }
 
   let slides = "";
   items.forEach((item, idx) => {
     slides += `
-      <div class="carousel-item ${idx === 0 ? "active" : ""}">
-        ${item.image_url ? `<img class="mission-img" src="${item.image_url}" alt="${item.name}">` : ""}
-        <h3 style="margin:8px 0 2px 0;font-family:'Bebas Neue',system-ui;letter-spacing:0.14em;text-transform:uppercase;">
+      <div class="carousel-item ${idx===0?"active":""}">
+        ${item.image_url?`<img class="mission-img" src="${item.image_url}">`:""}
+        <h3 style="margin:8px 0 2px 0;font-family:'Bebas Neue';letter-spacing:0.14em;text-transform:uppercase;">
           ${item.name}
         </h3>
         <div style="font-size:13px;"><b>${item.xp} XP</b></div>
-        ${type === "mission" ? `
-          <div style="margin-top:4px;font-size:12px;">
-            Bereits erhalten: <b>${xpPerMission[item.id] || 0} XP</b>
-          </div>
-        ` : ""}
-        ${type === "mission" && item.require_upload ? `
+
+        ${type==="mission" ? `<div style="margin-top:4px;font-size:12px;">
+          Bereits erhalten: <b>${xpPerMission[item.id]||0} XP</b></div>` : ""}
+
+        ${type==="mission" && item.require_upload ? `
           <div class="file-upload">
             <input type="file" id="upload_${item.id}" class="file-input" onchange="updateFileLabel(${item.id})">
             <label for="upload_${item.id}" class="file-label">Beweis hochladen</label>
@@ -1215,47 +1142,42 @@ function renderCarousel(containerId, items, type) {
             <button class="btn-primary" onclick="uploadMission(${item.id})">Upload senden</button>
           </div>
         ` : ""}
-        ${type === "reward" ? `
-          <button class="btn-primary" onclick="redeemReward(${item.id})" style="margin-top:10px;">Belohnung einlösen</button>
-        ` : ""}
-      </div>
-    `;
+
+        ${type==="reward" ? `<button class="btn-primary" onclick="redeemReward(${item.id})" style="margin-top:10px;">Belohnung einlösen</button>` : ""}
+      </div>`;
   });
 
   let dots = "";
   items.forEach((_, idx) => {
-    dots += `<div class="dot ${idx === 0 ? "active" : ""}" onclick="jumpSlide('${containerId}', ${idx})"></div>`;
+    dots += `<div class="dot ${idx===0?"active":""}" onclick="jumpSlide('${id}',${idx})"></div>`;
   });
 
-  container.innerHTML = `
+  c.innerHTML = `
     <div class="carousel-wrapper">
-      <span class="carousel-arrow" onclick="prevSlide('${containerId}')">&#10094;</span>
+      <span class="carousel-arrow" onclick="prevSlide('${id}')">&#10094;</span>
       ${slides}
-      <span class="carousel-arrow" onclick="nextSlide('${containerId}')">&#10095;</span>
+      <span class="carousel-arrow" onclick="nextSlide('${id}')">&#10095;</span>
     </div>
     <div class="dot-container">${dots}</div>
   `;
 }
 
-/* ============================================
-   CAROUSEL CONTROLS
-============================================ */
 function nextSlide(id) {
   const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let index = items.findIndex(i => i.classList.contains("active"));
-  items[index].classList.remove("active");
-  index = (index + 1) % items.length;
-  items[index].classList.add("active");
-  updateDots(id, index);
+  let idx = items.findIndex(i => i.classList.contains("active"));
+  items[idx].classList.remove("active");
+  idx = (idx + 1) % items.length;
+  items[idx].classList.add("active");
+  updateDots(id, idx);
 }
 
 function prevSlide(id) {
   const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let index = items.findIndex(i => i.classList.contains("active"));
-  items[index].classList.remove("active");
-  index = (index - 1 + items.length) % items.length;
-  items[index].classList.add("active");
-  updateDots(id, index);
+  let idx = items.findIndex(i => i.classList.contains("active"));
+  items[idx].classList.remove("active");
+  idx = (idx - 1 + items.length) % items.length;
+  items[idx].classList.add("active");
+  updateDots(id, idx);
 }
 
 function jumpSlide(id, idx) {
@@ -1268,45 +1190,28 @@ function jumpSlide(id, idx) {
 function updateDots(id, idx) {
   const dots = [...document.querySelectorAll(`#${id} .dot`)];
   dots.forEach(d => d.classList.remove("active"));
-  if (dots[idx]) dots[idx].classList.add("active");
+  dots[idx].classList.add("active");
 }
 
 /* ============================================
-   FILE LABEL UPDATE
+   FILE UPLOAD
 ============================================ */
-function updateFileLabel(missionId) {
-  const input = document.getElementById(`upload_${missionId}`);
-  const span = document.getElementById(`file-name-${missionId}`);
-  if (!input || !span) return;
-  span.textContent = input.files.length ? input.files[0].name : "Keine Datei ausgewählt";
+function updateFileLabel(id) {
+  const i = document.getElementById(`upload_${id}`);
+  const s = document.getElementById(`file-name-${id}`);
+  s.textContent = i.files.length ? i.files[0].name : "Keine Datei ausgewählt";
 }
 
-/* ============================================
-   UPLOAD MISSION
-============================================ */
-async function uploadMission(missionId) {
-  const input = document.getElementById(`upload_${missionId}`);
-  if (!input || !input.files.length) {
-    alert("Bitte eine Datei auswählen.");
-    return;
-  }
-
+async function uploadMission(id) {
+  const input = document.getElementById(`upload_${id}`);
+  if (!input.files.length) return alert("Bitte Datei auswählen.");
   const form = new FormData();
   form.append("image", input.files[0]);
-  form.append("missionId", missionId);
-
-  const r = await fetch("/api/student/uploadForMission", {
-    method: "POST",
-    body: form
-  });
-
+  form.append("missionId", id);
+  const r = await fetch("/api/student/uploadForMission", { method:"POST", body:form });
   const data = await r.json();
-  if (data.success) {
-    alert("Upload erfolgreich!");
-    loadMe();
-  } else {
-    alert("Upload fehlgeschlagen.");
-  }
+  if (data.success) { alert("Upload erfolgreich!"); loadMe(); }
+  else alert("Upload fehlgeschlagen.");
 }
 
 /* ============================================
@@ -1314,19 +1219,13 @@ async function uploadMission(missionId) {
 ============================================ */
 async function redeemReward(id) {
   const r = await fetch("/api/student/redeemReward", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ rewardId: id })
+    method:"POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ rewardId:id })
   });
-
   const data = await r.json();
-  if (data.success) {
-    alert("Belohnung eingelöst!");
-    loadMe();
-    loadRewards();
-  } else {
-    alert(data.message || "Nicht genug XP oder Fehler beim Einlösen.");
-  }
+  if (data.success) { alert("Belohnung eingelöst!"); loadMe(); loadRewards(); }
+  else alert(data.message || "Fehler beim Einlösen.");
 }
 
 /* ============================================
