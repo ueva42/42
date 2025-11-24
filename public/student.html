@@ -33,45 +33,56 @@
     a { color: inherit; }
 
     /* ============================================
-       LOADING SCREEN – STREETS OF LOGIC
+       LOADING SCREEN – GTA CITY / XP EDITION
     ============================================ */
     .loading-overlay {
       position: fixed;
       inset: 0;
-      background: radial-gradient(circle at top, #020617 0, #020617 40%, #111827 100%);
+      background:
+        url("assets/gta-city-map.jpg") center/cover no-repeat,
+        #020617;
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 9999;
+      opacity: 1;
+      transition: opacity 0.8s ease;
     }
 
     .loading-overlay.hide {
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.4s ease;
     }
 
     .loading-content {
       text-align: center;
       max-width: 900px;
       width: 90%;
+      animation: fadeInLoader 1.4s ease-out forwards;
+      opacity: 0;
+    }
+
+    @keyframes fadeInLoader {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
     .loading-image {
-      max-width: 100%;
-      border-radius: 24px;
+      width: 86%;
+      max-width: 520px;
+      border-radius: 26px;
       box-shadow:
-        0 0 0 4px #020617,
-        0 0 0 6px #f97316,
-        0 30px 80px rgba(0,0,0,0.9);
-      display: block;
+        0 0 0 5px #020617,
+        0 0 0 7px #f97316,
+        0 35px 90px rgba(0,0,0,0.95);
       margin: 0 auto 18px auto;
+      display: block;
     }
 
     .loading-bar {
       width: 70%;
-      max-width: 520px;
-      height: 12px;
+      max-width: 540px;
+      height: 14px;
       border-radius: 999px;
       border: 1px solid rgba(248,250,252,0.7);
       background: rgba(15,23,42,0.9);
@@ -81,10 +92,10 @@
     }
 
     .loading-bar-fill {
-      width: 0%;
       height: 100%;
+      width: 0%;
       background: linear-gradient(90deg, #22c55e, #eab308, #f97316, #a855f7);
-      animation: loadingFill 3.1s ease-in-out infinite;
+      transition: width 0.3s ease-out;
     }
 
     .loading-hint {
@@ -92,16 +103,15 @@
       font-size: 13px;
       letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: #e5e7eb;
+      color: #f9fafb;
       opacity: 0.9;
+      animation: hintFade 1.2s ease-out forwards;
     }
 
-    @keyframes loadingFill {
-      0%   { width: 10%; transform: translateX(-20%); }
-      50%  { width: 80%; transform: translateX(10%); }
-      100% { width: 30%; transform: translateX(120%); }
+    @keyframes hintFade {
+      from { opacity: 0; }
+      to   { opacity: 0.9; }
     }
-
     /* ============================================
        SIDEBAR – GTA Comic / Control Center Style
     ============================================ */
@@ -226,10 +236,6 @@
       font-size: 12px;
     }
 
-    .menu-label {
-      white-space: nowrap;
-    }
-
     .logout-btn {
       margin-top: auto;
       margin-bottom: 4px;
@@ -251,7 +257,6 @@
       box-shadow: 0 0 18px rgba(248,113,113,0.9);
       transform: translateY(-1px);
     }
-
     /* ============================================
        MOBILE HEADER
     ============================================ */
@@ -436,7 +441,6 @@
       text-transform: uppercase;
       font-size: 15px;
     }
-
     /* ============================================
        LEVEL BAR – MULTI-STEP
     ============================================ */
@@ -537,7 +541,7 @@
     }
 
     /* ============================================
-       FILE UPLOAD – CUSTOM STYLE (GTA Tag)
+       FILE UPLOAD – GTA STYLE
     ============================================ */
     .file-upload {
       display: flex;
@@ -609,7 +613,6 @@
     .xp-entry b {
       color: #facc15;
     }
-
     /* ============================================
        CHARACTER SELECT OVERLAY
     ============================================ */
@@ -711,7 +714,6 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      display: block;
     }
 
     .character-choice-name {
@@ -730,7 +732,7 @@
       cursor: pointer;
       color: #9ca3af;
       text-shadow: 0 0 6px #000;
-      display: none; /* bewusst deaktiviert, damit Charakterwahl erzwungen ist */
+      display: none; /* absichtlich deaktiviert */
     }
 
     /* ============================================
@@ -791,7 +793,6 @@
         font-size: 11px;
       }
     }
-
   </style>
 </head>
 
@@ -800,7 +801,11 @@
   <!-- LOADING OVERLAY -->
   <div id="loadingOverlay" class="loading-overlay">
     <div class="loading-content">
-      <img src="assets/loading-screen.png" alt="Streets of Logic Loading" class="loading-image">
+      <img
+        src="assets/loading-screen.png"
+        alt="Streets of Logic Loading"
+        class="loading-image"
+      >
       <div class="loading-bar">
         <div class="loading-bar-fill"></div>
       </div>
@@ -820,99 +825,6 @@
     <div class="mobile-title">STREETS OF LOGIC</div>
     <button class="mobile-logout-btn" onclick="logout()">Logout</button>
   </div>
-
-  <!-- SIDEBAR -->
-  <div class="sidebar">
-    <div class="sidebar-header">
-      <div class="sidebar-avatar">
-        <img id="sidebarAvatar" src="" alt="" style="display:none;">
-        <span id="sidebarInitials" style="display:none;">SL</span>
-      </div>
-      <div class="sidebar-title-wrap">
-        <h2 class="sidebar-title">STREETS OF LOGIC</h2>
-        <span class="sidebar-subtitle">XP EDITION</span>
-      </div>
-    </div>
-
-    <div class="menu-item active" onclick="showSection(event,'status')">
-      <div class="menu-icon">S</div>
-      <span class="menu-label">Status</span>
-    </div>
-    <div class="menu-item" onclick="showSection(event,'charakter')">
-      <div class="menu-icon">C</div>
-      <span class="menu-label">Charakter</span>
-    </div>
-    <div class="menu-item" onclick="showSection(event,'missionen')">
-      <div class="menu-icon">M</div>
-      <span class="menu-label">Missionen</span>
-    </div>
-    <div class="menu-item" onclick="showSection(event,'belohnungen')">
-      <div class="menu-icon">B</div>
-      <span class="menu-label">Belohnungen</span>
-    </div>
-    <div class="menu-item" onclick="showSection(event,'xp')">
-      <div class="menu-icon">XP</div>
-      <span class="menu-label">XP-Historie</span>
-    </div>
-
-    <button class="logout-btn" onclick="logout()">Logout</button>
-  </div>
-
-  <!-- MAIN AREA -->
-  <div class="main-area">
-    <h1>STREETS OF LOGIC – XP EDITION</h1>
-
-    <!-- STATUS -->
-    <div id="status-section" class="card section">
-      <h2>Status</h2>
-      <div id="userCard"></div>
-      <div id="levelBar" style="margin-top:10px;"></div>
-    </div>
-
-    <!-- CHARAKTER -->
-    <div id="charakter-section" class="card section" style="display:none;">
-      <h2>Charakter</h2>
-      <div class="character-wrapper">
-        <div class="char-img-wrapper">
-          <div id="characterInfo"></div>
-        </div>
-        <div id="traitsItemsCard" class="char-traits"></div>
-      </div>
-    </div>
-
-    <!-- MISSIONEN -->
-    <div id="missionen-section" class="card section" style="display:none;">
-      <h2>Missionen</h2>
-      <div id="missionCarousel"></div>
-    </div>
-
-    <!-- BELOHNUNGEN -->
-    <div id="belohnungen-section" class="card section" style="display:none;">
-      <h2>Belohnungen</h2>
-      <div id="rewardCarousel"></div>
-    </div>
-
-    <!-- XP LOG -->
-    <div id="xp-section" class="card section" style="display:none;">
-      <h2>XP-Historie</h2>
-      <div id="xpLog"></div>
-    </div>
-  </div>
-
-  <!-- CHARACTER SELECT OVERLAY (FIRST LOGIN) -->
-  <div id="characterOverlay" class="character-overlay">
-    <div class="character-overlay-inner">
-      <div class="character-overlay-close" onclick="closeCharacterOverlay()">×</div>
-      <h2 class="character-overlay-title">WÄHLE DEINEN CHARAKTER</h2>
-      <div class="character-overlay-sub">
-        Klicke auf ein Bild, um deinen In-Game-Charakter für Streets of Logic festzulegen.
-      </div>
-      <div id="characterChoices" class="character-choice-grid">
-        <!-- wird per JS gefüllt -->
-      </div>
-    </div>
-  </div>
-
 <script>
 /* ============================================
    LOADING OVERLAY CONTROL
@@ -927,10 +839,13 @@ function hideLoader() {
   overlay.classList.add("hide");
   setTimeout(() => {
     overlay.style.display = "none";
-  }, 450);
+  }, 600); // smooth fade out
 }
 
-// Fallback, falls irgendetwas beim Laden hängt:
+// Loader dauert ca. 7 Sekunden
+setTimeout(hideLoader, 7000);
+
+// Fallback für langsame Verbindungen: 12 Sekunden
 window.addEventListener("load", () => {
   setTimeout(hideLoader, 12000);
 });
@@ -989,10 +904,8 @@ async function openCharacterOverlay() {
   }
 }
 
-// absichtlich nicht nutzbar, um die Auswahl zu erzwingen – aber vorhanden,
-// falls du später einen "Später wählen"-Button einbauen willst.
 function closeCharacterOverlay() {
-  // document.getElementById("characterOverlay").style.display = "none";
+  // bewusst deaktiviert – man soll auswählen
 }
 
 function renderCharacterChoices(chars) {
@@ -1027,7 +940,6 @@ async function selectCharacter(characterId) {
     });
     const data = await r.json();
     if (data.success) {
-      // Nach erfolgreicher Auswahl: Seite neu laden
       location.reload();
     } else {
       alert(data.message || "Charakter konnte nicht gespeichert werden.");
@@ -1077,7 +989,7 @@ async function loadMe() {
       .slice(0, 2);
   }
 
-  // CHARAKTER-BEREICH
+  // CHARAKTER
   const charDiv = document.getElementById("characterInfo");
   if (data.character) {
     charDiv.innerHTML = `
@@ -1097,7 +1009,7 @@ async function loadMe() {
     `;
   }
 
-  // TRAITS + ITEMS
+  // TRAITS & ITEMS
   document.getElementById("traitsItemsCard").innerHTML = `
     <b>Eigenschaften:</b><br>
     ${data.traits.map(t => "• " + t).join("<br>")}<br><br>
@@ -1105,7 +1017,7 @@ async function loadMe() {
     ${data.items.map(i => "• " + i).join("<br>")}
   `;
 
-  // XP PER MISSION (Objekt {mission_id: xpSum})
+  // XP PER MISSION
   xpPerMission = data.xp_per_mission || {};
 
   // XP LOG
@@ -1124,13 +1036,10 @@ async function loadMe() {
   // LEVEL BAR
   renderLevelBar(data.levels || [], u.xp);
 
-  // WICHTIG: Wenn noch kein Charakter gesetzt ist → Auswahl öffnen
+  // Charakter erzwingen
   if (!data.character) {
     openCharacterOverlay();
   }
-
-  // Loader nach erfolgreichem Laden der wichtigsten Daten ausblenden
-  hideLoader();
 }
 
 function renderLevelBar(levels, xp) {
@@ -1149,11 +1058,7 @@ function renderLevelBar(levels, xp) {
     let pct = 0;
 
     if (xp >= min) {
-      if (next > min) {
-        pct = Math.min(100, ((xp - min) / (next - min)) * 100);
-      } else {
-        pct = 100;
-      }
+      pct = next > min ? Math.min(100, ((xp - min) / (next - min)) * 100) : 100;
     }
 
     html += `
@@ -1168,7 +1073,7 @@ function renderLevelBar(levels, xp) {
 }
 
 /* ============================================
-   MISSIONS & REWARDS
+   MISSIONS + REWARDS
 ============================================ */
 async function loadMissions() {
   const r = await fetch("/api/student/missions");
@@ -1205,19 +1110,17 @@ function renderCarousel(containerId, items, type) {
         ${type === "mission" ? `
           <div style="margin-top:4px;font-size:12px;">
             Bereits erhalten: <b>${xpPerMission[item.id] || 0} XP</b>
-          </div>
-        ` : ""}
+          </div>` : ""}
         ${type === "mission" && item.require_upload ? `
           <div class="file-upload">
             <input type="file" id="upload_${item.id}" class="file-input" onchange="updateFileLabel(${item.id})">
             <label for="upload_${item.id}" class="file-label">Beweis hochladen</label>
             <span id="file-name-${item.id}" class="file-name">Keine Datei ausgewählt</span>
             <button class="btn-primary" onclick="uploadMission(${item.id})">Upload senden</button>
-          </div>
-        ` : ""}
-        ${type === "reward" ? `
-          <button class="btn-primary" onclick="redeemReward(${item.id})" style="margin-top:10px;">Belohnung einlösen</button>
-        ` : ""}
+          </div>` : ""}
+        ${type === "reward" ?
+          `<button class="btn-primary" onclick="redeemReward(${item.id})" style="margin-top:10px;">Belohnung einlösen</button>`
+          : ""}
       </div>
     `;
   });
@@ -1277,7 +1180,6 @@ function updateDots(id, idx) {
 function updateFileLabel(missionId) {
   const input = document.getElementById(`upload_${missionId}`);
   const span = document.getElementById(`file-name-${missionId}`);
-  if (!input || !span) return;
   span.textContent = input.files.length ? input.files[0].name : "Keine Datei ausgewählt";
 }
 
