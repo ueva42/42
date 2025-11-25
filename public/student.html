@@ -33,7 +33,7 @@ body {
 a { color: inherit; }
 
 /* ============================================
-   LOADING SCREEN – NEUE VERSION (langsam, smooth)
+   LOADING SCREEN – Optimiert (3.1s)
 ============================================ */
 .loading-overlay {
   position: fixed;
@@ -43,18 +43,15 @@ a { color: inherit; }
   align-items: center;
   justify-content: center;
   z-index: 9999;
-
-  /* LANGSAMER Fade-Out */
-  transition: opacity 1.8s ease;
+  opacity: 1;
+  transition: opacity 0.8s ease;
 }
 
-/* verschwinden */
 .loading-overlay.hide {
   opacity: 0;
   pointer-events: none;
 }
 
-/* Scanlines */
 .loading-overlay::after {
   content: "";
   position: absolute;
@@ -71,35 +68,23 @@ a { color: inherit; }
 }
 
 @keyframes scanMove {
-  0% { transform: translateY(0); }
+  0%   { transform: translateY(0); }
   100% { transform: translateY(-100%); }
 }
 
-/* Content slow fade & zoom */
 .loading-content {
   text-align: center;
   max-width: 780px;
   width: 90%;
-  opacity: 0;
-
-  animation: slowFadeZoom 2.8s ease forwards;
 }
 
-@keyframes slowFadeZoom {
-  0%   { opacity: 0; transform: translateY(30px) scale(0.92); }
-  40%  { opacity: 0.35; transform: translateY(10px) scale(0.96); }
-  70%  { opacity: 0.7; }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* Bild langsamer Fade-In */
 .loading-image {
   max-width: 100%;
   border-radius: 22px;
   margin: 0 auto 20px auto;
 
   opacity: 0;
-  animation: slowImageFade 3.2s ease forwards;
+  animation: loaderImageFade 3.1s ease forwards;
 
   box-shadow:
     0 0 0 4px rgba(0,0,0,0.8),
@@ -108,14 +93,13 @@ a { color: inherit; }
     0 0 70px rgba(249,115,22,0.25);
 }
 
-@keyframes slowImageFade {
+@keyframes loaderImageFade {
   0%   { opacity: 0; }
-  40%  { opacity: 0.35; }
-  70%  { opacity: 0.75; }
-  100% { opacity: 1; }
+  26%  { opacity: 1; }     /* Fade-In (~0.8s) */
+  75%  { opacity: 1; }     /* Sichtbar (~1.5s) */
+  100% { opacity: 0; }     /* Fade-Out (~0.8s) */
 }
 
-/* Ladebalken – verlängerte Animation */
 .loading-bar {
   width: 80%;
   max-width: 540px;
@@ -142,17 +126,14 @@ a { color: inherit; }
     #c084fc
   );
   box-shadow: 0 0 20px rgba(249,115,22,0.95);
-
-  /* vorher 7s → jetzt 11s */
-  animation: loadingA 11s ease-in-out forwards;
+  animation: loadingA 3s ease-in-out forwards;
 }
 
 @keyframes loadingA {
   0%   { width: 0%; }
-  20%  { width: 22%; }
-  40%  { width: 55%; }
-  70%  { width: 80%; }
-  90%  { width: 92%; }
+  20%  { width: 35%; }
+  50%  { width: 70%; }
+  75%  { width: 85%; }
   100% { width: 100%; }
 }
 
@@ -165,8 +146,9 @@ a { color: inherit; }
   opacity: 0.92;
   text-shadow: 0 0 6px rgba(255,255,255,0.25);
 }
+
 /* ============================================
-   SIDEBAR – GTA Comic / Control Center Style
+   SIDEBAR – GTA Comic Style
 ============================================ */
 .sidebar {
   width: 270px;
@@ -314,7 +296,6 @@ a { color: inherit; }
   box-shadow: 0 0 18px rgba(248,113,113,0.9);
   transform: translateY(-1px);
 }
-
 /* ============================================
    MOBILE HEADER
 ============================================ */
@@ -518,7 +499,6 @@ h2 {
   border-radius: 999px;
   border: 1px solid rgba(148,163,184,0.7);
   overflow: hidden;
-  box-shadow: inset 0 0 6px rgba(15,23,42,0.9);
 }
 
 .level-step-fill {
@@ -672,7 +652,6 @@ h2 {
 .xp-entry b {
   color: #facc15;
 }
-
 /* ============================================
    CHARACTER SELECT OVERLAY
 ============================================ */
@@ -956,7 +935,7 @@ h2 {
     <div id="rewardCarousel"></div>
   </div>
 
-  <!-- XP LOG -->
+  <!-- XP HISTORIE -->
   <div id="xp-section" class="card section" style="display:none;">
     <h2>XP-Historie</h2>
     <div id="xpLog"></div>
@@ -975,29 +954,27 @@ h2 {
 </div>
 <script>
 /* ============================================
-   LOADING OVERLAY CONTROL – Neue Version
+   LOADING OVERLAY CONTROL – Optimiert
 ============================================ */
-let loaderHidden = false;
-
 function hideLoader() {
-  if (loaderHidden) return;
-  loaderHidden = true;
-
   const overlay = document.getElementById("loadingOverlay");
   if (!overlay) return;
 
   overlay.classList.add("hide");
 
-  // längeres Fade-Out (1.8s)
+  // Overlay nach dem Fade-Out (0.8s) entfernen
   setTimeout(() => {
     overlay.style.display = "none";
-  }, 2000);
+  }, 900);
 }
 
-// Fallback nach 14 Sekunden
+// Loader verschwindet nach der Bildanimation (3.1s)
 window.addEventListener("load", () => {
-  setTimeout(hideLoader, 14000);
+  setTimeout(hideLoader, 3100);
 });
+
+// Fallback (falls ein Fetch sehr lange dauert)
+setTimeout(hideLoader, 7000);
 
 
 /* ============================================
@@ -1064,18 +1041,18 @@ function renderCharacterChoices(chars) {
   }
 
   chars.forEach(ch => {
-    const d = document.createElement("div");
-    d.className = "character-choice-card";
+    const card = document.createElement("div");
+    card.className = "character-choice-card";
 
-    d.innerHTML = `
+    card.innerHTML = `
       <div class="character-choice-img-wrap">
         <img src="${ch.image_url}" alt="${ch.name}">
       </div>
       <div class="character-choice-name">${ch.name}</div>
     `;
 
-    d.onclick = () => selectCharacter(ch.id);
-    c.appendChild(d);
+    card.onclick = () => selectCharacter(ch.id);
+    c.appendChild(card);
   });
 }
 
@@ -1125,7 +1102,11 @@ async function loadMe() {
   } else {
     avatar.style.display = "none";
     initials.style.display = "block";
-    initials.textContent = u.name.split(" ").map(x => x[0]).join("").toUpperCase();
+    initials.textContent = u.name
+      .split(" ")
+      .map(x => x[0])
+      .join("")
+      .toUpperCase();
   }
 
   // Charakterbild
@@ -1136,7 +1117,7 @@ async function loadMe() {
     `;
   }
 
-  // Traits & Items
+  // Traits + Items
   document.getElementById("traitsItemsCard").innerHTML = `
     <b>Eigenschaften:</b><br>
     ${data.traits.map(t => "• "+t).join("<br>")}<br><br>
@@ -1161,8 +1142,10 @@ async function loadMe() {
   // Levelbar
   renderLevelBar(data.levels, u.xp);
 
-  // Charakterauswahl öffnen, wenn keiner da ist
-  if (!data.character) openCharacterOverlay();
+  // Charakterauswahl anzeigen, falls keiner gesetzt ist
+  if (!data.character) {
+    openCharacterOverlay();
+  }
 
   hideLoader();
 }
@@ -1205,6 +1188,7 @@ async function loadRewards() {
   const r = await fetch("/api/student/rewards");
   renderCarousel("rewardCarousel", await r.json(), "reward");
 }
+
 /* ============================================
    CAROUSEL
 ============================================ */
