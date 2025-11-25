@@ -84,7 +84,7 @@ a { color: inherit; }
   margin: 0 auto 20px auto;
 
   opacity: 0;
-  animation: loaderImageFade 4.4s ease forwards;
+  animation: loaderImageFade 5.6s ease forwards;
 
   box-shadow:
     0 0 0 4px rgba(0,0,0,0.8),
@@ -95,8 +95,8 @@ a { color: inherit; }
 
 @keyframes loaderImageFade {
   0%   { opacity: 0; }
-  18%  { opacity: 1; }     /* Fade-In (~0.8s) */
-  68%  { opacity: 1; }     /* Sichtbar (~1.5s) */
+  15%  { opacity: 1; }     /* Fade-In (~0.8s) */
+  85%  { opacity: 1; }     /* Sichtbar (~1.5s) */
   100% { opacity: 0; }     /* Fade-Out (~0.8s) */
 }
 
@@ -968,9 +968,24 @@ function hideLoader() {
   }, 900);
 }
 
-// Loader verschwindet nach der Bildanimation (3.1s)
+// Bild erst anzeigen, wenn es komplett geladen ist
 window.addEventListener("load", () => {
-  setTimeout(hideLoader, 4600);
+  const img = document.querySelector(".loading-image");
+
+  if (!img) {
+    // fallback
+    setTimeout(hideLoader, 5000);
+    return;
+  }
+
+  img.onload = () => {
+    // 4 Sekunden sichtbar + ca. 0.8s fade-in + 0.8s fade-out
+    const total = 4800; 
+    setTimeout(hideLoader, total);
+  };
+
+  // Falls das Bild aus dem Cache kommt → sofort triggern
+  if (img.complete) img.onload();
 });
 
 // Fallback (falls ein Fetch sehr lange dauert)
