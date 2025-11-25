@@ -84,7 +84,7 @@ a { color: inherit; }
   margin: 0 auto 20px auto;
 
   opacity: 0;
-  animation: loaderImageFade 3.6s ease forwards;
+  animation: loaderImageFade 4.4s ease forwards;
 
   box-shadow:
     0 0 0 4px rgba(0,0,0,0.8),
@@ -95,8 +95,8 @@ a { color: inherit; }
 
 @keyframes loaderImageFade {
   0%   { opacity: 0; }
-  22%  { opacity: 1; }     /* Fade-In (~0.8s) */
-  78%  { opacity: 1; }     /* Sichtbar (~1.5s) */
+  18%  { opacity: 1; }     /* Fade-In (~0.8s) */
+  68%  { opacity: 1; }     /* Sichtbar (~1.5s) */
   100% { opacity: 0; }     /* Fade-Out (~0.8s) */
 }
 
@@ -970,7 +970,7 @@ function hideLoader() {
 
 // Loader verschwindet nach der Bildanimation (3.1s)
 window.addEventListener("load", () => {
-  setTimeout(hideLoader, 3800);
+  setTimeout(hideLoader, 4600);
 });
 
 // Fallback (falls ein Fetch sehr lange dauert)
