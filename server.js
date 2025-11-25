@@ -284,6 +284,37 @@ async function migrate() {
   `);
   await ensureColumn("bonuscards", "school_id", "INTEGER");
 
+  // -------------------------------------------------------
+// ADMIN – Upload für Klassenbelohnungen (Class Rewards)
+// -------------------------------------------------------
+let uploadedClassRewardImageUrl = null;
+
+app.post(
+  "/api/classRewards/upload",
+  isAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    if (!req.file) return res.json({ success: false });
+
+    const schoolId = req.session.user.school_id;
+    const fileName = `classrewards/${schoolId}_${Date.now()}_${req.file.originalname}`;
+
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype
+      })
+    );
+
+    const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+    uploadedClassRewardImageUrl = url;
+
+    res.json({ success: true, url });
+  }
+);
+
   // Charaktere
   await pool.query(`
     CREATE TABLE IF NOT EXISTS characters (
@@ -1640,14 +1671,33 @@ app.delete("/api/levels/:id", isAdmin, async (req, res) => {
 // -------------------------------------------------------
 
 // Admin: Vorlagen für Klassenbelohnungen
-app.get("/api/admin/classRewards", isAdmin, async (req, res) => {
-  const schoolId = req.session.user.school_id;
-  const r = await pool.query(
-    "SELECT id,name,xp_required,image_url FROM class_rewards WHERE school_id=$1 ORDER BY xp_required ASC",
-    [schoolId]
-  );
-  res.json(r.rows);
-});
+let uploadedClassRewardImageUrl = null;
+
+app.post(
+  "/api/admin/classRewards/upload",
+  isAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    if (!req.file) return res.json({ success: false });
+
+    const schoolId = req.session.user.school_id;
+    const fileName = `classrewards/${schoolId}_${Date.now()}_${req.file.originalname}`;
+
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype
+      })
+    );
+
+    const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+    uploadedClassRewardImageUrl = url;
+
+    res.json({ success: true, url });
+  }
+);
 
 app.post("/api/admin/classRewards", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
@@ -1662,11 +1712,18 @@ app.post("/api/admin/classRewards", isAdmin, async (req, res) => {
     INSERT INTO class_rewards (name,xp_required,image_url,school_id)
     VALUES ($1,$2,$3,$4)
   `,
-    [name, Number(xpRequired), imageUrl || null, schoolId]
+    [
+      name,
+      Number(xpRequired),
+      imageUrl || uploadedClassRewardImageUrl || null,
+      schoolId
+    ]
   );
 
+  uploadedClassRewardImageUrl = null;
   res.json({ success: true });
 });
+
 
 app.delete("/api/admin/classRewards/:id", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
