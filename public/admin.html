@@ -384,6 +384,26 @@
         0 2px 8px rgba(0,0,0,0.9);
     }
 
+    /* Klassen-Challenge Progressbar */
+    .progress-outer {
+      width: 100%;
+      max-width: 420px;
+      height: 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(250,204,21,0.8);
+      background: #020617;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .progress-inner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg,#22c55e,#facc15,#f97316);
+      box-shadow: 0 0 12px rgba(250,204,21,0.85);
+      transition: width 0.3s ease;
+    }
+
     /* Hint / Message Text */
     .hint {
       font-size: 11px;
@@ -513,10 +533,17 @@
       <div class="sidebar-subtitle">CONTROL&nbsp;CENTER</div>
     </div>
   </div>
+
   <!-- XP ganz oben -->
   <div class="nav-item active" onclick="showTab('xpTab', event)">
     <svg viewBox="0 0 24 24"><path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/></svg>
     <span class="nav-label">XP-Verwaltung</span>
+  </div>
+
+  <!-- NEU: Klassen-Fortschritt / Klassenbelohnungen -->
+  <div class="nav-item" onclick="showTab('classProgressTab', event)">
+    <svg viewBox="0 0 24 24"><path d="M4 20h3v-7H4v7zm6 0h3V4h-3v16zm6 0h3v-4h-3v4z"/></svg>
+    <span class="nav-label">Klassen-Fortschritt</span>
   </div>
 
   <div class="nav-item" onclick="showTab('classTab', event)">
@@ -544,7 +571,7 @@
     <span class="nav-label">Level</span>
   </div>
 
-  <!-- NEU: Profil & Passwort -->
+  <!-- Profil & Passwort -->
   <div class="nav-item" onclick="showTab('profileTab', event)">
     <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 110 10 5 5 0 010-10zm0 12c-3.3 0-7 1.7-7 4.5V20h14v-1.5C19 15.7 15.3 14 12 14zm6.7-3.7l1.3 1.3-4.9 4.9-2.1-2.1 1.3-1.3.8.8 3.6-3.6z"/></svg>
     <span class="nav-label">Profil & Passwort</span>
@@ -566,6 +593,7 @@
         <div class="page-subtitle">XP EDITION – ADMIN CONTROL</div>
       </div>
     </div>
+
     <!-- XP TAB -->
     <div id="xpTab" class="tab">
       <div class="panel">
@@ -605,6 +633,66 @@
       </div>
     </div>
 
+    <!-- KLASSEN-FORTSCHRITT & KLASSENBELOHNUNGEN -->
+    <div id="classProgressTab" class="tab hidden">
+      <div class="panel">
+        <h2>Klassen-Fortschritt & Klassenbelohnungen</h2>
+        <div class="hint">
+          Hier siehst du die <b>gesamt gesammelten XP einer Klasse</b>, kannst eine
+          <b>Klassen-Challenge</b> starten/stoppen und die <b>Klassenbelohnungen</b> verwalten,
+          die später in der Schüler-Ansicht per Carousel zur Abstimmung stehen.
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Aktuelle Klassen-Challenge</h3>
+        <div style="margin-bottom:8px;">
+          <label>Klasse:</label>
+          <select id="progressClassSelect" onchange="loadClassChallengeStatus()"></select>
+        </div>
+        <div id="classProgressInfo" class="hint">–</div>
+
+        <div style="margin-top:12px;">
+          <h3>Neue Challenge starten</h3>
+          <div style="margin-bottom:4px;">
+            <label>Belohnung:</label>
+            <select id="classRewardSelect"></select>
+          </div>
+          <div>
+            <input id="classTargetXp" type="number" placeholder="Ziel-XP für Challenge" />
+            <button class="action" onclick="startClassChallenge()">Challenge starten</button>
+            <button class="delete" onclick="stopClassChallenge()">Challenge stoppen</button>
+          </div>
+          <div class="hint">
+            Idee: Klasse sammelt gemeinsame XP bis zum Ziel. Wenn der Balken voll ist, ist die Belohnung freigeschaltet.
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Neue Klassenbelohnung anlegen</h3>
+        <input id="classRewardName" placeholder="Name der Klassenbelohnung" />
+        <input id="classRewardXp" type="number" placeholder="XP-Kosten / XP-Wert" />
+        <input type="file" id="classRewardImage" />
+        <button class="action" onclick="uploadClassRewardImage()">Bild hochladen</button>
+        <button class="action" onclick="addClassReward()">Speichern</button>
+        <p class="hint">
+          Beispiele: Kino-Nachmittag, Spiele-Stunde, Unterricht draußen, Klassenfrühstück …
+          Die Klasse stimmt später in der Schüleroberfläche ab, welche Belohnung sie anstrebt.
+        </p>
+      </div>
+
+      <div class="panel">
+        <h3>Alle Klassenbelohnungen</h3>
+        <table id="classRewardTable">
+          <thead>
+            <tr><th>Bild</th><th>Name</th><th>XP / Ziel</th><th>Löschen</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- KLASSEN & SCHÜLER -->
     <div id="classTab" class="tab hidden">
       <div class="panel">
@@ -641,6 +729,7 @@
         <button class="action" onclick="addStudent()">Anlegen</button>
       </div>
     </div>
+
     <!-- MISSIONEN -->
     <div id="missionTab" class="tab hidden">
       <div class="panel">
@@ -720,6 +809,7 @@
         </table>
       </div>
     </div>
+
     <!-- LEVEL -->
     <div id="levelTab" class="tab hidden">
       <div class="panel">
@@ -748,7 +838,7 @@
       </div>
     </div>
 
-    <!-- PROFIL & PASSWORT (NEU) -->
+    <!-- PROFIL & PASSWORT -->
     <div id="profileTab" class="tab hidden">
       <div class="panel">
         <h2>Profil & Zugang</h2>
@@ -786,6 +876,7 @@
     <button id="modalBack" onclick="closeModal()">Zurück</button>
   </div>
 </div>
+
 <script>
 /* ---------------------------- TABS ---------------------------- */
 function showTab(id, ev) {
@@ -806,6 +897,7 @@ function showTab(id, ev) {
   if (id === "characterTab") loadCharacters();
   if (id === "levelTab") loadLevels();
   if (id === "profileTab") loadAdminProfile();
+  if (id === "classProgressTab") loadClassProgressInit();
 }
 
 /* ---------------------------- LOGOUT ---------------------------- */
@@ -897,6 +989,7 @@ async function addXPAll() {
   }
   loadXPStudents();
 }
+
 /* ---------------------------- XP MISSION ---------------------------- */
 async function loadMissionsForXP() {
   const r = await fetch("/api/missions");
@@ -1033,6 +1126,7 @@ async function deleteClass() {
   loadClassesForManage();
   loadXPInit();
 }
+
 async function loadClassStudents() {
   const classId = document.getElementById("classManageSelect").value;
   if (!classId) return;
@@ -1379,6 +1473,184 @@ async function changeAdminPassword() {
     msgEl.className = "msg-error";
     msgEl.textContent = "Technischer Fehler beim Passwort-Update.";
   }
+}
+
+/* ---------------------------- KLASSEN-FORTSCHRITT / KLASSENBELOHNUNGEN ---------------------------- */
+let uploadedClassRewardImageUrl = null;
+
+async function loadClassProgressInit() {
+  // Klassen laden
+  const r = await fetch("/api/class");
+  const classes = await r.json();
+
+  const sel = document.getElementById("progressClassSelect");
+  sel.innerHTML = "";
+
+  classes.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+
+  if (classes.length > 0) {
+    sel.value = classes[0].id;
+  }
+
+  await loadClassRewards();
+  await loadClassChallengeStatus();
+}
+
+async function loadClassChallengeStatus() {
+  const classId = document.getElementById("progressClassSelect").value;
+  if (!classId) {
+    document.getElementById("classProgressInfo").textContent = "Keine Klasse ausgewählt.";
+    return;
+  }
+
+  try {
+    const r = await fetch(`/api/class/progress/status?classId=${classId}`);
+    const data = await r.json();
+    renderClassProgressInfo(data);
+  } catch (err) {
+    console.error("Fehler beim Laden des Klassenfortschritts", err);
+    document.getElementById("classProgressInfo").textContent =
+      "Fehler beim Laden des Klassenfortschritts.";
+  }
+}
+
+function renderClassProgressInfo(data) {
+  const info = document.getElementById("classProgressInfo");
+  if (!info) return;
+
+  const totalXp = data.total_xp ?? 0;
+
+  if (!data.challenge) {
+    info.innerHTML = `
+      <div>
+        <b>Gesamt-XP der Klasse:</b> ${totalXp}<br>
+        <span style="opacity:0.85;">Aktuell ist keine Klassen-Challenge aktiv.</span>
+      </div>
+    `;
+    return;
+  }
+
+  const c = data.challenge;
+  const target = c.target_xp || 0;
+  const current = c.current_xp || 0;
+  const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+
+  info.innerHTML = `
+    <div style="font-size:13px;line-height:1.6;">
+      <b>Gesamt-XP der Klasse:</b> ${totalXp}<br>
+      <b>Aktive Challenge:</b> ${c.reward_name || "–"}<br>
+      <b>Ziel:</b> ${target} XP &nbsp; | &nbsp; <b>aktuell:</b> ${current} XP
+      <div class="progress-outer">
+        <div class="progress-inner" style="width:${pct}%"></div>
+      </div>
+      <div class="hint" style="margin-top:4px;">
+        Fortschritt: ${pct}% – wenn der Balken voll ist, hat die Klasse die Belohnung freigeschaltet.
+      </div>
+    </div>
+  `;
+}
+
+async function uploadClassRewardImage() {
+  const file = document.getElementById("classRewardImage").files[0];
+  if (!file) return;
+
+  const form = new FormData();
+  form.append("image", file);
+
+  const r = await fetch("/api/class/rewards/upload", {
+    method: "POST",
+    body: form
+  });
+  const data = await r.json();
+  if (data.success) {
+    uploadedClassRewardImageUrl = data.url;
+  }
+}
+
+async function addClassReward() {
+  const name = document.getElementById("classRewardName").value.trim();
+  const xp = Number(document.getElementById("classRewardXp").value);
+  if (!name || !xp) return;
+
+  await fetch("/api/class/rewards", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name, xp, imageUrl: uploadedClassRewardImageUrl })
+  });
+
+  uploadedClassRewardImageUrl = null;
+  document.getElementById("classRewardName").value = "";
+  document.getElementById("classRewardXp").value = "";
+  document.getElementById("classRewardImage").value = "";
+
+  await loadClassRewards();
+}
+
+async function loadClassRewards() {
+  const r = await fetch("/api/class/rewards");
+  const rewards = await r.json();
+
+  // Select für Challenge
+  const sel = document.getElementById("classRewardSelect");
+  sel.innerHTML = "";
+  rewards.forEach(b => {
+    const opt = document.createElement("option");
+    opt.value = b.id;
+    opt.textContent = `${b.name} (${b.xp} XP)`;
+    sel.appendChild(opt);
+  });
+
+  // Tabelle
+  const tbody = document.querySelector("#classRewardTable tbody");
+  tbody.innerHTML = "";
+  rewards.forEach(b => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${b.image_url ? `<img class="thumb" src="${b.image_url}">` : "—"}</td>
+      <td>${b.name}</td>
+      <td>${b.xp}</td>
+      <td><button class="delete" onclick="deleteClassReward(${b.id})">X</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function deleteClassReward(id) {
+  await fetch(`/api/class/rewards/${id}`, { method:"DELETE" });
+  await loadClassRewards();
+}
+
+async function startClassChallenge() {
+  const classId = document.getElementById("progressClassSelect").value;
+  const rewardId = document.getElementById("classRewardSelect").value;
+  const targetXp = Number(document.getElementById("classTargetXp").value);
+  if (!classId || !rewardId || !targetXp) return;
+
+  await fetch("/api/class/challenge/start", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ classId, rewardId, targetXp })
+  });
+
+  await loadClassChallengeStatus();
+}
+
+async function stopClassChallenge() {
+  const classId = document.getElementById("progressClassSelect").value;
+  if (!classId) return;
+
+  await fetch("/api/class/challenge/stop", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ classId })
+  });
+
+  await loadClassChallengeStatus();
 }
 
 /* Default Ansicht */
