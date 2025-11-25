@@ -1183,7 +1183,25 @@ app.get("/api/class/rewards", isAdmin, async (req, res) => {
 });
 
 // Neue Klassenbelohnung anlegen
-app.post("/api/class/rewards", isAdmin,
+app.post("/api/class/rewards", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
+  const { name, xpRequired, imageUrl } = req.body;
+
+  if (!name || !xpRequired) {
+    return res.json({ success: false, message: "name oder xpRequired fehlt" });
+  }
+
+  const ins = await pool.query(
+    `
+    INSERT INTO class_rewards (name,xp_required,image_url,school_id)
+    VALUES ($1,$2,$3,$4)
+    RETURNING id
+    `,
+    [name, Number(xpRequired), imageUrl || null, schoolId]
+  );
+
+  res.json({ success: true, id: ins.rows[0].id });
+});
 
 // -------------------------------------------------------
 // ADMIN – Klassen
