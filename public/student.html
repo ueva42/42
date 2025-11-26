@@ -643,7 +643,9 @@ h2 {
   transform: translateY(-1px);
 }
 
-/============================================
+/* ============================================
+   XP LOG
+============================================ */
    XP LOG
 ============================================ */
 .xp-entry {
@@ -1285,7 +1287,7 @@ function nextSlide(id) {
 
 function prevSlide(id) {
   const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let idx = items.findfindIndex(i => i.classList.contains("active"));
+  let idx = items.findIndex(i => i.classList.contains("active"));
   items[idx].classList.remove("active");
   idx = (idx - 1 + items.length) % items.length;
   items[idx].classList.add("active");
