@@ -986,141 +986,242 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// STUDENT: Klassenfortschritt + Voting
+// STUDENT – Klassen-Challenge (Klassen-XP + Voting)
+//  -> /api/student/classProgress
+//  -> /api/student/classVote
+//  Passt zu deinem aktuellen student.html
 // -------------------------------------------------------
-app.get("/api/student/class-progress", isStudent, async (req, res) => {
-  const studentId = req.session.user.id;
-  const schoolId = req.session.user.school_id;
+app.get("/api/student/classProgress", isStudent, async (req, res) => {
+  try {
+    const user = req.session.user;
+    if (!user) {
+      return res.json({ success: false, message: "Nicht eingeloggt." });
+    }
 
-  const u = await pool.query(
-    "SELECT class_id FROM users WHERE id=$1",
-    [studentId]
-  );
+    const classId  = user.class_id;
+    const schoolId = user.school_id;
 
-  if (!u.rows.length || !u.rows[0].class_id) {
-    return res.json({
-      success: false,
-      message: "Keine Klasse zugeordnet."
-    });
-  }
+    if (!classId) {
+      return res.json({
+        success: false,
+        message: "Keine Klasse zugeordnet."
+      });
+    }
 
-  const classId = u.rows[0].class_id;
+    // Klasse + Klassen-XP
+    const classRes = await pool.query(
+      "SELECT id,name FROM classes WHERE id=$1 AND school_id=$2",
+      [classId, schoolId]
+    );
+    const clsRow = classRes.rows[0] || null;
 
-  const totalXP = await getClassTotalXP(classId, schoolId);
+    const totalXP = await getClassTotalXP(classId, schoolId);
 
-  const roundRes = await pool.query(
-    `
-    SELECT *
-    FROM class_reward_rounds
-    WHERE class_id=$1 AND school_id=$2
-    ORDER BY created_at DESC
-    LIMIT 1
-  `,
-    [classId, schoolId]
-  );
+    const cls = clsRow
+      ? { id: clsRow.id, name: clsRow.name, total_xp: totalXP }
+      : { id: classId, name: "Unbekannte Klasse", total_xp: totalXP };
 
-  if (!roundRes.rows.length) {
-    return res.json({
-      success: true,
-      class: { id: classId },
-      total_xp: totalXP,
-      round: null,
-      options: [],
-      my_vote_option_id: null
-    });
-  }
+    // letzte Runde dieser Klasse
+    const roundRes = await pool.query(
+      `
+      SELECT *
+      FROM class_reward_rounds
+      WHERE class_id=$1 AND school_id=$2
+      ORDER BY created_at DESC
+      LIMIT 1
+      `,
+      [classId, schoolId]
+    );
 
-  const round = roundRes.rows[0];
+    if (!roundRes.rows.length) {
+      return res.json({
+        success: true,
+        class: cls,
+        round: null,
+        options: [],
+        votes: [],
+        myVote: null
+      });
+    }
 
-  const optRes = await pool.query(
-    `
-    SELECT o.id,o.name,o.image_url,
-           COUNT(v.id) AS votes
-    FROM class_reward_options o
-    LEFT JOIN class_reward_votes v ON v.option_id = o.id
-    WHERE o.round_id=$1
-    GROUP BY o.id,o.name,o.image_url
-    ORDER BY o.id ASC
-  `,
-    [round.id]
-  );
+    const roundRow = roundRes.rows[0];
 
-  const voteRes = await pool.query(
-    `
-    SELECT option_id
-    FROM class_reward_votes
-    WHERE round_id=$1 AND student_id=$2
-  `,
-    [round.id, studentId]
-  );
+    // "status" für Frontend ableiten
+    let status = "voting";
+    if (roundRow.fixed_option_id && roundRow.is_active) {
+      status = "active";
+    } else if (roundRow.fixed_option_id && !roundRow.is_active) {
+      status = "completed";
+    }
 
-  const myVote = voteRes.rows[0]?.option_id || null;
-  const hasReachedTarget = totalXP >= round.target_xp;
+    const round = {
+      id: roundRow.id,
+      title: roundRow.title,
+      status,
+      selected_reward_id: roundRow.fixed_option_id,
+      xp_required: roundRow.target_xp || 0
+    };
 
-  res.json({
-    success: true,
-    class: { id: classId },
-    total_xp: totalXP,
-    round: {
-      id: round.id,
-      title: round.title,
-      target_xp: round.target_xp,
-      is_active: round.is_active,
-      fixed_option_id: round.fixed_option_id,
-      hasReachedTarget
-    },
-    options: optRes.rows.map(o => ({
+    // Optionen + zugehörige Klassenbelohnung
+    const optRes = await pool.query(
+      `
+      SELECT
+        o.id,
+        o.round_id,
+        o.reward_id,
+        o.name,
+        o.image_url,
+        cr.xp_required
+      FROM class_reward_options o
+      LEFT JOIN class_rewards cr
+        ON cr.id = o.reward_id
+      WHERE o.round_id=$1
+      ORDER BY o.id ASC
+      `,
+      [roundRow.id]
+    );
+
+    const options = optRes.rows.map(o => ({
       id: o.id,
+      round_id: o.round_id,
+      reward_id: o.reward_id,
       name: o.name,
       image_url: o.image_url,
-      votes: Number(o.votes),
-      is_selected: round.fixed_option_id === o.id
-    })),
-    my_vote_option_id: myVote
-  });
+      xp_required: o.xp_required || round.xp_required || 0
+    }));
+
+    // Vote-Counts nach reward_id
+    const votesRes = await pool.query(
+      `
+      SELECT
+        o.reward_id,
+        COUNT(v.id) AS votes
+      FROM class_reward_options o
+      LEFT JOIN class_reward_votes v
+        ON v.option_id = o.id
+      WHERE o.round_id=$1
+      GROUP BY o.reward_id
+      `,
+      [roundRow.id]
+    );
+
+    const votes = votesRes.rows.map(v => ({
+      reward_id: v.reward_id,
+      votes: Number(v.votes)
+    }));
+
+    // eigene Stimme → reward_id
+    const myVoteRes = await pool.query(
+      `
+      SELECT o.reward_id
+      FROM class_reward_votes v
+      JOIN class_reward_options o
+        ON o.id = v.option_id
+      WHERE v.round_id=$1 AND v.student_id=$2
+      LIMIT 1
+      `,
+      [roundRow.id, user.id]
+    );
+
+    const myVote = myVoteRes.rows.length
+      ? myVoteRes.rows[0].reward_id
+      : null;
+
+    return res.json({
+      success: true,
+      class: cls,
+      round,
+      options,
+      votes,
+      myVote
+    });
+  } catch (err) {
+    console.error("❌ /api/student/classProgress ERROR:", err);
+    return res.json({
+      success: false,
+      message: "Serverfehler beim Laden der Klassen-Challenge."
+    });
+  }
 });
 
-// Stimme abgeben
-app.post("/api/student/class-reward-vote", isStudent, async (req, res) => {
-  const studentId = req.session.user.id;
-  const schoolId = req.session.user.school_id;
-  const { roundId, optionId } = req.body;
+// Stimme für eine Klassenbelohnung abgeben
+app.post("/api/student/classVote", isStudent, async (req, res) => {
+  try {
+    const user = req.session.user;
+    if (!user) {
+      return res.json({ success: false, message: "Nicht eingeloggt." });
+    }
 
-  const rId = Number(roundId);
-  const oId = Number(optionId);
+    const { roundId, rewardId } = req.body;
+    const rId = Number(roundId);
+    const rewId = Number(rewardId);
 
-  if (!rId || !oId)
-    return res.json({ success: false, message: "roundId/optionId fehlt" });
+    if (!rId || !rewId) {
+      return res.json({
+        success: false,
+        message: "roundId oder rewardId fehlt."
+      });
+    }
 
-  const roundRes = await pool.query(
-    "SELECT id,is_active,school_id FROM class_reward_rounds WHERE id=$1",
-    [rId]
-  );
+    const roundRes = await pool.query(
+      "SELECT * FROM class_reward_rounds WHERE id=$1 AND school_id=$2",
+      [rId, user.school_id]
+    );
 
-  if (!roundRes.rows.length)
-    return res.json({ success: false, message: "Runde nicht gefunden" });
+    if (!roundRes.rows.length) {
+      return res.json({ success: false, message: "Runde nicht gefunden." });
+    }
 
-  const round = roundRes.rows[0];
+    const round = roundRes.rows[0];
 
-  if (round.school_id !== schoolId)
-    return res.json({ success: false, message: "Kein Zugriff auf diese Runde" });
+    // Voting nur solange keine feste Option gesetzt ist
+    if (round.fixed_option_id) {
+      return res.json({ success: false, message: "Voting ist bereits beendet." });
+    }
 
-  if (!round.is_active)
-    return res.json({ success: false, message: "Voting ist geschlossen" });
+    // passende Option zu diesem rewardId holen
+    const optRes = await pool.query(
+      `
+      SELECT id
+      FROM class_reward_options
+      WHERE round_id=$1 AND reward_id=$2
+      LIMIT 1
+      `,
+      [rId, rewId]
+    );
 
-  // alte Stimme löschen
-  await pool.query(
-    "DELETE FROM class_reward_votes WHERE round_id=$1 AND student_id=$2",
-    [rId, studentId]
-  );
+    if (!optRes.rows.length) {
+      return res.json({
+        success: false,
+        message: "Option für diese Belohnung nicht gefunden."
+      });
+    }
 
-  // neue Stimme setzen
-  await pool.query(
-    "INSERT INTO class_reward_votes (round_id,student_id,option_id) VALUES ($1,$2,$3)",
-    [rId, studentId, oId]
-  );
+    const optionId = optRes.rows[0].id;
 
-  res.json({ success: true });
+    // alte Stimme löschen
+    await pool.query(
+      "DELETE FROM class_reward_votes WHERE round_id=$1 AND student_id=$2",
+      [rId, user.id]
+    );
+
+    // neue Stimme eintragen
+    await pool.query(
+      `
+      INSERT INTO class_reward_votes (round_id,student_id,option_id)
+      VALUES ($1,$2,$3)
+      `,
+      [rId, user.id, optionId]
+    );
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("❌ /api/student/classVote ERROR:", err);
+    return res.json({
+      success: false,
+      message: "Serverfehler bei der Abstimmung."
+    });
+  }
 });
 
 // -------------------------------------------------------
