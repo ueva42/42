@@ -364,6 +364,10 @@ async function migrate() {
   await ensureColumn("class_reward_rounds", "school_id", "INTEGER");
   // 🔧 WICHTIG: falls die Spalte in einer alten DB noch fehlt:
   await ensureColumn("class_reward_rounds", "is_active", "BOOLEAN NOT NULL DEFAULT TRUE");
+  await ensureColumn("class_reward_rounds", "title", "TEXT");
+await ensureColumn("class_reward_rounds", "target_xp", "INTEGER NOT NULL DEFAULT 0");
+await ensureColumn("class_reward_rounds", "fixed_option_id", "INTEGER");
+
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_reward_options (
