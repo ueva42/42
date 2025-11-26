@@ -361,13 +361,13 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  // Absicherung alter DBs: fehlende Spalten nachziehen
+  await ensureColumn("class_reward_rounds", "class_id", "INTEGER");
   await ensureColumn("class_reward_rounds", "school_id", "INTEGER");
-  // 🔧 WICHTIG: falls die Spalte in einer alten DB noch fehlt:
-  await ensureColumn("class_reward_rounds", "is_active", "BOOLEAN NOT NULL DEFAULT TRUE");
   await ensureColumn("class_reward_rounds", "title", "TEXT");
-await ensureColumn("class_reward_rounds", "target_xp", "INTEGER NOT NULL DEFAULT 0");
-await ensureColumn("class_reward_rounds", "fixed_option_id", "INTEGER");
-
+  await ensureColumn("class_reward_rounds", "target_xp", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("class_reward_rounds", "fixed_option_id", "INTEGER");
+  await ensureColumn("class_reward_rounds", "is_active", "BOOLEAN NOT NULL DEFAULT TRUE");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_reward_options (
@@ -388,6 +388,10 @@ await ensureColumn("class_reward_rounds", "fixed_option_id", "INTEGER");
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  // Wichtig für alte DB: Spalten sicherstellen
+  await ensureColumn("class_reward_votes", "round_id", "INTEGER");
+  await ensureColumn("class_reward_votes", "student_id", "INTEGER");
+  await ensureColumn("class_reward_votes", "option_id", "INTEGER");
 
   // Unique: eine Stimme pro Runde und Schüler:in
   await pool.query(`
@@ -820,7 +824,7 @@ app.post("/api/admin/change-password", isAdmin, async (req, res) => {
   if (!r.rows.length) {
     return res.json({
       success: false,
-      message: "Admin nicht gefunden."
+      message: "Admin nicht gefunden"
     });
   }
 
