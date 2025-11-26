@@ -211,8 +211,7 @@ async function seedSchoolDefaults(schoolId) {
   // BONUSKARTEN
   const bonusCount = (
     await pool.query(
-      "SELECT COUNT(*) FROM bonuscards WHERE school_id=$1",
-      [schoolId]
+      "SELECT COUNT(*) FROM bonuscards WHERE school_id=$1"
     )
   ).rows[0];
 
@@ -232,8 +231,7 @@ async function seedSchoolDefaults(schoolId) {
   // CHARAKTERE
   const charCount = (
     await pool.query(
-      "SELECT COUNT(*) FROM characters WHERE school_id=$1",
-      [schoolId]
+      "SELECT COUNT(*) FROM characters WHERE school_id=$1"
     )
   ).rows[0];
 
@@ -544,6 +542,10 @@ async function migrate() {
   );
   await pool.query(
     "UPDATE bonuscards SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE class_rewards SET school_id=$1 WHERE school_id IS NULL",
     [defaultSchoolId]
   );
   await pool.query(
@@ -1195,6 +1197,118 @@ app.post("/api/admin/class-reward-round", isAdmin, async (req, res) => {
   res.json({ success: true, roundId: ins.rows[0].id });
 });
 
+// -------------------------------------------------------
+// ADMIN – Klassenbelohnungen (Reward-Liste für Challenges)
+// -------------------------------------------------------
+let uploadedClassRewardImageUrl = null;
+
+// Alle Klassenbelohnungen abrufen
+app.get("/api/class/rewards", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
+
+  const r = await pool.query(
+    `
+    SELECT id,name,xp_required AS xp,image_url
+    FROM class_rewards
+    WHERE school_id=$1
+    ORDER BY xp_required ASC
+    `,
+    [schoolId]
+  );
+
+  res.json(r.rows);
+});
+
+// Neue Klassenbelohnung anlegen
+app.post("/api/class/rewards", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
+  const { name, xp, xpRequired, imageUrl } = req.body;
+
+  const xpVal = Number(xp ?? xpRequired);
+  if (!name || !xpVal) {
+    return res.json({ success: false, message: "name oder xp fehlt" });
+  }
+
+  const ins = await pool.query(
+    `
+    INSERT INTO class_rewards (name,xp_required,image_url,school_id)
+    VALUES ($1,$2,$3,$4)
+    RETURNING id
+    `,
+    [name, xpVal, imageUrl || null, schoolId]
+  );
+
+  res.json({ success: true, id: ins.rows[0].id });
+});
+
+// Bild-Upload für Klassenbelohnung
+app.post(
+  "/api/class/rewards/upload",
+  isAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    if (!req.file) return res.json({ success: false });
+
+    const schoolId = req.session.user.school_id;
+    const fileName = `class_rewards/${schoolId}_${Date.now()}_${req.file.originalname}`;
+
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype
+      })
+    );
+
+    const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+    uploadedClassRewardImageUrl = url;
+
+    res.json({ success: true, url });
+  }
+);
+
+// Klassenbelohnung löschen
+app.delete("/api/class/rewards/:id", isAdmin, async (req, res) => {
+  const schoolId = req.session.user.school_id;
+  const rewardId = Number(req.params.id);
+
+  try {
+    const r = await pool.query(
+      "SELECT image_url FROM class_rewards WHERE id=$1 AND school_id=$2",
+      [rewardId, schoolId]
+    );
+
+    if (r.rows.length && r.rows[0].image_url) {
+      const prefix = (process.env.R2_PUBLIC_URL || "") + "/";
+      const key = r.rows[0].image_url.replace(prefix, "");
+
+      try {
+        await r2.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.R2_BUCKET,
+            Key: key
+          })
+        );
+      } catch (err) {
+        console.error("R2 delete error (class_reward)", err);
+      }
+    }
+
+    await pool.query(
+      "DELETE FROM class_rewards WHERE id=$1 AND school_id=$2",
+      [rewardId, schoolId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting class_reward", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Fehler beim Löschen der Klassenbelohnung" });
+  }
+});
+
 // Upload für Voting-Option
 app.post(
   "/api/admin/class-reward-option/upload",
@@ -1549,7 +1663,6 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
 
   res.json({ success: true });
 });
-
 // -------------------------------------------------------
 // ADMIN – Bonuskarten
 // -------------------------------------------------------
@@ -1890,6 +2003,7 @@ app.post("/api/class/challenge/stop", isAdmin, async (req, res) => {
 
   res.json({ success: true });
 });
+
 // -------------------------------------------------------
 // SUPERADMIN – Schulen, Admins, Status, Reset
 // -------------------------------------------------------
