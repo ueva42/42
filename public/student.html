@@ -95,9 +95,9 @@ a { color: inherit; }
 
 @keyframes loaderImageFade {
   0%   { opacity: 0; }
-  15%  { opacity: 1; }     /* Fade-In (~0.8s) */
-  85%  { opacity: 1; }     /* Sichtbar (~1.5s) */
-  100% { opacity: 0; }     /* Fade-Out (~0.8s) */
+  15%  { opacity: 1; }    
+  85%  { opacity: 1; }     
+  100% { opacity: 0; }     
 }
 
 .loading-bar {
@@ -296,6 +296,7 @@ a { color: inherit; }
   box-shadow: 0 0 18px rgba(248,113,113,0.9);
   transform: translateY(-1px);
 }
+
 /* ============================================
    MOBILE HEADER
 ============================================ */
@@ -325,7 +326,9 @@ a { color: inherit; }
     -2px -2px 0 #000,
     2px -2px 0 #000,
     -2px 2px 0 #000,
-    2px 2px 0 #000;
+    2px 2px 0 #
+000,
+    0 0 22px rgba(249,115,22,0.9);
 }
 
 .burger {
@@ -640,7 +643,7 @@ h2 {
   transform: translateY(-1px);
 }
 
-/* ============================================
+/============================================
    XP LOG
 ============================================ */
 .xp-entry {
@@ -652,6 +655,7 @@ h2 {
 .xp-entry b {
   color: #facc15;
 }
+
 /* ============================================
    CHARACTER SELECT OVERLAY
 ============================================ */
@@ -908,8 +912,14 @@ h2 {
   <!-- STATUS -->
   <div id="status-section" class="card section">
     <h2>Status</h2>
+
+    <!-- Persönlicher Status -->
     <div id="userCard"></div>
-    <div id="levelBar" style="margin-top:10px;"></div>
+    <div id="levelBar" style="margin-top:10px;margin-bottom:25px;"></div>
+
+    <!-- Klassenbelohnung / Voting – neu hier -->
+    <h2 style="font-size:20px;margin-top:0;">Klassen-Belohnung</h2>
+    <div id="classChallenge"></div>
   </div>
 
   <!-- CHARAKTER -->
@@ -929,7 +939,7 @@ h2 {
     <div id="missionCarousel"></div>
   </div>
 
-    <!-- BELOHNUNGEN -->
+  <!-- BELOHNUNGEN -->
   <div id="belohnungen-section" class="card section" style="display:none;">
     <h2>Belohnungen</h2>
 
@@ -937,13 +947,8 @@ h2 {
     <div style="margin-bottom:16px;font-size:13px;opacity:0.85;">
       <b>Deine Bonuskarten</b> – Belohnungen, die du mit deinen persönlichen XP einlösen kannst.
     </div>
-    <div id="rewardCarousel"></div>
 
-    <!-- Klassen-Challenge -->
-    <div style="margin-top:24px;border-top:1px solid rgba(148,163,184,0.45);padding-top:16px;">
-      <h2 style="font-size:20px;margin:0 0 8px 0;">Klassen-Challenge</h2>
-      <div id="classChallenge"></div>
-    </div>
+    <div id="rewardCarousel"></div>
   </div>
 
   <!-- XP HISTORIE -->
@@ -952,7 +957,6 @@ h2 {
     <div id="xpLog"></div>
   </div>
 </div>
-
 <!-- CHARACTER SELECT OVERLAY -->
 <div id="characterOverlay" class="character-overlay">
   <div class="character-overlay-inner">
@@ -963,6 +967,7 @@ h2 {
     <div id="characterChoices" class="character-choice-grid"></div>
   </div>
 </div>
+
 <script>
 /* ============================================
    LOADING OVERLAY CONTROL – Optimiert
@@ -973,33 +978,27 @@ function hideLoader() {
 
   overlay.classList.add("hide");
 
-  // Overlay nach dem Fade-Out (0.8s) entfernen
   setTimeout(() => {
     overlay.style.display = "none";
   }, 900);
 }
 
-// Bild erst anzeigen, wenn es komplett geladen ist
 window.addEventListener("load", () => {
   const img = document.querySelector(".loading-image");
 
   if (!img) {
-    // fallback
     setTimeout(hideLoader, 5000);
     return;
   }
 
   img.onload = () => {
-    // 4 Sekunden sichtbar + ca. 0.8s fade-in + 0.8s fade-out
     const total = 4800; 
     setTimeout(hideLoader, total);
   };
 
-  // Falls das Bild aus dem Cache kommt → sofort triggern
   if (img.complete) img.onload();
 });
 
-// Fallback (falls ein Fetch sehr lange dauert)
 setTimeout(hideLoader, 7000);
 
 
@@ -1108,7 +1107,6 @@ async function loadMe() {
   const data = await r.json();
   const u = data.user;
 
-  // Statuskarte
   document.getElementById("userCard").innerHTML = `
     <div style="font-size:14px;line-height:1.6;">
       <b>Name:</b> ${u.name}<br>
@@ -1117,7 +1115,6 @@ async function loadMe() {
     </div>
   `;
 
-  // Sidebar Avatar
   const avatar = document.getElementById("sidebarAvatar");
   const initials = document.getElementById("sidebarInitials");
 
@@ -1135,7 +1132,6 @@ async function loadMe() {
       .toUpperCase();
   }
 
-  // Charakterbild
   if (data.character) {
     document.getElementById("characterInfo").innerHTML = `
       <img class="char-img" src="${data.character.image_url}">
@@ -1143,7 +1139,6 @@ async function loadMe() {
     `;
   }
 
-  // Traits + Items
   document.getElementById("traitsItemsCard").innerHTML = `
     <b>Eigenschaften:</b><br>
     ${data.traits.map(t => "• "+t).join("<br>")}<br><br>
@@ -1151,7 +1146,6 @@ async function loadMe() {
     ${data.items.map(i => "• "+i).join("<br>")}
   `;
 
-  // XP-Historie
   xpPerMission = data.xp_per_mission || {};
   const xpDiv = document.getElementById("xpLog");
   xpDiv.innerHTML = "";
@@ -1165,10 +1159,8 @@ async function loadMe() {
       </div>`;
   });
 
-  // Levelbar
   renderLevelBar(data.levels, u.xp);
 
-  // Charakterauswahl anzeigen, falls keiner gesetzt ist
   if (!data.character) {
     openCharacterOverlay();
   }
@@ -1214,6 +1206,7 @@ async function loadRewards() {
   const r = await fetch("/api/student/rewards");
   renderCarousel("rewardCarousel", await r.json(), "reward");
 }
+
 
 /* ============================================
    CAROUSEL
@@ -1292,7 +1285,7 @@ function nextSlide(id) {
 
 function prevSlide(id) {
   const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let idx = items.findIndex(i => i.classList.contains("active"));
+  let idx = items.findfindIndex(i => i.classList.contains("active"));
   items[idx].classList.remove("active");
   idx = (idx - 1 + items.length) % items.length;
   items[idx].classList.add("active");
@@ -1333,8 +1326,8 @@ async function uploadMission(id) {
   form.append("missionId", id);
 
   const r = await fetch("/api/student/uploadForMission", {
-    method:"POST",
-    body:form
+    method: "POST",
+    body: form
   });
   const data = await r.json();
 
@@ -1352,7 +1345,7 @@ async function uploadMission(id) {
 ============================================ */
 async function redeemReward(id) {
   const r = await fetch("/api/student/redeemReward", {
-    method:"POST",
+    method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ rewardId:id })
   });
@@ -1367,11 +1360,10 @@ async function redeemReward(id) {
     alert(data.message || "Fehler beim Einlösen.");
   }
 }
+
+
 /* ============================================
-   KLASSEN-CHALLENGE (Klassen-XP + Voting)
-   nutzt:
-   GET  /api/student/classProgress
-   POST /api/student/classVote
+   KLASSEN-CHALLENGE (Voting + Progress)
 ============================================ */
 async function loadClassProgress() {
   const box = document.getElementById("classChallenge");
@@ -1404,7 +1396,6 @@ async function loadClassProgress() {
       return;
     }
 
-    // Status-Text
     let statusText = "";
     if (round.status === "voting") {
       statusText = "Voting läuft – stimme für eure nächste Klassen-Belohnung ab!";
@@ -1416,13 +1407,11 @@ async function loadClassProgress() {
       statusText = `Status: ${round.status}`;
     }
 
-    // Map für Votes
     const voteMap = {};
     votes.forEach(v => {
       voteMap[v.reward_id] = v.votes;
     });
 
-    // ausgewählte Belohnung + benötigte XP, falls aktiv
     const selectedRewardId = round.selected_reward_id;
     const xpRequiredForActive = round.xp_required;
 
@@ -1442,7 +1431,6 @@ async function loadClassProgress() {
       const isMy      = myVote === rewardId;
       const isActive  = selectedRewardId === rewardId && (round.status === "active" || round.status === "completed");
 
-      // Fortschritt nur anzeigen, wenn diese Belohnung die aktive ist
       let progressBar = "";
       if (isActive && xpRequiredForActive > 0) {
         const pct = Math.min(100, Math.round((cls.total_xp / xpRequiredForActive) * 100));
@@ -1456,7 +1444,6 @@ async function loadClassProgress() {
         `;
       }
 
-      // Voting-Button nur im Status "voting"
       let voteBtn = "";
       if (round.status === "voting") {
         const disabled = isMy ? "disabled" : "";
@@ -1506,7 +1493,6 @@ async function loadClassProgress() {
     });
 
     cardsHtml += `</div>`;
-
     box.innerHTML = cardsHtml;
 
   } catch (err) {
@@ -1534,6 +1520,8 @@ async function voteClassReward(roundId, rewardId) {
     alert("Technischer Fehler bei der Abstimmung.");
   }
 }
+
+
 /* ============================================
    INIT
 ============================================ */
