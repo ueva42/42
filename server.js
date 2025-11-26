@@ -603,6 +603,7 @@ async function migrate() {
 }
 
 await migrate();
+
 // -------------------------------------------------------
 // AUTH
 // -------------------------------------------------------
@@ -1104,6 +1105,7 @@ app.post("/api/student/class-reward-vote", isStudent, async (req, res) => {
 
   res.json({ success: true });
 });
+
 // -------------------------------------------------------
 // ADMIN – Klassenfortschritt & Voting (altes System)
 // -------------------------------------------------------
@@ -1219,15 +1221,30 @@ app.get("/api/class/rewards", isAdmin, async (req, res) => {
   res.json(r.rows);
 });
 
-// Neue Klassenbelohnung anlegen
+// Neue Klassenbelohnung anlegen (robuster, kompatibler Handler)
 app.post("/api/class/rewards", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
-  const { name, xp, xpRequired, imageUrl } = req.body;
+  let { name, xp, xpRequired, xp_required, imageUrl } = req.body;
 
-  const xpVal = Number(xp ?? xpRequired);
-  if (!name || !xpVal) {
-    return res.json({ success: false, message: "name oder xp fehlt" });
+  // kleine Helper-Funktion: leere Strings ignorieren
+  const clean = val => {
+    if (val === undefined || val === null) return undefined;
+    if (typeof val === "string" && val.trim() === "") return undefined;
+    return val;
+  };
+
+  const rawXp = clean(xp) ?? clean(xpRequired) ?? clean(xp_required);
+  const xpVal = Number(rawXp);
+
+  if (!name || typeof name !== "string" || name.trim() === "") {
+    return res.json({ success: false, message: "name fehlt" });
   }
+
+  if (Number.isNaN(xpVal) || xpVal <= 0) {
+    return res.json({ success: false, message: "xp muss > 0 sein" });
+  }
+
+  name = name.trim();
 
   const ins = await pool.query(
     `
@@ -1663,6 +1680,7 @@ app.delete("/api/missions/:id", isAdmin, async (req, res) => {
 
   res.json({ success: true });
 });
+
 // -------------------------------------------------------
 // ADMIN – Bonuskarten
 // -------------------------------------------------------
