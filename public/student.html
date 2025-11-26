@@ -1362,7 +1362,7 @@ async function redeemReward(id) {
 }
 
 
-/* ============================================
+//* ============================================
    KLASSEN-CHALLENGE (Voting + Progress)
 ============================================ */
 async function loadClassProgress() {
@@ -1371,7 +1371,7 @@ async function loadClassProgress() {
   box.innerHTML = "<i>Lädt Klassen-Challenge …</i>";
 
   try {
-    const r = await fetch("/api/student/classProgress");
+    const r = await fetch("/api/student/class-progress");
     const data = await r.json();
 
     if (!data.success) {
@@ -1379,46 +1379,31 @@ async function loadClassProgress() {
       return;
     }
 
-    const cls    = data.class;
-    const round  = data.round;
-    const options = data.options || [];
-    const votes   = data.votes   || [];
-    const myVote  = data.myVote;
+    const cls = data.class;                     // { id }
+    const totalXP = data.total_xp;              // Klassen-XP summiert
+    const round = data.round;                   // letzte Runde
+    const options = data.options || [];         // Reward-Optionen
+    const myVote = data.my_vote_option_id;      // dein Vote (opt.id)
 
-    if (!round || !options.length) {
+    if (!round) {
       box.innerHTML = `
         <div style="font-size:13px;">
-          <b>Klasse ${cls.name}</b><br>
-          Aktuelle Klassen-XP: <b>${cls.total_xp}</b><br><br>
-          <i>Für deine Klasse läuft gerade keine Challenge.</i>
+          <b>Klassen-ID:</b> ${cls.id}<br>
+          <b>Klassen-XP gesamt:</b> ${totalXP}<br><br>
+          <i>Es läuft gerade keine Klassen-Challenge.</i>
         </div>
       `;
       return;
     }
 
-    let statusText = "";
-    if (round.status === "voting") {
-      statusText = "Voting läuft – stimme für eure nächste Klassen-Belohnung ab!";
-    } else if (round.status === "active") {
-      statusText = "Aktive Klassen-Belohnung – eure XP arbeiten auf dieses Ziel hin.";
-    } else if (round.status === "completed") {
-      statusText = "Letzte Klassen-Challenge ist abgeschlossen.";
-    } else {
-      statusText = `Status: ${round.status}`;
-    }
-
-    const voteMap = {};
-    votes.forEach(v => {
-      voteMap[v.reward_id] = v.votes;
-    });
-
-    const selectedRewardId = round.selected_reward_id;
-    const xpRequiredForActive = round.xp_required;
+    const statusText = round.is_active
+      ? "Voting läuft – stimme für eure Klassen-Belohnung ab!"
+      : "Voting abgeschlossen.";
 
     let cardsHtml = `
       <div style="font-size:13px;margin-bottom:10px;">
-        <b>Klasse:</b> ${cls.name}<br>
-        <b>Klassen-XP gesamt:</b> ${cls.total_xp}<br>
+        <b>Klassen-ID:</b> ${cls.id}<br>
+        <b>Klassen-XP gesamt:</b> ${totalXP}<br>
         <span style="opacity:0.8;">${statusText}</span>
       </div>
 
@@ -1426,46 +1411,24 @@ async function loadClassProgress() {
     `;
 
     options.forEach(opt => {
-      const rewardId  = opt.reward_id;
-      const votesFor  = voteMap[rewardId] || 0;
-      const isMy      = myVote === rewardId;
-      const isActive  = selectedRewardId === rewardId && (round.status === "active" || round.status === "completed");
-
-      let progressBar = "";
-      if (isActive && xpRequiredForActive > 0) {
-        const pct = Math.min(100, Math.round((cls.total_xp / xpRequiredForActive) * 100));
-        progressBar = `
-          <div style="margin-top:6px;">
-            <div style="font-size:11px;">Fortschritt zum Klassenziel: <b>${pct}%</b></div>
-            <div style="width:100%;height:10px;border-radius:999px;background:#020617;border:1px solid rgba(148,163,184,0.7);overflow:hidden;">
-              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#22c55e,#facc15,#f97316);"></div>
-            </div>
-          </div>
-        `;
-      }
+      const isMyVote = myVote === opt.id;
 
       let voteBtn = "";
-      if (round.status === "voting") {
-        const disabled = isMy ? "disabled" : "";
-        const label = isMy ? "Deine Stimme" : "Für diese Belohnung stimmen";
+      if (round.is_active) {
         voteBtn = `
           <button
             class="btn-primary"
             style="margin-top:8px;padding:6px 10px;font-size:11px;"
-            onclick="voteClassReward(${round.id},${rewardId})"
-            ${disabled}
+            onclick="voteClassReward(${round.id},${opt.id})"
+            ${isMyVote ? "disabled" : ""}
           >
-            ${label}
+            ${isMyVote ? "Deine Stimme" : "Abstimmen"}
           </button>
         `;
       }
 
-      const badgeMy = isMy
+      const mark = isMyVote
         ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #22c55e;background:rgba(34,197,94,0.15);color:#bbf7d0;display:inline-block;">Deine Wahl</div>`
-        : "";
-
-      const badgeActive = isActive
-        ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #facc15;background:rgba(250,204,21,0.15);color:#fef9c3;display:inline-block;">Aktive Belohnung</div>`
         : "";
 
       cardsHtml += `
@@ -1478,21 +1441,16 @@ async function loadClassProgress() {
           padding:10px 12px 12px 12px;
           font-size:13px;
         ">
-          ${opt.image_url ? `<img src="${opt.image_url}" alt="${opt.name}" style="width:100%;height:130px;object-fit:cover;border-radius:14px;margin-bottom:6px;box-shadow:0 0 0 3px #020617,0 0 0 4px #f97316,0 0 18px rgba(249,115,22,0.8);">` : ""}
+          ${opt.image_url ? `<img src="${opt.image_url}" style="width:100%;height:130px;object-fit:cover;border-radius:14px;margin-bottom:6px;">` : ""}
           <div style="font-weight:600;margin-bottom:2px;">${opt.name}</div>
-          <div style="font-size:12px;">Benötigte XP: <b>${opt.xp_required}</b></div>
-          <div style="font-size:11px;margin-top:2px;opacity:0.85;">Stimmen in deiner Klasse: <b>${votesFor}</b></div>
-          ${progressBar}
+          <div style="font-size:11px;margin-top:2px;opacity:0.85;">Stimmen insgesamt: <b>${opt.votes}</b></div>
           ${voteBtn}
-          <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
-            ${badgeMy}
-            ${badgeActive}
-          </div>
+          <div style="margin-top:4px;">${mark}</div>
         </div>
       `;
     });
 
-    cardsHtml += `</div>`;
+    cardsHtml += "</div>";
     box.innerHTML = cardsHtml;
 
   } catch (err) {
@@ -1501,26 +1459,27 @@ async function loadClassProgress() {
   }
 }
 
-async function voteClassReward(roundId, rewardId) {
+
+async function voteClassReward(roundId, optionId) {
   try {
-    const r = await fetch("/api/student/classVote", {
+    const r = await fetch("/api/student/class-reward-vote", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ roundId, rewardId })
+      body: JSON.stringify({ roundId, optionId })
     });
+
     const data = await r.json();
     if (!data.success) {
       alert(data.message || "Fehler bei der Abstimmung.");
       return;
     }
-    alert("Deine Stimme wurde gespeichert.");
+
     await loadClassProgress();
   } catch (err) {
     console.error(err);
     alert("Technischer Fehler bei der Abstimmung.");
   }
 }
-
 
 /* ============================================
    INIT
