@@ -384,7 +384,7 @@
         0 2px 8px rgba(0,0,0,0.9);
     }
 
-    /* Klassen-Challenge Progressbar */
+    /* Klassen-Fortschritt / Votingbar */
     .progress-outer {
       width: 100%;
       max-width: 420px;
@@ -540,10 +540,10 @@
     <span class="nav-label">XP-Verwaltung</span>
   </div>
 
-  <!-- NEU: Klassen-Fortschritt / Klassenbelohnungen -->
+  <!-- KLASSEN-FORTSCHRITT / VOTING -->
   <div class="nav-item" onclick="showTab('classProgressTab', event)">
     <svg viewBox="0 0 24 24"><path d="M4 20h3v-7H4v7zm6 0h3V4h-3v16zm6 0h3v-4h-3v4z"/></svg>
-    <span class="nav-label">Klassen-Fortschritt</span>
+    <span class="nav-label">Klassen-Voting</span>
   </div>
 
   <div class="nav-item" onclick="showTab('classTab', event)">
@@ -633,52 +633,61 @@
       </div>
     </div>
 
-    <!-- KLASSEN-FORTSCHRITT & KLASSENBELOHNUNGEN -->
+    <!-- KLASSEN-FORTSCHRITT & KLASSENBELOHNUNGEN (VOTING) -->
     <div id="classProgressTab" class="tab hidden">
       <div class="panel">
-        <h2>Klassen-Fortschritt & Klassenbelohnungen</h2>
+        <h2>Klassen-Fortschritt & Voting</h2>
         <div class="hint">
-          Hier siehst du die <b>gesamt gesammelten XP einer Klasse</b>, kannst eine
-          <b>Klassen-Challenge</b> starten/stoppen und die <b>Klassenbelohnungen</b> verwalten,
-          die später in der Schüler-Ansicht per Carousel zur Abstimmung stehen.
+          Du gibst für eine Klasse mehrere <b>Klassenbelohnungen</b> frei. Die Klasse stimmt in der Schüleransicht ab,
+          welche Belohnung sie möchte. Während die Klasse arbeitet, werden <b>XP gesammelt</b>; bei Erreichen der Ziel-XP
+          ist die gewählte Belohnung freigeschaltet.
         </div>
       </div>
 
       <div class="panel">
-        <h3>Aktuelle Klassen-Challenge</h3>
+        <h3>Aktuelle Voting-Runde</h3>
         <div style="margin-bottom:8px;">
           <label>Klasse:</label>
-          <select id="progressClassSelect" onchange="loadClassChallengeStatus()"></select>
+          <select id="progressClassSelect" onchange="loadAdminClassProgress()"></select>
         </div>
+
         <div id="classProgressInfo" class="hint">–</div>
 
         <div style="margin-top:12px;">
-          <h3>Neue Challenge starten</h3>
-          <div style="margin-bottom:4px;">
-            <label>Belohnung:</label>
-            <select id="classRewardSelect"></select>
-          </div>
-          <div>
-            <input id="classTargetXp" type="number" placeholder="Ziel-XP für Challenge" />
-            <button class="action" onclick="startClassChallenge()">Challenge starten</button>
-            <button class="delete" onclick="stopClassChallenge()">Challenge stoppen</button>
-          </div>
+          <h3>Neue Voting-Runde starten</h3>
+          <input id="classRoundTitle" placeholder="Titel (z.B. 'Belohnung bis Pfingsten')" />
+          <input id="classRoundTargetXp" type="number" placeholder="Ziel-XP für die Runde" />
+          <button class="action" onclick="startClassRewardRound()">Voting-Runde starten</button>
+          <button class="delete" onclick="stopClassRewardRound()">Voting stoppen</button>
           <div class="hint">
-            Idee: Klasse sammelt gemeinsame XP bis zum Ziel. Wenn der Balken voll ist, ist die Belohnung freigeschaltet.
+            Beim Start wird eine neue Runde für die gewählte Klasse angelegt. Alte Runden derselben Klasse werden automatisch geschlossen.
           </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Belohnungen in diese Runde aufnehmen</h3>
+        <div style="margin-bottom:6px;">
+          <label>Klassenbelohnung:</label>
+          <select id="classRewardSelect"></select>
+          <button class="action" onclick="addRewardOptionToRound()">Zur aktuellen Runde hinzufügen</button>
+        </div>
+        <div class="hint">
+          Wähle hier aus deinen angelegten <b>Klassenbelohnungen</b> (Kino, Frühstück, Spiele-Stunde …),
+          welche in der aktuellen Voting-Runde zur Auswahl stehen sollen.
         </div>
       </div>
 
       <div class="panel">
         <h3>Neue Klassenbelohnung anlegen</h3>
         <input id="classRewardName" placeholder="Name der Klassenbelohnung" />
-        <input id="classRewardXp" type="number" placeholder="XP-Kosten / XP-Wert" />
+        <input id="classRewardXp" type="number" placeholder="Empfohlene Ziel-XP" />
         <input type="file" id="classRewardImage" />
         <button class="action" onclick="uploadClassRewardImage()">Bild hochladen</button>
         <button class="action" onclick="addClassReward()">Speichern</button>
         <p class="hint">
           Beispiele: Kino-Nachmittag, Spiele-Stunde, Unterricht draußen, Klassenfrühstück …
-          Die Klasse stimmt später in der Schüleroberfläche ab, welche Belohnung sie anstrebt.
+          Diese Belohnungen kannst du anschließend in Voting-Runden verwenden.
         </p>
       </div>
 
@@ -1475,8 +1484,10 @@ async function changeAdminPassword() {
   }
 }
 
-/* ---------------------------- KLASSEN-FORTSCHRITT / KLASSENBELOHNUNGEN ---------------------------- */
+/* ---------------------------- KLASSEN-FORTSCHRITT / VOTING-RUNDEN ---------------------------- */
 let uploadedClassRewardImageUrl = null;
+let classRewardsCache = [];
+let currentRoundId = null;
 
 async function loadClassProgressInit() {
   // Klassen laden
@@ -1498,24 +1509,24 @@ async function loadClassProgressInit() {
   }
 
   await loadClassRewards();
-  await loadClassChallengeStatus();
+  await loadAdminClassProgress();
 }
 
-async function loadClassChallengeStatus() {
+async function loadAdminClassProgress() {
   const classId = document.getElementById("progressClassSelect").value;
+  const info = document.getElementById("classProgressInfo");
   if (!classId) {
-    document.getElementById("classProgressInfo").textContent = "Keine Klasse ausgewählt.";
+    if (info) info.textContent = "Keine Klasse ausgewählt.";
     return;
   }
 
   try {
-    const r = await fetch(`/api/class/progress/status?classId=${classId}`);
+    const r = await fetch(`/api/admin/class-progress?classId=${classId}`);
     const data = await r.json();
     renderClassProgressInfo(data);
   } catch (err) {
     console.error("Fehler beim Laden des Klassenfortschritts", err);
-    document.getElementById("classProgressInfo").textContent =
-      "Fehler beim Laden des Klassenfortschritts.";
+    if (info) info.textContent = "Fehler beim Laden des Klassenfortschritts.";
   }
 }
 
@@ -1525,32 +1536,87 @@ function renderClassProgressInfo(data) {
 
   const totalXp = data.total_xp ?? 0;
 
-  if (!data.challenge) {
+  // Wenn keine Voting-Runde existiert
+  if (!data.round) {
+    currentRoundId = null;
     info.innerHTML = `
-      <div>
+      <div style="font-size:13px;line-height:1.6;">
         <b>Gesamt-XP der Klasse:</b> ${totalXp}<br>
-        <span style="opacity:0.85;">Aktuell ist keine Klassen-Challenge aktiv.</span>
+        <span style="opacity:0.85;">Es ist momentan <b>keine Voting-Runde</b> aktiv. Lege unten eine neue Voting-Runde an und füge Belohnungen hinzu.</span>
       </div>
     `;
     return;
   }
 
-  const c = data.challenge;
-  const target = c.target_xp || 0;
-  const current = c.current_xp || 0;
+  const round = data.round;
+  currentRoundId = round.id;
+
+  const target = round.target_xp || 0;
+  const current = totalXp;
   const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+
+  const options = data.options || [];
+
+  const optionsHtml = options.length === 0
+    ? `<div class="hint" style="margin-top:6px;">Für diese Runde sind noch <b>keine Belohnungs-Optionen</b> hinterlegt. Wähle unten welche aus.</div>`
+    : `
+      <div style="margin-top:10px;">
+        <b>Optionen in dieser Voting-Runde:</b>
+        <table style="margin-top:4px;">
+          <thead>
+            <tr>
+              <th>Bild</th>
+              <th>Name</th>
+              <th>Stimmen</th>
+              <th>Gewinner</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${options.map(o => `
+              <tr>
+                <td>${o.image_url ? `<img class="thumb" src="${o.image_url}">` : "—"}</td>
+                <td>${o.name}</td>
+                <td>${o.votes}</td>
+                <td>${o.is_selected ? "✅" : ""}</td>
+                <td>
+                  <button class="action" onclick="fixClassRewardOption(${o.id})">
+                    Als Gewinner fixieren
+                  </button>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+  const statusText = round.fixed_option_id
+    ? `<span style="color:#4ade80;"><b>Gewinner ist festgelegt.</b></span>`
+    : round.is_active
+      ? `<span style="color:#facc15;"><b>Voting läuft noch.</b></span>`
+      : `<span style="color:#f97316;"><b>Voting gestoppt, aber kein Gewinner fixiert.</b></span>`;
+
+  const targetInfo = target > 0
+    ? `Ziel: ${target} XP &nbsp; | &nbsp; aktuell: ${current} XP`
+    : `Kein Ziel definiert (XP werden trotzdem gesammelt).`;
 
   info.innerHTML = `
     <div style="font-size:13px;line-height:1.6;">
       <b>Gesamt-XP der Klasse:</b> ${totalXp}<br>
-      <b>Aktive Challenge:</b> ${c.reward_name || "–"}<br>
-      <b>Ziel:</b> ${target} XP &nbsp; | &nbsp; <b>aktuell:</b> ${current} XP
+      <b>Voting-Runde:</b> ${round.title || "ohne Titel"}<br>
+      ${targetInfo}
       <div class="progress-outer">
         <div class="progress-inner" style="width:${pct}%"></div>
       </div>
       <div class="hint" style="margin-top:4px;">
-        Fortschritt: ${pct}% – wenn der Balken voll ist, hat die Klasse die Belohnung freigeschaltet.
+        Fortschritt: ${pct}% – sobald das Ziel erreicht ist, ist die aktuell gewählte Belohnung freigeschaltet.
       </div>
+      <div style="margin-top:6px;">
+        ${statusText}
+        ${round.hasReachedTarget ? `<br><span style="color:#4ade80;">Die Klasse hat die Ziel-XP erreicht.</span>` : ""}
+      </div>
+      ${optionsHtml}
     </div>
   `;
 }
@@ -1594,8 +1660,9 @@ async function addClassReward() {
 async function loadClassRewards() {
   const r = await fetch("/api/class/rewards");
   const rewards = await r.json();
+  classRewardsCache = rewards;
 
-  // Select für Challenge
+  // Select für Voting-Runden
   const sel = document.getElementById("classRewardSelect");
   sel.innerHTML = "";
   rewards.forEach(b => {
@@ -1625,32 +1692,73 @@ async function deleteClassReward(id) {
   await loadClassRewards();
 }
 
-async function startClassChallenge() {
+// Neue Voting-Runde starten
+async function startClassRewardRound() {
   const classId = document.getElementById("progressClassSelect").value;
-  const rewardId = document.getElementById("classRewardSelect").value;
-  const targetXp = Number(document.getElementById("classTargetXp").value);
-  if (!classId || !rewardId || !targetXp) return;
+  const title = document.getElementById("classRoundTitle").value.trim();
+  const targetXp = Number(document.getElementById("classRoundTargetXp").value);
+  if (!classId || !targetXp) return;
 
-  await fetch("/api/class/challenge/start", {
+  await fetch("/api/admin/class-reward-round", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ classId, rewardId, targetXp })
+    body: JSON.stringify({ classId, title, targetXp })
   });
 
-  await loadClassChallengeStatus();
+  document.getElementById("classRoundTitle").value = "";
+  document.getElementById("classRoundTargetXp").value = "";
+
+  await loadAdminClassProgress();
 }
 
-async function stopClassChallenge() {
-  const classId = document.getElementById("progressClassSelect").value;
-  if (!classId) return;
+// Voting stoppen
+async function stopClassRewardRound() {
+  if (!currentRoundId) return;
 
-  await fetch("/api/class/challenge/stop", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ classId })
+  await fetch(`/api/admin/class-reward-round/${currentRoundId}/stop`, {
+    method: "POST"
   });
 
-  await loadClassChallengeStatus();
+  await loadAdminClassProgress();
+}
+
+// Belohnung aus Pool in aktuelle Runde aufnehmen
+async function addRewardOptionToRound() {
+  if (!currentRoundId) {
+    alert("Es ist keine aktive Voting-Runde für diese Klasse angelegt.");
+    return;
+  }
+
+  const rewardId = document.getElementById("classRewardSelect").value;
+  if (!rewardId) return;
+
+  const reward = classRewardsCache.find(r => String(r.id) === String(rewardId));
+  if (!reward) return;
+
+  await fetch("/api/admin/class-reward-option", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      roundId: currentRoundId,
+      name: reward.name,
+      imageUrl: reward.image_url || null
+    })
+  });
+
+  await loadAdminClassProgress();
+}
+
+// Option als Gewinner fixieren
+async function fixClassRewardOption(optionId) {
+  if (!currentRoundId || !optionId) return;
+
+  await fetch(`/api/admin/class-reward-round/${currentRoundId}/fix`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ optionId })
+  });
+
+  await loadAdminClassProgress();
 }
 
 /* Default Ansicht */
