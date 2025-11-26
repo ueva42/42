@@ -165,7 +165,6 @@ async function getClassTotalXP(classId, schoolId) {
 
 // -------------------------------------------------------
 // Default-Daten pro Schule
-//  -> KEIN $1 mehr in den INSERTs, damit 42P02 nicht auftreten kann
 // -------------------------------------------------------
 async function seedSchoolDefaults(schoolId) {
   const sid = Number(schoolId);
@@ -395,11 +394,14 @@ async function migrate() {
 
   // ------------------------------------------
   // KLASSE-BELOHNUNGS-OPTIONEN (Voting)
+  //  -> jetzt mit reward_id, damit eine Klassenbelohnung
+  //     direkt an eine Voting-Option gebunden werden kann
   // ------------------------------------------
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_reward_options (
       id SERIAL PRIMARY KEY,
       round_id INTEGER,
+      reward_id INTEGER,
       name TEXT,
       image_url TEXT,
       created_at TIMESTAMP DEFAULT NOW()
@@ -407,6 +409,7 @@ async function migrate() {
   `);
 
   await ensureColumn("class_reward_options", "round_id", "INTEGER");
+  await ensureColumn("class_reward_options", "reward_id", "INTEGER");
   await ensureColumn("class_reward_options", "name", "TEXT");
   await ensureColumn("class_reward_options", "image_url", "TEXT");
 
@@ -638,7 +641,7 @@ app.post("/api/logout", (req, res) => {
 });
 
 // -------------------------------------------------------
-// ROLE GUARDS (nur EINMAL definiert!)
+// ROLE GUARDS
 // -------------------------------------------------------
 function isAdmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== "admin")
@@ -962,7 +965,7 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// STUDENT: Klassenfortschritt + Voting (altes System)
+// STUDENT: Klassenfortschritt + Voting
 // -------------------------------------------------------
 app.get("/api/student/class-progress", isStudent, async (req, res) => {
   const studentId = req.session.user.id;
@@ -1100,7 +1103,7 @@ app.post("/api/student/class-reward-vote", isStudent, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// ADMIN – Klassenfortschritt & Voting (altes System)
+// ADMIN – Klassenfortschritt & Voting
 // -------------------------------------------------------
 app.get("/api/admin/class-progress", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
@@ -1337,20 +1340,50 @@ app.post(
   }
 );
 
-// Option hinzufügen
+// Option hinzufügen – jetzt wahlweise mit rewardId oder mit Name/Bild
 app.post("/api/admin/class-reward-option", isAdmin, async (req, res) => {
-  const { roundId, name, imageUrl } = req.body;
+  const schoolId = req.session.user.school_id;
+  const { roundId, name, imageUrl, rewardId } = req.body;
 
   const rId = Number(roundId);
-  if (!rId || !name) {
-    return res.json({ success: false, message: "roundId oder name fehlt" });
+  const rewId = rewardId ? Number(rewardId) : null;
+
+  if (!rId) {
+    return res.json({ success: false, message: "roundId fehlt" });
+  }
+
+  let finalName = name || null;
+  let finalImageUrl = imageUrl || uploadedClassRewardImageUrl || null;
+  let finalRewardId = rewId;
+
+  // Falls rewardId gesetzt ist, Daten aus class_rewards übernehmen
+  if (rewId) {
+    const r = await pool.query(
+      "SELECT id,name,image_url FROM class_rewards WHERE id=$1 AND school_id=$2",
+      [rewId, schoolId]
+    );
+
+    if (!r.rows.length) {
+      return res.json({ success: false, message: "Klassenbelohnung nicht gefunden" });
+    }
+
+    finalRewardId = r.rows[0].id;
+    if (!finalName) finalName = r.rows[0].name;
+    if (!finalImageUrl) finalImageUrl = r.rows[0].image_url;
+  }
+
+  if (!finalName) {
+    return res.json({
+      success: false,
+      message: "name oder rewardId fehlt"
+    });
   }
 
   const ins = await pool.query(`
-    INSERT INTO class_reward_options (round_id,name,image_url)
-    VALUES ($1,$2,$3)
+    INSERT INTO class_reward_options (round_id,reward_id,name,image_url)
+    VALUES ($1,$2,$3,$4)
     RETURNING id
-  `, [rId, name, imageUrl || uploadedClassRewardImageUrl]);
+  `, [rId, finalRewardId, finalName, finalImageUrl]);
 
   uploadedClassRewardImageUrl = null;
 
