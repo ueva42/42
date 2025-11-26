@@ -392,42 +392,6 @@ async function migrate() {
   await ensureColumn("class_reward_rounds", "is_active", "BOOLEAN DEFAULT TRUE");
   await ensureColumn("class_reward_rounds", "title", "TEXT");
 
-// ------------------------------------------
-// FIX: Veraltete reward_id-Spalte entfernen
-// ------------------------------------------
-await pool.query(`
-  DO $$
-  BEGIN
-    IF EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_name='class_reward_options'
-        AND column_name='reward_id'
-    ) THEN
-      ALTER TABLE class_reward_options DROP COLUMN reward_id;
-    END IF;
-  END$$;
-`);
-
-await pool.query(`
-  DO $$
-  BEGIN
-    IF EXISTS (
-      SELECT 1
-      FROM information_schema.table_constraints
-      WHERE table_name='class_reward_options'
-        AND constraint_name LIKE '%reward_id%'
-    ) THEN
-      ALTER TABLE class_reward_options DROP CONSTRAINT 
-        (SELECT constraint_name 
-         FROM information_schema.table_constraints
-         WHERE table_name='class_reward_options'
-           AND constraint_name LIKE '%reward_id%' LIMIT 1);
-    END IF;
-  END$$;
-`);
-
-
   // ------------------------------------------
   // KLASSE-BELOHNUNGS-OPTIONEN (Voting)
   //  -> jetzt mit reward_id, damit eine Klassenbelohnung
@@ -448,6 +412,27 @@ await pool.query(`
   await ensureColumn("class_reward_options", "reward_id", "INTEGER");
   await ensureColumn("class_reward_options", "name", "TEXT");
   await ensureColumn("class_reward_options", "image_url", "TEXT");
+
+  // WICHTIG: reward_id darf NULL sein (sonst crash bei freien Optionen)
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name='class_reward_options'
+          AND column_name='reward_id'
+      ) THEN
+        BEGIN
+          ALTER TABLE class_reward_options
+          ALTER COLUMN reward_id DROP NOT NULL;
+        EXCEPTION WHEN others THEN
+          -- falls kein NOT NULL gesetzt ist, einfach ignorieren
+          NULL;
+        END;
+      END IF;
+    END$$;
+  `);
 
   // ------------------------------------------
   // STIMMEN FÜR VOTING
