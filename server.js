@@ -2152,7 +2152,7 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 
     if (r.rows.length && r.rows[0].image_url) {
       const prefix = (process.env.R2_PUBLIC_URL || "") + "/";
-      const key = r.rows[0].image_url.replace(prefix, "";
+      const key = r.rows[0].image_url.replace(prefix, "");
 
       try {
         await r2.send(
