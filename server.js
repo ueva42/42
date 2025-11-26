@@ -413,27 +413,6 @@ async function migrate() {
   await ensureColumn("class_reward_options", "name", "TEXT");
   await ensureColumn("class_reward_options", "image_url", "TEXT");
 
-  // WICHTIG: reward_id darf NULL sein (sonst crash bei freien Optionen)
-  await pool.query(`
-    DO $$
-    BEGIN
-      IF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_name='class_reward_options'
-          AND column_name='reward_id'
-      ) THEN
-        BEGIN
-          ALTER TABLE class_reward_options
-          ALTER COLUMN reward_id DROP NOT NULL;
-        EXCEPTION WHEN others THEN
-          -- falls kein NOT NULL gesetzt ist, einfach ignorieren
-          NULL;
-        END;
-      END IF;
-    END$$;
-  `);
-
   // ------------------------------------------
   // STIMMEN FÜR VOTING
   // ------------------------------------------
