@@ -347,7 +347,7 @@ async function migrate() {
   await ensureColumn("levels", "school_id", "INTEGER");
 
   // ---------------------------
-  // NEU: Klassen-Belohnungs-Runden (altes Voting-System, lassen wir drin)
+  // NEU: Klassen-Belohnungs-Runden (altes Voting-System)
   // ---------------------------
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_reward_rounds (
@@ -362,6 +362,8 @@ async function migrate() {
     )
   `);
   await ensureColumn("class_reward_rounds", "school_id", "INTEGER");
+  // 🔧 WICHTIG: falls die Spalte in einer alten DB noch fehlt:
+  await ensureColumn("class_reward_rounds", "is_active", "BOOLEAN NOT NULL DEFAULT TRUE");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_reward_options (
@@ -400,7 +402,7 @@ async function migrate() {
   `);
 
   // ---------------------------
-  // NEU: Klassen-Challenges (für /api/class/progress/status & /api/class/challenge/*)
+  // NEU: Klassen-Challenges
   // ---------------------------
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_challenges (
@@ -415,7 +417,6 @@ async function migrate() {
   await ensureColumn("class_challenges", "school_id", "INTEGER");
 
   // -------- LEVEL-CONSTRAINT FIX --------
-  // Alte Unique-Constraint nur auf min_xp weg, neue auf (school_id,min_xp)
   await pool.query(`
     DO $$
     BEGIN
@@ -446,6 +447,7 @@ async function migrate() {
   // ---------------------------
   // DUPLIKATE USERS BEREINIGEN
   // ---------------------------
+
   // 1) wenn school_id schon gesetzt: (name, school_id)
   await pool.query(`
     DELETE FROM users u
