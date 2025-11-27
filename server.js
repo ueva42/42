@@ -2280,6 +2280,40 @@ app.get("/superadmin", isSuperadmin, (req, res) => {
 app.get("/character-select", isStudent, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "character-select.html"));
 });
+// -------------------------------------------------------
+// TEMPORÄRE REPAIR ROUTE (einmal ausführen, dann löschen!)
+// -------------------------------------------------------
+app.get("/repair-voting", async (req, res) => {
+  try {
+    // Spalte reward_id hinzufügen (falls noch nicht existiert)
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name='class_reward_votes'
+          AND column_name='reward_id'
+        ) THEN
+          ALTER TABLE class_reward_votes ADD COLUMN reward_id INTEGER;
+        END IF;
+      END$$;
+    `);
+
+    // reward_id anhand der Options-Tabelle setzen
+    await pool.query(`
+      UPDATE class_reward_votes v
+      SET reward_id = o.reward_id
+      FROM class_reward_options o
+      WHERE v.option_id = o.id AND v.reward_id IS NULL;
+    `);
+
+    res.send("Repair erfolgreich! Du kannst die Seite wieder schließen.");
+  } catch (err) {
+    console.error("Repair error:", err);
+    res.status(500).send("Repair fehlgeschlagen");
+  }
+});
 
 // -------------------------------------------------------
 // START SERVER
