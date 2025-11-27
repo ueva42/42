@@ -326,8 +326,7 @@ a { color: inherit; }
     -2px -2px 0 #000,
     2px -2px 0 #000,
     -2px 2px 0 #000,
-    2px 2px 0 #
-000,
+    2px 2px 0 #000,
     0 0 22px rgba(249,115,22,0.9);
 }
 
@@ -643,7 +642,7 @@ h2 {
   transform: translateY(-1px);
 }
 
-/============================================
+/* ============================================
    XP LOG
 ============================================ */
 .xp-entry {
@@ -957,6 +956,7 @@ h2 {
     <div id="xpLog"></div>
   </div>
 </div>
+
 <!-- CHARACTER SELECT OVERLAY -->
 <div id="characterOverlay" class="character-overlay">
   <div class="character-overlay-inner">
@@ -1181,7 +1181,9 @@ function renderLevelBar(levels, xp) {
 
     const min = levels[i].min_xp;
     const next = levels[i+1]?.min_xp || min;
-    let pct = xp >= min ? Math.min(100, ((xp - min)/(next - min))*100) : 0;
+    let pct = xp >= min && next > min
+      ? Math.min(100, ((xp - min)/(next - min))*100)
+      : (xp >= min ? 100 : 0);
 
     html += `
       <div class="level-step">
@@ -1285,7 +1287,7 @@ function nextSlide(id) {
 
 function prevSlide(id) {
   const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let idx = items.findfindIndex(i => i.classList.contains("active"));
+  let idx = items.findIndex(i => i.classList.contains("active"));
   items[idx].classList.remove("active");
   idx = (idx - 1 + items.length) % items.length;
   items[idx].classList.add("active");
@@ -1361,8 +1363,7 @@ async function redeemReward(id) {
   }
 }
 
-
-//* ============================================
+/* ============================================
    KLASSEN-CHALLENGE (Voting + Progress)
 ============================================ */
 async function loadClassProgress() {
@@ -1458,7 +1459,6 @@ async function loadClassProgress() {
     box.innerHTML = "<i>Fehler beim Laden der Klassen-Challenge.</i>";
   }
 }
-
 
 async function voteClassReward(roundId, optionId) {
   try {
