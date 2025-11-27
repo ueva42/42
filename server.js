@@ -394,8 +394,7 @@ async function migrate() {
 
   // ------------------------------------------
   // KLASSE-BELOHNUNGS-OPTIONEN (Voting)
-  //  -> jetzt mit reward_id, damit eine Klassenbelohnung
-  //     direkt an eine Voting-Option gebunden werden kann
+  // Variante A: jede Option MUSS an eine class_reward gebunden sein
   // ------------------------------------------
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_reward_options (
@@ -412,6 +411,57 @@ async function migrate() {
   await ensureColumn("class_reward_options", "reward_id", "INTEGER");
   await ensureColumn("class_reward_options", "name", "TEXT");
   await ensureColumn("class_reward_options", "image_url", "TEXT");
+
+  // Alle alten, kaputten Optionen ohne reward_id löschen (Variante A verlangt immer reward_id)
+  await pool.query(`
+    DELETE FROM class_reward_options
+    WHERE reward_id IS NULL;
+  `);
+
+  // reward_id & name NOT NULL erzwingen, falls noch nullable
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name='class_reward_options'
+          AND column_name='reward_id'
+          AND is_nullable='YES'
+      ) THEN
+        ALTER TABLE class_reward_options
+        ALTER COLUMN reward_id SET NOT NULL;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name='class_reward_options'
+          AND column_name='name'
+          AND is_nullable='YES'
+      ) THEN
+        ALTER TABLE class_reward_options
+        ALTER COLUMN name SET NOT NULL;
+      END IF;
+    END$$;
+  `);
+
+  // Foreign Key von class_reward_options.reward_id -> class_rewards.id
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name='class_reward_options'
+          AND constraint_name='class_reward_options_reward_fk'
+      ) THEN
+        ALTER TABLE class_reward_options
+        ADD CONSTRAINT class_reward_options_reward_fk
+        FOREIGN KEY (reward_id) REFERENCES class_rewards(id) ON DELETE CASCADE;
+      END IF;
+    END$$;
+  `);
 
   // ------------------------------------------
   // STIMMEN FÜR VOTING
@@ -1241,8 +1291,11 @@ app.post("/api/class/rewards", isAdmin, async (req, res) => {
     VALUES ($1,$2,$3,$4)
     RETURNING id
     `,
-    [name, xpVal, imageUrl || null, schoolId]
+    [name, xpVal, imageUrl || uploadedClassRewardImageUrl || null, schoolId]
   );
+
+  // Upload-Puffer leeren
+  uploadedClassRewardImageUrl = null;
 
   res.json({ success: true, id: ins.rows[0].id });
 });
@@ -1315,7 +1368,7 @@ app.delete("/api/class/rewards/:id", isAdmin, async (req, res) => {
   }
 });
 
-// Upload für Voting-Option
+// Upload für Voting-Option (wird bei Variante A praktisch nicht mehr gebraucht, bleibt aber harmlos stehen)
 app.post(
   "/api/admin/class-reward-option/upload",
   isAdmin,
@@ -1340,53 +1393,47 @@ app.post(
   }
 );
 
-// Option hinzufügen – jetzt wahlweise mit rewardId oder mit Name/Bild
+// Option hinzufügen – Variante A: IMMER an class_rewards gebunden
 app.post("/api/admin/class-reward-option", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
-  const { roundId, name, imageUrl, rewardId } = req.body;
+  const { roundId, rewardId } = req.body;
 
   const rId = Number(roundId);
-  const rewId = rewardId ? Number(rewardId) : null;
+  const rewId = Number(rewardId);
 
-  if (!rId) {
-    return res.json({ success: false, message: "roundId fehlt" });
-  }
-
-  let finalName = name || null;
-  let finalImageUrl = imageUrl || uploadedClassRewardImageUrl || null;
-  let finalRewardId = rewId;
-
-  // Falls rewardId gesetzt ist, Daten aus class_rewards übernehmen
-  if (rewId) {
-    const r = await pool.query(
-      "SELECT id,name,image_url FROM class_rewards WHERE id=$1 AND school_id=$2",
-      [rewId, schoolId]
-    );
-
-    if (!r.rows.length) {
-      return res.json({ success: false, message: "Klassenbelohnung nicht gefunden" });
-    }
-
-    finalRewardId = r.rows[0].id;
-    if (!finalName) finalName = r.rows[0].name;
-    if (!finalImageUrl) finalImageUrl = r.rows[0].image_url;
-  }
-
-  if (!finalName) {
+  if (!rId || !rewId) {
     return res.json({
       success: false,
-      message: "name oder rewardId fehlt"
+      message: "roundId oder rewardId fehlt"
     });
   }
+
+  // Reward aus class_rewards holen (Name + Bild kommen von dort)
+  const r = await pool.query(
+    `
+    SELECT id,name,image_url
+    FROM class_rewards
+    WHERE id=$1 AND school_id=$2
+  `,
+    [rewId, schoolId]
+  );
+
+  if (!r.rows.length) {
+    return res.json({
+      success: false,
+      message: "Klassenbelohnung nicht gefunden"
+    });
+  }
+
+  const reward = r.rows[0];
 
   const ins = await pool.query(`
     INSERT INTO class_reward_options (round_id,reward_id,name,image_url)
     VALUES ($1,$2,$3,$4)
     RETURNING id
-  `, [rId, finalRewardId, finalName, finalImageUrl]);
+  `, [rId, reward.id, reward.name, reward.image_url]);
 
-  uploadedClassRewardImageUrl = null;
-
+  // Etwaige Upload-Puffer sind hier egal, werden nicht benutzt
   res.json({ success: true, optionId: ins.rows[0].id });
 });
 
