@@ -1502,12 +1502,13 @@ async function loadClassProgress() {
   }
 }
 
-async function voteClassReward(roundId, optionId) {
+async function voteClassReward(roundId, rewardId)
+ {
   try {
     const r = await fetch("/api/student/classVote", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ roundId, optionId })
+      body: JSON.stringify({ roundId, rewardId })
     });
     const data = await r.json();
     if (!data.success) {
