@@ -1495,6 +1495,12 @@ async function loadClassProgress() {
 }
 
 async function voteClassReward(roundId, optionId) {
+  // Prevent double clicks
+  const already = document.querySelector('button.btn-primary[disabled]');
+  if (already) {
+    alert("Du hast bereits abgestimmt.");
+    return;
+  }
   try {
     const r = await fetch("/api/student/classVote", {
       method: "POST",
