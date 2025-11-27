@@ -326,8 +326,7 @@ a { color: inherit; }
     -2px -2px 0 #000,
     2px -2px 0 #000,
     -2px 2px 0 #000,
-    2px 2px 0 #
-000,
+    2px 2px 0 #000,
     0 0 22px rgba(249,115,22,0.9);
 }
 
@@ -643,7 +642,7 @@ h2 {
   transform: translateY(-1px);
 }
 
-/============================================
+/* ============================================
    XP LOG
 ============================================ */
 .xp-entry {
@@ -957,6 +956,7 @@ h2 {
     <div id="xpLog"></div>
   </div>
 </div>
+
 <!-- CHARACTER SELECT OVERLAY -->
 <div id="characterOverlay" class="character-overlay">
   <div class="character-overlay-inner">
@@ -1285,7 +1285,7 @@ function nextSlide(id) {
 
 function prevSlide(id) {
   const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let idx = items.findfindIndex(i => i.classList.contains("active"));
+  let idx = items.findIndex(i => i.classList.contains("active"));
   items[idx].classList.remove("active");
   idx = (idx - 1 + items.length) % items.length;
   items[idx].classList.add("active");
