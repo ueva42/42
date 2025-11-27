@@ -1,4 +1,4 @@
-// =======================================================
+den gesamten fertigen student.html + server.js komplett student.html hast du hier der aktuelle server.js: // =======================================================
 // Temple of Logic – SERVER.JS (MULTI-SCHOOL + SUPERADMIN,
 // Klassen-XP + Klassenbelohnungen, ADMIN-PASSWORTWECHSEL + DEFAULT-SEED)
 // =======================================================
@@ -1144,7 +1144,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
   }
 });
 
-// Stimme für eine Klassenbelohnung abgeben
+// Stimme für eine Klassenbelohnung abgeben (fix: optionId + rewardId speichern)
 app.post("/api/student/classVote", isStudent, async (req, res) => {
   try {
     const user = req.session.user;
@@ -1152,9 +1152,7 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Nicht eingeloggt." });
     }
 
-    // WICHTIG: jetzt optionId statt rewardId
     const { roundId, optionId } = req.body;
-
     const rId = Number(roundId);
     const optId = Number(optionId);
 
@@ -1177,15 +1175,18 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
 
     const round = roundRes.rows[0];
 
-    // Voting nicht möglich, wenn schon gesetzt
+    // Voting geschlossen?
     if (round.fixed_option_id) {
-      return res.json({ success: false, message: "Voting ist bereits beendet." });
+      return res.json({
+        success: false,
+        message: "Voting ist bereits beendet."
+      });
     }
 
-    // Prüfen, ob Option existiert und zu dieser Runde gehört
+    // Option validieren + reward_id holen
     const optRes = await pool.query(
       `
-      SELECT id
+      SELECT id, reward_id
       FROM class_reward_options
       WHERE id=$1 AND round_id=$2
       LIMIT 1
@@ -1200,23 +1201,24 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       });
     }
 
+    const rewardId = optRes.rows[0].reward_id; // WICHTIG: reward_id aus DB holen
+
     // alte Stimme löschen
     await pool.query(
       "DELETE FROM class_reward_votes WHERE round_id=$1 AND student_id=$2",
       [rId, user.id]
     );
 
-    // neue Stimme eintragen
+    // neue Stimme eintragen → jetzt MIT reward_id
     await pool.query(
       `
-      INSERT INTO class_reward_votes (round_id, student_id, option_id)
-      VALUES ($1, $2, $3)
+      INSERT INTO class_reward_votes (round_id, student_id, option_id, reward_id)
+      VALUES ($1, $2, $3, $4)
       `,
-      [rId, user.id, optId]
+      [rId, user.id, optId, rewardId]
     );
 
     return res.json({ success: true });
-
   } catch (err) {
     console.error("❌ /api/student/classVote ERROR:", err);
     return res.json({
