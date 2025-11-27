@@ -1011,23 +1011,6 @@ app.get("/api/student/class-progress", isStudent, async (req, res) => {
 
   const round = roundRes.rows[0];
 
-  // FIX: alte Runden ohne school_id/class_id korrigieren
-  if (!round.school_id) {
-    await pool.query(
-      "UPDATE class_reward_rounds SET school_id=$1 WHERE id=$2",
-      [schoolId, round.id]
-    );
-    round.school_id = schoolId;
-  }
-
-  if (!round.class_id) {
-    await pool.query(
-      "UPDATE class_reward_rounds SET class_id=$1 WHERE id=$2",
-      [classId, round.id]
-    );
-    round.class_id = classId;
-  }
-
   const optRes = await pool.query(
     `
     SELECT o.id,o.name,o.image_url,
@@ -1097,15 +1080,6 @@ app.post("/api/student/class-reward-vote", isStudent, async (req, res) => {
     return res.json({ success: false, message: "Runde nicht gefunden" });
 
   const round = roundRes.rows[0];
-
-  // FIX: alte Runden ohne school_id korrigieren
-  if (!round.school_id) {
-    await pool.query(
-      "UPDATE class_reward_rounds SET school_id=$1 WHERE id=$2",
-      [schoolId, rId]
-    );
-    round.school_id = schoolId;
-  }
 
   if (round.school_id !== schoolId)
     return res.json({ success: false, message: "Kein Zugriff auf diese Runde" });
