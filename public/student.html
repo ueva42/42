@@ -326,7 +326,8 @@ a { color: inherit; }
     -2px -2px 0 #000,
     2px -2px 0 #000,
     -2px 2px 0 #000,
-    2px 2px 0 #000,
+    2px 2px 0 #
+000,
     0 0 22px rgba(249,115,22,0.9);
 }
 
@@ -642,7 +643,7 @@ h2 {
   transform: translateY(-1px);
 }
 
-/* ============================================
+/============================================
    XP LOG
 ============================================ */
 .xp-entry {
@@ -956,7 +957,6 @@ h2 {
     <div id="xpLog"></div>
   </div>
 </div>
-
 <!-- CHARACTER SELECT OVERLAY -->
 <div id="characterOverlay" class="character-overlay">
   <div class="character-overlay-inner">
@@ -1181,9 +1181,7 @@ function renderLevelBar(levels, xp) {
 
     const min = levels[i].min_xp;
     const next = levels[i+1]?.min_xp || min;
-    let pct = xp >= min && next > min
-      ? Math.min(100, ((xp - min)/(next - min))*100)
-      : (xp >= min ? 100 : 0);
+    let pct = xp >= min ? Math.min(100, ((xp - min)/(next - min))*100) : 0;
 
     html += `
       <div class="level-step">
@@ -1287,7 +1285,7 @@ function nextSlide(id) {
 
 function prevSlide(id) {
   const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let idx = items.findIndex(i => i.classList.contains("active"));
+  let idx = items.findfindIndex(i => i.classList.contains("active"));
   items[idx].classList.remove("active");
   idx = (idx - 1 + items.length) % items.length;
   items[idx].classList.add("active");
@@ -1363,6 +1361,7 @@ async function redeemReward(id) {
   }
 }
 
+
 /* ============================================
    KLASSEN-CHALLENGE (Voting + Progress)
 ============================================ */
@@ -1372,7 +1371,7 @@ async function loadClassProgress() {
   box.innerHTML = "<i>Lädt Klassen-Challenge …</i>";
 
   try {
-    const r = await fetch("/api/student/class-progress");
+    const r = await fetch("/api/student/classProgress");
     const data = await r.json();
 
     if (!data.success) {
@@ -1380,31 +1379,46 @@ async function loadClassProgress() {
       return;
     }
 
-    const cls = data.class;                     // { id }
-    const totalXP = data.total_xp;              // Klassen-XP summiert
-    const round = data.round;                   // letzte Runde
-    const options = data.options || [];         // Reward-Optionen
-    const myVote = data.my_vote_option_id;      // dein Vote (opt.id)
+    const cls    = data.class;
+    const round  = data.round;
+    const options = data.options || [];
+    const votes   = data.votes   || [];
+    const myVote  = data.myVote;
 
-    if (!round) {
+    if (!round || !options.length) {
       box.innerHTML = `
         <div style="font-size:13px;">
-          <b>Klassen-ID:</b> ${cls.id}<br>
-          <b>Klassen-XP gesamt:</b> ${totalXP}<br><br>
-          <i>Es läuft gerade keine Klassen-Challenge.</i>
+          <b>Klasse ${cls.name}</b><br>
+          Aktuelle Klassen-XP: <b>${cls.total_xp}</b><br><br>
+          <i>Für deine Klasse läuft gerade keine Challenge.</i>
         </div>
       `;
       return;
     }
 
-    const statusText = round.is_active
-      ? "Voting läuft – stimme für eure Klassen-Belohnung ab!"
-      : "Voting abgeschlossen.";
+    let statusText = "";
+    if (round.status === "voting") {
+      statusText = "Voting läuft – stimme für eure nächste Klassen-Belohnung ab!";
+    } else if (round.status === "active") {
+      statusText = "Aktive Klassen-Belohnung – eure XP arbeiten auf dieses Ziel hin.";
+    } else if (round.status === "completed") {
+      statusText = "Letzte Klassen-Challenge ist abgeschlossen.";
+    } else {
+      statusText = `Status: ${round.status}`;
+    }
+
+    const voteMap = {};
+    votes.forEach(v => {
+      voteMap[v.reward_id] = v.votes;
+    });
+
+    const selectedRewardId = round.selected_reward_id;
+    const xpRequiredForActive = round.xp_required;
 
     let cardsHtml = `
       <div style="font-size:13px;margin-bottom:10px;">
-        <b>Klassen-ID:</b> ${cls.id}<br>
-        <b>Klassen-XP gesamt:</b> ${totalXP}<br>
+        <b>Klasse:</b> ${cls.name}<br>
+        <b>Klassen-XP gesamt:</b> ${cls.total_xp}<br>
         <span style="opacity:0.8;">${statusText}</span>
       </div>
 
@@ -1412,24 +1426,46 @@ async function loadClassProgress() {
     `;
 
     options.forEach(opt => {
-      const isMyVote = myVote === opt.id;
+      const rewardId  = opt.reward_id;
+      const votesFor  = voteMap[rewardId] || 0;
+      const isMy      = myVote === rewardId;
+      const isActive  = selectedRewardId === rewardId && (round.status === "active" || round.status === "completed");
+
+      let progressBar = "";
+      if (isActive && xpRequiredForActive > 0) {
+        const pct = Math.min(100, Math.round((cls.total_xp / xpRequiredForActive) * 100));
+        progressBar = `
+          <div style="margin-top:6px;">
+            <div style="font-size:11px;">Fortschritt zum Klassenziel: <b>${pct}%</b></div>
+            <div style="width:100%;height:10px;border-radius:999px;background:#020617;border:1px solid rgba(148,163,184,0.7);overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#22c55e,#facc15,#f97316);"></div>
+            </div>
+          </div>
+        `;
+      }
 
       let voteBtn = "";
-      if (round.is_active) {
+      if (round.status === "voting") {
+        const disabled = isMy ? "disabled" : "";
+        const label = isMy ? "Deine Stimme" : "Für diese Belohnung stimmen";
         voteBtn = `
           <button
             class="btn-primary"
             style="margin-top:8px;padding:6px 10px;font-size:11px;"
-            onclick="voteClassReward(${round.id},${opt.id})"
-            ${isMyVote ? "disabled" : ""}
+            onclick="voteClassReward(${round.id},${rewardId})"
+            ${disabled}
           >
-            ${isMyVote ? "Deine Stimme" : "Abstimmen"}
+            ${label}
           </button>
         `;
       }
 
-      const mark = isMyVote
+      const badgeMy = isMy
         ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #22c55e;background:rgba(34,197,94,0.15);color:#bbf7d0;display:inline-block;">Deine Wahl</div>`
+        : "";
+
+      const badgeActive = isActive
+        ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #facc15;background:rgba(250,204,21,0.15);color:#fef9c3;display:inline-block;">Aktive Belohnung</div>`
         : "";
 
       cardsHtml += `
@@ -1442,16 +1478,21 @@ async function loadClassProgress() {
           padding:10px 12px 12px 12px;
           font-size:13px;
         ">
-          ${opt.image_url ? `<img src="${opt.image_url}" style="width:100%;height:130px;object-fit:cover;border-radius:14px;margin-bottom:6px;">` : ""}
+          ${opt.image_url ? `<img src="${opt.image_url}" alt="${opt.name}" style="width:100%;height:130px;object-fit:cover;border-radius:14px;margin-bottom:6px;box-shadow:0 0 0 3px #020617,0 0 0 4px #f97316,0 0 18px rgba(249,115,22,0.8);">` : ""}
           <div style="font-weight:600;margin-bottom:2px;">${opt.name}</div>
-          <div style="font-size:11px;margin-top:2px;opacity:0.85;">Stimmen insgesamt: <b>${opt.votes}</b></div>
+          <div style="font-size:12px;">Benötigte XP: <b>${opt.xp_required}</b></div>
+          <div style="font-size:11px;margin-top:2px;opacity:0.85;">Stimmen in deiner Klasse: <b>${votesFor}</b></div>
+          ${progressBar}
           ${voteBtn}
-          <div style="margin-top:4px;">${mark}</div>
+          <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+            ${badgeMy}
+            ${badgeActive}
+          </div>
         </div>
       `;
     });
 
-    cardsHtml += "</div>";
+    cardsHtml += `</div>`;
     box.innerHTML = cardsHtml;
 
   } catch (err) {
@@ -1460,26 +1501,26 @@ async function loadClassProgress() {
   }
 }
 
-async function voteClassReward(roundId, optionId) {
+async function voteClassReward(roundId, rewardId) {
   try {
-    const r = await fetch("/api/student/class-reward-vote", {
+    const r = await fetch("/api/student/classVote", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ roundId, optionId })
+      body: JSON.stringify({ roundId, rewardId })
     });
-
     const data = await r.json();
     if (!data.success) {
       alert(data.message || "Fehler bei der Abstimmung.");
       return;
     }
-
+    alert("Deine Stimme wurde gespeichert.");
     await loadClassProgress();
   } catch (err) {
     console.error(err);
     alert("Technischer Fehler bei der Abstimmung.");
   }
 }
+
 
 /* ============================================
    INIT
