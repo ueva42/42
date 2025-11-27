@@ -2280,41 +2280,6 @@ app.get("/superadmin", isSuperadmin, (req, res) => {
 app.get("/character-select", isStudent, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "character-select.html"));
 });
-// ============================================
-// ONE-TIME REPAIR: remove invalid reward_id from class_reward_votes
-// ============================================
-
-app.get("/__repair_votes_once", async (req, res) => {
-  try {
-    console.log("🛠️ Running one-time repair...");
-
-    // 1. Check ob Spalte reward_id existiert
-    const colCheck = await pool.query(`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_name='class_reward_votes'
-        AND column_name='reward_id'
-    `);
-
-    if (colCheck.rows.length > 0) {
-      console.log("➡️ Dropping column reward_id...");
-      await pool.query(`ALTER TABLE class_reward_votes DROP COLUMN reward_id`);
-    }
-
-    // 2. Kaputte Zeilen löschen (die NULL enthalten)
-    await pool.query(`
-      DELETE FROM class_reward_votes
-      WHERE option_id IS NULL OR round_id IS NULL OR student_id IS NULL
-    `);
-
-    console.log("✔️ Repair complete.");
-    res.send("Repair erfolgreich: reward_id entfernt & kaputte Votes gelöscht.");
-  } catch (err) {
-    console.error("Repair failed", err);
-    res.status(500).send("Repair fehlgeschlagen.");
-  }
-});
-
 
 // -------------------------------------------------------
 // START SERVER
