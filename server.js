@@ -1,4 +1,4 @@
-den gesamten fertigen student.html + server.js komplett student.html hast du hier der aktuelle server.js: // =======================================================
+// =======================================================
 // Temple of Logic – SERVER.JS (MULTI-SCHOOL + SUPERADMIN,
 // Klassen-XP + Klassenbelohnungen, ADMIN-PASSWORTWECHSEL + DEFAULT-SEED)
 // =======================================================
