@@ -1450,13 +1450,14 @@ async function loadClassProgress() {
         const label = isMy ? "Deine Stimme" : "Für diese Belohnung stimmen";
         voteBtn = `
           <button
-            class="btn-primary"
-            style="margin-top:8px;padding:6px 10px;font-size:11px;"
-            onclick="voteClassReward(${round.id},${rewardId})"
-            ${disabled}
-          >
-            ${label}
+              class="btn-primary"
+              style="margin-top:8px;padding:6px 10px;font-size:11px;"
+              onclick="voteClassReward(${round.id},${opt.id})"
+              ${disabled}
+              >
+              ${label}
           </button>
+
         `;
       }
 
@@ -1501,12 +1502,12 @@ async function loadClassProgress() {
   }
 }
 
-async function voteClassReward(roundId, rewardId) {
+async function voteClassReward(roundId, optionId) {
   try {
     const r = await fetch("/api/student/classVote", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ roundId, rewardId })
+      body: JSON.stringify({ roundId, optionId })
     });
     const data = await r.json();
     if (!data.success) {

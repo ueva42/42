@@ -1152,17 +1152,20 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Nicht eingeloggt." });
     }
 
-    const { roundId, rewardId } = req.body;
-    const rId = Number(roundId);
-    const rewId = Number(rewardId);
+    // WICHTIG: jetzt optionId statt rewardId
+    const { roundId, optionId } = req.body;
 
-    if (!rId || !rewId) {
+    const rId = Number(roundId);
+    const optId = Number(optionId);
+
+    if (!rId || !optId) {
       return res.json({
         success: false,
-        message: "roundId oder rewardId fehlt."
+        message: "roundId oder optionId fehlt."
       });
     }
 
+    // Runde prüfen
     const roundRes = await pool.query(
       "SELECT * FROM class_reward_rounds WHERE id=$1 AND school_id=$2",
       [rId, user.school_id]
@@ -1174,30 +1177,28 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
 
     const round = roundRes.rows[0];
 
-    // Voting nur solange keine feste Option gesetzt ist
+    // Voting nicht möglich, wenn schon gesetzt
     if (round.fixed_option_id) {
       return res.json({ success: false, message: "Voting ist bereits beendet." });
     }
 
-    // passende Option zu diesem rewardId holen
+    // Prüfen, ob Option existiert und zu dieser Runde gehört
     const optRes = await pool.query(
       `
       SELECT id
       FROM class_reward_options
-      WHERE round_id=$1 AND reward_id=$2
+      WHERE id=$1 AND round_id=$2
       LIMIT 1
       `,
-      [rId, rewId]
+      [optId, rId]
     );
 
     if (!optRes.rows.length) {
       return res.json({
         success: false,
-        message: "Option für diese Belohnung nicht gefunden."
+        message: "Option gehört nicht zu dieser Runde."
       });
     }
-
-    const optionId = optRes.rows[0].id;
 
     // alte Stimme löschen
     await pool.query(
@@ -1208,13 +1209,14 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
     // neue Stimme eintragen
     await pool.query(
       `
-      INSERT INTO class_reward_votes (round_id,student_id,option_id)
-      VALUES ($1,$2,$3)
+      INSERT INTO class_reward_votes (round_id, student_id, option_id)
+      VALUES ($1, $2, $3)
       `,
-      [rId, user.id, optionId]
+      [rId, user.id, optId]
     );
 
     return res.json({ success: true });
+
   } catch (err) {
     console.error("❌ /api/student/classVote ERROR:", err);
     return res.json({
@@ -1223,6 +1225,7 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
     });
   }
 });
+
 
 // -------------------------------------------------------
 // ADMIN – Klassenfortschritt & Voting
