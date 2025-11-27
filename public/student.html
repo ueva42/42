@@ -1384,7 +1384,7 @@ async function loadClassProgress() {
     const round  = data.round;
     const options = data.options || [];
     const votes   = data.votes   || [];
-    const myVote  = data.myVote;
+    const myVote  = data.myVote; // <-- enthält option_id !!
 
     if (!round || !options.length) {
       box.innerHTML = `
@@ -1408,9 +1408,10 @@ async function loadClassProgress() {
       statusText = `Status: ${round.status}`;
     }
 
+    // 🔥 FIX 1 — votes nach option_id gruppieren (nicht reward_id!)
     const voteMap = {};
     votes.forEach(v => {
-      voteMap[v.reward_id] = v.votes;
+      voteMap[v.option_id] = v.votes;
     });
 
     const selectedRewardId = round.selected_reward_id;
@@ -1427,10 +1428,15 @@ async function loadClassProgress() {
     `;
 
     options.forEach(opt => {
-      const rewardId  = opt.reward_id;
-      const votesFor  = voteMap[rewardId] || 0;
-      const isMy      = myVote === rewardId;
-      const isActive  = selectedRewardId === rewardId && (round.status === "active" || round.status === "completed");
+      const optionId = opt.id;               // 🔥 FIX 2
+      const rewardId = opt.reward_id;
+
+      const votesFor = voteMap[optionId] || 0;     // <-- korrekt
+      const isMy = myVote === optionId;            // <-- korrekt
+
+      const isActive = 
+        selectedRewardId === rewardId &&
+        (round.status === "active" || round.status === "completed");
 
       let progressBar = "";
       if (isActive && xpRequiredForActive > 0) {
@@ -1449,18 +1455,60 @@ async function loadClassProgress() {
       if (round.status === "voting") {
         const disabled = isMy ? "disabled" : "";
         const label = isMy ? "Deine Stimme" : "Für diese Belohnung stimmen";
+
+        // 🔥 FIX 3 — richtiger Aufruf: optionId UND rewardId sind bekannt
         voteBtn = `
           <button
-              class="btn-primary"
-              style="margin-top:8px;padding:6px 10px;font-size:11px;"
-              onclick="voteClassReward(${round.id},${opt.reward_id})"
-              ${disabled}
-              >
-              ${label}
+            class="btn-primary"
+            style="margin-top:8px;padding:6px 10px;font-size:11px;"
+            onclick="voteClassReward(${round.id}, ${rewardId})"
+            ${disabled}>
+            ${label}
           </button>
-
         `;
       }
+
+      const badgeMy = isMy
+        ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #22c55e;background:rgba(34,197,94,0.15);color:#bbf7d0;display:inline-block;">Deine Wahl</div>`
+        : "";
+
+      const badgeActive = isActive
+        ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #facc15;background:rgba(250,204,21,0.15);color:#fef9c3;display:inline-block;">Aktive Belohnung</div>`
+        : "";
+
+      cardsHtml += `
+        <div style="
+          width:230px;
+          border-radius:16px;
+          background:radial-gradient(circle at top left,#020617 0,#0b1120 60%,#020617 100%);
+          border:1px solid rgba(75,85,99,0.65);
+          box-shadow:0 4px 12px rgba(0,0,0,0.9);
+          padding:10px 12px 12px 12px;
+          font-size:13px;
+        ">
+          ${opt.image_url ? `<img src="${opt.image_url}" alt="${opt.name}" style="width:100%;height:130px;object-fit:cover;border-radius:14px;margin-bottom:6px;">` : ""}
+          <div style="font-weight:600;margin-bottom:2px;">${opt.name}</div>
+          <div style="font-size:12px;">Benötigte XP: <b>${opt.xp_required}</b></div>
+          <div style="font-size:11px;margin-top:2px;opacity:0.85;">Stimmen in deiner Klasse: <b>${votesFor}</b></div>
+          ${progressBar}
+          ${voteBtn}
+          <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+            ${badgeMy}
+            ${badgeActive}
+          </div>
+        </div>
+      `;
+    });
+
+    cardsHtml += `</div>`;
+    box.innerHTML = cardsHtml;
+
+  } catch (err) {
+    console.error(err);
+    box.innerHTML = "<i>Fehler beim Laden der Klassen-Challenge.</i>";
+  }
+}
+
 
       const badgeMy = isMy
         ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #22c55e;background:rgba(34,197,94,0.15);color:#bbf7d0;display:inline-block;">Deine Wahl</div>`
