@@ -1144,83 +1144,79 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
   }
 });
 
-// Stimme für eine Klassenbelohnung abgeben (fix: optionId + rewardId speichern)
+// ======================================================
+// STUDENT VOTING – korrekt, 1x Stimme, nicht änderbar
+// ======================================================
 app.post("/api/student/classVote", isStudent, async (req, res) => {
   try {
-    const user = req.session.user;
-    if (!user) {
-      return res.json({ success: false, message: "Nicht eingeloggt." });
-    }
-
+    const studentId = req.session.user.id;
+    const schoolId  = req.session.user.school_id;
     const { roundId, optionId } = req.body;
-    const rId = Number(roundId);
-    const optId = Number(optionId);
 
-    if (!rId || !optId) {
-      return res.json({
-        success: false,
-        message: "roundId oder optionId fehlt."
-      });
-    }
-
-    // Runde prüfen
-    const roundRes = await pool.query(
+    // 1) Runde prüfen
+    const r = await pool.query(
       "SELECT * FROM class_reward_rounds WHERE id=$1 AND school_id=$2",
-      [rId, user.school_id]
+      [roundId, schoolId]
     );
-
-    if (!roundRes.rows.length) {
+    if (!r.rows.length) {
       return res.json({ success: false, message: "Runde nicht gefunden." });
     }
 
-    const round = roundRes.rows[0];
+    // Voting abgeschlossen?
+    if (r.rows[0].fixed_option_id) {
+      return res.json({ success: false, message: "Voting ist beendet." });
+    }
 
-    // Voting geschlossen?
-    if (round.fixed_option_id) {
+    // 2) Prüfen: hat der Schüler schon abgestimmt?
+    const existing = await pool.query(
+      `
+      SELECT id
+      FROM class_reward_votes
+      WHERE round_id=$1 AND student_id=$2
+      `,
+      [roundId, studentId]
+    );
+
+    if (existing.rows.length > 0) {
       return res.json({
         success: false,
-        message: "Voting ist bereits beendet."
+        message: "Du hast bereits abgestimmt."
       });
     }
 
-    // Option validieren + reward_id holen
-    const optRes = await pool.query(
+    // 3) Option prüfen
+    const opt = await pool.query(
       `
       SELECT id, reward_id
       FROM class_reward_options
       WHERE id=$1 AND round_id=$2
       LIMIT 1
       `,
-      [optId, rId]
+      [optionId, roundId]
     );
 
-    if (!optRes.rows.length) {
+    if (!opt.rows.length) {
       return res.json({
         success: false,
-        message: "Option gehört nicht zu dieser Runde."
+        message: "Option ungültig."
       });
     }
 
-    const rewardId = optRes.rows[0].reward_id; // WICHTIG: reward_id aus DB holen
+    const rewardId = opt.rows[0].reward_id;
 
-    // alte Stimme löschen
-    await pool.query(
-      "DELETE FROM class_reward_votes WHERE round_id=$1 AND student_id=$2",
-      [rId, user.id]
-    );
-
-    // neue Stimme eintragen → jetzt MIT reward_id
+    // 4) Stimme speichern – einmalig
     await pool.query(
       `
       INSERT INTO class_reward_votes (round_id, student_id, option_id, reward_id)
-      VALUES ($1, $2, $3, $4)
+      VALUES ($1,$2,$3,$4)
       `,
-      [rId, user.id, optId, rewardId]
+      [roundId, studentId, optionId, rewardId]
     );
 
     return res.json({ success: true });
+
   } catch (err) {
-    console.error("❌ /api/student/classVote ERROR:", err);
+    console.error("❌ classVote ERROR:", err);
     return res.json({
       success: false,
       message: "Serverfehler bei der Abstimmung."
