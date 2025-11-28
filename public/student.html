@@ -224,7 +224,6 @@ a { color: inherit; }
   color: #9ca3af;
   opacity: 0.9;
 }
-
 .menu-item {
   display: flex;
   align-items: center;
@@ -481,7 +480,6 @@ h2 {
   text-transform: uppercase;
   font-size: 15px;
 }
-
 /* ============================================
    LEVEL BAR
 ============================================ */
@@ -852,7 +850,6 @@ h2 {
     </div>
   </div>
 </div>
-
 <!-- MOBILE HEADER -->
 <div class="mobile-header">
   <div class="burger" onclick="toggleMenu()">
@@ -1160,7 +1157,6 @@ async function loadMe() {
 
   hideLoader();
 }
-
 /* ============================================
    LEVEL BAR
 ============================================ */
@@ -1369,7 +1365,7 @@ async function loadClassProgress() {
     const round   = data.round;
     const options = data.options || [];
     const votes   = data.votes   || [];
-    const myVote  = data.myVote;           // option_id, die der Schüler gewählt hat
+    const myVote  = data.myVote;  // deine Stimme
 
     if (!round || !options.length) {
       box.innerHTML = `
@@ -1393,11 +1389,8 @@ async function loadClassProgress() {
       statusText = `Status: ${round.status}`;
     }
 
-    // Stimmen nach option_id mappen
     const voteMap = {};
-    votes.forEach(v => {
-      voteMap[v.option_id] = v.votes;
-    });
+    votes.forEach(v => voteMap[v.option_id] = v.votes);
 
     const selectedRewardId   = round.selected_reward_id;
     const xpRequiredForActive = round.xp_required;
@@ -1414,13 +1407,11 @@ async function loadClassProgress() {
 
     options.forEach(opt => {
       const optionId = opt.id;
-      const rewardId = opt.reward_id;   // kann null sein, aber Name/Bild hängen am Option-Eintrag
-
       const votesFor = voteMap[optionId] || 0;
       const isMy     = myVote === optionId;
 
       const isActive =
-        selectedRewardId === rewardId &&
+        selectedRewardId === opt.reward_id &&
         (round.status === "active" || round.status === "completed");
 
       let progressBar = "";
@@ -1437,20 +1428,38 @@ async function loadClassProgress() {
       }
 
       let voteBtn = "";
-      if (round.status === "voting") {
-        const disabled = isMy ? "disabled" : "";
-        const label    = isMy ? "Deine Stimme" : "Für diese Belohnung stimmen";
 
-        // Hier schicken wir die optionId zum Server
-        voteBtn = `
-          <button
-            class="btn-primary"
-            style="margin-top:8px;padding:6px 10px;font-size:11px;"
-            onclick="voteClassReward(${round.id}, ${optionId})"
-            ${disabled}>
-            ${label}
-          </button>
-        `;
+      /* ==========================
+         VOTING-FIX:
+         NUR EINMAL STIMMEN
+      ========================== */
+
+      if (round.status === "voting") {
+
+        if (myVote) {
+          // Schüler HAT schon abgestimmt → alles deaktivieren
+          const label = isMy ? "Deine Stimme" : "Keine weitere Stimme möglich";
+
+          voteBtn = `
+            <button
+              class="btn-primary"
+              style="margin-top:8px;padding:6px 10px;font-size:11px;opacity:0.45;cursor:not-allowed;"
+              disabled>
+              ${label}
+            </button>
+          `;
+
+        } else {
+          // Schüler hat NOCH nicht abgestimmt → Button aktiv
+          voteBtn = `
+            <button
+              class="btn-primary"
+              style="margin-top:8px;padding:6px 10px;font-size:11px;"
+              onclick="voteClassReward(${round.id}, ${optionId})">
+              Für diese Belohnung stimmen
+            </button>
+          `;
+        }
       }
 
       const badgeMy = isMy
@@ -1494,26 +1503,27 @@ async function loadClassProgress() {
   }
 }
 
+/* ============================================
+   VOTE HANDLER – FIXED (nur 1x)
+============================================ */
 async function voteClassReward(roundId, optionId) {
-  // Prevent double clicks
-  const already = document.querySelector('button.btn-primary[disabled]');
-  if (already) {
-    alert("Du hast bereits abgestimmt.");
-    return;
-  }
   try {
     const r = await fetch("/api/student/classVote", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify({ roundId, optionId })
     });
+
     const data = await r.json();
+
     if (!data.success) {
-      alert(data.message || "Fehler bei der Abstimmung.");
+      alert(data.message || "Du hast bereits abgestimmt.");
       return;
     }
+
     alert("Deine Stimme wurde gespeichert.");
     await loadClassProgress();
+
   } catch (err) {
     console.error(err);
     alert("Technischer Fehler bei der Abstimmung.");
