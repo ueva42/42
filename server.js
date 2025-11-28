@@ -394,7 +394,6 @@ async function migrate() {
 
   // ------------------------------------------
   // KLASSE-BELOHNUNGS-OPTIONEN (Voting)
-  //  -> mit reward_id, um Klassenbelohnung zu binden
   // ------------------------------------------
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_reward_options (
@@ -412,7 +411,7 @@ async function migrate() {
   await ensureColumn("class_reward_options", "name", "TEXT");
   await ensureColumn("class_reward_options", "image_url", "TEXT");
 
-  // reward_id darf NULL sein (freie Optionen)
+  // reward_id darf NULL sein
   await pool.query(`
     DO $$
     BEGIN
@@ -985,8 +984,6 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
 
 // -------------------------------------------------------
 // STUDENT – Klassen-Challenge (Klassen-XP + Voting)
-//  -> /api/student/classProgress
-//  -> /api/student/classVote
 // -------------------------------------------------------
 app.get("/api/student/classProgress", isStudent, async (req, res) => {
   try {
@@ -995,7 +992,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Nicht eingeloggt." });
     }
 
-    const classId = user.class_id;
+    const classId  = user.class_id;
     const schoolId = user.school_id;
 
     if (!classId) {
@@ -1005,12 +1002,13 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       });
     }
 
-    // Klasse + aktuelle Klassen-XP bestimmen
+    // Klasse + Klassen-XP
     const classRes = await pool.query(
       "SELECT id,name FROM classes WHERE id=$1 AND school_id=$2",
       [classId, schoolId]
     );
     const clsRow = classRes.rows[0] || null;
+
     const totalXP = await getClassTotalXP(classId, schoolId);
 
     const cls = clsRow
@@ -1042,7 +1040,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
 
     const roundRow = roundRes.rows[0];
 
-    // Status für Frontend ableiten
+    // "status" für Frontend ableiten
     let status = "voting";
     if (roundRow.fixed_option_id && roundRow.is_active) {
       status = "active";
@@ -1054,11 +1052,11 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       id: roundRow.id,
       title: roundRow.title,
       status,
-      fixed_option_id: roundRow.fixed_option_id,
+      selected_reward_id: roundRow.fixed_option_id,
       xp_required: roundRow.target_xp || 0
     };
 
-    // Optionen inkl. verknüpfter Klassenbelohnung
+    // Optionen + zugehörige Klassenbelohnung
     const optRes = await pool.query(
       `
       SELECT
@@ -1086,7 +1084,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       xp_required: o.xp_required || round.xp_required || 0
     }));
 
-    // Vote-Counts nach Option
+    // Vote-Counts pro Option (option_id)
     const votesRes = await pool.query(
       `
       SELECT
@@ -1106,7 +1104,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       votes: Number(v.votes)
     }));
 
-    // eigene Stimme -> option_id
+    // eigene Stimme → option_id
     const myVoteRes = await pool.query(
       `
       SELECT option_id
@@ -1139,7 +1137,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
 });
 
 // ======================================================
-// STUDENT VOTING – korrekt, 1x Stimme, nicht änderbar
+// STUDENT VOTING – 1x Stimme, nicht änderbar
 // ======================================================
 app.post("/api/student/classVote", isStudent, async (req, res) => {
   try {
@@ -1156,10 +1154,8 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Runde nicht gefunden." });
     }
 
-    const round = r.rows[0];
-
-    // Voting schon abgeschlossen?
-    if (round.fixed_option_id) {
+    // Voting abgeschlossen?
+    if (r.rows[0].fixed_option_id) {
       return res.json({ success: false, message: "Voting ist beendet." });
     }
 
@@ -1180,7 +1176,7 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       });
     }
 
-    // 3) Option prüfen – muss zur Runde gehören
+    // 3) Option prüfen
     const opt = await pool.query(
       `
       SELECT id
@@ -1208,6 +1204,7 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
     );
 
     return res.json({ success: true });
+
   } catch (err) {
     console.error("❌ classVote ERROR:", err);
     return res.json({
@@ -1455,7 +1452,7 @@ app.post(
   }
 );
 
-// Option hinzufügen – wahlweise mit rewardId oder Name/Bild
+// Option hinzufügen – jetzt wahlweise mit rewardId oder mit Name/Bild
 app.post("/api/admin/class-reward-option", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
   const { roundId, name, imageUrl, rewardId } = req.body;
@@ -1891,6 +1888,7 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
         Key: key
       }));
     } catch {}
+
   }
 
   await pool.query(
@@ -1969,7 +1967,7 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 
   if (r.rows.length && r.rows[0].image_url) {
     const prefix = process.env.R2_PUBLIC_URL + "/";
-    const key = r.rows[0].image_url.replace(prefix, "";
+    const key = r.rows[0].image_url.replace(prefix, "");
 
     try {
       await r2.send(new DeleteObjectCommand({
