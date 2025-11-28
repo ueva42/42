@@ -16,6 +16,7 @@ import {
 } from "@aws-sdk/client-s3";
 import pkg from "pg";
 const { Pool } = pkg;
+console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
 
 // -------------------------------------------------------
 // Grundpfade
@@ -2398,6 +2399,7 @@ app.post("/api/superadmin/reset-school", isSuperadmin, async (req, res) => {
     });
   }
 });
+console.log("🚨 MARKER A2 – Upload-Endpunkte wurden geladen");
 
 
 // -------------------------------------------------------
