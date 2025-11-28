@@ -1,4 +1,4 @@
-<!-- VERSION 125 – GTA C mit Voting-Fix + "Meine Wahl" + Challenge-Fortschritt -->
+<!-- VERSION 125 – GTA C mit Voting-Fix + "Meine Wahl" + Challenge-Fortschritt + Bildgrößen 180×auto (max 320) -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -224,6 +224,7 @@ a { color: inherit; }
   color: #9ca3af;
   opacity: 0.9;
 }
+
 .menu-item {
   display: flex;
   align-items: center;
@@ -480,6 +481,7 @@ h2 {
   text-transform: uppercase;
   font-size: 15px;
 }
+
 /* ============================================
    LEVEL BAR
 ============================================ */
@@ -531,9 +533,11 @@ h2 {
   display: block;
 }
 
+/* Bilder für Missionen & Belohnungen */
 .mission-img {
-  width: 230px;
-  height: 230px;
+  width: 180px;
+  height: auto;
+  max-height: 320px;
   border-radius: 30px;
   object-fit: cover;
   margin-bottom: 10px;
@@ -577,62 +581,6 @@ h2 {
   background: #f97316;
   box-shadow: 0 0 8px rgba(249,115,22,0.9);
 }
-</style>
-
-<!-- ============================================
-     CAROUSEL CONTROLS – FIX
-============================================ -->
-<script>
-function nextSlide(id) {
-  const items = document.querySelectorAll("#" + id + " .carousel-item");
-  if (!items.length) return;
-
-  let current = Array.from(items).findIndex(i => i.classList.contains("active"));
-  if (current === -1) current = 0;
-
-  items[current].classList.remove("active");
-  const next = (current + 1) % items.length;
-  items[next].classList.add("active");
-
-  updateDots(id, next);
-}
-
-function prevSlide(id) {
-  const items = document.querySelectorAll("#" + id + " .carousel-item");
-  if (!items.length) return;
-
-  let current = Array.from(items).findIndex(i => i.classList.contains("active"));
-  if (current === -1) current = 0;
-
-  items[current].classList.remove("active");
-  const prev = (current - 1 + items.length) % items.length;
-  items[prev].classList.add("active");
-
-  updateDots(id, prev);
-}
-
-function jumpSlide(id, index) {
-  const items = document.querySelectorAll("#" + id + " .carousel-item");
-  const dots  = document.querySelectorAll("#" + id + " .dot");
-  if (!items.length) return;
-
-  items.forEach(i => i.classList.remove("active"));
-  items[index].classList.add("active");
-
-  dots.forEach(d => d.classList.remove("active"));
-  dots[index].classList.add("active");
-}
-
-function updateDots(id, activeIndex) {
-  const dots = document.querySelectorAll("#" + id + " .dot");
-  dots.forEach((d, i) => {
-    if (i === activeIndex) d.classList.add("active");
-    else d.classList.remove("active");
-  });
-}
-</script>
-
-<style>
 
 /* ============================================
    FILE UPLOAD
@@ -819,6 +767,7 @@ function updateDots(id, activeIndex) {
   font-size: 14px;
   color: #e5e7eb;
 }
+
 .character-overlay-close {
   position: absolute;
   top: 10px;
@@ -1018,6 +967,7 @@ function updateDots(id, activeIndex) {
     <div id="characterChoices" class="character-choice-grid"></div>
   </div>
 </div>
+
 <script>
 /* ============================================
    LOADING OVERLAY CONTROL
@@ -1316,6 +1266,66 @@ function renderCarousel(id, items, type) {
 }
 
 /* ============================================
+   CAROUSEL CONTROLS – ID-BASIERT
+============================================ */
+function nextSlide(id) {
+  const items = document.querySelectorAll("#" + id + " .carousel-item");
+  if (!items.length) return;
+
+  let current = -1;
+  items.forEach((item, i) => {
+    if (item.classList.contains("active")) current = i;
+  });
+
+  if (current === -1) current = 0;
+
+  items[current].classList.remove("active");
+  const next = (current + 1) % items.length;
+  items[next].classList.add("active");
+
+  updateDots(id, next);
+}
+
+function prevSlide(id) {
+  const items = document.querySelectorAll("#" + id + " .carousel-item");
+  if (!items.length) return;
+
+  let current = -1;
+  items.forEach((item, i) => {
+    if (item.classList.contains("active")) current = i;
+  });
+
+  if (current === -1) current = 0;
+
+  items[current].classList.remove("active");
+  const prev = (current - 1 + items.length) % items.length;
+  items[prev].classList.add("active");
+
+  updateDots(id, prev);
+}
+
+function jumpSlide(id, index) {
+  const items = document.querySelectorAll("#" + id + " .carousel-item");
+  const dots  = document.querySelectorAll("#" + id + " .dot");
+
+  if (!items.length) return;
+
+  items.forEach(i => i.classList.remove("active"));
+  items[index].classList.add("active");
+
+  dots.forEach(d => d.classList.remove("active"));
+  dots[index].classList.add("active");
+}
+
+function updateDots(id, activeIndex) {
+  const dots = document.querySelectorAll("#" + id + " .dot");
+  dots.forEach((d, i) => {
+    if (i === activeIndex) d.classList.add("active");
+    else d.classList.remove("active");
+  });
+}
+
+/* ============================================
    FILE UPLOAD
 ============================================ */
 function updateFileLabel(id) {
@@ -1415,15 +1425,13 @@ async function loadClassProgress() {
     const selectedOptionId = round.selected_option_id;
     const xpNeededRound    = round.xp_required || 0;
 
-    // Votes kommen vom Server pro reward_id
+    // Votes kommen vom Server pro Option
     const voteMap = {};
-if (Array.isArray(votes)) {
-  votes.forEach(v => {
-    // Stimmen sind jetzt pro Option
-    voteMap[v.option_id] = v.votes;
-  });
-}
-
+    if (Array.isArray(votes)) {
+      votes.forEach(v => {
+        voteMap[v.option_id] = v.votes;
+      });
+    }
 
     // Gewinner-Option bestimmen, wenn Voting beendet / Gewinner festgelegt
     let winnerOption = null;
@@ -1576,7 +1584,7 @@ if (Array.isArray(votes)) {
           box-shadow:${isMy ? "0 0 20px rgba(34,197,94,0.65)" : "0 4px 12px rgba(0,0,0,0.9)"};
           font-size:13px;
         ">
-          ${opt.image_url ? `<img src="${opt.image_url}" style="width:100%;height:130px;object-fit:cover;border-radius:14px;margin-bottom:6px;">` : ""}
+          ${opt.image_url ? `<img src="${opt.image_url}" style="width:180px;height:auto;max-height:320px;object-fit:cover;border-radius:14px;margin-bottom:6px;">` : ""}
 
           <div style="font-weight:600;margin-bottom:2px;">${opt.name}</div>
           <div style="font-size:12px;">Benötigte XP: <b>${xpNeeded}</b></div>
@@ -1601,6 +1609,7 @@ if (Array.isArray(votes)) {
     box.innerHTML = "<i>Fehler beim Laden der Klassen-Challenge.</i>";
   }
 }
+
 /* ============================================
    VOTE HANDLER – FIX (1 Stimme)
 ============================================ */
