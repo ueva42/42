@@ -2002,6 +2002,115 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
+// ADMIN – Uploads einer/eines Schüler:in anzeigen
+// -------------------------------------------------------
+app.get("/api/admin/student-uploads", isAdmin, async (req, res) => {
+  try {
+    const { studentId } = req.query;
+    const schoolId = req.session.user.school_id;
+
+    if (!studentId) {
+      return res.json({ success: false, message: "studentId fehlt" });
+    }
+
+    const uploads = await pool.query(
+      `
+        SELECT su.*, m.name AS mission_name
+        FROM student_uploads su
+        LEFT JOIN missions m ON m.id = su.mission_id
+        WHERE su.student_id=$1 AND su.school_id=$2
+        ORDER BY su.created_at DESC
+      `,
+      [studentId, schoolId]
+    );
+
+    res.json({ success: true, uploads: uploads.rows });
+  } catch (err) {
+    console.error("❌ /api/admin/student-uploads ERROR:", err);
+    res.json({ success: false, message: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// ADMIN – Einzelnen Upload löschen (inkl. R2 löschen)
+// -------------------------------------------------------
+app.delete("/api/admin/student-uploads/:id", isAdmin, async (req, res) => {
+  try {
+    const uploadId = Number(req.params.id);
+    const schoolId = req.session.user.school_id;
+
+    const r = await pool.query(
+      `
+        SELECT image_url
+        FROM student_uploads
+        WHERE id=$1 AND school_id=$2
+      `,
+      [uploadId, schoolId]
+    );
+
+    if (!r.rows.length) {
+      return res.json({ success: false, message: "Upload nicht gefunden" });
+    }
+
+    const url = r.rows[0].image_url;
+    const prefix = (process.env.R2_PUBLIC_URL || "") + "/";
+    const key = url.replace(prefix, "");
+
+    try {
+      await r2.send(
+        new DeleteObjectCommand({
+          Bucket: process.env.R2_BUCKET,
+          Key: key
+        })
+      );
+    } catch (err) {
+      console.error("⚠️ R2 delete error (student upload)", err);
+    }
+
+    await pool.query(
+      "DELETE FROM student_uploads WHERE id=$1 AND school_id=$2",
+      [uploadId, schoolId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE /api/admin/student-uploads/:id ERROR:", err);
+    res.json({ success: false, message: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// ADMIN – Bild eines Uploads direkt abrufen
+// -------------------------------------------------------
+app.get("/api/admin/student-uploads/view/:id", isAdmin, async (req, res) => {
+  try {
+    const uploadId = Number(req.params.id);
+    const schoolId = req.session.user.school_id;
+
+    const r = await pool.query(
+      `
+        SELECT image_url
+        FROM student_uploads
+        WHERE id=$1 AND school_id=$2
+      `,
+      [uploadId, schoolId]
+    );
+
+    if (!r.rows.length) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Upload nicht gefunden" });
+    }
+
+    res.json({ success: true, url: r.rows[0].image_url });
+  } catch (err) {
+    console.error("❌ /api/admin/student-uploads/view/:id ERROR:", err);
+    res.json({ success: false, message: "Serverfehler" });
+  }
+});
+
+
+// -------------------------------------------------------
 // ADMIN – Level-System
 // -------------------------------------------------------
 app.get("/api/levels", isAdmin, async (req, res) => {
