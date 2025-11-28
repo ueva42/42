@@ -1638,6 +1638,29 @@ app.get("/api/student", isAdmin, async (req, res) => {
   res.json(r.rows);
 });
 
+// -------------------------------------------------------
+// ADMIN – Export: Passwortkarten für eine Klasse
+// -------------------------------------------------------
+app.get("/api/exportPasswords", isAdmin, async (req, res) => {
+  const classId  = Number(req.query.classId);
+  const schoolId = req.session.user.school_id;
+
+  if (!classId) {
+    return res.json([]);
+  }
+
+  const r = await pool.query(`
+    SELECT id, name, password
+    FROM users
+    WHERE role='student'
+      AND class_id=$1
+      AND school_id=$2
+    ORDER BY name ASC
+  `, [classId, schoolId]);
+
+  res.json(r.rows);
+});
+
 app.post("/api/student", isAdmin, async (req, res) => {
   const { name, classId } = req.body;
   const schoolId = req.session.user.school_id;
@@ -2168,7 +2191,6 @@ app.post("/api/class/challenge/start", isAdmin, async (req, res) => {
   const ins = await pool.query(`
     INSERT INTO class_challenges (class_id,school_id,reward_id,target_xp,is_active)
     VALUES ($1,$2,$3,$4,TRUE)
-    RETURNING id
   `, [cId, schoolId, rId, tXp]);
 
   res.json({ success: true, challengeId: ins.rows[0].id });
