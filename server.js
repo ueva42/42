@@ -2399,6 +2399,67 @@ app.post("/api/superadmin/reset-school", isSuperadmin, async (req, res) => {
   }
 });
 
+
+// -------------------------------------------------------
+// ADMIN – Uploads eines Schülers abrufen
+// -------------------------------------------------------
+app.get("/api/admin/student-uploads", isAdmin, async (req, res) => {
+  const studentId = Number(req.query.studentId);
+  const schoolId = req.session.user.school_id;
+  if (!studentId) return res.json({ success: false, message: "studentId fehlt" });
+  const r = await pool.query(
+    `
+    SELECT su.*, m.name AS mission_name
+    FROM student_uploads su
+    LEFT JOIN missions m ON m.id = su.mission_id
+    WHERE su.student_id=$1 AND su.school_id=$2
+    ORDER BY su.created_at DESC
+    `,
+    [studentId, schoolId]
+  );
+  res.json({ success: true, uploads: r.rows });
+});
+
+// -------------------------------------------------------
+// ADMIN – Einzelnen Upload löschen
+// -------------------------------------------------------
+app.delete("/api/admin/student-uploads/:id", isAdmin, async (req, res) => {
+  const uploadId = Number(req.params.id);
+  const schoolId = req.session.user.school_id;
+  try {
+    const r = await pool.query(
+      `
+      SELECT image_url
+      FROM student_uploads
+      WHERE id=$1 AND school_id=$2
+      `,
+      [uploadId, schoolId]
+    );
+    if (!r.rows.length) return res.json({ success: false, message: "Upload nicht gefunden" });
+
+    const prefix = (process.env.R2_PUBLIC_URL || "") + "/";
+    const key = r.rows[0].image_url.replace(prefix, "");
+
+    try {
+      await r2.send(new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: key
+      }));
+    } catch (err) { console.error("Fehler beim Löschen in R2:", err); }
+
+    await pool.query(
+      "DELETE FROM student_uploads WHERE id=$1 AND school_id=$2",
+      [uploadId, schoolId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Fehler beim Löschen eines Uploads:", err);
+    res.json({ success: false, message: "Serverfehler" });
+  }
+});
+
+
 // -------------------------------------------------------
 // STATIC FRONTEND ROUTES
 // -------------------------------------------------------
