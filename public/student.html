@@ -224,6 +224,7 @@ a { color: inherit; }
   color: #9ca3af;
   opacity: 0.9;
 }
+
 .menu-item {
   display: flex;
   align-items: center;
@@ -380,7 +381,6 @@ h1 {
     3px 3px 0 #000,
     0 0 22px rgba(249,115,22,0.9);
 }
-
 h2 {
   margin-top: 0;
   margin-bottom: 10px;
@@ -480,6 +480,7 @@ h2 {
   text-transform: uppercase;
   font-size: 15px;
 }
+
 /* ============================================
    LEVEL BAR
 ============================================ */
@@ -850,6 +851,7 @@ h2 {
     </div>
   </div>
 </div>
+
 <!-- MOBILE HEADER -->
 <div class="mobile-header">
   <div class="burger" onclick="toggleMenu()">
@@ -962,7 +964,6 @@ h2 {
     <div id="characterChoices" class="character-choice-grid"></div>
   </div>
 </div>
-
 <script>
 /* ============================================
    LOADING OVERLAY CONTROL
@@ -1064,7 +1065,7 @@ function renderCharacterChoices(chars) {
       <div class="character-choice-img-wrap">
         <img src="${ch.image_url}" alt="${ch.name}">
       </div>
-      <div class="character-choice-name">${ch.name}</div>
+        <div class="character-choice-name">${ch.name}</div>
     `;
 
     card.onclick = () => selectCharacter(ch.id);
@@ -1157,6 +1158,7 @@ async function loadMe() {
 
   hideLoader();
 }
+
 /* ============================================
    LEVEL BAR
 ============================================ */
@@ -1343,7 +1345,6 @@ async function redeemReward(id) {
     alert(data.message || "Fehler beim Einlösen.");
   }
 }
-
 /* ============================================
    KLASSEN-CHALLENGE (Voting + Progress)
 ============================================ */
@@ -1427,30 +1428,49 @@ async function loadClassProgress() {
         `;
       }
 
-      let voteBtn = "";
-
       /* ==========================
-         VOTING-FIX:
-         NUR EINMAL STIMMEN
+         HIER SETZE ICH IN TEIL 5/5
+         DEN NEUEN VOTING CODE EIN
       ========================== */
+      /* ==========================
+         NEUER VOTING-FIX BLOCK
+         (1x Stimme, Hervorhebung, kein Button)
+      ========================== */
+
+      let voteBtn = "";
 
       if (round.status === "voting") {
 
         if (myVote) {
-          // Schüler HAT schon abgestimmt → alles deaktivieren
-          const label = isMy ? "Deine Stimme" : "Keine weitere Stimme möglich";
-
-          voteBtn = `
-            <button
-              class="btn-primary"
-              style="margin-top:8px;padding:6px 10px;font-size:11px;opacity:0.45;cursor:not-allowed;"
-              disabled>
-              ${label}
-            </button>
-          `;
+          // → Schüler hat schon abgestimmt
+          if (isMy) {
+            voteBtn = `
+              <div style="margin-top:8px;
+                          padding:6px 10px;
+                          font-size:11px;
+                          border-radius:999px;
+                          background:rgba(34,197,94,0.25);
+                          border:1px solid #22c55e;
+                          color:#bbf7d0;
+                          text-align:center;
+                          font-weight:bold;
+                          letter-spacing:0.05em;">
+                ✓ Deine Wahl
+              </div>
+            `;
+          } else {
+            voteBtn = `
+              <div style="margin-top:12px;
+                          font-size:11px;
+                          opacity:0.45;
+                          text-align:center;">
+                —
+              </div>
+            `;
+          }
 
         } else {
-          // Schüler hat NOCH nicht abgestimmt → Button aktiv
+          // → Schüler hat NOCH NICHT abgestimmt
           voteBtn = `
             <button
               class="btn-primary"
@@ -1463,11 +1483,29 @@ async function loadClassProgress() {
       }
 
       const badgeMy = isMy
-        ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #22c55e;background:rgba(34,197,94,0.15);color:#bbf7d0;display:inline-block;">Deine Wahl</div>`
+        ? `<div style="margin-top:4px;
+                      font-size:10px;
+                      padding:2px 8px;
+                      border-radius:999px;
+                      border:1px solid #22c55e;
+                      background:rgba(34,197,94,0.15);
+                      color:#bbf7d0;
+                      display:inline-block;">
+             Deine Wahl
+           </div>`
         : "";
 
       const badgeActive = isActive
-        ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #facc15;background:rgba(250,204,21,0.15);color:#fef9c3;display:inline-block;">Aktive Belohnung</div>`
+        ? `<div style="margin-top:4px;
+                      font-size:10px;
+                      padding:2px 8px;
+                      border-radius:999px;
+                      border:1px solid #facc15;
+                      background:rgba(250,204,21,0.15);
+                      color:#fef9c3;
+                      display:inline-block;">
+             Aktive Belohnung
+           </div>`
         : "";
 
       cardsHtml += `
@@ -1479,20 +1517,26 @@ async function loadClassProgress() {
           box-shadow:0 4px 12px rgba(0,0,0,0.9);
           padding:10px 12px 12px 12px;
           font-size:13px;
+          ${isMy ? "box-shadow:0 0 18px rgba(34,197,94,0.65);" : ""}
         ">
           ${opt.image_url ? `<img src="${opt.image_url}" alt="${opt.name}" style="width:100%;height:130px;object-fit:cover;border-radius:14px;margin-bottom:6px;box-shadow:0 0 0 3px #020617,0 0 0 4px #f97316,0 0 18px rgba(249,115,22,0.8);">` : ""}
+          
           <div style="font-weight:600;margin-bottom:2px;">${opt.name}</div>
           <div style="font-size:12px;">Benötigte XP: <b>${opt.xp_required}</b></div>
-          <div style="font-size:11px;margin-top:2px;opacity:0.85;">Stimmen in deiner Klasse: <b>${votesFor}</b></div>
+          <div style="font-size:11px;margin-top:2px;opacity:0.85;">
+            Stimmen in deiner Klasse: <b>${votesFor}</b>
+          </div>
+
           ${progressBar}
           ${voteBtn}
+
           <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
             ${badgeMy}
             ${badgeActive}
           </div>
         </div>
       `;
-    });
+    }); // END options.forEach
 
     cardsHtml += `</div>`;
     box.innerHTML = cardsHtml;
@@ -1510,7 +1554,7 @@ async function voteClassReward(roundId, optionId) {
   try {
     const r = await fetch("/api/student/classVote", {
       method: "POST",
-      headers: {"Content-Type":"application/json"},
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ roundId, optionId })
     });
 
