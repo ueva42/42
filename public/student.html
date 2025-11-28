@@ -577,6 +577,62 @@ h2 {
   background: #f97316;
   box-shadow: 0 0 8px rgba(249,115,22,0.9);
 }
+</style>
+
+<!-- ============================================
+     CAROUSEL CONTROLS – FIX
+============================================ -->
+<script>
+function nextSlide(id) {
+  const items = document.querySelectorAll("#" + id + " .carousel-item");
+  if (!items.length) return;
+
+  let current = Array.from(items).findIndex(i => i.classList.contains("active"));
+  if (current === -1) current = 0;
+
+  items[current].classList.remove("active");
+  const next = (current + 1) % items.length;
+  items[next].classList.add("active");
+
+  updateDots(id, next);
+}
+
+function prevSlide(id) {
+  const items = document.querySelectorAll("#" + id + " .carousel-item");
+  if (!items.length) return;
+
+  let current = Array.from(items).findIndex(i => i.classList.contains("active"));
+  if (current === -1) current = 0;
+
+  items[current].classList.remove("active");
+  const prev = (current - 1 + items.length) % items.length;
+  items[prev].classList.add("active");
+
+  updateDots(id, prev);
+}
+
+function jumpSlide(id, index) {
+  const items = document.querySelectorAll("#" + id + " .carousel-item");
+  const dots  = document.querySelectorAll("#" + id + " .dot");
+  if (!items.length) return;
+
+  items.forEach(i => i.classList.remove("active"));
+  items[index].classList.add("active");
+
+  dots.forEach(d => d.classList.remove("active"));
+  dots[index].classList.add("active");
+}
+
+function updateDots(id, activeIndex) {
+  const dots = document.querySelectorAll("#" + id + " .dot");
+  dots.forEach((d, i) => {
+    if (i === activeIndex) d.classList.add("active");
+    else d.classList.remove("active");
+  });
+}
+</script>
+
+<style>
 
 /* ============================================
    FILE UPLOAD
