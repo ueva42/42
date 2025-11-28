@@ -1,4 +1,4 @@
-<!-- VERSION 124 – GTA C mit fixem Klassen-Voting -->
+<!-- VERSION 125 – GTA C mit Voting-Fix + "Meine Wahl" + Challenge-Fortschritt -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -224,7 +224,6 @@ a { color: inherit; }
   color: #9ca3af;
   opacity: 0.9;
 }
-
 .menu-item {
   display: flex;
   align-items: center;
@@ -381,6 +380,7 @@ h1 {
     3px 3px 0 #000,
     0 0 22px rgba(249,115,22,0.9);
 }
+
 h2 {
   margin-top: 0;
   margin-bottom: 10px;
@@ -480,7 +480,6 @@ h2 {
   text-transform: uppercase;
   font-size: 15px;
 }
-
 /* ============================================
    LEVEL BAR
 ============================================ */
@@ -764,7 +763,6 @@ h2 {
   font-size: 14px;
   color: #e5e7eb;
 }
-
 .character-overlay-close {
   position: absolute;
   top: 10px;
@@ -1065,7 +1063,7 @@ function renderCharacterChoices(chars) {
       <div class="character-choice-img-wrap">
         <img src="${ch.image_url}" alt="${ch.name}">
       </div>
-        <div class="character-choice-name">${ch.name}</div>
+      <div class="character-choice-name">${ch.name}</div>
     `;
 
     card.onclick = () => selectCharacter(ch.id);
@@ -1261,37 +1259,6 @@ function renderCarousel(id, items, type) {
   `;
 }
 
-function nextSlide(id) {
-  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let idx = items.findIndex(i => i.classList.contains("active"));
-  items[idx].classList.remove("active");
-  idx = (idx + 1) % items.length;
-  items[idx].classList.add("active");
-  updateDots(id, idx);
-}
-
-function prevSlide(id) {
-  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  let idx = items.findIndex(i => i.classList.contains("active"));
-  items[idx].classList.remove("active");
-  idx = (idx - 1 + items.length) % items.length;
-  items[idx].classList.add("active");
-  updateDots(id, idx);
-}
-
-function jumpSlide(id, idx) {
-  const items = [...document.querySelectorAll(`#${id} .carousel-item`)];
-  items.forEach(i => i.classList.remove("active"));
-  items[idx].classList.add("active");
-  updateDots(id, idx);
-}
-
-function updateDots(id, idx) {
-  const dots = [...document.querySelectorAll(`#${id} .dot`)];
-  dots.forEach(d => d.classList.remove("active"));
-  dots[idx].classList.add("active");
-}
-
 /* ============================================
    FILE UPLOAD
 ============================================ */
@@ -1345,8 +1312,9 @@ async function redeemReward(id) {
     alert(data.message || "Fehler beim Einlösen.");
   }
 }
+
 /* ============================================
-   KLASSEN-CHALLENGE (Voting + Progress)
+   KLASSEN-CHALLENGE (Voting + Fortschritt)
 ============================================ */
 async function loadClassProgress() {
   const box = document.getElementById("classChallenge");
@@ -1366,7 +1334,7 @@ async function loadClassProgress() {
     const round   = data.round;
     const options = data.options || [];
     const votes   = data.votes   || [];
-    const myVote  = data.myVote;  // deine Stimme
+    const myVote  = data.myVote;
 
     if (!round || !options.length) {
       box.innerHTML = `
@@ -1386,15 +1354,13 @@ async function loadClassProgress() {
       statusText = "Aktive Klassen-Belohnung – eure XP arbeiten auf dieses Ziel hin.";
     } else if (round.status === "completed") {
       statusText = "Letzte Klassen-Challenge ist abgeschlossen.";
-    } else {
-      statusText = `Status: ${round.status}`;
     }
 
     const voteMap = {};
     votes.forEach(v => voteMap[v.option_id] = v.votes);
 
-    const selectedRewardId   = round.selected_reward_id;
-    const xpRequiredForActive = round.xp_required;
+    const selectedRewardId = round.selected_reward_id;
+    const xpNeeded         = round.xp_required;
 
     let cardsHtml = `
       <div style="font-size:13px;margin-bottom:10px;">
@@ -1407,103 +1373,86 @@ async function loadClassProgress() {
     `;
 
     options.forEach(opt => {
-      const optionId = opt.id;
-      const votesFor = voteMap[optionId] || 0;
-      const isMy     = myVote === optionId;
-
+      const isMy     = myVote === opt.id;
+      const votesFor = voteMap[opt.id] || 0;
       const isActive =
         selectedRewardId === opt.reward_id &&
         (round.status === "active" || round.status === "completed");
 
+      /* PROGRESS BAR WENN ACTIVE */
       let progressBar = "";
-      if (isActive && xpRequiredForActive > 0) {
-        const pct = Math.min(100, Math.round((cls.total_xp / xpRequiredForActive) * 100));
+      if (isActive && xpNeeded > 0) {
+        const pct = Math.min(100, Math.round((cls.total_xp / xpNeeded) * 100));
+
         progressBar = `
           <div style="margin-top:6px;">
             <div style="font-size:11px;">Fortschritt zum Klassenziel: <b>${pct}%</b></div>
             <div style="width:100%;height:10px;border-radius:999px;background:#020617;border:1px solid rgba(148,163,184,0.7);overflow:hidden;">
-              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#22c55e,#facc15,#f97316);"></div>
+              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#22c55e,#facc15,#f97316,#fb923c);"></div>
             </div>
           </div>
         `;
       }
 
-      /* ==========================
-         HIER SETZE ICH IN TEIL 5/5
-         DEN NEUEN VOTING CODE EIN
-      ========================== */
-      /* ==========================
-         NEUER VOTING-FIX BLOCK
-         (1x Stimme, Hervorhebung, kein Button)
-      ========================== */
-
+      /* VOTING */
       let voteBtn = "";
 
       if (round.status === "voting") {
-
         if (myVote) {
-          // → Schüler hat schon abgestimmt
           if (isMy) {
             voteBtn = `
-              <div style="margin-top:8px;
-                          padding:6px 10px;
-                          font-size:11px;
-                          border-radius:999px;
-                          background:rgba(34,197,94,0.25);
-                          border:1px solid #22c55e;
-                          color:#bbf7d0;
-                          text-align:center;
-                          font-weight:bold;
-                          letter-spacing:0.05em;">
+              <div style="
+                margin-top:8px;
+                padding:6px 10px;
+                font-size:11px;
+                border-radius:999px;
+                background:rgba(34,197,94,0.25);
+                border:1px solid #22c55e;
+                color:#bbf7d0;
+                text-align:center;
+                font-weight:bold;">
                 ✓ Deine Wahl
               </div>
             `;
           } else {
             voteBtn = `
-              <div style="margin-top:12px;
-                          font-size:11px;
-                          opacity:0.45;
-                          text-align:center;">
-                —
-              </div>
+              <div style="margin-top:12px;font-size:11px;opacity:0.4;text-align:center;">—</div>
             `;
           }
-
         } else {
-          // → Schüler hat NOCH NICHT abgestimmt
           voteBtn = `
-            <button
-              class="btn-primary"
+            <button class="btn-primary"
               style="margin-top:8px;padding:6px 10px;font-size:11px;"
-              onclick="voteClassReward(${round.id}, ${optionId})">
+              onclick="voteClassReward(${round.id}, ${opt.id})">
               Für diese Belohnung stimmen
             </button>
           `;
         }
       }
 
+      /* BADGES */
       const badgeMy = isMy
         ? `<div style="margin-top:4px;
-                      font-size:10px;
-                      padding:2px 8px;
-                      border-radius:999px;
-                      border:1px solid #22c55e;
-                      background:rgba(34,197,94,0.15);
-                      color:#bbf7d0;
-                      display:inline-block;">
+                       font-size:10px;
+                       padding:2px 8px;
+                       border-radius:999px;
+                       border:1px solid #22c55e;
+                       background:rgba(34,197,94,0.15);
+                       color:#bbf7d0;
+                       display:inline-block;">
              Deine Wahl
            </div>`
         : "";
 
       const badgeActive = isActive
         ? `<div style="margin-top:4px;
-                      font-size:10px;
-                      padding:2px 8px;
-                      border-radius:999px;
-                      border:1px solid #facc15;
-                      background:rgba(250,204,21,0.15);
-                      color:#fef9c3;
-                      display:inline-block;">
+                       font-size:10px;
+                       padding:2px 8px;
+                       border-radius:999px;
+                       border:1px solid #facc15;
+                       background:rgba(250,204,21,0.15);
+                       color:#fef9c3;
+                       display:inline-block;">
              Aktive Belohnung
            </div>`
         : "";
@@ -1514,18 +1463,15 @@ async function loadClassProgress() {
           border-radius:16px;
           background:radial-gradient(circle at top left,#020617 0,#0b1120 60%,#020617 100%);
           border:1px solid rgba(75,85,99,0.65);
-          box-shadow:0 4px 12px rgba(0,0,0,0.9);
           padding:10px 12px 12px 12px;
+          box-shadow:${isMy ? "0 0 20px rgba(34,197,94,0.65)" : "0 4px 12px rgba(0,0,0,0.9)"};
           font-size:13px;
-          ${isMy ? "box-shadow:0 0 18px rgba(34,197,94,0.65);" : ""}
         ">
-          ${opt.image_url ? `<img src="${opt.image_url}" alt="${opt.name}" style="width:100%;height:130px;object-fit:cover;border-radius:14px;margin-bottom:6px;box-shadow:0 0 0 3px #020617,0 0 0 4px #f97316,0 0 18px rgba(249,115,22,0.8);">` : ""}
+          ${opt.image_url ? `<img src="${opt.image_url}" style="width:100%;height:130px;object-fit:cover;border-radius:14px;margin-bottom:6px;">` : ""}
           
           <div style="font-weight:600;margin-bottom:2px;">${opt.name}</div>
           <div style="font-size:12px;">Benötigte XP: <b>${opt.xp_required}</b></div>
-          <div style="font-size:11px;margin-top:2px;opacity:0.85;">
-            Stimmen in deiner Klasse: <b>${votesFor}</b>
-          </div>
+          <div style="font-size:11px;margin-top:2px;opacity:0.85;">Stimmen: <b>${votesFor}</b></div>
 
           ${progressBar}
           ${voteBtn}
@@ -1536,7 +1482,7 @@ async function loadClassProgress() {
           </div>
         </div>
       `;
-    }); // END options.forEach
+    });
 
     cardsHtml += `</div>`;
     box.innerHTML = cardsHtml;
@@ -1548,30 +1494,24 @@ async function loadClassProgress() {
 }
 
 /* ============================================
-   VOTE HANDLER – FIXED (nur 1x)
+   VOTE HANDLER – FIX (1 Stimme)
 ============================================ */
 async function voteClassReward(roundId, optionId) {
-  try {
-    const r = await fetch("/api/student/classVote", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ roundId, optionId })
-    });
+  const r = await fetch("/api/student/classVote", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ roundId, optionId })
+  });
 
-    const data = await r.json();
+  const data = await r.json();
 
-    if (!data.success) {
-      alert(data.message || "Du hast bereits abgestimmt.");
-      return;
-    }
-
-    alert("Deine Stimme wurde gespeichert.");
-    await loadClassProgress();
-
-  } catch (err) {
-    console.error(err);
-    alert("Technischer Fehler bei der Abstimmung.");
+  if (!data.success) {
+    alert(data.message || "Du hast bereits abgestimmt.");
+    return;
   }
+
+  alert("Deine Stimme wurde gespeichert.");
+  loadClassProgress();
 }
 
 /* ============================================
