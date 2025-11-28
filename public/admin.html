@@ -1051,9 +1051,12 @@ async function addMissionXPAll() {
 
 /* ---------------------------- UPLOADS + MODAL ---------------------------- */
 async function loadUploadsForStudent(studentId) {
-  const r = await fetch(`/api/uploads/${studentId}`);
-  const uploads = await r.json();
+  console.log("Lade Uploads für Schüler:", studentId);
 
+  const r = await fetch(`/api/admin/student-uploads?studentId=${studentId}`);
+  const data = await r.json();
+
+  const uploads = data.uploads || [];
   const cell = document.getElementById(`uploadCell_${studentId}`);
   if (!cell) return;
 
@@ -1087,12 +1090,17 @@ function closeModal() {
 
 async function deleteCurrentUpload() {
   if (!currentUploadId) return;
-  await fetch(`/api/upload/delete/${currentUploadId}`, { method:"DELETE" });
+
+  await fetch(`/api/admin/student-uploads/${currentUploadId}`, {
+    method:"DELETE"
+  });
+
   closeModal();
   loadXPStudents();
 }
 
 document.getElementById("modalDelete").onclick = deleteCurrentUpload;
+
 
 /* ---------------------------- KLASSEN ---------------------------- */
 async function loadClassesForManage() {
