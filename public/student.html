@@ -665,6 +665,7 @@ h2 {
   z-index: 40;
   padding: 20px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .character-overlay-inner {
@@ -771,7 +772,6 @@ h2 {
   cursor: pointer;
   color: #9ca3af;
   text-shadow: 0 0 6px #000;
-  display: none;
 }
 
 /* ============================================
@@ -962,6 +962,7 @@ h2 {
     <div id="characterChoices" class="character-choice-grid"></div>
   </div>
 </div>
+
 <script>
 /* ============================================
    LOADING OVERLAY CONTROL
@@ -1512,6 +1513,63 @@ async function voteClassReward(roundId, optionId) {
 
   alert("Deine Stimme wurde gespeichert.");
   loadClassProgress();
+}
+
+/* ============================================
+   CAROUSEL NAVIGATION (Missionen / Rewards)
+============================================ */
+function nextSlide(id) {
+  const container = document.getElementById(id);
+  if (!container) return;
+
+  const items = container.querySelectorAll(".carousel-item");
+  const dots  = container.parentNode.querySelectorAll(".dot");
+
+  if (!items.length) return;
+
+  let current = Array.from(items).findIndex(x => x.classList.contains("active"));
+  if (current === -1) current = 0;
+
+  items[current].classList.remove("active");
+  dots[current].classList.remove("active");
+
+  const next = (current + 1) % items.length;
+  items[next].classList.add("active");
+  dots[next].classList.add("active");
+}
+
+function prevSlide(id) {
+  const container = document.getElementById(id);
+  if (!container) return;
+
+  const items = container.querySelectorAll(".carousel-item");
+  const dots  = container.parentNode.querySelectorAll(".dot");
+  if (!items.length) return;
+
+  let current = Array.from(items).findIndex(x => x.classList.contains("active"));
+  if (current === -1) current = 0;
+
+  items[current].classList.remove("active");
+  dots[current].classList.remove("active");
+
+  const prev = (current - 1 + items.length) % items.length;
+  items[prev].classList.add("active");
+  dots[prev].classList.add("active");
+}
+
+function jumpSlide(id, idx) {
+  const container = document.getElementById(id);
+  if (!container) return;
+
+  const items = container.querySelectorAll(".carousel-item");
+  const dots  = container.parentNode.querySelectorAll(".dot");
+  if (!items.length || idx < 0 || idx >= items.length) return;
+
+  items.forEach(i => i.classList.remove("active"));
+  dots.forEach(d => d.classList.remove("active"));
+
+  items[idx].classList.add("active");
+  dots[idx].classList.add("active");
 }
 
 /* ============================================

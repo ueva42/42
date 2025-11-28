@@ -394,8 +394,7 @@ async function migrate() {
 
   // ------------------------------------------
   // KLASSE-BELOHNUNGS-OPTIONEN (Voting)
-  //  -> jetzt mit reward_id, damit eine Klassenbelohnung
-  //     direkt an eine Voting-Option gebunden werden kann
+  //  -> mit reward_id, um Klassenbelohnung zu binden
   // ------------------------------------------
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_reward_options (
@@ -413,7 +412,7 @@ async function migrate() {
   await ensureColumn("class_reward_options", "name", "TEXT");
   await ensureColumn("class_reward_options", "image_url", "TEXT");
 
-  // WICHTIG: reward_id darf NULL sein (sonst crash bei freien Optionen)
+  // reward_id darf NULL sein (freie Optionen)
   await pool.query(`
     DO $$
     BEGIN
@@ -427,7 +426,6 @@ async function migrate() {
           ALTER TABLE class_reward_options
           ALTER COLUMN reward_id DROP NOT NULL;
         EXCEPTION WHEN others THEN
-          -- falls kein NOT NULL gesetzt ist, einfach ignorieren
           NULL;
         END;
       END IF;
@@ -989,7 +987,6 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
 // STUDENT – Klassen-Challenge (Klassen-XP + Voting)
 //  -> /api/student/classProgress
 //  -> /api/student/classVote
-//  Passt zu deinem aktuellen student.html
 // -------------------------------------------------------
 app.get("/api/student/classProgress", isStudent, async (req, res) => {
   try {
@@ -998,7 +995,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Nicht eingeloggt." });
     }
 
-    const classId  = user.class_id;
+    const classId = user.class_id;
     const schoolId = user.school_id;
 
     if (!classId) {
@@ -1008,13 +1005,12 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       });
     }
 
-    // Klasse + Klassen-XP
+    // Klasse + aktuelle Klassen-XP bestimmen
     const classRes = await pool.query(
       "SELECT id,name FROM classes WHERE id=$1 AND school_id=$2",
       [classId, schoolId]
     );
     const clsRow = classRes.rows[0] || null;
-
     const totalXP = await getClassTotalXP(classId, schoolId);
 
     const cls = clsRow
@@ -1046,7 +1042,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
 
     const roundRow = roundRes.rows[0];
 
-    // "status" für Frontend ableiten
+    // Status für Frontend ableiten
     let status = "voting";
     if (roundRow.fixed_option_id && roundRow.is_active) {
       status = "active";
@@ -1058,11 +1054,11 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       id: roundRow.id,
       title: roundRow.title,
       status,
-      selected_reward_id: roundRow.fixed_option_id,
+      fixed_option_id: roundRow.fixed_option_id,
       xp_required: roundRow.target_xp || 0
     };
 
-    // Optionen + zugehörige Klassenbelohnung
+    // Optionen inkl. verknüpfter Klassenbelohnung
     const optRes = await pool.query(
       `
       SELECT
@@ -1090,41 +1086,39 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       xp_required: o.xp_required || round.xp_required || 0
     }));
 
-    // Vote-Counts nach reward_id
+    // Vote-Counts nach Option
     const votesRes = await pool.query(
       `
       SELECT
-        o.reward_id,
+        o.id AS option_id,
         COUNT(v.id) AS votes
       FROM class_reward_options o
       LEFT JOIN class_reward_votes v
         ON v.option_id = o.id
       WHERE o.round_id=$1
-      GROUP BY o.reward_id
+      GROUP BY o.id
       `,
       [roundRow.id]
     );
 
     const votes = votesRes.rows.map(v => ({
-      reward_id: v.reward_id,
+      option_id: v.option_id,
       votes: Number(v.votes)
     }));
 
-    // eigene Stimme → reward_id
+    // eigene Stimme -> option_id
     const myVoteRes = await pool.query(
       `
-      SELECT o.reward_id
-      FROM class_reward_votes v
-      JOIN class_reward_options o
-        ON o.id = v.option_id
-      WHERE v.round_id=$1 AND v.student_id=$2
+      SELECT option_id
+      FROM class_reward_votes
+      WHERE round_id=$1 AND student_id=$2
       LIMIT 1
       `,
       [roundRow.id, user.id]
     );
 
     const myVote = myVoteRes.rows.length
-      ? myVoteRes.rows[0].reward_id
+      ? myVoteRes.rows[0].option_id
       : null;
 
     return res.json({
@@ -1162,8 +1156,10 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Runde nicht gefunden." });
     }
 
-    // Voting abgeschlossen?
-    if (r.rows[0].fixed_option_id) {
+    const round = r.rows[0];
+
+    // Voting schon abgeschlossen?
+    if (round.fixed_option_id) {
       return res.json({ success: false, message: "Voting ist beendet." });
     }
 
@@ -1184,10 +1180,10 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       });
     }
 
-    // 3) Option prüfen
+    // 3) Option prüfen – muss zur Runde gehören
     const opt = await pool.query(
       `
-      SELECT id, reward_id
+      SELECT id
       FROM class_reward_options
       WHERE id=$1 AND round_id=$2
       LIMIT 1
@@ -1202,19 +1198,16 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       });
     }
 
-    const rewardId = opt.rows[0].reward_id;
-
     // 4) Stimme speichern – einmalig
     await pool.query(
       `
-      INSERT INTO class_reward_votes (round_id, student_id, option_id, reward_id)
-      VALUES ($1,$2,$3,$4)
+      INSERT INTO class_reward_votes (round_id, student_id, option_id)
+      VALUES ($1,$2,$3)
       `,
-      [roundId, studentId, optionId, rewardId]
+      [roundId, studentId, optionId]
     );
 
     return res.json({ success: true });
-
   } catch (err) {
     console.error("❌ classVote ERROR:", err);
     return res.json({
@@ -1223,7 +1216,6 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
     });
   }
 });
-
 
 // -------------------------------------------------------
 // ADMIN – Klassenfortschritt & Voting
@@ -1463,7 +1455,7 @@ app.post(
   }
 );
 
-// Option hinzufügen – jetzt wahlweise mit rewardId oder mit Name/Bild
+// Option hinzufügen – wahlweise mit rewardId oder Name/Bild
 app.post("/api/admin/class-reward-option", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
   const { roundId, name, imageUrl, rewardId } = req.body;
@@ -1977,7 +1969,7 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 
   if (r.rows.length && r.rows[0].image_url) {
     const prefix = process.env.R2_PUBLIC_URL + "/";
-    const key = r.rows[0].image_url.replace(prefix, "");
+    const key = r.rows[0].image_url.replace(prefix, "";
 
     try {
       await r2.send(new DeleteObjectCommand({
