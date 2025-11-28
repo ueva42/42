@@ -665,7 +665,6 @@ h2 {
   z-index: 40;
   padding: 20px;
   box-sizing: border-box;
-  overflow: hidden;
 }
 
 .character-overlay-inner {
@@ -772,6 +771,7 @@ h2 {
   cursor: pointer;
   color: #9ca3af;
   text-shadow: 0 0 6px #000;
+  display: none;
 }
 
 /* ============================================
@@ -962,7 +962,6 @@ h2 {
     <div id="characterChoices" class="character-choice-grid"></div>
   </div>
 </div>
-
 <script>
 /* ============================================
    LOADING OVERLAY CONTROL
@@ -1357,31 +1356,83 @@ async function loadClassProgress() {
       statusText = "Letzte Klassen-Challenge ist abgeschlossen.";
     }
 
+    const selectedOptionId = round.selected_option_id;
+    const xpNeededRound    = round.xp_required || 0;
+
+    // Votes kommen vom Server pro reward_id
     const voteMap = {};
-    votes.forEach(v => voteMap[v.option_id] = v.votes);
+    votes.forEach(v => {
+      if (v.reward_id != null) {
+        voteMap[v.reward_id] = v.votes;
+      }
+    });
 
-    const selectedRewardId = round.selected_reward_id;
-    const xpNeeded         = round.xp_required;
+    // Gewinner-Option bestimmen, wenn Voting beendet / Gewinner festgelegt
+    let winnerOption = null;
+    if (selectedOptionId && (round.status === "active" || round.status === "completed")) {
+      winnerOption = options.find(o => o.id === selectedOptionId) || null;
+    }
 
-    let cardsHtml = `
+    // Header mit Klasseninfos
+    let headerHtml = `
       <div style="font-size:13px;margin-bottom:10px;">
         <b>Klasse:</b> ${cls.name}<br>
         <b>Klassen-XP gesamt:</b> ${cls.total_xp}<br>
         <span style="opacity:0.8;">${statusText}</span>
       </div>
+    `;
 
+    // Wenn Gewinner feststeht: Box mit Gewinner + großem XP-Balken
+    if (winnerOption) {
+      const xpGoal = winnerOption.xp_required || xpNeededRound || 0;
+      if (xpGoal > 0) {
+        const pct = Math.min(100, Math.round((cls.total_xp / xpGoal) * 100));
+
+        headerHtml += `
+          <div style="
+            margin-bottom:12px;
+            padding:10px 12px;
+            border-radius:16px;
+            background:radial-gradient(circle at top left,#022c22 0,#020617 60%);
+            border:1px solid rgba(16,185,129,0.7);
+            box-shadow:0 0 18px rgba(16,185,129,0.5);
+            font-size:12px;
+          ">
+            <div style="opacity:0.9;">Gewonnene Klassen-Belohnung:</div>
+            <div style="font-size:14px;font-weight:600;margin-top:2px;">
+              ${winnerOption.name}
+            </div>
+            <div style="margin-top:4px;">
+              Ziel: <b>${xpGoal} XP</b> – Aktuell: <b>${cls.total_xp} XP</b>
+            </div>
+            <div style="margin-top:6px;">
+              <div style="width:100%;height:10px;border-radius:999px;background:#020617;border:1px solid rgba(148,163,184,0.7);overflow:hidden;">
+                <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#22c55e,#facc15,#f97316,#fb923c);"></div>
+              </div>
+              <div style="margin-top:2px;font-size:11px;opacity:0.8;">
+                Fortschritt zum Klassenziel: <b>${pct}%</b>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    let cardsHtml = headerHtml;
+    cardsHtml += `
       <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">
     `;
 
     options.forEach(opt => {
-      const isMy     = myVote === opt.id;
-      const votesFor = voteMap[opt.id] || 0;
+      const votesFor = opt.reward_id ? (voteMap[opt.reward_id] || 0) : 0;
+      const isMy     = (myVote != null && opt.reward_id != null && myVote === opt.reward_id);
       const isActive =
-        selectedRewardId === opt.reward_id &&
+        selectedOptionId === opt.id &&
         (round.status === "active" || round.status === "completed");
 
-      /* PROGRESS BAR WENN ACTIVE */
+      // PROGRESS BAR WENN ACTIVE
       let progressBar = "";
+      const xpNeeded = opt.xp_required || xpNeededRound || 0;
       if (isActive && xpNeeded > 0) {
         const pct = Math.min(100, Math.round((cls.total_xp / xpNeeded) * 100));
 
@@ -1395,11 +1446,10 @@ async function loadClassProgress() {
         `;
       }
 
-      /* VOTING */
+      // VOTING
       let voteBtn = "";
-
       if (round.status === "voting") {
-        if (myVote) {
+        if (myVote != null) {
           if (isMy) {
             voteBtn = `
               <div style="
@@ -1431,7 +1481,7 @@ async function loadClassProgress() {
         }
       }
 
-      /* BADGES */
+      // BADGES
       const badgeMy = isMy
         ? `<div style="margin-top:4px;
                        font-size:10px;
@@ -1469,9 +1519,9 @@ async function loadClassProgress() {
           font-size:13px;
         ">
           ${opt.image_url ? `<img src="${opt.image_url}" style="width:100%;height:130px;object-fit:cover;border-radius:14px;margin-bottom:6px;">` : ""}
-          
+
           <div style="font-weight:600;margin-bottom:2px;">${opt.name}</div>
-          <div style="font-size:12px;">Benötigte XP: <b>${opt.xp_required}</b></div>
+          <div style="font-size:12px;">Benötigte XP: <b>${xpNeeded}</b></div>
           <div style="font-size:11px;margin-top:2px;opacity:0.85;">Stimmen: <b>${votesFor}</b></div>
 
           ${progressBar}
@@ -1493,7 +1543,6 @@ async function loadClassProgress() {
     box.innerHTML = "<i>Fehler beim Laden der Klassen-Challenge.</i>";
   }
 }
-
 /* ============================================
    VOTE HANDLER – FIX (1 Stimme)
 ============================================ */
@@ -1513,63 +1562,6 @@ async function voteClassReward(roundId, optionId) {
 
   alert("Deine Stimme wurde gespeichert.");
   loadClassProgress();
-}
-
-/* ============================================
-   CAROUSEL NAVIGATION (Missionen / Rewards)
-============================================ */
-function nextSlide(id) {
-  const container = document.getElementById(id);
-  if (!container) return;
-
-  const items = container.querySelectorAll(".carousel-item");
-  const dots  = container.parentNode.querySelectorAll(".dot");
-
-  if (!items.length) return;
-
-  let current = Array.from(items).findIndex(x => x.classList.contains("active"));
-  if (current === -1) current = 0;
-
-  items[current].classList.remove("active");
-  dots[current].classList.remove("active");
-
-  const next = (current + 1) % items.length;
-  items[next].classList.add("active");
-  dots[next].classList.add("active");
-}
-
-function prevSlide(id) {
-  const container = document.getElementById(id);
-  if (!container) return;
-
-  const items = container.querySelectorAll(".carousel-item");
-  const dots  = container.parentNode.querySelectorAll(".dot");
-  if (!items.length) return;
-
-  let current = Array.from(items).findIndex(x => x.classList.contains("active"));
-  if (current === -1) current = 0;
-
-  items[current].classList.remove("active");
-  dots[current].classList.remove("active");
-
-  const prev = (current - 1 + items.length) % items.length;
-  items[prev].classList.add("active");
-  dots[prev].classList.add("active");
-}
-
-function jumpSlide(id, idx) {
-  const container = document.getElementById(id);
-  if (!container) return;
-
-  const items = container.querySelectorAll(".carousel-item");
-  const dots  = container.parentNode.querySelectorAll(".dot");
-  if (!items.length || idx < 0 || idx >= items.length) return;
-
-  items.forEach(i => i.classList.remove("active"));
-  dots.forEach(d => d.classList.remove("active"));
-
-  items[idx].classList.add("active");
-  dots[idx].classList.add("active");
 }
 
 /* ============================================

@@ -394,6 +394,8 @@ async function migrate() {
 
   // ------------------------------------------
   // KLASSE-BELOHNUNGS-OPTIONEN (Voting)
+  //  -> jetzt mit reward_id, damit eine Klassenbelohnung
+  //     direkt an eine Voting-Option gebunden werden kann
   // ------------------------------------------
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_reward_options (
@@ -411,7 +413,7 @@ async function migrate() {
   await ensureColumn("class_reward_options", "name", "TEXT");
   await ensureColumn("class_reward_options", "image_url", "TEXT");
 
-  // reward_id darf NULL sein
+  // WICHTIG: reward_id darf NULL sein (sonst crash bei freien Optionen)
   await pool.query(`
     DO $$
     BEGIN
@@ -425,6 +427,7 @@ async function migrate() {
           ALTER TABLE class_reward_options
           ALTER COLUMN reward_id DROP NOT NULL;
         EXCEPTION WHEN others THEN
+          -- falls kein NOT NULL gesetzt ist, einfach ignorieren
           NULL;
         END;
       END IF;
@@ -984,6 +987,9 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
 
 // -------------------------------------------------------
 // STUDENT – Klassen-Challenge (Klassen-XP + Voting)
+//  -> /api/student/classProgress
+//  -> /api/student/classVote
+//  Passt zu deinem aktuellen student.html
 // -------------------------------------------------------
 app.get("/api/student/classProgress", isStudent, async (req, res) => {
   try {
@@ -1084,39 +1090,41 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       xp_required: o.xp_required || round.xp_required || 0
     }));
 
-    // Vote-Counts pro Option (option_id)
+    // Vote-Counts nach reward_id
     const votesRes = await pool.query(
       `
       SELECT
-        o.id AS option_id,
+        o.reward_id,
         COUNT(v.id) AS votes
       FROM class_reward_options o
       LEFT JOIN class_reward_votes v
         ON v.option_id = o.id
       WHERE o.round_id=$1
-      GROUP BY o.id
+      GROUP BY o.reward_id
       `,
       [roundRow.id]
     );
 
     const votes = votesRes.rows.map(v => ({
-      option_id: v.option_id,
+      reward_id: v.reward_id,
       votes: Number(v.votes)
     }));
 
-    // eigene Stimme → option_id
+    // eigene Stimme → reward_id
     const myVoteRes = await pool.query(
       `
-      SELECT option_id
-      FROM class_reward_votes
-      WHERE round_id=$1 AND student_id=$2
+      SELECT o.reward_id
+      FROM class_reward_votes v
+      JOIN class_reward_options o
+        ON o.id = v.option_id
+      WHERE v.round_id=$1 AND v.student_id=$2
       LIMIT 1
       `,
       [roundRow.id, user.id]
     );
 
     const myVote = myVoteRes.rows.length
-      ? myVoteRes.rows[0].option_id
+      ? myVoteRes.rows[0].reward_id
       : null;
 
     return res.json({
@@ -1137,7 +1145,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
 });
 
 // ======================================================
-// STUDENT VOTING – 1x Stimme, nicht änderbar
+// STUDENT VOTING – korrekt, 1x Stimme, nicht änderbar
 // ======================================================
 app.post("/api/student/classVote", isStudent, async (req, res) => {
   try {
@@ -1179,7 +1187,7 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
     // 3) Option prüfen
     const opt = await pool.query(
       `
-      SELECT id
+      SELECT id, reward_id
       FROM class_reward_options
       WHERE id=$1 AND round_id=$2
       LIMIT 1
@@ -1194,13 +1202,15 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       });
     }
 
+    const rewardId = opt.rows[0].reward_id;
+
     // 4) Stimme speichern – einmalig
     await pool.query(
       `
-      INSERT INTO class_reward_votes (round_id, student_id, option_id)
-      VALUES ($1,$2,$3)
+      INSERT INTO class_reward_votes (round_id, student_id, option_id, reward_id)
+      VALUES ($1,$2,$3,$4)
       `,
-      [roundId, studentId, optionId]
+      [roundId, studentId, optionId, rewardId]
     );
 
     return res.json({ success: true });
@@ -1213,6 +1223,7 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
     });
   }
 });
+
 
 // -------------------------------------------------------
 // ADMIN – Klassenfortschritt & Voting
@@ -1888,7 +1899,6 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
         Key: key
       }));
     } catch {}
-
   }
 
   await pool.query(
