@@ -450,6 +450,8 @@ async function migrate() {
   await ensureColumn("class_reward_votes", "round_id", "INTEGER");
   await ensureColumn("class_reward_votes", "student_id", "INTEGER");
   await ensureColumn("class_reward_votes", "option_id", "INTEGER");
+  await ensureColumn("class_reward_votes", "reward_id", "INTEGER");
+
 
   // UNIQUE: eine Stimme pro Schüler pro Runde
   await pool.query(`
@@ -989,7 +991,6 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
 // STUDENT – Klassen-Challenge (Klassen-XP + Voting)
 //  -> /api/student/classProgress
 //  -> /api/student/classVote
-//  Passt zu deinem aktuellen student.html
 // -------------------------------------------------------
 app.get("/api/student/classProgress", isStudent, async (req, res) => {
   try {
@@ -1013,15 +1014,14 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       "SELECT id,name FROM classes WHERE id=$1 AND school_id=$2",
       [classId, schoolId]
     );
-    const clsRow = classRes.rows[0] || null;
-
+    const clsRow  = classRes.rows[0] || null;
     const totalXP = await getClassTotalXP(classId, schoolId);
 
     const cls = clsRow
       ? { id: clsRow.id, name: clsRow.name, total_xp: totalXP }
       : { id: classId, name: "Unbekannte Klasse", total_xp: totalXP };
 
-    // letzte Runde dieser Klasse
+    // letzte Voting-Runde dieser Klasse
     const roundRes = await pool.query(
       `
       SELECT *
@@ -1046,7 +1046,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
 
     const roundRow = roundRes.rows[0];
 
-    // "status" für Frontend ableiten
+    // Status ableiten
     let status = "voting";
     if (roundRow.fixed_option_id && roundRow.is_active) {
       status = "active";
@@ -1058,11 +1058,13 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       id: roundRow.id,
       title: roundRow.title,
       status,
-      selected_reward_id: roundRow.fixed_option_id,
+      // WICHTIG: Option-ID, nicht Reward-ID
+      selected_option_id: roundRow.fixed_option_id,
+      // Ziel-XP der Runde (wie im Admin-Panel)
       xp_required: roundRow.target_xp || 0
     };
 
-    // Optionen + zugehörige Klassenbelohnung
+    // Optionen inkl. xp_required aus class_rewards (falls vorhanden)
     const optRes = await pool.query(
       `
       SELECT
@@ -1082,49 +1084,48 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
     );
 
     const options = optRes.rows.map(o => ({
-      id: o.id,
-      round_id: o.round_id,
-      reward_id: o.reward_id,
-      name: o.name,
-      image_url: o.image_url,
+      id:          o.id,
+      round_id:    o.round_id,
+      reward_id:   o.reward_id,
+      name:        o.name,
+      image_url:   o.image_url,
+      // fallback: wenn Reward keine eigene XP hat → Rundenziel
       xp_required: o.xp_required || round.xp_required || 0
     }));
 
-    // Vote-Counts nach reward_id
+    // Stimmen pro OPTION (nicht mehr pro reward_id)
     const votesRes = await pool.query(
       `
       SELECT
-        o.reward_id,
+        o.id AS option_id,
         COUNT(v.id) AS votes
       FROM class_reward_options o
       LEFT JOIN class_reward_votes v
         ON v.option_id = o.id
       WHERE o.round_id=$1
-      GROUP BY o.reward_id
+      GROUP BY o.id
       `,
       [roundRow.id]
     );
 
     const votes = votesRes.rows.map(v => ({
-      reward_id: v.reward_id,
+      option_id: v.option_id,
       votes: Number(v.votes)
     }));
 
-    // eigene Stimme → reward_id
+    // eigene Stimme → option_id
     const myVoteRes = await pool.query(
       `
-      SELECT o.reward_id
-      FROM class_reward_votes v
-      JOIN class_reward_options o
-        ON o.id = v.option_id
-      WHERE v.round_id=$1 AND v.student_id=$2
+      SELECT option_id
+      FROM class_reward_votes
+      WHERE round_id=$1 AND student_id=$2
       LIMIT 1
       `,
       [roundRow.id, user.id]
     );
 
     const myVote = myVoteRes.rows.length
-      ? myVoteRes.rows[0].reward_id
+      ? myVoteRes.rows[0].option_id
       : null;
 
     return res.json({
@@ -1145,7 +1146,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
 });
 
 // ======================================================
-// STUDENT VOTING – korrekt, 1x Stimme, nicht änderbar
+// STUDENT VOTING – 1x Stimme, nicht änderbar
 // ======================================================
 app.post("/api/student/classVote", isStudent, async (req, res) => {
   try {
@@ -1202,7 +1203,7 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       });
     }
 
-    const rewardId = opt.rows[0].reward_id;
+    const rewardId = opt.rows[0].reward_id || null;
 
     // 4) Stimme speichern – einmalig
     await pool.query(

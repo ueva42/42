@@ -1361,11 +1361,13 @@ async function loadClassProgress() {
 
     // Votes kommen vom Server pro reward_id
     const voteMap = {};
-    votes.forEach(v => {
-      if (v.reward_id != null) {
-        voteMap[v.reward_id] = v.votes;
-      }
-    });
+if (Array.isArray(votes)) {
+  votes.forEach(v => {
+    // Stimmen sind jetzt pro Option
+    voteMap[v.option_id] = v.votes;
+  });
+}
+
 
     // Gewinner-Option bestimmen, wenn Voting beendet / Gewinner festgelegt
     let winnerOption = null;
