@@ -519,14 +519,37 @@ async function migrate() {
   `);
 
   // -------------------------------------------------------
-  // DUPLIKATE USERS FIXEN
+  // GEISTERDATEN BEREINIGUNG – verwaiste Schüler/Uploads
   // -------------------------------------------------------
   await pool.query(`
+    DELETE FROM student_uploads su
+    WHERE NOT EXISTS (
+      SELECT 1 FROM users u WHERE u.id = su.student_id
+    );
+  `);
+
+  await pool.query(`
+    DELETE FROM xp_transactions xt
+    WHERE NOT EXISTS (
+      SELECT 1 FROM users u WHERE u.id = xt.student_id
+    );
+  `);
+
+  await pool.query(`
+    DELETE FROM class_reward_votes v
+    WHERE NOT EXISTS (
+      SELECT 1 FROM users u WHERE u.id = v.student_id
+    );
+  `);
+
+  await pool.query(`
     DELETE FROM users u
-    USING users u2
-    WHERE u.name = u2.name
-      AND u.school_id = u2.school_id
-      AND u.id > u2.id
+    WHERE u.role = 'student'
+      AND u.class_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM classes c
+        WHERE c.id = u.class_id
+      );
   `);
 
   // -------------------------------------------------------
@@ -1626,7 +1649,6 @@ app.post("/api/student", isAdmin, async (req, res) => {
   await pool.query(`
     INSERT INTO users (name,password,role,class_id,school_id,xp,first_login)
     VALUES ($1,$2,'student',$3,$4,0,TRUE)
-    ON CONFLICT (name,class_id) DO NOTHING
   `, [name, tempPassword, classId, schoolId]);
 
   res.json({ success: true });
@@ -2000,115 +2022,6 @@ app.delete("/api/character/:id", isAdmin, async (req, res) => {
 
   res.json({ success: true });
 });
-
-// -------------------------------------------------------
-// ADMIN – Uploads einer/eines Schüler:in anzeigen
-// -------------------------------------------------------
-app.get("/api/admin/student-uploads", isAdmin, async (req, res) => {
-  try {
-    const { studentId } = req.query;
-    const schoolId = req.session.user.school_id;
-
-    if (!studentId) {
-      return res.json({ success: false, message: "studentId fehlt" });
-    }
-
-    const uploads = await pool.query(
-      `
-        SELECT su.*, m.name AS mission_name
-        FROM student_uploads su
-        LEFT JOIN missions m ON m.id = su.mission_id
-        WHERE su.student_id=$1 AND su.school_id=$2
-        ORDER BY su.created_at DESC
-      `,
-      [studentId, schoolId]
-    );
-
-    res.json({ success: true, uploads: uploads.rows });
-  } catch (err) {
-    console.error("❌ /api/admin/student-uploads ERROR:", err);
-    res.json({ success: false, message: "Serverfehler" });
-  }
-});
-
-// -------------------------------------------------------
-// ADMIN – Einzelnen Upload löschen (inkl. R2 löschen)
-// -------------------------------------------------------
-app.delete("/api/admin/student-uploads/:id", isAdmin, async (req, res) => {
-  try {
-    const uploadId = Number(req.params.id);
-    const schoolId = req.session.user.school_id;
-
-    const r = await pool.query(
-      `
-        SELECT image_url
-        FROM student_uploads
-        WHERE id=$1 AND school_id=$2
-      `,
-      [uploadId, schoolId]
-    );
-
-    if (!r.rows.length) {
-      return res.json({ success: false, message: "Upload nicht gefunden" });
-    }
-
-    const url = r.rows[0].image_url;
-    const prefix = (process.env.R2_PUBLIC_URL || "") + "/";
-    const key = url.replace(prefix, "");
-
-    try {
-      await r2.send(
-        new DeleteObjectCommand({
-          Bucket: process.env.R2_BUCKET,
-          Key: key
-        })
-      );
-    } catch (err) {
-      console.error("⚠️ R2 delete error (student upload)", err);
-    }
-
-    await pool.query(
-      "DELETE FROM student_uploads WHERE id=$1 AND school_id=$2",
-      [uploadId, schoolId]
-    );
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ DELETE /api/admin/student-uploads/:id ERROR:", err);
-    res.json({ success: false, message: "Serverfehler" });
-  }
-});
-
-// -------------------------------------------------------
-// ADMIN – Bild eines Uploads direkt abrufen
-// -------------------------------------------------------
-app.get("/api/admin/student-uploads/view/:id", isAdmin, async (req, res) => {
-  try {
-    const uploadId = Number(req.params.id);
-    const schoolId = req.session.user.school_id;
-
-    const r = await pool.query(
-      `
-        SELECT image_url
-        FROM student_uploads
-        WHERE id=$1 AND school_id=$2
-      `,
-      [uploadId, schoolId]
-    );
-
-    if (!r.rows.length) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Upload nicht gefunden" });
-    }
-
-    res.json({ success: true, url: r.rows[0].image_url });
-  } catch (err) {
-    console.error("❌ /api/admin/student-uploads/view/:id ERROR:", err);
-    res.json({ success: false, message: "Serverfehler" });
-  }
-});
-
 
 // -------------------------------------------------------
 // ADMIN – Level-System
