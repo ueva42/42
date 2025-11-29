@@ -2116,6 +2116,48 @@ app.post("/api/levels", isAdmin, async (req, res) => {
   }
 });
 
+app.delete("/api/levels/:id", isAdmin, async (req, res) => {
+  try {
+    const levelId = req.params.id;
+    const schoolId = req.session.user.school_id;
+
+    // Level laden
+    const lvl = await pool.query(
+      `SELECT id, min_xp FROM levels WHERE id=$1 AND school_id=$2`,
+      [levelId, schoolId]
+    );
+
+    if (lvl.rowCount === 0) {
+      return res.json({
+        success: false,
+        message: "Level nicht gefunden oder gehört nicht zu dieser Schule."
+      });
+    }
+
+    // 0-XP-Level schützen
+    if (lvl.rows[0].min_xp === 0) {
+      return res.json({
+        success: false,
+        message: "Das Start-Level (0 XP) kann nicht gelöscht werden."
+      });
+    }
+
+    // Löschen
+    await pool.query(
+      `DELETE FROM levels WHERE id=$1 AND school_id=$2`,
+      [levelId, schoolId]
+    );
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Fehler beim Löschen eines Levels:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Fehler beim Löschen."
+    });
+  }
+});
+
 
 // -------------------------------------------------------
 // ADMIN – Klasse-Challenge (neues System)
