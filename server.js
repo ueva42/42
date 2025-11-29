@@ -2064,51 +2064,58 @@ app.get("/api/levels", isAdmin, async (req, res) => {
 });
 
 app.post("/api/levels", isAdmin, async (req, res) => {
-  let { name, minXp } = req.body;
+  try {
+    let { name, minXp } = req.body;
+    const schoolId = req.session.user.school_id;
 
-  const schoolId = req.session.user.school_id;
-  minXp = Number(minXp);
+    minXp = Number(minXp);
 
-  const existing = await pool.query(`
-    SELECT COUNT(*)
-    FROM levels
-    WHERE school_id=$1
-  `, [schoolId]);
+    if (!name || Number.isNaN(minXp)) {
+      return res.json({
+        success: false,
+        message: "Name oder Mindest-XP fehlen oder sind ungültig."
+      });
+    }
 
-  const count = Number(existing.rows[0].count);
+    // Erstes Level immer auf 0 XP setzen
+    const existing = await pool.query(
+      `
+      SELECT COUNT(*) AS count
+      FROM levels
+      WHERE school_id=$1
+    `,
+      [schoolId]
+    );
 
-  if (count === 0 && minXp !== 0) {
-    minXp = 0;
+    const count = Number(existing.rows[0].count);
+    if (count === 0 && minXp !== 0) {
+      minXp = 0;
+    }
+
+    // Eintrag anlegen oder bei Konflikt (gleicher min_xp in derselben Schule)
+    // nur den Namen aktualisieren, statt mit Fehler abzustürzen.
+    await pool.query(
+      `
+      INSERT INTO levels (name, min_xp, school_id)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (school_id, min_xp)
+      DO UPDATE SET name = EXCLUDED.name
+    `,
+      [name, minXp, schoolId]
+    );
+
+    await recalcAllStudentLevels();
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("Fehler beim Anlegen eines Levels:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Fehler beim Anlegen des Levels."
+    });
   }
-
-  await pool.query(`
-    INSERT INTO levels (name,min_xp,school_id)
-    VALUES ($1,$2,$3)
-  `, [name, minXp, schoolId]);
-
-  await recalcAllStudentLevels();
-
-  res.json({ success: true });
 });
 
-app.delete("/api/levels/:id", isAdmin, async (req, res) => {
-  const schoolId = req.session.user.school_id;
-  const levelId = Number(req.params.id);
-
-  await pool.query(`
-    UPDATE users SET level_id=NULL
-    WHERE level_id=$1 AND school_id=$2
-  `, [levelId, schoolId]);
-
-  await pool.query(`
-    DELETE FROM levels
-    WHERE id=$1 AND school_id=$2
-  `, [levelId, schoolId]);
-
-  await recalcAllStudentLevels();
-
-  res.json({ success: true });
-});
 
 // -------------------------------------------------------
 // ADMIN – Klasse-Challenge (neues System)
