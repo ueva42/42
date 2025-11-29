@@ -686,6 +686,66 @@ app.post("/api/login", async (req, res) => {
 app.post("/api/logout", (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
 });
+// -------------------------------------------------------
+// ADMIN – eigenes Passwort ändern
+// -------------------------------------------------------
+app.post("/api/admin/change-password", isAdmin, async (req, res) => {
+  try {
+    const adminId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.json({
+        success: false,
+        message: "Bitte alle Felder ausfüllen."
+      });
+    }
+
+    // Aktuellen Admin holen
+    const r = await pool.query(
+      `
+      SELECT password
+      FROM users
+      WHERE id=$1 AND school_id=$2 AND role='admin'
+      `,
+      [adminId, schoolId]
+    );
+
+    if (!r.rows.length) {
+      return res.json({
+        success: false,
+        message: "Admin nicht gefunden."
+      });
+    }
+
+    if (r.rows[0].password !== currentPassword) {
+      return res.json({
+        success: false,
+        message: "Aktuelles Passwort ist falsch."
+      });
+    }
+
+    // Neues Passwort setzen
+    await pool.query(
+      `
+      UPDATE users
+      SET password=$1
+      WHERE id=$2 AND school_id=$3 AND role='admin'
+      `,
+      [newPassword, adminId, schoolId]
+    );
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error("❌ Fehler beim Admin-Passwort-Update:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Serverfehler beim Passwort-Update."
+    });
+  }
+});
 
 // -------------------------------------------------------
 // ROLE GUARDS
