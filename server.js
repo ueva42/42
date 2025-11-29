@@ -2130,25 +2130,41 @@ app.delete("/api/levels/:id", isAdmin, async (req, res) => {
     if (lvl.rowCount === 0) {
       return res.json({
         success: false,
-        message: "Level nicht gefunden oder gehört nicht zu dieser Schule."
+        message: "Level nicht gefunden oder gehört nicht zu deiner Schule."
       });
     }
 
-    // 0-XP-Level schützen
-    if (lvl.rows[0].min_xp === 0) {
+    const minXp = lvl.rows[0].min_xp;
+
+    // 1. Schutz: 0 XP Level darf nie gelöscht werden
+    if (minXp === 0) {
       return res.json({
         success: false,
         message: "Das Start-Level (0 XP) kann nicht gelöscht werden."
       });
     }
 
-    // Löschen
+    // 2. Schutz: Es müssen immer mindestens 2 Level vorhanden bleiben
+    const count = await pool.query(
+      `SELECT COUNT(*) FROM levels WHERE school_id=$1`,
+      [schoolId]
+    );
+
+    if (Number(count.rows[0].count) <= 2) {
+      return res.json({
+        success: false,
+        message: "Du kannst nicht alle Level löschen. Mindestens ein Level neben dem Start-Level muss existieren."
+      });
+    }
+
+    // Löschen, wenn beide Schutzmechanismen erfüllt sind
     await pool.query(
       `DELETE FROM levels WHERE id=$1 AND school_id=$2`,
       [levelId, schoolId]
     );
 
     return res.json({ success: true });
+
   } catch (err) {
     console.error("Fehler beim Löschen eines Levels:", err);
     return res.status(500).json({
