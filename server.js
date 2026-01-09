@@ -279,6 +279,41 @@ async function migrate() {
   await ensureColumn("users", "first_login", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("users", "school_id", "INTEGER");
 
+    // -------------------------------------------------------
+  // UNIQUE-CONSTRAINTS (wichtig für ON CONFLICT)
+  // -------------------------------------------------------
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name='users'
+          AND constraint_type='UNIQUE'
+          AND constraint_name='users_name_school_unique'
+      ) THEN
+        ALTER TABLE users
+        ADD CONSTRAINT users_name_school_unique UNIQUE (name, school_id);
+      END IF;
+    END$$;
+  `);
+
+    await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name='classes'
+          AND constraint_type='UNIQUE'
+          AND constraint_name='classes_name_school_unique'
+      ) THEN
+        ALTER TABLE classes
+        ADD CONSTRAINT classes_name_school_unique UNIQUE (name, school_id);
+      END IF;
+    END$$;
+  `);
+
   // KLASSEN
   await pool.query(`
     CREATE TABLE IF NOT EXISTS classes (
