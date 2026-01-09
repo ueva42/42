@@ -41,7 +41,6 @@ body {
   transition: margin-left 0.3s ease;
 }
 
-
 a { color: inherit; }
 
 /* ============================================
@@ -791,6 +790,56 @@ h2 {
 }
 
 /* ============================================
+   NOTIFICATIONS (GLOCKE)
+============================================ */
+.notif-bell {
+  margin-left: auto;
+  position: relative;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 6px;
+  border-radius: 50%;
+  transition: 0.15s ease;
+  user-select: none;
+}
+
+.notif-bell:hover {
+  background: rgba(249,115,22,0.2);
+  box-shadow: 0 0 12px rgba(249,115,22,0.6);
+}
+
+.notif-bell.mobile {
+  font-size: 18px;
+}
+
+.notif-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  box-shadow: 0 0 8px rgba(239,68,68,0.9);
+}
+
+.notif-panel {
+  position: fixed;
+  top: 70px;
+  right: 20px;
+  width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: rgba(2,6,23,0.96);
+  border: 1px solid rgba(249,115,22,0.7);
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.9);
+  padding: 10px 12px;
+  z-index: 50;
+}
+
+/* ============================================
    RESPONSIVE
 ============================================ */
 @media (max-width: 900px) {
@@ -847,6 +896,13 @@ h2 {
   .loading-hint {
     font-size: 11px;
   }
+
+  /* Panel rechts oben auf Mobile etwas nach innen */
+  .notif-panel {
+    right: 12px;
+    top: 64px;
+    width: 260px;
+  }
 }
   </style>
 </head>
@@ -871,7 +927,15 @@ h2 {
   <div class="burger" onclick="toggleMenu()">
     <span></span><span></span><span></span>
   </div>
+
   <div class="mobile-title">STREETS OF LOGIC</div>
+
+  <!-- NOTIFICATION BELL MOBILE -->
+  <div class="notif-bell mobile" onclick="toggleNotifications()" title="Benachrichtigungen">
+    🔔
+    <span class="notif-badge" id="notifBadgeMobile" style="display:none;">0</span>
+  </div>
+
   <button class="mobile-logout-btn" onclick="logout()">Logout</button>
 </div>
 
@@ -882,9 +946,16 @@ h2 {
       <img id="sidebarAvatar" src="" alt="" style="display:none;">
       <span id="sidebarInitials" style="display:none;">SL</span>
     </div>
+
     <div class="sidebar-title-wrap">
       <h2 class="sidebar-title">STREETS OF LOGIC</h2>
       <span class="sidebar-subtitle">XP EDITION</span>
+    </div>
+
+    <!-- NOTIFICATION BELL (DESKTOP) -->
+    <div class="notif-bell" onclick="toggleNotifications()" title="Benachrichtigungen">
+      🔔
+      <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
     </div>
   </div>
 
@@ -979,6 +1050,16 @@ h2 {
   </div>
 </div>
 
+<!-- NOTIFICATION PANEL -->
+<div id="notifPanel" class="notif-panel" style="display:none;">
+  <div style="font-size:12px;font-weight:600;margin-bottom:6px;">
+    Benachrichtigungen
+  </div>
+  <div id="notifList" style="font-size:12px;opacity:0.9;">
+    <i>Keine neuen Nachrichten</i>
+  </div>
+</div>
+
 <script>
 /* ============================================
    LOADING OVERLAY CONTROL
@@ -1038,6 +1119,30 @@ function showSection(ev, name) {
 async function logout() {
   await fetch("/api/logout", { method: "POST" });
   location.href = "/login.html";
+}
+
+/* ============================================
+   NOTIFICATIONS (UI ONLY)
+============================================ */
+function toggleNotifications() {
+  const p = document.getElementById("notifPanel");
+  if (!p) return;
+  p.style.display = (p.style.display === "none" || !p.style.display) ? "block" : "none";
+}
+
+// Dummy Badge (nur UI-Test)
+function setDummyNotifications(count = 0) {
+  const b1 = document.getElementById("notifBadge");
+  const b2 = document.getElementById("notifBadgeMobile");
+
+  if (b1) {
+    b1.textContent = count;
+    b1.style.display = count > 0 ? "block" : "none";
+  }
+  if (b2) {
+    b2.textContent = count;
+    b2.style.display = count > 0 ? "block" : "none";
+  }
 }
 
 /* ============================================
@@ -1501,10 +1606,8 @@ async function loadClassProgress() {
     `;
 
     options.forEach(opt => {
-      // ✅ FIX: votes + myVote müssen auf opt.id laufen (option_id), nicht opt.reward_id
-      const votesFor = (voteMap[opt.id] || 0);
-      const isMy     = (myVote != null && myVote === opt.id);
-
+      const votesFor = opt.reward_id ? (voteMap[opt.reward_id] || 0) : 0;
+      const isMy     = (myVote != null && opt.reward_id != null && myVote === opt.reward_id);
       const isActive =
         selectedOptionId === opt.id &&
         (round.status === "active" || round.status === "completed");
@@ -1647,6 +1750,7 @@ async function voteClassReward(roundId, optionId) {
 /* ============================================
    INIT
 ============================================ */
+setDummyNotifications(2); // <- nur Demo (kannst du später rauswerfen)
 loadMe();
 loadMissions();
 loadRewards();
