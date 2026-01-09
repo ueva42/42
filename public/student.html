@@ -1,4 +1,4 @@
-<!-- VERSION 125 – GTA C mit Voting-Fix + "Meine Wahl" + Challenge-Fortschritt + Bildgrößen 180×auto (max 320) -->
+<!-- VERSION 125 – GTA C mit Voting-Fix + "Meine Wahl" + Challenge-Fortschritt + NOTIFICATIONS FIX -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -20,13 +20,10 @@ html, body {
 
 body {
   background:
-    /* dunkler Overlay für bessere Lesbarkeit */
     linear-gradient(to bottom, rgba(0,0,0,0.35), rgba(5,8,22,0.55)),
-    /* deine bisherigen Neon-Radials */
     radial-gradient(circle at 10% 0%, rgba(255,184,108,0.18) 0, transparent 50%),
     radial-gradient(circle at 90% 20%, rgba(255,46,99,0.26) 0, transparent 55%),
     radial-gradient(circle at 50% 100%, rgba(56,189,248,0.25) 0, transparent 60%),
-    /* dein Hintergrundbild */
     url("assets/logic-bg.png");
 
   background-size: cover;
@@ -444,6 +441,108 @@ h2 {
 }
 
 /* ============================================
+   NOTIFICATIONS (GLOCKE + PANEL)
+============================================ */
+.notif-bell {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.notif-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at top, #0b1120, #020617);
+  border: 1px solid rgba(249,115,22,0.6);
+  box-shadow: 0 0 16px rgba(249,115,22,0.35);
+  font-size: 18px;
+}
+
+.notif-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 14px rgba(239,68,68,0.55);
+}
+
+.notif-panel {
+  display: none;
+  position: fixed;
+  top: 90px;
+  right: 28px;
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98));
+  border: 1px solid rgba(249,115,22,0.6);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.75);
+  z-index: 9999;
+}
+
+.notif-panel-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.notif-panel-title {
+  font-family: "Bebas Neue", system-ui;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 18px;
+}
+
+.notif-panel-close {
+  cursor:pointer;
+  opacity:0.7;
+}
+
+.notif-panel-close:hover { opacity: 1; }
+
+.notif-item {
+  padding: 10px 10px;
+  border-radius: 14px;
+  background: rgba(2,6,23,0.55);
+  border: 1px solid rgba(148,163,184,0.28);
+  margin-bottom: 8px;
+}
+
+.notif-item .n-title {
+  font-weight: 900;
+  color: #facc15;
+}
+
+.notif-item .n-text {
+  opacity: 0.95;
+  margin-top: 2px;
+}
+
+.notif-item .n-time {
+  opacity: 0.6;
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+/* ============================================
    CHARACTER IMAGE
 ============================================ */
 .character-wrapper {
@@ -543,7 +642,6 @@ h2 {
   display: block;
 }
 
-/* Bilder für Missionen & Belohnungen */
 .mission-img {
   width: 250px;
   height: auto;
@@ -778,74 +876,11 @@ h2 {
   color: #e5e7eb;
 }
 
-.character-overlay-close {
-  position: absolute;
-  top: 10px;
-  right: 14px;
-  font-size: 22px;
-  cursor: pointer;
-  color: #9ca3af;
-  text-shadow: 0 0 6px #000;
-  display: none;
-}
-
-/* ============================================
-   NOTIFICATIONS (GLOCKE)
-============================================ */
-.notif-bell {
-  margin-left: auto;
-  position: relative;
-  cursor: pointer;
-  font-size: 20px;
-  padding: 6px;
-  border-radius: 50%;
-  transition: 0.15s ease;
-  user-select: none;
-}
-
-.notif-bell:hover {
-  background: rgba(249,115,22,0.2);
-  box-shadow: 0 0 12px rgba(249,115,22,0.6);
-}
-
-.notif-bell.mobile {
-  font-size: 18px;
-}
-
-.notif-badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  background: #ef4444;
-  color: #fff;
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  box-shadow: 0 0 8px rgba(239,68,68,0.9);
-}
-
-.notif-panel {
-  position: fixed;
-  top: 70px;
-  right: 20px;
-  width: 260px;
-  max-height: 320px;
-  overflow-y: auto;
-  background: rgba(2,6,23,0.96);
-  border: 1px solid rgba(249,115,22,0.7);
-  border-radius: 14px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.9);
-  padding: 10px 12px;
-  z-index: 50;
-}
-
 /* ============================================
    RESPONSIVE
 ============================================ */
 @media (max-width: 900px) {
-  body {
-    flex-direction: column;
-  }
+  body { flex-direction: column; }
 
   .sidebar {
     position: fixed;
@@ -856,53 +891,28 @@ h2 {
     transition: left 0.3s ease;
   }
 
-  body.menu-open .sidebar {
-    left: 0;
-  }
+  body.menu-open .sidebar { left: 0; }
 
-  .mobile-header {
-    display: flex;
-  }
+  .mobile-header { display: flex; }
 
-  .main-area {
-    padding: 72px 16px 20px 16px;
-  }
+  .main-area { padding: 72px 16px 20px 16px; }
 
-  h1 {
-    display: none;
-  }
+  h1 { display: none; }
 
   .character-wrapper {
     flex-direction: column;
     align-items: center;
   }
 
-  .carousel-wrapper {
-    width: 100%;
-  }
+  .carousel-wrapper { width: 100%; }
 
-  .character-overlay-inner {
-    padding: 14px 12px 18px 12px;
-  }
+  .character-overlay-inner { padding: 14px 12px 18px 12px; }
 
-  .character-choice-card {
-    width: 130px;
-  }
+  .character-choice-card { width: 130px; }
 
-  .loading-image {
-    border-radius: 18px;
-  }
+  .loading-image { border-radius: 18px; }
 
-  .loading-hint {
-    font-size: 11px;
-  }
-
-  /* Panel rechts oben auf Mobile etwas nach innen */
-  .notif-panel {
-    right: 12px;
-    top: 64px;
-    width: 260px;
-  }
+  .loading-hint { font-size: 11px; }
 }
   </style>
 </head>
@@ -927,15 +937,7 @@ h2 {
   <div class="burger" onclick="toggleMenu()">
     <span></span><span></span><span></span>
   </div>
-
   <div class="mobile-title">STREETS OF LOGIC</div>
-
-  <!-- NOTIFICATION BELL MOBILE -->
-  <div class="notif-bell mobile" onclick="toggleNotifications()" title="Benachrichtigungen">
-    🔔
-    <span class="notif-badge" id="notifBadgeMobile" style="display:none;">0</span>
-  </div>
-
   <button class="mobile-logout-btn" onclick="logout()">Logout</button>
 </div>
 
@@ -946,16 +948,9 @@ h2 {
       <img id="sidebarAvatar" src="" alt="" style="display:none;">
       <span id="sidebarInitials" style="display:none;">SL</span>
     </div>
-
     <div class="sidebar-title-wrap">
       <h2 class="sidebar-title">STREETS OF LOGIC</h2>
       <span class="sidebar-subtitle">XP EDITION</span>
-    </div>
-
-    <!-- NOTIFICATION BELL (DESKTOP) -->
-    <div class="notif-bell" onclick="toggleNotifications()" title="Benachrichtigungen">
-      🔔
-      <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
     </div>
   </div>
 
@@ -993,6 +988,12 @@ h2 {
 
   <!-- STATUS -->
   <div id="status-section" class="card section">
+    <!-- 🔔 Glocke + Badge (oben rechts) -->
+    <div class="notif-bell" onclick="toggleNotifications()">
+      <div class="notif-icon" title="Benachrichtigungen">🔔</div>
+      <div id="notifBadge" class="notif-badge">0</div>
+    </div>
+
     <h2>Status</h2>
 
     <!-- Persönlicher Status -->
@@ -1050,12 +1051,13 @@ h2 {
   </div>
 </div>
 
-<!-- NOTIFICATION PANEL -->
-<div id="notifPanel" class="notif-panel" style="display:none;">
-  <div style="font-size:12px;font-weight:600;margin-bottom:6px;">
-    Benachrichtigungen
+<!-- NOTIFICATIONS PANEL -->
+<div id="notifPanel" class="notif-panel">
+  <div class="notif-panel-head">
+    <div class="notif-panel-title">Benachrichtigungen</div>
+    <div class="notif-panel-close" onclick="toggleNotifications(false)">✕</div>
   </div>
-  <div id="notifList" style="font-size:12px;opacity:0.9;">
+  <div id="notifList" style="margin-top:10px;font-size:13px;opacity:0.95;">
     <i>Keine neuen Nachrichten</i>
   </div>
 </div>
@@ -1122,30 +1124,6 @@ async function logout() {
 }
 
 /* ============================================
-   NOTIFICATIONS (UI ONLY)
-============================================ */
-function toggleNotifications() {
-  const p = document.getElementById("notifPanel");
-  if (!p) return;
-  p.style.display = (p.style.display === "none" || !p.style.display) ? "block" : "none";
-}
-
-// Dummy Badge (nur UI-Test)
-function setDummyNotifications(count = 0) {
-  const b1 = document.getElementById("notifBadge");
-  const b2 = document.getElementById("notifBadgeMobile");
-
-  if (b1) {
-    b1.textContent = count;
-    b1.style.display = count > 0 ? "block" : "none";
-  }
-  if (b2) {
-    b2.textContent = count;
-    b2.style.display = count > 0 ? "block" : "none";
-  }
-}
-
-/* ============================================
    CHARACTER OVERLAY
 ============================================ */
 let characterListLoaded = false;
@@ -1209,6 +1187,113 @@ async function selectCharacter(characterId) {
 }
 
 /* ============================================
+   NOTIFICATIONS (XP-Log → Glocke)
+============================================ */
+let __meUserId = null;
+let __latestXpLog = [];
+
+function notifStorageKey() {
+  return __meUserId ? `tol_lastSeenNotif_${__meUserId}` : `tol_lastSeenNotif`;
+}
+
+function getLastSeenNotif() {
+  const v = localStorage.getItem(notifStorageKey());
+  return v ? Number(v) : 0;
+}
+
+function setLastSeenNotif(ts) {
+  localStorage.setItem(notifStorageKey(), String(ts || Date.now()));
+}
+
+function setNotifBadge(count) {
+  const badge = document.getElementById("notifBadge");
+  if (!badge) return;
+
+  if (count > 0) {
+    badge.style.display = "inline-flex";
+    badge.textContent = String(count);
+  } else {
+    badge.style.display = "none";
+    badge.textContent = "0";
+  }
+}
+
+function computeUnreadFromXpLog(xpLog) {
+  const lastSeen = getLastSeenNotif();
+  let unread = 0;
+
+  (xpLog || []).forEach(e => {
+    const t = new Date(e.created_at).getTime();
+    if (t > lastSeen) unread++;
+  });
+
+  return unread;
+}
+
+function renderNotifListFromXpLog(xpLog) {
+  const list = document.getElementById("notifList");
+  if (!list) return;
+
+  if (!xpLog || !xpLog.length) {
+    list.innerHTML = "<i>Keine neuen Nachrichten</i>";
+    return;
+  }
+
+  const items = xpLog.slice(0, 12);
+
+  list.innerHTML = items.map(e => {
+    const dt = new Date(e.created_at);
+    const d = dt.toLocaleString("de-DE");
+    const title = `${e.amount} XP`;
+    const text = e.mission_name || e.source || "XP erhalten";
+
+    return `
+      <div class="notif-item">
+        <div class="n-title">${title}</div>
+        <div class="n-text">${text}</div>
+        <div class="n-time">${d}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function toggleNotifications(forceOpen = null) {
+  const panel = document.getElementById("notifPanel");
+  if (!panel) return;
+
+  const isOpen = panel.style.display === "block";
+  const nextOpen = forceOpen === null ? !isOpen : !!forceOpen;
+
+  panel.style.display = nextOpen ? "block" : "none";
+
+  if (nextOpen) {
+    renderNotifListFromXpLog(__latestXpLog);
+
+    if (__latestXpLog && __latestXpLog.length) {
+      const newest = new Date(__latestXpLog[0].created_at).getTime();
+      setLastSeenNotif(newest);
+    } else {
+      setLastSeenNotif(Date.now());
+    }
+
+    setNotifBadge(0);
+  }
+}
+
+// Klick außerhalb schließt Panel
+document.addEventListener("click", (e) => {
+  const panel = document.getElementById("notifPanel");
+  if (!panel) return;
+
+  const bell = document.querySelector(".notif-bell");
+  const isOpen = panel.style.display === "block";
+  if (!isOpen) return;
+
+  if (panel.contains(e.target) || (bell && bell.contains(e.target))) return;
+  toggleNotifications(false);
+});
+
+/* ============================================
    STUDENT DATA
 ============================================ */
 let xpPerMission = {};
@@ -1217,6 +1302,12 @@ async function loadMe() {
   const r = await fetch("/api/student/me");
   const data = await r.json();
   const u = data.user;
+
+  // Notifications: userId + xp_log merken + Badge setzen
+  __meUserId = u.id;
+  __latestXpLog = (data.xp_log || []).slice(); // ist bei dir DESC sortiert
+  const unread = computeUnreadFromXpLog(__latestXpLog);
+  setNotifBadge(unread);
 
   document.getElementById("userCard").innerHTML = `
     <div style="font-size:14px;line-height:1.6;">
@@ -1541,7 +1632,7 @@ async function loadClassProgress() {
     const selectedOptionId = round.selected_option_id;
     const xpNeededRound    = round.xp_required || 0;
 
-    // Votes kommen vom Server pro Option
+    // Votes kommen vom Server pro OPTION
     const voteMap = {};
     if (Array.isArray(votes)) {
       votes.forEach(v => {
@@ -1549,13 +1640,12 @@ async function loadClassProgress() {
       });
     }
 
-    // Gewinner-Option bestimmen, wenn Voting beendet / Gewinner festgelegt
+    // Gewinner-Option bestimmen
     let winnerOption = null;
     if (selectedOptionId && (round.status === "active" || round.status === "completed")) {
       winnerOption = options.find(o => o.id === selectedOptionId) || null;
     }
 
-    // Header mit Klasseninfos
     let headerHtml = `
       <div style="font-size:13px;margin-bottom:10px;">
         <b>Klasse:</b> ${cls.name}<br>
@@ -1564,7 +1654,6 @@ async function loadClassProgress() {
       </div>
     `;
 
-    // Wenn Gewinner feststeht: Box mit Gewinner + großem XP-Balken
     if (winnerOption) {
       const xpGoal = winnerOption.xp_required || xpNeededRound || 0;
       if (xpGoal > 0) {
@@ -1601,18 +1690,15 @@ async function loadClassProgress() {
     }
 
     let cardsHtml = headerHtml;
-    cardsHtml += `
-      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">
-    `;
+    cardsHtml += `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">`;
 
     options.forEach(opt => {
-      const votesFor = opt.reward_id ? (voteMap[opt.reward_id] || 0) : 0;
-      const isMy     = (myVote != null && opt.reward_id != null && myVote === opt.reward_id);
+      const votesFor = voteMap[opt.id] || 0;              // ✅ FIX: votes by option_id
+      const isMy     = (myVote != null && myVote === opt.id); // ✅ FIX: myVote is option_id
       const isActive =
         selectedOptionId === opt.id &&
         (round.status === "active" || round.status === "completed");
 
-      // PROGRESS BAR WENN ACTIVE
       let progressBar = "";
       const xpNeeded = opt.xp_required || xpNeededRound || 0;
       if (isActive && xpNeeded > 0) {
@@ -1628,7 +1714,6 @@ async function loadClassProgress() {
         `;
       }
 
-      // VOTING
       let voteBtn = "";
       if (round.status === "voting") {
         if (myVote != null) {
@@ -1648,9 +1733,7 @@ async function loadClassProgress() {
               </div>
             `;
           } else {
-            voteBtn = `
-              <div style="margin-top:12px;font-size:11px;opacity:0.4;text-align:center;">—</div>
-            `;
+            voteBtn = `<div style="margin-top:12px;font-size:11px;opacity:0.4;text-align:center;">—</div>`;
           }
         } else {
           voteBtn = `
@@ -1663,29 +1746,14 @@ async function loadClassProgress() {
         }
       }
 
-      // BADGES
       const badgeMy = isMy
-        ? `<div style="margin-top:4px;
-                       font-size:10px;
-                       padding:2px 8px;
-                       border-radius:999px;
-                       border:1px solid #22c55e;
-                       background:rgba(34,197,94,0.15);
-                       color:#bbf7d0;
-                       display:inline-block;">
+        ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #22c55e;background:rgba(34,197,94,0.15);color:#bbf7d0;display:inline-block;">
              Deine Wahl
            </div>`
         : "";
 
       const badgeActive = isActive
-        ? `<div style="margin-top:4px;
-                       font-size:10px;
-                       padding:2px 8px;
-                       border-radius:999px;
-                       border:1px solid #facc15;
-                       background:rgba(250,204,21,0.15);
-                       color:#fef9c3;
-                       display:inline-block;">
+        ? `<div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #facc15;background:rgba(250,204,21,0.15);color:#fef9c3;display:inline-block;">
              Aktive Belohnung
            </div>`
         : "";
@@ -1750,7 +1818,6 @@ async function voteClassReward(roundId, optionId) {
 /* ============================================
    INIT
 ============================================ */
-setDummyNotifications(2); // <- nur Demo (kannst du später rauswerfen)
 loadMe();
 loadMissions();
 loadRewards();
