@@ -1,4 +1,4 @@
-<!-- VERSION 125 – GTA C mit Voting-Fix + "Meine Wahl" + Challenge-Fortschritt + Bildgrößen 180×auto (max 320) + NOTIFICATIONS (Glocke) -->
+<!-- VERSION 125 – GTA C mit Voting-Fix + "Meine Wahl" + Challenge-Fortschritt + Bildgrößen 180×auto (max 320) + NOTIFICATIONS (Glocke) + SWIPE -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -530,6 +530,8 @@ h2 {
   width: 320px;
   margin: 0 auto;
   text-align: center;
+  /* touch friendliness */
+  touch-action: pan-y;
 }
 
 .carousel-item {
@@ -890,9 +892,7 @@ h2 {
    RESPONSIVE
 ============================================ */
 @media (max-width: 900px) {
-  body {
-    flex-direction: column;
-  }
+  body { flex-direction: column; }
 
   .sidebar {
     position: fixed;
@@ -903,51 +903,27 @@ h2 {
     transition: left 0.3s ease;
   }
 
-  body.menu-open .sidebar {
-    left: 0;
-  }
+  body.menu-open .sidebar { left: 0; }
 
-  .mobile-header {
-    display: flex;
-  }
+  .mobile-header { display: flex; }
 
-  .main-area {
-    padding: 72px 16px 20px 16px;
-  }
+  .main-area { padding: 72px 16px 20px 16px; }
 
-  h1 {
-    display: none;
-  }
+  h1 { display: none; }
 
-  .character-wrapper {
-    flex-direction: column;
-    align-items: center;
-  }
+  .character-wrapper { flex-direction: column; align-items: center; }
 
-  .carousel-wrapper {
-    width: 100%;
-  }
+  .carousel-wrapper { width: 100%; }
 
-  .character-overlay-inner {
-    padding: 14px 12px 18px 12px;
-  }
+  .character-overlay-inner { padding: 14px 12px 18px 12px; }
 
-  .character-choice-card {
-    width: 130px;
-  }
+  .character-choice-card { width: 130px; }
 
-  .loading-image {
-    border-radius: 18px;
-  }
+  .loading-image { border-radius: 18px; }
 
-  .loading-hint {
-    font-size: 11px;
-  }
+  .loading-hint { font-size: 11px; }
 
-  .notif-wrap{
-    top: 70px;
-    right: 14px;
-  }
+  .notif-wrap{ top: 70px; right: 14px; }
 }
   </style>
 </head>
@@ -958,12 +934,8 @@ h2 {
 <div id="loadingOverlay" class="loading-overlay">
   <div class="loading-content">
     <img src="assets/loading-screen.png" alt="Streets of Logic Loading" class="loading-image">
-    <div class="loading-bar">
-      <div class="loading-bar-fill"></div>
-    </div>
-    <div class="loading-hint">
-      Lädt deine Streets of Logic – XP-Daten …
-    </div>
+    <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+    <div class="loading-hint">Lädt deine Streets of Logic – XP-Daten …</div>
   </div>
 </div>
 
@@ -990,28 +962,23 @@ h2 {
   </div>
 
   <div class="menu-item active" onclick="showSection(event,'status')">
-    <div class="menu-icon">S</div>
-    <span class="menu-label">Status</span>
+    <div class="menu-icon">S</div><span class="menu-label">Status</span>
   </div>
 
   <div class="menu-item" onclick="showSection(event,'charakter')">
-    <div class="menu-icon">C</div>
-    <span class="menu-label">Charakter</span>
+    <div class="menu-icon">C</div><span class="menu-label">Charakter</span>
   </div>
 
   <div class="menu-item" onclick="showSection(event,'missionen')">
-    <div class="menu-icon">M</div>
-    <span class="menu-label">Missionen</span>
+    <div class="menu-icon">M</div><span class="menu-label">Missionen</span>
   </div>
 
   <div class="menu-item" onclick="showSection(event,'belohnungen')">
-    <div class="menu-icon">B</div>
-    <span class="menu-label">Belohnungen</span>
+    <div class="menu-icon">B</div><span class="menu-label">Belohnungen</span>
   </div>
 
   <div class="menu-item" onclick="showSection(event,'xp')">
-    <div class="menu-icon">XP</div>
-    <span class="menu-label">XP-Historie</span>
+    <div class="menu-icon">XP</div><span class="menu-label">XP-Historie</span>
   </div>
 
   <button class="logout-btn" onclick="logout()">Logout</button>
@@ -1021,7 +988,7 @@ h2 {
 <div class="main-area">
   <h1>STREETS OF LOGIC – XP EDITION</h1>
 
-  <!-- NOTIFICATIONS (Bell + Panel) -->
+  <!-- NOTIFICATIONS -->
   <div id="notifWrap" class="notif-wrap">
     <button id="notifBell" class="notif-bell" type="button" aria-label="Benachrichtigungen">
       🔔
@@ -1042,12 +1009,9 @@ h2 {
   <!-- STATUS -->
   <div id="status-section" class="card section">
     <h2>Status</h2>
-
-    <!-- Persönlicher Status -->
     <div id="userCard"></div>
     <div id="levelBar" style="margin-top:10px;margin-bottom:25px;"></div>
 
-    <!-- Klassenbelohnung / Voting -->
     <h2 style="font-size:20px;margin-top:0;">Klassen-Belohnung</h2>
     <div id="classChallenge"></div>
   </div>
@@ -1056,9 +1020,7 @@ h2 {
   <div id="charakter-section" class="card section" style="display:none;">
     <h2>Charakter</h2>
     <div class="character-wrapper">
-      <div class="char-img-wrapper">
-        <div id="characterInfo"></div>
-      </div>
+      <div class="char-img-wrapper"><div id="characterInfo"></div></div>
       <div id="traitsItemsCard" class="char-traits"></div>
     </div>
   </div>
@@ -1072,11 +1034,9 @@ h2 {
   <!-- BELOHNUNGEN -->
   <div id="belohnungen-section" class="card section" style="display:none;">
     <h2>Belohnungen</h2>
-
     <div style="margin-bottom:16px;font-size:13px;opacity:0.85;">
       <b>Deine Bonuskarten</b> – Belohnungen, die du mit deinen persönlichen XP einlösen kannst.
     </div>
-
     <div id="rewardCarousel"></div>
   </div>
 
@@ -1091,9 +1051,7 @@ h2 {
 <div id="characterOverlay" class="character-overlay">
   <div class="character-overlay-inner">
     <h2 class="character-overlay-title">WÄHLE DEINEN CHARAKTER</h2>
-    <div class="character-overlay-sub">
-      Klicke auf ein Bild, um deinen Charakter festzulegen.
-    </div>
+    <div class="character-overlay-sub">Klicke auf ein Bild, um deinen Charakter festzulegen.</div>
     <div id="characterChoices" class="character-choice-grid"></div>
   </div>
 </div>
@@ -1105,50 +1063,30 @@ h2 {
 function hideLoader() {
   const overlay = document.getElementById("loadingOverlay");
   if (!overlay) return;
-
   overlay.classList.add("hide");
-  setTimeout(() => {
-    overlay.style.display = "none";
-  }, 900);
+  setTimeout(() => { overlay.style.display = "none"; }, 900);
 }
 
 window.addEventListener("load", () => {
   const img = document.querySelector(".loading-image");
-
-  if (!img) {
-    setTimeout(hideLoader, 5000);
-    return;
-  }
-
-  img.onload = () => {
-    const total = 4800;
-    setTimeout(hideLoader, total);
-  };
-
+  if (!img) { setTimeout(hideLoader, 5000); return; }
+  img.onload = () => { setTimeout(hideLoader, 4800); };
   if (img.complete) img.onload();
 });
-
 setTimeout(hideLoader, 7000);
 
 /* ============================================
    MENU
 ============================================ */
-function toggleMenu() {
-  document.body.classList.toggle("menu-open");
-}
+function toggleMenu() { document.body.classList.toggle("menu-open"); }
 
 function showSection(ev, name) {
   document.querySelectorAll(".section").forEach(s => s.style.display = "none");
-
   const section = document.getElementById(name + "-section");
   if (section) section.style.display = "block";
-
   document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
-  if (ev) ev.target.closest(".menu-item").classList.add("active");
-
-  if (window.innerWidth <= 900) {
-    document.body.classList.remove("menu-open");
-  }
+  if (ev && ev.target) ev.target.closest(".menu-item")?.classList.add("active");
+  if (window.innerWidth <= 900) document.body.classList.remove("menu-open");
 }
 
 /* ============================================
@@ -1176,8 +1114,7 @@ async function openCharacterOverlay() {
       characterListLoaded = true;
     } catch (e) {
       console.error(e);
-      document.getElementById("characterChoices").innerHTML =
-        "<p>Fehler beim Laden der Charaktere.</p>";
+      document.getElementById("characterChoices").innerHTML = "<p>Fehler beim Laden der Charaktere.</p>";
     }
   }
 }
@@ -1185,11 +1122,7 @@ async function openCharacterOverlay() {
 function renderCharacterChoices(chars) {
   const c = document.getElementById("characterChoices");
   c.innerHTML = "";
-
-  if (!chars.length) {
-    c.innerHTML = "<p>Keine Charaktere angelegt.</p>";
-    return;
-  }
+  if (!chars.length) { c.innerHTML = "<p>Keine Charaktere angelegt.</p>"; return; }
 
   chars.forEach(ch => {
     const card = document.createElement("div");
@@ -1200,9 +1133,7 @@ function renderCharacterChoices(chars) {
       : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-weight:700;">?</div>`;
 
     card.innerHTML = `
-      <div class="character-choice-img-wrap">
-        ${img}
-      </div>
+      <div class="character-choice-img-wrap">${img}</div>
       <div class="character-choice-name">${ch.name}</div>
     `;
 
@@ -1219,11 +1150,8 @@ async function selectCharacter(characterId) {
   });
 
   const data = await r.json();
-  if (data.success) {
-    location.reload();
-  } else {
-    alert(data.message || "Fehler beim Speichern.");
-  }
+  if (data.success) location.reload();
+  else alert(data.message || "Fehler beim Speichern.");
 }
 
 /* ============================================
@@ -1236,10 +1164,7 @@ function getLastSeenTS() {
   const v = localStorage.getItem(NOTIF_LAST_SEEN_KEY);
   return v ? Number(v) : 0;
 }
-
-function setLastSeenNow() {
-  localStorage.setItem(NOTIF_LAST_SEEN_KEY, String(Date.now()));
-}
+function setLastSeenNow() { localStorage.setItem(NOTIF_LAST_SEEN_KEY, String(Date.now())); }
 
 function fmtTS(iso) {
   try { return new Date(iso).toLocaleString("de-DE"); }
@@ -1335,7 +1260,6 @@ function initNotifUI() {
     if (wrap && !wrap.contains(e.target)) closeNotifPanel();
   });
 }
-
 initNotifUI();
 
 /* ============================================
@@ -1366,11 +1290,7 @@ async function loadMe() {
   } else {
     avatar.style.display = "none";
     initials.style.display = "block";
-    initials.textContent = u.name
-      .split(" ")
-      .map(x => x[0])
-      .join("")
-      .toUpperCase();
+    initials.textContent = u.name.split(" ").map(x => x[0]).join("").toUpperCase();
   }
 
   if (data.character) {
@@ -1382,21 +1302,20 @@ async function loadMe() {
 
   document.getElementById("traitsItemsCard").innerHTML = `
     <b>Eigenschaften:</b><br>
-    ${data.traits.map(t => "• "+t).join("<br>")}<br><br>
+    ${(data.traits || []).map(t => "• "+t).join("<br>")}<br><br>
     <b>Items:</b><br>
-    ${data.items.map(i => "• "+i).join("<br>")}
+    ${(data.items || []).map(i => "• "+i).join("<br>")}
   `;
 
   xpPerMission = data.xp_per_mission || {};
 
-  // Notifications aus xp_log
   __latestXpLog = data.xp_log || [];
   renderNotifBadge(__latestXpLog);
 
   const xpDiv = document.getElementById("xpLog");
   xpDiv.innerHTML = "";
 
-  (data.xp_log || []).forEach(e => {
+  (__latestXpLog || []).forEach(e => {
     const d = new Date(e.created_at).toLocaleString("de-DE");
     xpDiv.innerHTML += `
       <div class="xp-entry">
@@ -1407,9 +1326,7 @@ async function loadMe() {
 
   renderLevelBar(data.levels || [], u.xp);
 
-  if (!data.character) {
-    openCharacterOverlay();
-  }
+  if (!data.character) openCharacterOverlay();
 
   hideLoader();
 }
@@ -1424,7 +1341,7 @@ function renderLevelBar(levels, xp) {
     if (i > 0) html += `<div class="level-step-star">★</div>`;
 
     const min = levels[i].min_xp;
-    const next = levels[i+1]?.min_xp ?? min + 1; // avoid division by 0
+    const next = levels[i+1]?.min_xp ?? (min + 1);
     let pct = xp >= min ? Math.min(100, ((xp - min)/(next - min))*100) : 0;
 
     html += `
@@ -1451,13 +1368,10 @@ async function loadRewards() {
 }
 
 /* ============================================
-   CAROUSEL
-============================================ */
-<script>
-/* ============================================
    SWIPE SUPPORT (Touch) for Carousels
    - keeps arrows
    - works on mobile/tablet
+   - does NOT break scrolling
 ============================================ */
 const __swipeState = {}; // per carouselId
 
@@ -1468,74 +1382,62 @@ function attachSwipeToCarousel(carouselId) {
   const wrapper = root.querySelector(".carousel-wrapper");
   if (!wrapper) return;
 
-  // Prevent double-binding if renderCarousel runs again
+  // prevent double binding (renderCarousel can run again)
   if (wrapper.dataset.swipeBound === "1") return;
   wrapper.dataset.swipeBound = "1";
 
-  __swipeState[carouselId] = {
-    startX: 0,
-    startY: 0,
-    lastX: 0,
-    dragging: false
-  };
+  __swipeState[carouselId] = { startX: 0, startY: 0, lastX: 0, dragging: false, lockedOut: false };
 
-  const THRESHOLD = 45;   // px horizontal to trigger
-  const VERT_LOCK = 30;   // if vertical movement dominates, ignore swipe
+  const THRESHOLD = 45; // px
+  const VERT_LOCK = 30; // px
 
-  wrapper.addEventListener(
-    "touchstart",
-    (e) => {
-      if (!e.touches || e.touches.length !== 1) return;
-      const t = e.touches[0];
-      __swipeState[carouselId].startX = t.clientX;
-      __swipeState[carouselId].startY = t.clientY;
-      __swipeState[carouselId].lastX = t.clientX;
-      __swipeState[carouselId].dragging = true;
-    },
-    { passive: true }
-  );
+  wrapper.addEventListener("touchstart", (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const st = __swipeState[carouselId];
+    st.startX = t.clientX;
+    st.startY = t.clientY;
+    st.lastX = t.clientX;
+    st.dragging = true;
+    st.lockedOut = false;
+  }, { passive: true });
 
-  wrapper.addEventListener(
-    "touchmove",
-    (e) => {
-      if (!__swipeState[carouselId].dragging) return;
-      if (!e.touches || e.touches.length !== 1) return;
+  wrapper.addEventListener("touchmove", (e) => {
+    const st = __swipeState[carouselId];
+    if (!st || !st.dragging || st.lockedOut) return;
+    if (!e.touches || e.touches.length !== 1) return;
 
-      const t = e.touches[0];
-      __swipeState[carouselId].lastX = t.clientX;
+    const t = e.touches[0];
+    st.lastX = t.clientX;
 
-      const dx = t.clientX - __swipeState[carouselId].startX;
-      const dy = t.clientY - __swipeState[carouselId].startY;
+    const dx = t.clientX - st.startX;
+    const dy = t.clientY - st.startY;
 
-      // If user scrolls vertically, don't hijack
-      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > VERT_LOCK) {
-        __swipeState[carouselId].dragging = false;
-      }
-    },
-    { passive: true }
-  );
+    // if vertical scroll dominates → let page scroll
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > VERT_LOCK) {
+      st.lockedOut = true;
+    }
+  }, { passive: true });
 
-  wrapper.addEventListener(
-    "touchend",
-    () => {
-      if (!__swipeState[carouselId].dragging) return;
+  wrapper.addEventListener("touchend", () => {
+    const st = __swipeState[carouselId];
+    if (!st || !st.dragging || st.lockedOut) return;
 
-      const dx = __swipeState[carouselId].lastX - __swipeState[carouselId].startX;
+    const dx = st.lastX - st.startX;
+    if (dx <= -THRESHOLD) nextSlide(carouselId);
+    else if (dx >= THRESHOLD) prevSlide(carouselId);
 
-      if (dx <= -THRESHOLD) nextSlide(carouselId);
-      else if (dx >= THRESHOLD) prevSlide(carouselId);
-
-      __swipeState[carouselId].dragging = false;
-    },
-    { passive: true }
-  );
+    st.dragging = false;
+  }, { passive: true });
 }
-</script>
 
+/* ============================================
+   CAROUSEL
+============================================ */
 function renderCarousel(id, items, type) {
   const c = document.getElementById(id);
 
-  if (!items.length) {
+  if (!items || !items.length) {
     c.innerHTML = "<i>Keine Einträge.</i>";
     return;
   }
@@ -1594,7 +1496,7 @@ function renderCarousel(id, items, type) {
     <div class="dot-container">${dots}</div>
   `;
 
-  // ✅ enable swipe on mobile/tablet
+  // ✅ enable swipe
   attachSwipeToCarousel(id);
 }
 
@@ -1606,16 +1508,12 @@ function nextSlide(id) {
   if (!items.length) return;
 
   let current = -1;
-  items.forEach((item, i) => {
-    if (item.classList.contains("active")) current = i;
-  });
-
+  items.forEach((item, i) => { if (item.classList.contains("active")) current = i; });
   if (current === -1) current = 0;
 
   items[current].classList.remove("active");
   const next = (current + 1) % items.length;
   items[next].classList.add("active");
-
   updateDots(id, next);
 }
 
@@ -1624,23 +1522,18 @@ function prevSlide(id) {
   if (!items.length) return;
 
   let current = -1;
-  items.forEach((item, i) => {
-    if (item.classList.contains("active")) current = i;
-  });
-
+  items.forEach((item, i) => { if (item.classList.contains("active")) current = i; });
   if (current === -1) current = 0;
 
   items[current].classList.remove("active");
   const prev = (current - 1 + items.length) % items.length;
   items[prev].classList.add("active");
-
   updateDots(id, prev);
 }
 
 function jumpSlide(id, index) {
   const items = document.querySelectorAll("#" + id + " .carousel-item");
   const dots  = document.querySelectorAll("#" + id + " .dot");
-
   if (!items.length) return;
 
   items.forEach(i => i.classList.remove("active"));
@@ -1652,10 +1545,7 @@ function jumpSlide(id, index) {
 
 function updateDots(id, activeIndex) {
   const dots = document.querySelectorAll("#" + id + " .dot");
-  dots.forEach((d, i) => {
-    if (i === activeIndex) d.classList.add("active");
-    else d.classList.remove("active");
-  });
+  dots.forEach((d, i) => { i === activeIndex ? d.classList.add("active") : d.classList.remove("active"); });
 }
 
 /* ============================================
@@ -1669,26 +1559,17 @@ function updateFileLabel(id) {
 
 async function uploadMission(id) {
   const input = document.getElementById(`upload_${id}`);
-  if (!input.files.length) {
-    return alert("Bitte Datei auswählen.");
-  }
+  if (!input.files.length) return alert("Bitte Datei auswählen.");
 
   const form = new FormData();
   form.append("image", input.files[0]);
   form.append("missionId", id);
 
-  const r = await fetch("/api/student/uploadForMission", {
-    method: "POST",
-    body: form
-  });
+  const r = await fetch("/api/student/uploadForMission", { method: "POST", body: form });
   const data = await r.json();
 
-  if (data.success) {
-    alert("Upload erfolgreich!");
-    loadMe();
-  } else {
-    alert("Upload fehlgeschlagen.");
-  }
+  if (data.success) { alert("Upload erfolgreich!"); loadMe(); }
+  else alert("Upload fehlgeschlagen.");
 }
 
 /* ============================================
@@ -1714,7 +1595,7 @@ async function redeemReward(id) {
 
 /* ============================================
    KLASSEN-CHALLENGE (Voting + Fortschritt)
-   FIX: Votes & myVote sind OPTION_ID, nicht reward_id
+   FIX: Votes & myVote sind OPTION_ID
 ============================================ */
 async function loadClassProgress() {
   const box = document.getElementById("classChallenge");
@@ -1748,32 +1629,21 @@ async function loadClassProgress() {
     }
 
     let statusText = "";
-    if (round.status === "voting") {
-      statusText = "Voting läuft – stimme für eure nächste Klassen-Belohnung ab!";
-    } else if (round.status === "active") {
-      statusText = "Aktive Klassen-Belohnung – eure XP arbeiten auf dieses Ziel hin.";
-    } else if (round.status === "completed") {
-      statusText = "Letzte Klassen-Challenge ist abgeschlossen.";
-    }
+    if (round.status === "voting") statusText = "Voting läuft – stimme für eure nächste Klassen-Belohnung ab!";
+    else if (round.status === "active") statusText = "Aktive Klassen-Belohnung – eure XP arbeiten auf dieses Ziel hin.";
+    else if (round.status === "completed") statusText = "Letzte Klassen-Challenge ist abgeschlossen.";
 
     const selectedOptionId = round.selected_option_id; // OPTION_ID
     const xpNeededRound    = round.xp_required || 0;
 
-    // Votes kommen vom Server pro OPTION_ID
     const voteMap = {};
-    if (Array.isArray(votes)) {
-      votes.forEach(v => {
-        voteMap[v.option_id] = v.votes;
-      });
-    }
+    if (Array.isArray(votes)) votes.forEach(v => { voteMap[v.option_id] = v.votes; });
 
-    // Gewinner-Option bestimmen, wenn Voting beendet / Gewinner festgelegt
     let winnerOption = null;
     if (selectedOptionId && (round.status === "active" || round.status === "completed")) {
       winnerOption = options.find(o => o.id === selectedOptionId) || null;
     }
 
-    // Header mit Klasseninfos
     let headerHtml = `
       <div style="font-size:13px;margin-bottom:10px;">
         <b>Klasse:</b> ${cls.name}<br>
@@ -1782,12 +1652,10 @@ async function loadClassProgress() {
       </div>
     `;
 
-    // Wenn Gewinner feststeht: Box mit Gewinner + großem XP-Balken
     if (winnerOption) {
       const xpGoal = winnerOption.xp_required || xpNeededRound || 0;
       if (xpGoal > 0) {
         const pct = Math.min(100, Math.round((cls.total_xp / xpGoal) * 100));
-
         headerHtml += `
           <div style="
             margin-bottom:12px;
@@ -1799,9 +1667,7 @@ async function loadClassProgress() {
             font-size:12px;
           ">
             <div style="opacity:0.9;">Gewonnene Klassen-Belohnung:</div>
-            <div style="font-size:14px;font-weight:600;margin-top:2px;">
-              ${winnerOption.name}
-            </div>
+            <div style="font-size:14px;font-weight:600;margin-top:2px;">${winnerOption.name}</div>
             <div style="margin-top:4px;">
               Ziel: <b>${xpGoal} XP</b> – Aktuell: <b>${cls.total_xp} XP</b>
             </div>
@@ -1819,23 +1685,19 @@ async function loadClassProgress() {
     }
 
     let cardsHtml = headerHtml;
-    cardsHtml += `
-      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">
-    `;
+    cardsHtml += `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">`;
 
     options.forEach(opt => {
-      const votesFor = voteMap[opt.id] || 0;                  // FIX
-      const isMy     = (myVote != null && myVote === opt.id); // FIX
+      const votesFor = voteMap[opt.id] || 0;
+      const isMy     = (myVote != null && myVote === opt.id);
       const isActive =
         selectedOptionId === opt.id &&
         (round.status === "active" || round.status === "completed");
 
-      // PROGRESS BAR WENN ACTIVE
       let progressBar = "";
       const xpNeeded = opt.xp_required || xpNeededRound || 0;
       if (isActive && xpNeeded > 0) {
         const pct = Math.min(100, Math.round((cls.total_xp / xpNeeded) * 100));
-
         progressBar = `
           <div style="margin-top:6px;">
             <div style="font-size:11px;">Fortschritt zum Klassenziel: <b>${pct}%</b></div>
@@ -1846,30 +1708,12 @@ async function loadClassProgress() {
         `;
       }
 
-      // VOTING
       let voteBtn = "";
       if (round.status === "voting") {
         if (myVote != null) {
-          if (isMy) {
-            voteBtn = `
-              <div style="
-                margin-top:8px;
-                padding:6px 10px;
-                font-size:11px;
-                border-radius:999px;
-                background:rgba(34,197,94,0.25);
-                border:1px solid #22c55e;
-                color:#bbf7d0;
-                text-align:center;
-                font-weight:bold;">
-                ✓ Deine Wahl
-              </div>
-            `;
-          } else {
-            voteBtn = `
-              <div style="margin-top:12px;font-size:11px;opacity:0.4;text-align:center;">—</div>
-            `;
-          }
+          voteBtn = isMy
+            ? `<div style="margin-top:8px;padding:6px 10px;font-size:11px;border-radius:999px;background:rgba(34,197,94,0.25);border:1px solid #22c55e;color:#bbf7d0;text-align:center;font-weight:bold;">✓ Deine Wahl</div>`
+            : `<div style="margin-top:12px;font-size:11px;opacity:0.4;text-align:center;">—</div>`;
         } else {
           voteBtn = `
             <button class="btn-primary"
@@ -1881,32 +1725,15 @@ async function loadClassProgress() {
         }
       }
 
-      // BADGES
-      const badgeMy = isMy
-        ? `<div style="margin-top:4px;
-                       font-size:10px;
-                       padding:2px 8px;
-                       border-radius:999px;
-                       border:1px solid #22c55e;
-                       background:rgba(34,197,94,0.15);
-                       color:#bbf7d0;
-                       display:inline-block;">
-             Deine Wahl
-           </div>`
-        : "";
+      const badgeMy = isMy ? `
+        <div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #22c55e;background:rgba(34,197,94,0.15);color:#bbf7d0;display:inline-block;">
+          Deine Wahl
+        </div>` : "";
 
-      const badgeActive = isActive
-        ? `<div style="margin-top:4px;
-                       font-size:10px;
-                       padding:2px 8px;
-                       border-radius:999px;
-                       border:1px solid #facc15;
-                       background:rgba(250,204,21,0.15);
-                       color:#fef9c3;
-                       display:inline-block;">
-             Aktive Belohnung
-           </div>`
-        : "";
+      const badgeActive = isActive ? `
+        <div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #facc15;background:rgba(250,204,21,0.15);color:#fef9c3;display:inline-block;">
+          Aktive Belohnung
+        </div>` : "";
 
       cardsHtml += `
         <div style="
