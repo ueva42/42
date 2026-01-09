@@ -1453,6 +1453,85 @@ async function loadRewards() {
 /* ============================================
    CAROUSEL
 ============================================ */
+<script>
+/* ============================================
+   SWIPE SUPPORT (Touch) for Carousels
+   - keeps arrows
+   - works on mobile/tablet
+============================================ */
+const __swipeState = {}; // per carouselId
+
+function attachSwipeToCarousel(carouselId) {
+  const root = document.getElementById(carouselId);
+  if (!root) return;
+
+  const wrapper = root.querySelector(".carousel-wrapper");
+  if (!wrapper) return;
+
+  // Prevent double-binding if renderCarousel runs again
+  if (wrapper.dataset.swipeBound === "1") return;
+  wrapper.dataset.swipeBound = "1";
+
+  __swipeState[carouselId] = {
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    dragging: false
+  };
+
+  const THRESHOLD = 45;   // px horizontal to trigger
+  const VERT_LOCK = 30;   // if vertical movement dominates, ignore swipe
+
+  wrapper.addEventListener(
+    "touchstart",
+    (e) => {
+      if (!e.touches || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      __swipeState[carouselId].startX = t.clientX;
+      __swipeState[carouselId].startY = t.clientY;
+      __swipeState[carouselId].lastX = t.clientX;
+      __swipeState[carouselId].dragging = true;
+    },
+    { passive: true }
+  );
+
+  wrapper.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!__swipeState[carouselId].dragging) return;
+      if (!e.touches || e.touches.length !== 1) return;
+
+      const t = e.touches[0];
+      __swipeState[carouselId].lastX = t.clientX;
+
+      const dx = t.clientX - __swipeState[carouselId].startX;
+      const dy = t.clientY - __swipeState[carouselId].startY;
+
+      // If user scrolls vertically, don't hijack
+      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > VERT_LOCK) {
+        __swipeState[carouselId].dragging = false;
+      }
+    },
+    { passive: true }
+  );
+
+  wrapper.addEventListener(
+    "touchend",
+    () => {
+      if (!__swipeState[carouselId].dragging) return;
+
+      const dx = __swipeState[carouselId].lastX - __swipeState[carouselId].startX;
+
+      if (dx <= -THRESHOLD) nextSlide(carouselId);
+      else if (dx >= THRESHOLD) prevSlide(carouselId);
+
+      __swipeState[carouselId].dragging = false;
+    },
+    { passive: true }
+  );
+}
+</script>
+
 function renderCarousel(id, items, type) {
   const c = document.getElementById(id);
 
@@ -1514,6 +1593,9 @@ function renderCarousel(id, items, type) {
     </div>
     <div class="dot-container">${dots}</div>
   `;
+
+  // ✅ enable swipe on mobile/tablet
+  attachSwipeToCarousel(id);
 }
 
 /* ============================================
