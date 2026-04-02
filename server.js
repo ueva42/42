@@ -38,7 +38,15 @@ app.use(
 );
 
 // Static-Files
-app.use(express.static(path.join(__dirname, "public")));
+app.use(
+  express.static(path.join(__dirname, "public"), {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith("sw.js")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    }
+  })
+);
 
 // Login-Root
 app.get("/", (_req, res) => {
