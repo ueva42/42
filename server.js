@@ -295,7 +295,12 @@ app.get("/", (_req, res) => {
 // DB + R2 Storage
 // -------------------------------------------------------
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString: process.env.DATABASE_URL,
+  ssl:
+    process.env.DATABASE_URL &&
+    !process.env.DATABASE_URL.includes("localhost")
+      ? { rejectUnauthorized: false }
+      : undefined
 });
 
 const r2 = new S3Client({
@@ -771,7 +776,11 @@ async function migrate() {
   // -------------------------------------------------------
   // SRL-LOGBUCH – UUID-Unterstützung
   // -------------------------------------------------------
-  await pool.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
+  try {
+    await pool.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
+  } catch (extErr) {
+    console.warn("⚠️ pgcrypto Extension:", extErr.message);
+  }
 
   // LogEntry – Tagesziel / Planung (Forethought)
   await pool.query(`
@@ -1113,8 +1122,6 @@ async function migrate() {
 
   console.log("✔️ Migration fertig.");
 }
-
-await migrate();
 
 // -------------------------------------------------------
 // AUTH
@@ -4576,8 +4583,25 @@ app.get("/character-select", isStudent, (req, res) => {
 // -------------------------------------------------------
 // START SERVER
 // -------------------------------------------------------
-app.listen(process.env.PORT || 8080, () => {
-  console.log(
-    "🚀 Server läuft auf Port 8080 (MULTI-SCHOOL + SUPERADMIN + Klassenbelohnungen)"
-  );
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, service: "streets-of-logic" });
 });
+
+const PORT = process.env.PORT || 8080;
+
+async function boot() {
+  try {
+    await migrate();
+  } catch (err) {
+    console.error("❌ Migration fehlgeschlagen:", err);
+    process.exit(1);
+  }
+
+  app.listen(PORT, () => {
+    console.log(
+      `🚀 Server läuft auf Port ${PORT} (MULTI-SCHOOL + SUPERADMIN + Klassenbelohnungen)`
+    );
+  });
+}
+
+boot();
