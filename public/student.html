@@ -1936,6 +1936,10 @@ let xpPerMission = {};
 
 window.loadMe = async function loadMe() {
   const r = await fetch("/api/student/me");
+  if (r.status === 401 || r.status === 403) {
+    window.location.href = "/login";
+    return;
+  }
   const data = await r.json();
   const u = data.user;
 

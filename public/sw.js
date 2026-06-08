@@ -1,4 +1,4 @@
-const CACHE_VERSION = "sol-logbuch-v1";
+const CACHE_VERSION = "sol-logbuch-v2";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -7,7 +7,6 @@ const OFFLINE_URL = "/offline.html";
 
 const CORE_ASSETS = [
   "/login",
-  "/student/today",
   "/manifest.json",
   "/pwa-init.js",
   "/icons/icon-192.png",

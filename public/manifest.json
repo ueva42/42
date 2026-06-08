@@ -3,7 +3,7 @@
   "name": "Streets of Logic",
   "short_name": "SoL",
   "description": "SRL-Lernlogbuch und XP-Plattform für selbstreguliertes Lernen.",
-  "start_url": "/student/today",
+  "start_url": "/login",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

@@ -271,15 +271,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set("trust proxy", 1);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+const isProduction =
+  process.env.NODE_ENV === "production" || !!process.env.RAILWAY_ENVIRONMENT;
 
 app.use(
   session({
     secret: "super-temp-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false }
+    cookie: {
+      secure: isProduction,
+      sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 24 * 14
+    }
   })
 );
 
@@ -1234,21 +1242,35 @@ app.post("/api/admin/change-password", isAdmin, async (req, res) => {
 // -------------------------------------------------------
 // ROLE GUARDS
 // -------------------------------------------------------
+function isHtmlPageRequest(req) {
+  if (req.method !== "GET" || req.path.startsWith("/api/")) return false;
+  if (req.get("Sec-Fetch-Mode") === "navigate") return true;
+  const accept = req.get("Accept") || "";
+  return accept.includes("text/html");
+}
+
+function denyAccess(req, res) {
+  if (isHtmlPageRequest(req)) {
+    return res.redirect(302, "/login");
+  }
+  return res.status(403).json({ error: "Forbidden" });
+}
+
 function isAdmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== "admin")
-    return res.status(403).json({ error: "Forbidden" });
+    return denyAccess(req, res);
   next();
 }
 
 function isStudent(req, res, next) {
   if (!req.session.user || req.session.user.role !== "student")
-    return res.status(403).json({ error: "Forbidden" });
+    return denyAccess(req, res);
   next();
 }
 
 function isSuperadmin(req, res, next) {
   if (!req.session.user || req.session.user.role !== "superadmin")
-    return res.status(403).json({ error: "Forbidden" });
+    return denyAccess(req, res);
   next();
 }
 
