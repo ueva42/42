@@ -2320,6 +2320,270 @@ app.get("/api/student/competencies", isStudent, async (req, res) => {
 });
 
 // -------------------------------------------------------
+// TEACHER: Kompetenz-Status verwalten
+// -------------------------------------------------------
+async function getStudentInSchool(studentId, schoolId) {
+  const r = await pool.query(
+    `
+    SELECT id, name, class_id
+    FROM users
+    WHERE id=$1 AND role='student' AND school_id=$2
+    LIMIT 1
+  `,
+    [studentId, schoolId]
+  );
+  return r.rows[0] || null;
+}
+
+app.get("/api/teacher/competencies", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.query.classId);
+    const studentId = req.query.studentId ? Number(req.query.studentId) : null;
+
+    if (!classId) {
+      return res.status(400).json({ error: "classId fehlt" });
+    }
+
+    const classRes = await pool.query(
+      "SELECT id, name FROM classes WHERE id=$1 AND school_id=$2",
+      [classId, schoolId]
+    );
+    if (!classRes.rows.length) {
+      return res.status(404).json({ error: "Klasse nicht gefunden" });
+    }
+
+    const studentsRes = await pool.query(
+      `
+      SELECT id, name
+      FROM users
+      WHERE role='student' AND class_id=$1 AND school_id=$2
+      ORDER BY name ASC
+    `,
+      [classId, schoolId]
+    );
+
+    const studentIds = studentsRes.rows.map((s) => s.id);
+    let entries = [];
+
+    if (studentIds.length) {
+      const params = [schoolId, studentIds];
+      let filterSql = "";
+      if (studentId) {
+        if (!studentIds.includes(studentId)) {
+          return res.status(404).json({ error: "Schüler:in nicht in dieser Klasse" });
+        }
+        filterSql = " AND cs.user_id = $3";
+        params.push(studentId);
+      }
+
+      const entriesRes = await pool.query(
+        `
+        SELECT cs.id, cs.user_id, cs.subject, cs.topic, cs.status, cs.updated_at,
+               u.name AS student_name
+        FROM competency_status cs
+        JOIN users u ON u.id = cs.user_id
+        WHERE cs.school_id = $1
+          AND cs.user_id = ANY($2::int[])
+          ${filterSql}
+        ORDER BY u.name ASC, cs.subject ASC, cs.topic ASC
+      `,
+        params
+      );
+
+      entries = entriesRes.rows.map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        studentName: row.student_name,
+        subject: row.subject,
+        topic: row.topic,
+        status: row.status,
+        statusLabel: LOG_COMPETENCY_STATUS_LABELS[row.status] || row.status,
+        updatedAt: row.updated_at
+      }));
+    }
+
+    res.json({
+      classId,
+      className: classRes.rows[0].name,
+      students: studentsRes.rows,
+      subjects: LOG_SUBJECTS,
+      statuses: LOG_COMPETENCY_STATUSES.map((s) => ({
+        id: s,
+        label: LOG_COMPETENCY_STATUS_LABELS[s]
+      })),
+      entries
+    });
+  } catch (err) {
+    console.error("❌ /api/teacher/competencies:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.post("/api/teacher/competencies", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const userId = Number(req.body.userId);
+    const subject = String(req.body.subject || "").trim();
+    const topic = String(req.body.topic || "").trim();
+    const status = req.body.status || "offen";
+
+    if (!userId || !subject || !topic) {
+      return res.json({
+        success: false,
+        message: "Schüler:in, Fach und Thema sind Pflicht."
+      });
+    }
+
+    if (!LOG_SUBJECTS.includes(subject)) {
+      return res.json({ success: false, message: "Ungültiges Fach." });
+    }
+
+    if (!LOG_COMPETENCY_STATUSES.includes(status)) {
+      return res.json({ success: false, message: "Ungültiger Status." });
+    }
+
+    const student = await getStudentInSchool(userId, schoolId);
+    if (!student) {
+      return res.json({ success: false, message: "Schüler:in nicht gefunden." });
+    }
+
+    const ins = await pool.query(
+      `
+      INSERT INTO competency_status (user_id, school_id, subject, topic, status)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, subject, topic, status, updated_at
+    `,
+      [userId, schoolId, subject, topic.slice(0, 200), status]
+    );
+
+    const row = ins.rows[0];
+    res.json({
+      success: true,
+      entry: {
+        id: row.id,
+        userId,
+        studentName: student.name,
+        subject: row.subject,
+        topic: row.topic,
+        status: row.status,
+        statusLabel: LOG_COMPETENCY_STATUS_LABELS[row.status],
+        updatedAt: row.updated_at
+      }
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/competencies:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.put("/api/teacher/competencies/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const id = req.params.id;
+    const { status, topic, subject } = req.body;
+
+    const existing = await pool.query(
+      `
+      SELECT cs.id, cs.user_id, u.name AS student_name
+      FROM competency_status cs
+      JOIN users u ON u.id = cs.user_id
+      WHERE cs.id = $1 AND cs.school_id = $2
+    `,
+      [id, schoolId]
+    );
+
+    if (!existing.rows.length) {
+      return res.json({ success: false, message: "Eintrag nicht gefunden." });
+    }
+
+    const updates = [];
+    const params = [id, schoolId];
+    let idx = 3;
+
+    if (status !== undefined) {
+      if (!LOG_COMPETENCY_STATUSES.includes(status)) {
+        return res.json({ success: false, message: "Ungültiger Status." });
+      }
+      updates.push(`status = $${idx++}`);
+      params.push(status);
+    }
+
+    if (subject !== undefined) {
+      if (!LOG_SUBJECTS.includes(subject)) {
+        return res.json({ success: false, message: "Ungültiges Fach." });
+      }
+      updates.push(`subject = $${idx++}`);
+      params.push(subject);
+    }
+
+    if (topic !== undefined) {
+      const cleanTopic = String(topic).trim().slice(0, 200);
+      if (!cleanTopic) {
+        return res.json({ success: false, message: "Thema darf nicht leer sein." });
+      }
+      updates.push(`topic = $${idx++}`);
+      params.push(cleanTopic);
+    }
+
+    if (!updates.length) {
+      return res.json({ success: false, message: "Keine Änderung angegeben." });
+    }
+
+    updates.push("updated_at = NOW()");
+
+    const upd = await pool.query(
+      `
+      UPDATE competency_status
+      SET ${updates.join(", ")}
+      WHERE id = $1 AND school_id = $2
+      RETURNING id, user_id, subject, topic, status, updated_at
+    `,
+      params
+    );
+
+    const row = upd.rows[0];
+    res.json({
+      success: true,
+      entry: {
+        id: row.id,
+        userId: row.user_id,
+        studentName: existing.rows[0].student_name,
+        subject: row.subject,
+        topic: row.topic,
+        status: row.status,
+        statusLabel: LOG_COMPETENCY_STATUS_LABELS[row.status],
+        updatedAt: row.updated_at
+      }
+    });
+  } catch (err) {
+    console.error("❌ PUT /api/teacher/competencies:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.delete("/api/teacher/competencies/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const id = req.params.id;
+
+    const del = await pool.query(
+      "DELETE FROM competency_status WHERE id=$1 AND school_id=$2 RETURNING id",
+      [id, schoolId]
+    );
+
+    if (!del.rows.length) {
+      return res.json({ success: false, message: "Eintrag nicht gefunden." });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE /api/teacher/competencies:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
 // TEACHER: Klassenübersicht (Dashboard)
 // -------------------------------------------------------
 app.get("/api/teacher/dashboard", isAdmin, async (req, res) => {
@@ -3097,7 +3361,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
         o.round_id,
         o.reward_id,
         o.name,
-        o.image_url,
+        COALESCE(NULLIF(o.image_url, ''), cr.image_url) AS image_url,
         cr.xp_required
       FROM class_reward_options o
       LEFT JOIN class_rewards cr
@@ -4568,7 +4832,8 @@ app.get("/admin", isAdmin, (_req, res) => {
 const teacherSpaPaths = [
   "/teacher/dashboard",
   "/teacher/timetable",
-  "/teacher/week"
+  "/teacher/week",
+  "/teacher/competencies"
 ];
 
 for (const route of teacherSpaPaths) {

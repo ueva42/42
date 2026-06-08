@@ -86,6 +86,10 @@
     if (window.innerWidth <= 900) {
       document.body.classList.remove("menu-open");
     }
+
+    if (section === "status" && typeof window.refreshStatusSection === "function") {
+      window.refreshStatusSection();
+    }
   }
 
   function navigateToSection(section, options = {}) {

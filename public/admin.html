@@ -593,6 +593,25 @@
     .tw-lvl-2 { background:rgba(245,158,11,0.5); box-shadow:0 0 8px rgba(245,158,11,0.2); }
     .tw-lvl-3 { background:rgba(74,222,128,0.55); box-shadow:0 0 8px rgba(74,222,128,0.25); }
     .tw-loading, .tw-error, .tw-empty { font-size:13px; opacity:0.7; padding:12px 0; }
+    .tc-toolbar { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin:14px 0; }
+    .tc-toolbar label { font-size:13px; display:flex; align-items:center; gap:8px; }
+    .tc-add-form { margin:16px 0; padding:14px; border-radius:12px; border:1px solid rgba(148,163,184,0.25); background:rgba(15,23,42,0.45); }
+    .tc-add-form h3 { margin:0 0 12px; font-size:15px; }
+    .tc-add-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; margin-bottom:12px; }
+    .tc-add-grid label { display:flex; flex-direction:column; gap:6px; font-size:12px; }
+    .tc-add-grid input, .tc-add-grid select, .tc-status-select { padding:8px 10px; border-radius:8px; border:1px solid rgba(148,163,184,0.35); background:#0f172a; color:#f9fafb; font-size:12px; }
+    .tc-table-wrap { overflow-x:auto; margin-top:16px; }
+    .tc-table { width:100%; border-collapse:collapse; font-size:13px; min-width:720px; }
+    .tc-table th, .tc-table td { border-bottom:1px solid rgba(148,163,184,0.2); padding:10px 8px; text-align:left; vertical-align:middle; }
+    .tc-table th { font-family:"Orbitron",system-ui; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.7; }
+    .tc-delete-btn { border:1px solid rgba(248,113,113,0.45); background:rgba(127,29,29,0.35); color:#fecaca; border-radius:8px; padding:6px 10px; font-size:11px; cursor:pointer; }
+    .tc-msg { border-radius:10px; padding:10px 12px; font-size:13px; margin-bottom:10px; }
+    .tc-msg-ok { background:rgba(20,83,45,0.35); border:1px solid rgba(74,222,128,0.4); color:#bbf7d0; }
+    .tc-msg-err { background:rgba(127,29,29,0.35); border:1px solid rgba(248,113,113,0.4); color:#fecaca; }
+    .tc-loading, .tc-error, .tc-empty { font-size:13px; opacity:0.7; padding:12px 0; }
+    @media (max-width: 900px) {
+      .tc-add-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -620,6 +639,11 @@
   <div class="nav-item" data-tab="timetableTab" onclick="showTab('timetableTab', event)">
     <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
     <span class="nav-label">Stundenplan</span>
+  </div>
+
+  <div class="nav-item" data-tab="competenciesTab" onclick="showTab('competenciesTab', event)">
+    <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+    <span class="nav-label">Kompetenzen</span>
   </div>
 
   <div class="nav-item" data-tab="xpTab" onclick="showTab('xpTab', event)">
@@ -694,6 +718,11 @@
     <!-- STUNDENPLAN -->
     <div id="timetableTab" class="tab hidden">
       <div id="timetableTabRoot"></div>
+    </div>
+
+    <!-- KOMPETENZEN -->
+    <div id="competenciesTab" class="tab hidden">
+      <div id="competenciesTabRoot"></div>
     </div>
 
     <!-- XP TAB -->
@@ -992,12 +1021,14 @@
 <script src="/js/teacher-dashboard.js"></script>
 <script src="/js/teacher-timetable.js"></script>
 <script src="/js/teacher-week.js"></script>
+<script src="/js/teacher-competencies.js"></script>
 
 <script>
 const TEACHER_TAB_ROUTES = {
   dashboardTab: "/teacher/dashboard",
   teacherWeekTab: "/teacher/week",
   timetableTab: "/teacher/timetable",
+  competenciesTab: "/teacher/competencies",
   xpTab: "/admin#xp",
   classProgressTab: "/admin#classProgress",
   classTab: "/admin#class",
@@ -1011,7 +1042,8 @@ const TEACHER_TAB_ROUTES = {
 const ROUTE_TABS = {
   "/teacher/dashboard": "dashboardTab",
   "/teacher/week": "teacherWeekTab",
-  "/teacher/timetable": "timetableTab"
+  "/teacher/timetable": "timetableTab",
+  "/teacher/competencies": "competenciesTab"
 };
 
 /* ---------------------------- TABS ---------------------------- */
@@ -1036,6 +1068,7 @@ function showTab(id, ev, options = {}) {
   if (id === "dashboardTab" && window.TeacherDashboard) TeacherDashboard.init();
   if (id === "timetableTab" && window.TeacherTimetable) TeacherTimetable.init();
   if (id === "teacherWeekTab" && window.TeacherWeek) TeacherWeek.init();
+  if (id === "competenciesTab" && window.TeacherCompetencies) TeacherCompetencies.init();
   if (id === "xpTab") loadXPInit();
   if (id === "classTab") loadClassesForManage();
   if (id === "missionTab") loadMissions();
