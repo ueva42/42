@@ -173,12 +173,23 @@
     const editable = isEditableDate(state.date);
     const slideClass = state.slideDir ? `today-slide-${state.slideDir}` : "";
 
-    const blocks =
+    const blockList =
       d.blocks?.length > 0
-        ? d.blocks.map((b) => renderBlock(b, editable)).join("")
+        ? d.blocks
         : editable
-          ? renderBlock({ slot: null, entry: null }, true)
-          : `<p class="today-block-muted">Keine Einträge an diesem Tag.</p>`;
+          ? [{ slot: null, entry: null }]
+          : [];
+
+    const blocksHtml =
+      blockList.length > 0
+        ? blockList.map((b) => renderBlock(b, editable)).join("")
+        : `<p class="today-block-muted">Keine Einträge an diesem Tag.</p>`;
+
+    const singleOpen =
+      blockList.length === 1 && !blockList[0].entry && editable;
+    const blocksClass = singleOpen
+      ? "today-blocks today-blocks-single"
+      : "today-blocks";
 
     root.innerHTML = `
       <div class="today-shell" id="todaySwipeArea">
@@ -195,7 +206,7 @@
 
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="todaySlidePanel">
-            <div class="today-blocks">${blocks}</div>
+            <div class="${blocksClass}">${blocksHtml}</div>
           </div>
         </div>
       </div>`;
