@@ -106,8 +106,8 @@ Ich fühle mich bereit für den nächsten Schritt und möchte einen Levelcheck /
           <p class="comp-modal-hint">Zeige diesen Text deiner Lehrkraft oder kopiere ihn.</p>
           <textarea class="comp-modal-text" id="compModalText" readonly>${escapeHtml(text)}</textarea>
           <div class="comp-modal-actions">
-            <button type="button" class="logbuch-btn logbuch-btn-plan" id="compModalCopy">Text kopieren</button>
-            <button type="button" class="logbuch-btn logbuch-btn-secondary" id="compModalClose2">Schließen</button>
+            <button type="button" class="btn-primary" id="compModalCopy">Text kopieren</button>
+            <button type="button" class="logbuch-btn-ghost" id="compModalClose2">Schließen</button>
           </div>
           <div class="comp-copy-msg" id="compCopyMsg" style="display:none;">Kopiert!</div>
         </div>

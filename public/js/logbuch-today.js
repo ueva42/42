@@ -2,6 +2,8 @@
  * SRL-Logbuch – MEIN TAG (Default-Screen, Mo–Fr-Swipe).
  */
 (function () {
+  const UI = () => window.LogbuchUI;
+
   const state = {
     date: null,
     data: null,
@@ -11,14 +13,6 @@
 
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
-  }
-
-  function escapeHtml(str) {
-    return String(str ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
   }
 
   function addSchoolDays(dateIso, delta) {
@@ -46,26 +40,53 @@
 
   function renderPhaseIndicator(phases) {
     const items = [
-      { key: "plan", label: "Planen", phase: "plan" },
-      { key: "check", label: "Check", phase: "check" },
-      { key: "reflect", label: "Reflektieren", phase: "reflect" }
+      { key: "plan", label: "Plan" },
+      { key: "check", label: "Check" },
+      { key: "reflect", label: "Reflexion" }
     ];
 
     return `
-      <div class="today-phases">
+      <p class="today-phases-inline">
         ${items
           .map(
-            (p) => `
-          <div class="today-phase today-phase-${p.phase} ${phases[p.key] ? "done" : ""}">
-            <span class="today-phase-check">${phases[p.key] ? "✓" : ""}</span>
-            <span class="today-phase-label">${p.label}</span>
-          </div>`
+            (p, i) => `
+          <span class="today-phase-inline ${phases[p.key] ? "done" : ""}">
+            ${phases[p.key] ? "✓" : "○"} ${p.label}
+          </span>${i < items.length - 1 ? '<span class="today-phase-sep">·</span>' : ""}`
           )
           .join("")}
-      </div>`;
+      </p>`;
+  }
+
+  function renderActionSelect(entry) {
+    const ui = UI();
+    const hasCheck = entry.hasCheck;
+    const hasReflection = entry.hasReflection;
+
+    if (hasCheck && hasReflection) {
+      return `<p class="today-block-done-label">Alle Schritte erledigt ✓</p>`;
+    }
+
+    let options = `<option value="">Nächster Schritt…</option>`;
+    if (!hasCheck) {
+      options += `<option value="check">Zwischen-Check</option>`;
+    } else {
+      options += `<option value="" disabled>Check ✓</option>`;
+    }
+    if (!hasReflection) {
+      options += `<option value="reflect">Tagesabschluss</option>`;
+    } else {
+      options += `<option value="" disabled>Abschluss ✓</option>`;
+    }
+
+    return `
+      <select class="logbuch-select today-action-select" data-entry-id="${ui.escapeHtml(entry.id)}">
+        ${options}
+      </select>`;
   }
 
   function renderBlock(block, editable) {
+    const ui = UI();
     const slot = block.slot;
     const entry = block.entry;
 
@@ -74,8 +95,8 @@
         return `
           <div class="today-block today-block-empty">
             <div class="today-block-head">
-              <span class="today-block-subject">${slot ? escapeHtml(slot.subject) : "Lernzeit"}</span>
-              ${slot?.timeslot ? `<span class="today-block-slot">${escapeHtml(slot.timeslot)}</span>` : ""}
+              <span class="today-block-subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</span>
+              ${slot?.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
             </div>
             <p class="today-block-muted">Kein Eintrag</p>
           </div>`;
@@ -88,37 +109,17 @@
       return `
         <div class="today-block today-block-open">
           <div class="today-block-head">
-            <span class="today-block-subject">${slot ? escapeHtml(slot.subject) : "Lernzeit"}</span>
-            ${slot?.timeslot ? `<span class="today-block-slot">${escapeHtml(slot.timeslot)}</span>` : ""}
+            <span class="today-block-subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</span>
+            ${slot?.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
           </div>
-          <button type="button" class="logbuch-btn logbuch-btn-plan today-plan-btn"
-            data-nav="plan" data-query="${escapeHtml(params.toString())}">
+          <button type="button" class="btn-primary today-plan-btn"
+            data-nav="plan" data-query="${ui.escapeHtml(params.toString())}">
             Tagesziel setzen
           </button>
         </div>`;
     }
 
-    const hasCheck = entry.hasCheck;
-    const hasReflection = entry.hasReflection;
     const readOnly = !editable;
-
-    let actions = "";
-    if (!readOnly) {
-      const checkDisabled = hasCheck ? "disabled" : "";
-      const reflectDisabled = hasReflection ? "disabled" : "";
-      actions = `
-        <div class="today-block-actions">
-          <button type="button" class="logbuch-btn logbuch-btn-check today-action-btn"
-            data-nav="check" data-entry-id="${entry.id}" ${checkDisabled}>
-            ${hasCheck ? "Check ✓" : "Zwischen-Check"}
-          </button>
-          <button type="button" class="logbuch-btn logbuch-btn-reflect today-action-btn"
-            data-nav="reflect" data-entry-id="${entry.id}" ${reflectDisabled}>
-            ${hasReflection ? "Abschluss ✓" : "Abschluss"}
-          </button>
-        </div>`;
-    }
-
     let summary = "";
     if (readOnly && entry.reflection) {
       summary = `
@@ -130,13 +131,24 @@
       summary = `<div class="today-block-summary"><span>Zwischen-Check abgeschlossen</span></div>`;
     }
 
+    const actions = !readOnly ? renderActionSelect(entry) : "";
+
+    const statusBits = [];
+    if (entry.hasCheck) statusBits.push("Check ✓");
+    if (entry.hasReflection) statusBits.push("Abschluss ✓");
+    const statusLine =
+      !readOnly && statusBits.length
+        ? `<p class="today-block-status">${statusBits.join(" · ")}</p>`
+        : "";
+
     return `
       <div class="today-block today-block-done">
         <div class="today-block-head">
-          <span class="today-block-subject">${escapeHtml(entry.subject)}</span>
-          ${entry.timeslot ? `<span class="today-block-slot">${escapeHtml(entry.timeslot)}</span>` : ""}
+          <span class="today-block-subject">${ui.escapeHtml(entry.subject)}</span>
+          ${entry.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
         </div>
-        <p class="today-block-goal">${escapeHtml(entry.goal)}</p>
+        <p class="today-block-goal">${ui.escapeHtml(entry.goal)}</p>
+        ${statusLine}
         ${summary}
         ${actions}
       </div>`;
@@ -145,6 +157,7 @@
   function render() {
     const root = document.getElementById("today-screen-root");
     if (!root) return;
+    const ui = UI();
 
     if (state.loading && !state.data) {
       root.innerHTML = `<div class="logbuch-loading">Lade deinen Tag…</div>`;
@@ -153,19 +166,12 @@
 
     const d = state.data;
     if (!d) {
-      root.innerHTML = `<div class="logbuch-msg logbuch-msg-error">Tag konnte nicht geladen werden.</div>`;
+      root.innerHTML = ui.msg("Tag konnte nicht geladen werden.");
       return;
     }
 
     const editable = isEditableDate(state.date);
     const slideClass = state.slideDir ? `today-slide-${state.slideDir}` : "";
-
-    const tags =
-      d.timetableSubjects?.length > 0
-        ? `<div class="today-tags">${d.timetableSubjects
-            .map((s) => `<span class="today-tag">${escapeHtml(s)}</span>`)
-            .join("")}</div>`
-        : "";
 
     const blocks =
       d.blocks?.length > 0
@@ -179,13 +185,12 @@
         <div class="today-nav">
           <button type="button" class="today-arrow" data-dir="prev" aria-label="Vorheriger Tag">‹</button>
           <div class="today-date-wrap">
-            <div class="today-date">${escapeHtml(d.weekdayLabel)}</div>
-            <div class="today-date-sub">${escapeHtml(d.dateLabel)}</div>
+            <div class="today-date">${ui.escapeHtml(d.weekdayLabel)}</div>
+            <div class="today-date-sub">${ui.escapeHtml(d.dateLabel)}</div>
           </div>
           <button type="button" class="today-arrow" data-dir="next" aria-label="Nächster Tag">›</button>
         </div>
 
-        ${tags}
         ${renderPhaseIndicator(d.phases)}
 
         <div class="today-slide-viewport">
@@ -216,12 +221,18 @@
         if (nav === "plan") {
           const q = new URLSearchParams(btn.dataset.query || "");
           window.StudentRouter?.navigateToSection("plan", { query: q });
-          return;
         }
-        const entryId = btn.dataset.entryId;
-        if (!entryId || btn.disabled) return;
+      });
+    });
+
+    root.querySelectorAll(".today-action-select").forEach((sel) => {
+      sel.addEventListener("change", () => {
+        const action = sel.value;
+        if (!action) return;
+        const entryId = sel.dataset.entryId;
         const q = new URLSearchParams({ entryId });
-        window.StudentRouter?.navigateToSection(nav, { query: q });
+        window.StudentRouter?.navigateToSection(action, { query: q });
+        sel.value = "";
       });
     });
 

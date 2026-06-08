@@ -3,6 +3,7 @@
  */
 (function () {
   const C = () => window.LOGBUCH;
+  const UI = () => window.LogbuchUI;
 
   const state = {
     date: null,
@@ -24,70 +25,22 @@
     return new Date().toISOString().slice(0, 10);
   }
 
-  function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  function optionButtons(items, selected, field, opts = {}) {
-    const multi = !!opts.multi;
-    const disabled = !!opts.disabled;
-    const getValue = typeof opts.getValue === "function" ? opts.getValue : (x) => x;
-    const getLabel = typeof opts.getLabel === "function" ? opts.getLabel : (x) => x;
-    const isLocked = typeof opts.isLocked === "function" ? opts.isLocked : () => false;
-    const lockHint = opts.lockHint || "Noch gesperrt";
-
-    return items
-      .map((item) => {
-        const value = getValue(item);
-        const label = getLabel(item);
-        const locked = isLocked(item);
-        const active = multi
-          ? (selected || []).includes(value)
-          : selected === value;
-        const classes = [
-          "logbuch-opt",
-          active ? "active" : "",
-          locked ? "locked" : "",
-          disabled || locked ? "disabled" : ""
-        ]
-          .filter(Boolean)
-          .join(" ");
-
-        return `
-          <button type="button" class="${classes}"
-            data-field="${field}"
-            data-value="${escapeHtml(value)}"
-            ${locked || disabled ? "disabled" : ""}>
-            ${escapeHtml(label)}
-            ${locked ? `<span class="logbuch-opt-lock">${lockHint}</span>` : ""}
-          </button>`;
-      })
-      .join("");
-  }
-
-  function renderStrategyGroups() {
-    const groups = C().STRATEGIES;
-    return Object.entries(groups)
-      .map(
-        ([cat, items]) => `
-        <div class="logbuch-strategy-group">
-          <div class="logbuch-strategy-cat">${escapeHtml(cat)}</div>
-          <div class="logbuch-opt-grid">
-            ${optionButtons(items, state.strategy, "strategy")}
-          </div>
-        </div>`
-      )
-      .join("");
+  function socialFormOptions() {
+    return C().SOCIAL_FORMS.map((sf) => {
+      const locked = sf.unlockKey && !state.socialUnlock[sf.unlockKey];
+      return {
+        value: sf.id,
+        label: locked ? `${sf.label} (Silber/Gold)` : sf.label,
+        disabled: locked
+      };
+    });
   }
 
   function render() {
     const root = document.getElementById("plan-screen-root");
     if (!root) return;
 
+    const ui = UI();
     const dateLabel = new Date(state.date + "T12:00:00").toLocaleDateString("de-DE", {
       weekday: "long",
       day: "2-digit",
@@ -96,96 +49,84 @@
 
     if (state.existingEntry) {
       root.innerHTML = `
-        <div class="logbuch-plan-form">
-          <p class="logbuch-plan-date">${escapeHtml(dateLabel)}</p>
+        <div class="logbuch-form">
+          <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}</p>
           <div class="logbuch-msg logbuch-msg-info">
-            Für <b>${escapeHtml(state.existingEntry.subject)}</b> ist heute schon ein Ziel gesetzt:
-            <br><span class="logbuch-existing-goal">${escapeHtml(state.existingEntry.goal)}</span>
+            Für <b>${ui.escapeHtml(state.existingEntry.subject)}</b> ist heute schon ein Ziel gesetzt:
+            <br><span class="logbuch-existing-goal">${ui.escapeHtml(state.existingEntry.goal)}</span>
           </div>
-          <button type="button" class="logbuch-btn logbuch-btn-secondary" id="planBackBtn">
-            Zurück zu Mein Tag
-          </button>
+          ${ui.btnGhost("Zurück zu Mein Tag", "planBackBtn")}
         </div>`;
       bindStaticHandlers(root);
       return;
     }
 
     root.innerHTML = `
-      <div class="logbuch-plan-form">
-        <p class="logbuch-plan-date">${escapeHtml(dateLabel)}${state.timeslot ? ` · ${escapeHtml(state.timeslot)}` : ""}</p>
+      <div class="logbuch-form">
+        <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${state.timeslot ? ` · ${ui.escapeHtml(state.timeslot)}` : ""}</p>
 
-        <section class="logbuch-field">
-          <h3 class="logbuch-field-label">Fach <span class="req">*</span></h3>
-          <div class="logbuch-opt-grid" id="planSubjects">
-            ${optionButtons(C().SUBJECTS, state.subject, "subject")}
-          </div>
-        </section>
+        ${ui.fieldWrap(
+          ui.fieldLabel("Fach", { required: true }),
+          ui.select("subject", C().SUBJECTS.map((s) => ({ value: s, label: s })), state.subject, { phase: "plan" })
+        )}
 
-        <section class="logbuch-field">
-          <h3 class="logbuch-field-label">Stundenziel <span class="req">*</span></h3>
-          <div class="logbuch-opt-grid logbuch-opt-grid-tall">
-            ${optionButtons(C().GOALS, state.goal, "goal")}
-          </div>
-        </section>
+        ${ui.fieldWrap(
+          ui.fieldLabel("Stundenziel", { required: true }),
+          ui.select("goal", C().GOALS.map((g) => ({ value: g, label: g })), state.goal, { phase: "plan" })
+        )}
 
-        <section class="logbuch-field">
-          <h3 class="logbuch-field-label">Arbeitsziele <span class="opt">optional</span></h3>
-          <div class="logbuch-opt-grid logbuch-opt-grid-tall">
-            ${optionButtons(C().WORK_GOALS, state.workGoals, "workGoals", { multi: true })}
-          </div>
-        </section>
+        ${ui.fieldWrap(
+          ui.fieldLabel("Arbeitsziele", { optional: true }),
+          ui.select(
+            "workGoals",
+            C().WORK_GOALS.map((g) => ({ value: g, label: g })),
+            state.workGoals,
+            { multiple: true, size: 4, hidePlaceholder: true, phase: "plan" }
+          ),
+          "Mehrere mit Strg/Cmd wählen",
+          { wide: true }
+        )}
 
-        <section class="logbuch-field">
-          <h3 class="logbuch-field-label">Sozialform <span class="opt">optional</span></h3>
-          <div class="logbuch-opt-grid">
-            ${optionButtons(C().SOCIAL_FORMS, state.socialForm, "socialForm", {
-              getValue: (x) => x.id,
-              getLabel: (x) => x.label,
-              isLocked: (x) => x.unlockKey && !state.socialUnlock[x.unlockKey],
-              lockHint: "Silber/Gold"
-            })}
-          </div>
-        </section>
+        ${ui.fieldWrap(
+          ui.fieldLabel("Sozialform", { optional: true }),
+          ui.select("socialForm", socialFormOptions(), state.socialForm, { phase: "plan" })
+        )}
 
-        <section class="logbuch-field logbuch-field-collapse">
-          <button type="button" class="logbuch-collapse-btn" id="planStrategyToggle" aria-expanded="false">
-            Lernstrategie <span class="opt">optional</span>
-            <span class="logbuch-collapse-icon">▼</span>
-          </button>
-          <div class="logbuch-collapse-body" id="planStrategyBody" hidden>
-            ${renderStrategyGroups()}
-          </div>
-        </section>
+        ${ui.fieldWrap(
+          ui.fieldLabel("Lernstrategie", { optional: true }),
+          ui.selectOptgroups("strategy", C().STRATEGIES, state.strategy, { phase: "plan" }),
+          "",
+          { wide: true }
+        )}
 
-        <section class="logbuch-field">
-          <h3 class="logbuch-field-label">Selbstwirksamkeit vorher <span class="opt">optional</span></h3>
-          <div class="logbuch-confidence">
-            ${[1, 2, 3, 4, 5]
-              .map(
-                (n) => `
-              <button type="button" class="logbuch-conf-btn ${state.confidenceBefore === n ? "active" : ""}"
-                data-field="confidenceBefore" data-value="${n}">${n}</button>`
-              )
-              .join("")}
-          </div>
-          <div class="logbuch-confidence-hint">
-            <span>unsicher</span><span>sicher</span>
-          </div>
-        </section>
+        ${ui.fieldWrap(
+          ui.fieldLabel("Selbstwirksamkeit vorher", { optional: true }),
+          ui.select(
+            "confidenceBefore",
+            [1, 2, 3, 4, 5].map((n) => ({ value: String(n), label: `${n} – ${n <= 2 ? "unsicher" : n >= 4 ? "sicher" : "mittel"}` })),
+            state.confidenceBefore != null ? String(state.confidenceBefore) : null,
+            { phase: "plan" }
+          )
+        )}
 
-        <section class="logbuch-field">
-          <h3 class="logbuch-field-label">Was genau? <span class="opt">optional</span></h3>
-          <input type="text" class="logbuch-input" id="planFreitext" maxlength="100"
-            placeholder="Kurz beschreiben…" value="${escapeHtml(state.freitext)}">
-          <div class="logbuch-char-count"><span id="planFreitextCount">${state.freitext.length}</span>/100</div>
-        </section>
+        ${ui.fieldWrap(
+          ui.fieldLabel("Was genau?", { optional: true }),
+          `<input type="text" class="logbuch-input" id="planFreitext" maxlength="100"
+            placeholder="Kurz beschreiben…" value="${ui.escapeHtml(state.freitext)}">
+           <div class="logbuch-char-count"><span id="planFreitextCount">${state.freitext.length}</span>/100</div>`,
+          "",
+          { wide: true }
+        )}
 
-        ${state.errorMsg ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.errorMsg)}</div>` : ""}
+        ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
 
-        <button type="button" class="logbuch-btn logbuch-btn-plan" id="planSubmitBtn" ${state.submitting ? "disabled" : ""}>
-          ${state.submitting ? "Speichern…" : "Tagesziel speichern (+2 XP)"}
-        </button>
-        <button type="button" class="logbuch-btn logbuch-btn-secondary" id="planBackBtn">Abbrechen</button>
+        ${ui.btnPrimary(
+          state.submitting ? "Speichern…" : "Tagesziel speichern (+2 XP)",
+          "planSubmitBtn",
+          state.submitting,
+          "logbuch-submit-full"
+        )}
+        ${ui.btnGhost("Abbrechen", "planBackBtn")}
       </div>`;
 
     bindHandlers(root);
@@ -198,38 +139,7 @@
   }
 
   function bindHandlers(root) {
-    root.querySelectorAll(".logbuch-opt:not(.disabled)").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const field = btn.dataset.field;
-        const value = btn.dataset.value;
-        if (field === "workGoals") {
-          const set = new Set(state.workGoals);
-          if (set.has(value)) set.delete(value);
-          else set.add(value);
-          state.workGoals = [...set];
-        } else {
-          state[field] = state[field] === value ? null : value;
-        }
-        render();
-      });
-    });
-
-    root.querySelectorAll(".logbuch-conf-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const n = Number(btn.dataset.value);
-        state.confidenceBefore = state.confidenceBefore === n ? null : n;
-        render();
-      });
-    });
-
-    const stratToggle = root.querySelector("#planStrategyToggle");
-    const stratBody = root.querySelector("#planStrategyBody");
-    stratToggle?.addEventListener("click", () => {
-      const open = stratBody.hidden;
-      stratBody.hidden = !open;
-      stratToggle.setAttribute("aria-expanded", String(open));
-      stratToggle.querySelector(".logbuch-collapse-icon").textContent = open ? "▲" : "▼";
-    });
+    UI().bindSelects(root, state);
 
     const freitext = root.querySelector("#planFreitext");
     freitext?.addEventListener("input", () => {
@@ -256,6 +166,10 @@
       return;
     }
 
+    if (state.confidenceBefore != null) {
+      state.confidenceBefore = Number(state.confidenceBefore);
+    }
+
     state.errorMsg = "";
     state.submitting = true;
     render();
@@ -272,7 +186,8 @@
           workGoals: state.workGoals,
           socialForm: state.socialForm,
           strategy: state.strategy,
-          confidenceBefore: state.confidenceBefore,
+          confidenceBefore:
+            state.confidenceBefore != null ? Number(state.confidenceBefore) : null,
           freitext: state.freitext.trim() || null
         })
       });
@@ -344,7 +259,7 @@
     } catch (err) {
       console.error(err);
       if (root) {
-        root.innerHTML = `<div class="logbuch-msg logbuch-msg-error">Planung konnte nicht geladen werden.</div>`;
+        root.innerHTML = UI().msg("Planung konnte nicht geladen werden.");
       }
     }
   }

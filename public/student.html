@@ -371,30 +371,100 @@ a { color: inherit; }
   padding: 28px 40px;
   overflow-y: auto;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  min-width: 0;
 }
 
-.main-area > h1,
-.main-area > #notifWrap,
 .main-area > .section {
   width: 100%;
-  max-width: 480px;
 }
 
 /* ============================================
    SRL-LOGBUCH SCREENS
 ============================================ */
-.logbuch-screen .logbuch-title {
-  font-family: "Orbitron", system-ui;
-  font-size: 20px;
-  letter-spacing: 0.12em;
-  color: #e5e7eb;
+.logbuch-root {
+  margin-top: 8px;
 }
 
-.logbuch-root {
-  margin-top: 12px;
+/* Formular – Dropdowns im Card-Stil, 2 Spalten ab Tablet */
+.logbuch-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 720px) {
+  .logbuch-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .logbuch-form > .logbuch-meta,
+  .logbuch-form > .logbuch-reflect-goal,
+  .logbuch-form > .logbuch-reflect-before,
+  .logbuch-form > .logbuch-msg,
+  .logbuch-form > .logbuch-field-wide,
+  .logbuch-form > .btn-primary,
+  .logbuch-form > .logbuch-btn-ghost {
+    grid-column: 1 / -1;
+  }
+}
+.logbuch-meta {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.logbuch-field { display: flex; flex-direction: column; gap: 6px; }
+.logbuch-label {
+  font-family: "Bebas Neue", system-ui;
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e5e7eb;
+}
+.logbuch-req { color: #22d3ee; font-size: 14px; }
+.logbuch-opt { font-size: 11px; opacity: 0.55; text-transform: none; letter-spacing: 0; font-family: system-ui; }
+.logbuch-hint { margin: 0; font-size: 11px; opacity: 0.55; }
+.logbuch-select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f9fafb;
+  font-size: 14px;
+  cursor: pointer;
+  appearance: auto;
+}
+.logbuch-select:focus {
+  outline: none;
+  border-color: #22d3ee;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.15);
+}
+.logbuch-select[multiple] { min-height: 96px; }
+.logbuch-select-plan:focus { border-color: #22d3ee; }
+.logbuch-select-check:focus { border-color: #f59e0b; }
+.logbuch-select-reflect:focus { border-color: #a78bfa; }
+.logbuch-select-week:focus { border-color: #3b82f6; }
+.logbuch-btn-ghost {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 12px;
+  cursor: pointer;
+}
+.logbuch-btn-ghost:hover {
+  border-color: rgba(148, 163, 184, 0.7);
+  color: #f1f5f9;
+}
+.logbuch-submit-full {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 16px;
+  font-size: 13px;
 }
 
 .logbuch-placeholder {
@@ -454,114 +524,6 @@ a { color: inherit; }
   box-shadow: 0 0 18px rgba(59, 130, 246, 0.15);
 }
 
-.logbuch-plan-form { display: flex; flex-direction: column; gap: 18px; }
-.logbuch-plan-date {
-  margin: 0;
-  font-size: 13px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.75;
-}
-.logbuch-field-label {
-  margin: 0 0 10px;
-  font-family: "Orbitron", system-ui;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.logbuch-field-label .req { color: #0ff; }
-.logbuch-field-label .opt { font-size: 10px; opacity: 0.55; text-transform: none; letter-spacing: 0; }
-.logbuch-opt-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.logbuch-opt-grid-tall .logbuch-opt { min-height: 44px; }
-.logbuch-opt {
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: rgba(15, 23, 42, 0.85);
-  color: #e5e7eb;
-  font-size: 13px;
-  line-height: 1.35;
-  cursor: pointer;
-  text-align: left;
-  transition: 0.15s ease;
-}
-.logbuch-opt:hover:not(.disabled):not(.locked) {
-  border-color: rgba(0, 255, 255, 0.55);
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.12);
-}
-.logbuch-opt.active {
-  border-color: #0ff;
-  background: rgba(0, 255, 255, 0.12);
-  box-shadow: 0 0 16px rgba(0, 255, 255, 0.25);
-  color: #ecfeff;
-}
-.logbuch-opt.locked, .logbuch-opt.disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.logbuch-opt-lock {
-  display: block;
-  font-size: 10px;
-  margin-top: 4px;
-  opacity: 0.7;
-}
-.logbuch-collapse-btn {
-  width: 100%;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 12px;
-  padding: 12px 14px;
-  background: rgba(2, 6, 23, 0.6);
-  color: #e5e7eb;
-  font-family: "Orbitron", system-ui;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.logbuch-collapse-body { margin-top: 10px; }
-.logbuch-strategy-group { margin-bottom: 12px; }
-.logbuch-strategy-cat {
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  opacity: 0.65;
-  margin-bottom: 6px;
-}
-.logbuch-confidence {
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-}
-.logbuch-conf-btn {
-  flex: 1;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  border-radius: 10px;
-  padding: 12px 0;
-  background: rgba(15, 23, 42, 0.85);
-  color: #e5e7eb;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-}
-.logbuch-conf-btn.active {
-  border-color: #0ff;
-  background: rgba(0, 255, 255, 0.15);
-  box-shadow: 0 0 14px rgba(0, 255, 255, 0.2);
-}
-.logbuch-confidence-hint {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  opacity: 0.55;
-  margin-top: 6px;
-}
 .logbuch-input {
   width: 100%;
   box-sizing: border-box;
@@ -582,33 +544,6 @@ a { color: inherit; }
   font-size: 11px;
   opacity: 0.55;
   margin-top: 4px;
-}
-.logbuch-btn {
-  width: 100%;
-  border: none;
-  border-radius: 14px;
-  padding: 14px 16px;
-  font-family: "Orbitron", system-ui;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: 0.15s ease;
-}
-.logbuch-btn-plan {
-  background: linear-gradient(135deg, #0891b2, #0ff);
-  color: #042f2e;
-  box-shadow: 0 0 20px rgba(0, 255, 255, 0.35);
-}
-.logbuch-btn-plan:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 0 28px rgba(0, 255, 255, 0.45);
-}
-.logbuch-btn-plan:disabled { opacity: 0.6; cursor: wait; }
-.logbuch-btn-secondary {
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  color: #e5e7eb;
 }
 .logbuch-msg {
   border-radius: 12px;
@@ -643,8 +578,8 @@ a { color: inherit; }
   gap: 6px;
 }
 .logbuch-reflect-subject {
-  font-family: "Orbitron", system-ui;
-  font-size: 12px;
+  font-family: "Bebas Neue", system-ui;
+  font-size: 14px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #c4b5fd;
@@ -655,29 +590,7 @@ a { color: inherit; }
   font-size: 12px;
   opacity: 0.7;
 }
-.logbuch-field-label .req-reflect { color: #a78bfa; }
-.logbuch-opt-reflect.active,
-.logbuch-conf-btn-reflect.active {
-  border-color: #a78bfa;
-  background: rgba(167, 139, 250, 0.15);
-  box-shadow: 0 0 14px rgba(167, 139, 250, 0.25);
-  color: #ede9fe;
-}
-.logbuch-opt-reflect:hover:not(.disabled) {
-  border-color: rgba(167, 139, 250, 0.55);
-  box-shadow: 0 0 12px rgba(167, 139, 250, 0.12);
-}
-.logbuch-btn-reflect {
-  background: linear-gradient(135deg, #7c3aed, #a78bfa);
-  color: #f5f3ff;
-  box-shadow: 0 0 20px rgba(167, 139, 250, 0.35);
-}
-.logbuch-btn-reflect:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 0 28px rgba(167, 139, 250, 0.45);
-}
-
-.today-shell { display: flex; flex-direction: column; gap: 14px; }
+.today-shell { display: flex; flex-direction: column; gap: 12px; }
 .today-nav {
   display: flex;
   align-items: center;
@@ -702,58 +615,21 @@ a { color: inherit; }
 }
 .today-date-wrap { text-align: center; flex: 1; }
 .today-date {
-  font-family: "Orbitron", system-ui;
-  font-size: 16px;
-  letter-spacing: 0.08em;
+  font-family: "Bebas Neue", system-ui;
+  font-size: 18px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 .today-date-sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
-.today-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.today-tag {
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 255, 255, 0.35);
-  background: rgba(0, 255, 255, 0.08);
-  color: #a5f3fc;
-}
-.today-phases {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-.today-phase {
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  padding: 10px 8px;
+.today-phases-inline {
+  margin: 0;
   text-align: center;
-  background: rgba(2, 6, 23, 0.55);
-  opacity: 0.65;
-  transition: 0.2s ease;
+  font-size: 12px;
+  opacity: 0.75;
+  letter-spacing: 0.04em;
 }
-.today-phase.done { opacity: 1; }
-.today-phase-plan.done { border-color: rgba(0, 255, 255, 0.5); box-shadow: 0 0 10px rgba(0, 255, 255, 0.12); }
-.today-phase-check.done { border-color: rgba(245, 158, 11, 0.5); box-shadow: 0 0 10px rgba(245, 158, 11, 0.12); }
-.today-phase-reflect.done { border-color: rgba(167, 139, 250, 0.5); box-shadow: 0 0 10px rgba(167, 139, 250, 0.12); }
-.today-phase-check { color: #fcd34d; }
-.today-phase-reflect { color: #c4b5fd; }
-.today-phase-plan { color: #67e8f9; }
-.today-phase-check .today-phase-label,
-.today-phase-reflect .today-phase-label,
-.today-phase-plan .today-phase-label {
-  display: block;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin-top: 2px;
-}
-.today-phase-check { font-family: "Orbitron", system-ui; }
+.today-phase-inline.done { color: #4ade80; }
+.today-phase-sep { margin: 0 6px; opacity: 0.4; }
 .today-slide-viewport { overflow: hidden; }
 .today-slide-panel {
   transition: transform 0.25s ease, opacity 0.25s ease;
@@ -772,7 +648,16 @@ a { color: inherit; }
   from { transform: translateX(-28px); opacity: 0.35; }
   to { transform: translateX(0); opacity: 1; }
 }
-.today-blocks { display: flex; flex-direction: column; gap: 12px; }
+.today-blocks {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 720px) {
+  .today-blocks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .today-block {
   border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.35);
@@ -787,11 +672,11 @@ a { color: inherit; }
   margin-bottom: 8px;
 }
 .today-block-subject {
-  font-family: "Orbitron", system-ui;
-  font-size: 12px;
-  letter-spacing: 0.1em;
+  font-family: "Bebas Neue", system-ui;
+  font-size: 15px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #a5f3fc;
+  color: #67e8f9;
 }
 .today-block-slot { font-size: 11px; opacity: 0.6; }
 .today-block-goal { margin: 0 0 10px; font-size: 14px; line-height: 1.45; }
@@ -804,67 +689,27 @@ a { color: inherit; }
   opacity: 0.8;
   margin-bottom: 8px;
 }
-.today-block-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.today-action-btn { font-size: 12px; padding: 12px 14px; }
-.today-plan-btn { margin-top: 4px; }
-.logbuch-btn-check {
-  background: linear-gradient(135deg, #d97706, #f59e0b);
-  color: #1f1300;
-  box-shadow: 0 0 18px rgba(245, 158, 11, 0.3);
-}
-.logbuch-btn-check:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 0 24px rgba(245, 158, 11, 0.4);
-}
-.logbuch-btn-check:disabled,
-.logbuch-btn-reflect:disabled {
-  opacity: 0.55;
-  cursor: default;
-  transform: none;
-}
+.today-action-select { margin-top: 6px; }
+.today-plan-btn { width: 100%; margin-top: 6px; }
+.today-block-status { margin: 0 0 6px; font-size: 11px; opacity: 0.65; }
+.today-block-done-label { margin: 6px 0 0; font-size: 12px; color: #4ade80; }
 
 .logbuch-check-goal {
   border-color: rgba(245, 158, 11, 0.35);
   background: rgba(245, 158, 11, 0.08);
 }
 .logbuch-check-goal .logbuch-reflect-subject { color: #fcd34d; }
-.logbuch-field-label .req-check { color: #f59e0b; }
-.logbuch-rating-row {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-}
-.logbuch-rating-btn {
-  flex: 1;
-  max-width: 72px;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  border-radius: 14px;
-  padding: 14px 0;
-  background: rgba(15, 23, 42, 0.85);
-  font-size: 28px;
-  line-height: 1;
-  cursor: pointer;
-  transition: 0.15s ease;
-}
-.logbuch-rating-btn:hover {
-  border-color: rgba(245, 158, 11, 0.55);
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);
-}
-.logbuch-rating-btn.active {
-  border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.15);
-  box-shadow: 0 0 16px rgba(245, 158, 11, 0.3);
-}
 
-.week-shell { display: flex; flex-direction: column; gap: 14px; }
+.week-shell { display: flex; flex-direction: column; gap: 12px; }
 .week-stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
+}
+@media (min-width: 720px) {
+  .week-stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 .week-stat {
   border-radius: 12px;
@@ -875,8 +720,8 @@ a { color: inherit; }
 }
 .week-stat-n {
   display: block;
-  font-family: "Orbitron", system-ui;
-  font-size: 20px;
+  font-family: "Bebas Neue", system-ui;
+  font-size: 22px;
   color: #e5e7eb;
 }
 .week-stat-l {
@@ -904,60 +749,44 @@ a { color: inherit; }
   vertical-align: top;
 }
 .week-table th {
-  font-family: "Orbitron", system-ui;
-  font-size: 10px;
-  letter-spacing: 0.1em;
+  font-family: "Bebas Neue", system-ui;
+  font-size: 11px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.7;
 }
 .week-achieved { text-align: center; font-size: 16px; width: 32px; }
 .week-empty { font-size: 13px; opacity: 0.6; margin: 0; }
 .week-matrix { margin-top: 8px; }
+@media (min-width: 720px) {
+  .week-matrix {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
+  }
+  .week-matrix > .logbuch-label,
+  .week-matrix > .week-matrix-hint {
+    grid-column: 1 / -1;
+  }
+}
 .week-matrix-hint { margin: 0 0 12px; font-size: 12px; opacity: 0.65; }
 .week-matrix-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-bottom: 10px;
-  border-radius: 12px;
+}
+.week-matrix-row-readonly {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.25);
-  padding: 10px;
+  padding: 8px 10px;
   background: rgba(2, 6, 23, 0.45);
 }
-.week-matrix-item { font-size: 13px; margin-bottom: 8px; }
-.week-matrix-levels { display: flex; gap: 6px; }
-.week-level-btn,
-.week-level-read {
-  flex: 1;
-  text-align: center;
-  border-radius: 10px;
-  padding: 8px 4px;
-  font-size: 11px;
-  text-transform: capitalize;
-}
-.week-level-btn {
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: rgba(15, 23, 42, 0.85);
-  color: #e5e7eb;
-  cursor: pointer;
-}
-.week-level-btn.active,
-.week-level-read.active {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.18);
-  color: #bfdbfe;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
-}
-.week-level-read {
-  opacity: 0.45;
-  border: 1px solid transparent;
-}
-.logbuch-btn-week {
-  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
-  color: #eff6ff;
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.35);
-}
-.logbuch-btn-week:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 0 28px rgba(59, 130, 246, 0.45);
-}
+.week-matrix-item { font-size: 13px; }
+.week-matrix-value { font-size: 12px; opacity: 0.75; text-transform: capitalize; }
 
 .comp-shell { display: flex; flex-direction: column; gap: 16px; }
 .comp-intro { margin: 0; font-size: 13px; opacity: 0.75; line-height: 1.5; }
@@ -1631,6 +1460,12 @@ h2 {
 
   .main-area { padding: 72px 16px 20px 16px; }
 
+  .today-blocks,
+  .logbuch-form,
+  .week-stats {
+    grid-template-columns: 1fr;
+  }
+
   h1 { display: none; }
 
   .character-wrapper { flex-direction: column; align-items: center; }
@@ -1742,37 +1577,37 @@ h2 {
 
   <!-- MEIN TAG -->
   <div id="today-section" class="card section logbuch-screen" style="display:none;">
-    <h2 class="logbuch-title">Mein Tag</h2>
+    <h2>Mein Tag</h2>
     <div id="today-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- WOCHE -->
   <div id="week-section" class="card section logbuch-screen logbuch-phase-week" style="display:none;">
-    <h2 class="logbuch-title">Meine Woche</h2>
+    <h2>Meine Woche</h2>
     <div id="week-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- KOMPETENZEN -->
   <div id="competencies-section" class="card section logbuch-screen" style="display:none;">
-    <h2 class="logbuch-title">Kompetenz-Status</h2>
+    <h2>Kompetenz-Status</h2>
     <div id="competencies-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- PLANEN -->
   <div id="plan-section" class="card section logbuch-screen logbuch-phase-plan" style="display:none;">
-    <h2 class="logbuch-title">Planen</h2>
+    <h2>Planen</h2>
     <div id="plan-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- ZWISCHEN-CHECK -->
   <div id="check-section" class="card section logbuch-screen logbuch-phase-check" style="display:none;">
-    <h2 class="logbuch-title">Zwischen-Check</h2>
+    <h2>Zwischen-Check</h2>
     <div id="check-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- TAGESABSCHLUSS -->
   <div id="reflect-section" class="card section logbuch-screen logbuch-phase-reflect" style="display:none;">
-    <h2 class="logbuch-title">Tagesabschluss</h2>
+    <h2>Tagesabschluss</h2>
     <div id="reflect-screen-root" class="logbuch-root"></div>
   </div>
 
@@ -1827,6 +1662,7 @@ h2 {
 </div>
 
 <script src="/js/logbuch-constants.js"></script>
+<script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js"></script>
 <script src="/js/logbuch-plan.js"></script>
