@@ -19,6 +19,252 @@ const { Pool } = pkg;
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
 
 // -------------------------------------------------------
+// SRL-Logbuch – XP-Werte (zentral anpassbar)
+// -------------------------------------------------------
+const LOGBUCH_XP = {
+  plan: 2,
+  check: 3,
+  reflect: 3,
+  weekReflection: 10
+};
+
+const LOG_SUBJECTS = [
+  "Mathe",
+  "Deutsch",
+  "BNT",
+  "Englisch",
+  "Geo",
+  "Geschichte",
+  "Projekt"
+];
+
+const LOG_GOALS = [
+  "Neues Thema verstehen",
+  "Verfahren erklären können",
+  "Einfache Aufgaben lösen",
+  "Aufgaben selbständig lösen",
+  "Schwierigere Aufgaben lösen",
+  "Fehler verbessern",
+  "Thema wiederholen",
+  "Test/Levelcheck vorbereiten"
+];
+
+const LOG_WORK_GOALS = [
+  "Konzentriert arbeiten",
+  "Kein Handy",
+  "Tablet nur für Aufgaben",
+  "Nicht ablenken lassen",
+  "Ruhig arbeiten",
+  "Hilfe holen wenn nötig"
+];
+
+const LOG_SOCIAL_FORMS = ["einzel", "partner", "gruppe", "frei"];
+
+const LOG_GOAL_ACHIEVED = ["ja", "teilweise", "nein"];
+
+const LOG_HOW_WORKED = ["konzentriert", "mit_hilfe", "unruhig", "abgelenkt"];
+
+const LOG_NEXT_STEPS = [
+  "weiterüben",
+  "hilfe_holen",
+  "levelcheck_machen",
+  "test_vorbereiten",
+  "neues_thema"
+];
+
+const LOG_STRATEGIES = [
+  "Text genau lesen",
+  "Beispiele anschauen",
+  "Erklärung im Kopf wiederholen",
+  "Aufgaben Schritt für Schritt",
+  "Im Heft üben",
+  "Mit Partner vergleichen",
+  "Schwierigere Beispiele probieren",
+  "Eigene Beispiele finden",
+  "Thema mit anderem verbinden",
+  "Ergebnis kontrollieren",
+  "Gegenprobe machen",
+  "Lösungsweg erklären"
+];
+
+function isoDateOrToday(value) {
+  if (!value) return new Date().toISOString().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+function weekdayFromIsoDate(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  const jsDay = d.getDay();
+  return jsDay >= 1 && jsDay <= 5 ? jsDay : null;
+}
+
+const LOG_TIME_WASTERS = [
+  "Handy / Social Media",
+  "Gespräche mit Nachbarn",
+  "Lärm in der Klasse",
+  "Ich war müde",
+  "Aufgabe war unklar",
+  "Ich habe aufgeschoben"
+];
+
+const LOG_TIME_WASTER_LEVELS = ["selten", "manchmal", "oft"];
+
+const LOG_CHECK_RATINGS = ["👍", "😐", "👎"];
+
+const LOG_COMPETENCY_STATUSES = [
+  "offen",
+  "in_arbeit",
+  "bereit",
+  "test_angemeldet",
+  "bestanden",
+  "nacharbeit"
+];
+
+const LOG_COMPETENCY_STATUS_LABELS = {
+  offen: "Offen",
+  in_arbeit: "In Arbeit",
+  bereit: "Bereit für Levelcheck",
+  test_angemeldet: "Test angemeldet",
+  bestanden: "Bestanden",
+  nacharbeit: "Nacharbeit"
+};
+
+const LOG_NEXT_STEP_LABELS = {
+  weiterüben: "Weiterüben",
+  hilfe_holen: "Hilfe holen",
+  levelcheck_machen: "Levelcheck machen",
+  test_vorbereiten: "Test vorbereiten",
+  neues_thema: "Neues Thema"
+};
+
+const TEACHER_HINT_PRIORITY = { yellow: 0, red: 1, green: 2, blue: 3 };
+
+function computeStudentHint(entries, reflections, threeJaStreak) {
+  if (!entries.length) {
+    return { tag: "enger begleiten", color: "yellow" };
+  }
+
+  let best = { tag: "stabil", color: "blue", priority: TEACHER_HINT_PRIORITY.blue };
+
+  for (const entry of entries) {
+    const reflection = reflections.find((r) => r.log_entry_id === entry.id);
+    let hint;
+
+    if (!reflection) {
+      hint = { tag: "stabil", color: "blue" };
+    } else {
+      const before = entry.confidence_before;
+      const after = reflection.confidence_after;
+      if (
+        reflection.goal_achieved === "nein" &&
+        before != null &&
+        after != null &&
+        after < before
+      ) {
+        hint = { tag: "Gespräch sinnvoll", color: "red" };
+      } else if (threeJaStreak) {
+        hint = { tag: "bereit für Levelcheck", color: "green" };
+      } else {
+        hint = { tag: "stabil", color: "blue" };
+      }
+    }
+
+    const priority = TEACHER_HINT_PRIORITY[hint.color];
+    if (priority < best.priority) {
+      best = { ...hint, priority };
+    }
+  }
+
+  if (threeJaStreak && best.color === "blue") {
+    best = { tag: "bereit für Levelcheck", color: "green", priority: TEACHER_HINT_PRIORITY.green };
+  }
+
+  delete best.priority;
+  return best;
+}
+
+function hasThreeJaStreak(reflectionRows) {
+  if (reflectionRows.length < 3) return false;
+  return reflectionRows.slice(0, 3).every((r) => r.goal_achieved === "ja");
+}
+
+function addDaysIso(dateStr, days) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function mondayOfWeek(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  const jsDay = d.getDay();
+  const diff = jsDay === 0 ? -6 : 1 - jsDay;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function fridayOfWeek(weekStart) {
+  return addDaysIso(weekStart, 4);
+}
+
+function isoWeekNumber(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  return (
+    1 +
+    Math.round(
+      ((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7
+    )
+  );
+}
+
+async function getSocialFormUnlock(studentId, schoolId) {
+  const userRes = await pool.query(
+    "SELECT xp, level_id FROM users WHERE id=$1",
+    [studentId]
+  );
+  if (!userRes.rows.length) {
+    return { gruppe: false, frei: false, levelRank: 0, levelName: null };
+  }
+
+  const { xp } = userRes.rows[0];
+  const levelsRes = await pool.query(
+    "SELECT id, name, min_xp FROM levels WHERE school_id=$1 ORDER BY min_xp ASC",
+    [schoolId]
+  );
+
+  let levelRank = 0;
+  let levelName = null;
+  for (let i = 0; i < levelsRes.rows.length; i++) {
+    if (xp >= levelsRes.rows[i].min_xp) {
+      levelRank = i;
+      levelName = levelsRes.rows[i].name;
+    }
+  }
+
+  const nameLower = (levelName || "").toLowerCase();
+  const gruppe =
+    levelRank >= 1 ||
+    nameLower.includes("silber") ||
+    nameLower.includes("street pro") ||
+    nameLower.includes("gold") ||
+    nameLower.includes("legend");
+  const frei =
+    levelRank >= 2 ||
+    nameLower.includes("gold") ||
+    nameLower.includes("legend");
+
+  return { gruppe, frei, levelRank, levelName };
+}
+
+async function awardLogbuchXP(studentId, amount, source, schoolId) {
+  await pool.query("UPDATE users SET xp=xp+$1 WHERE id=$2", [amount, studentId]);
+  await logXP(studentId, amount, null, source, null, schoolId);
+  await updateStudentLevel(studentId);
+}
+
+// -------------------------------------------------------
 // Grundpfade
 // -------------------------------------------------------
 const __filename = fileURLToPath(import.meta.url);
@@ -523,6 +769,131 @@ async function migrate() {
   await ensureColumn("class_challenges", "school_id", "INTEGER");
 
   // -------------------------------------------------------
+  // SRL-LOGBUCH – UUID-Unterstützung
+  // -------------------------------------------------------
+  await pool.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
+
+  // LogEntry – Tagesziel / Planung (Forethought)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS log_entries (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      school_id INTEGER,
+      date DATE NOT NULL,
+      timeslot TEXT,
+      subject TEXT NOT NULL,
+      goal TEXT NOT NULL,
+      work_goals JSONB NOT NULL DEFAULT '[]',
+      social_form TEXT,
+      strategy TEXT,
+      confidence_before INTEGER,
+      freitext TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await ensureColumn("log_entries", "school_id", "INTEGER");
+
+  // LogCheck – Zwischen-Check (Performance)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS log_checks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      log_entry_id UUID NOT NULL REFERENCES log_entries(id) ON DELETE CASCADE,
+      on_track TEXT NOT NULL,
+      understands TEXT NOT NULL,
+      progress TEXT NOT NULL,
+      change_note TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(log_entry_id)
+    )
+  `);
+
+  // LogReflection – Tagesabschluss (Self-Reflection)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS log_reflections (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      log_entry_id UUID NOT NULL REFERENCES log_entries(id) ON DELETE CASCADE,
+      goal_achieved TEXT NOT NULL,
+      how_worked TEXT NOT NULL,
+      next_step TEXT NOT NULL,
+      confidence_after INTEGER NOT NULL,
+      learned_today TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(log_entry_id)
+    )
+  `);
+
+  // LogWeekReflection – Wochenreflexion inkl. Zeitfresser-Matrix
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS log_week_reflections (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      school_id INTEGER,
+      week_start DATE NOT NULL,
+      time_wasters JSONB NOT NULL DEFAULT '{}',
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(user_id, week_start)
+    )
+  `);
+  await ensureColumn("log_week_reflections", "school_id", "INTEGER");
+
+  // CompetencyStatus – Kompetenz-Status pro Fach/Thema
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS competency_status (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      school_id INTEGER,
+      subject TEXT NOT NULL,
+      topic TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'offen',
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await ensureColumn("competency_status", "school_id", "INTEGER");
+
+  // Timetable – Stundenplan pro Klasse (von Lehrkraft gepflegt)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS timetables (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+      school_id INTEGER,
+      weekday INTEGER NOT NULL CHECK (weekday >= 1 AND weekday <= 5),
+      timeslot TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      room TEXT
+    )
+  `);
+  await ensureColumn("timetables", "school_id", "INTEGER");
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_log_entries_user_date
+    ON log_entries (user_id, date)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_competency_status_user_subject
+    ON competency_status (user_id, subject)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_timetables_class_weekday
+    ON timetables (class_id, weekday)
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name='timetables'
+          AND constraint_name='timetables_class_weekday_timeslot_unique'
+      ) THEN
+        ALTER TABLE timetables
+        ADD CONSTRAINT timetables_class_weekday_timeslot_unique
+        UNIQUE (class_id, weekday, timeslot);
+      END IF;
+    END$$;
+  `);
+
+  // -------------------------------------------------------
   // LEVEL-CONSTRAINT FIX
   // -------------------------------------------------------
   await pool.query(`
@@ -575,6 +946,48 @@ async function migrate() {
     DELETE FROM class_reward_votes v
     WHERE NOT EXISTS (
       SELECT 1 FROM users u WHERE u.id = v.student_id
+    );
+  `);
+
+  await pool.query(`
+    DELETE FROM log_checks lc
+    WHERE NOT EXISTS (
+      SELECT 1 FROM log_entries le WHERE le.id = lc.log_entry_id
+    );
+  `);
+
+  await pool.query(`
+    DELETE FROM log_reflections lr
+    WHERE NOT EXISTS (
+      SELECT 1 FROM log_entries le WHERE le.id = lr.log_entry_id
+    );
+  `);
+
+  await pool.query(`
+    DELETE FROM log_entries le
+    WHERE NOT EXISTS (
+      SELECT 1 FROM users u WHERE u.id = le.user_id
+    );
+  `);
+
+  await pool.query(`
+    DELETE FROM competency_status cs
+    WHERE NOT EXISTS (
+      SELECT 1 FROM users u WHERE u.id = cs.user_id
+    );
+  `);
+
+  await pool.query(`
+    DELETE FROM log_week_reflections lwr
+    WHERE NOT EXISTS (
+      SELECT 1 FROM users u WHERE u.id = lwr.user_id
+    );
+  `);
+
+  await pool.query(`
+    DELETE FROM timetables t
+    WHERE NOT EXISTS (
+      SELECT 1 FROM classes c WHERE c.id = t.class_id
     );
   `);
 
@@ -648,6 +1061,27 @@ async function migrate() {
   );
   await pool.query(
     "UPDATE class_challenges SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE log_entries SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE competency_status SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE log_week_reflections SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    `UPDATE timetables t SET school_id = c.school_id
+     FROM classes c
+     WHERE t.class_id = c.id AND t.school_id IS NULL`
+  );
+  await pool.query(
+    "UPDATE timetables SET school_id=$1 WHERE school_id IS NULL",
     [defaultSchoolId]
   );
 
@@ -979,6 +1413,1441 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     levels: levels.rows,
     xp_per_mission: xpByMission
   });
+});
+
+// -------------------------------------------------------
+// STUDENT: SRL-Logbuch – Planen
+// -------------------------------------------------------
+app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const date = isoDateOrToday(req.query.date);
+    if (!date) return res.status(400).json({ error: "Ungültiges Datum" });
+
+    const timeslot = req.query.timeslot || null;
+    const subjectQuery = req.query.subject || null;
+    const weekday = weekdayFromIsoDate(date);
+
+    const userRes = await pool.query(
+      "SELECT class_id FROM users WHERE id=$1",
+      [studentId]
+    );
+    const classId = userRes.rows[0]?.class_id;
+
+    let timetable = [];
+    if (classId && weekday) {
+      const tRes = await pool.query(
+        `
+        SELECT timeslot, subject, room
+        FROM timetables
+        WHERE class_id=$1 AND weekday=$2 AND school_id=$3
+        ORDER BY timeslot ASC
+      `,
+        [classId, weekday, schoolId]
+      );
+      timetable = tRes.rows;
+    }
+
+    let existingEntry = null;
+    if (subjectQuery && LOG_SUBJECTS.includes(subjectQuery)) {
+      const existingRes = await pool.query(
+        `
+        SELECT id, subject, goal, timeslot, created_at
+        FROM log_entries
+        WHERE user_id=$1 AND date=$2 AND subject=$3
+          AND (
+            ($4::text IS NULL AND timeslot IS NULL)
+            OR timeslot = $4
+          )
+        LIMIT 1
+      `,
+        [studentId, date, subjectQuery, timeslot]
+      );
+      existingEntry = existingRes.rows[0] || null;
+    }
+
+    const timetableSubjects = [...new Set(timetable.map((t) => t.subject))];
+    let suggestedSubject = null;
+    if (subjectQuery && LOG_SUBJECTS.includes(subjectQuery)) {
+      suggestedSubject = subjectQuery;
+    } else if (timetableSubjects.length) {
+      suggestedSubject = timetableSubjects[0];
+    }
+
+    const socialUnlock = await getSocialFormUnlock(studentId, schoolId);
+
+    res.json({
+      date,
+      weekday,
+      timetable,
+      subjects: LOG_SUBJECTS,
+      timetableSubjects,
+      suggestedSubject,
+      socialUnlock,
+      existingEntry
+    });
+  } catch (err) {
+    console.error("❌ /api/student/log/plan-context:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.post("/api/student/log/plan", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+
+    const date = isoDateOrToday(req.body.date);
+    if (!date) {
+      return res.json({ success: false, message: "Ungültiges Datum." });
+    }
+
+    const {
+      timeslot = null,
+      subject,
+      goal,
+      workGoals = [],
+      socialForm = null,
+      strategy = null,
+      confidenceBefore = null,
+      freitext = null
+    } = req.body;
+
+    if (!subject || !LOG_SUBJECTS.includes(subject)) {
+      return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
+    }
+
+    if (!goal || !LOG_GOALS.includes(goal)) {
+      return res.json({ success: false, message: "Bitte ein gültiges Stundenziel wählen." });
+    }
+
+    const cleanWorkGoals = Array.isArray(workGoals)
+      ? workGoals.filter((g) => LOG_WORK_GOALS.includes(g))
+      : [];
+
+    if (socialForm && !LOG_SOCIAL_FORMS.includes(socialForm)) {
+      return res.json({ success: false, message: "Ungültige Sozialform." });
+    }
+
+    if (socialForm === "gruppe" || socialForm === "frei") {
+      const unlock = await getSocialFormUnlock(studentId, schoolId);
+      if (socialForm === "gruppe" && !unlock.gruppe) {
+        return res.json({
+          success: false,
+          message: "Gruppe ist erst ab Level Silber freigeschaltet."
+        });
+      }
+      if (socialForm === "frei" && !unlock.frei) {
+        return res.json({
+          success: false,
+          message: "Frei ist erst ab Level Gold freigeschaltet."
+        });
+      }
+    }
+
+    if (strategy && !LOG_STRATEGIES.includes(strategy)) {
+      return res.json({ success: false, message: "Ungültige Lernstrategie." });
+    }
+
+    const confidence =
+      confidenceBefore === null || confidenceBefore === undefined
+        ? null
+        : Number(confidenceBefore);
+    if (
+      confidence !== null &&
+      (!Number.isInteger(confidence) || confidence < 1 || confidence > 5)
+    ) {
+      return res.json({
+        success: false,
+        message: "Selbstwirksamkeit muss zwischen 1 und 5 liegen."
+      });
+    }
+
+    const cleanFreitext =
+      typeof freitext === "string" && freitext.trim()
+        ? freitext.trim().slice(0, 100)
+        : null;
+
+    const existingRes = await pool.query(
+      `
+      SELECT id
+      FROM log_entries
+      WHERE user_id=$1 AND date=$2 AND subject=$3
+        AND (
+          ($4::text IS NULL AND timeslot IS NULL)
+          OR timeslot = $4
+        )
+      LIMIT 1
+    `,
+      [studentId, date, subject, timeslot || null]
+    );
+
+    if (existingRes.rows.length) {
+      return res.json({
+        success: false,
+        message: "Für dieses Fach ist heute schon ein Ziel gesetzt.",
+        entryId: existingRes.rows[0].id
+      });
+    }
+
+    const insertRes = await pool.query(
+      `
+      INSERT INTO log_entries (
+        user_id, school_id, date, timeslot, subject, goal,
+        work_goals, social_form, strategy, confidence_before, freitext
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      RETURNING id, created_at
+    `,
+      [
+        studentId,
+        schoolId,
+        date,
+        timeslot || null,
+        subject,
+        goal,
+        JSON.stringify(cleanWorkGoals),
+        socialForm || null,
+        strategy || null,
+        confidence,
+        cleanFreitext
+      ]
+    );
+
+    await awardLogbuchXP(studentId, LOGBUCH_XP.plan, "logbuch_plan", schoolId);
+
+    res.json({
+      success: true,
+      entry: insertRes.rows[0],
+      xpAwarded: LOGBUCH_XP.plan
+    });
+  } catch (err) {
+    console.error("❌ /api/student/log/plan:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// STUDENT: SRL-Logbuch – Meine Woche
+// -------------------------------------------------------
+app.get("/api/student/log/week", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const refDate = isoDateOrToday(req.query.weekStart) || isoDateOrToday(req.query.date);
+    if (!refDate) return res.status(400).json({ error: "Ungültiges Datum" });
+
+    const weekStart = mondayOfWeek(refDate);
+    const weekEnd = fridayOfWeek(weekStart);
+    const weekNumber = isoWeekNumber(weekStart);
+
+    const startLabel = new Date(`${weekStart}T12:00:00`).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit"
+    });
+    const endLabel = new Date(`${weekEnd}T12:00:00`).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
+
+    const entriesRes = await pool.query(
+      `
+      SELECT
+        le.id, le.date, le.subject, le.goal,
+        lr.goal_achieved
+      FROM log_entries le
+      LEFT JOIN log_reflections lr ON lr.log_entry_id = le.id
+      WHERE le.user_id=$1
+        AND le.date >= $2
+        AND le.date <= $3
+      ORDER BY le.date ASC, le.subject ASC
+    `,
+      [studentId, weekStart, weekEnd]
+    );
+
+    const weekdayShort = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+    const rows = entriesRes.rows.map((row) => {
+      const dateIso =
+        row.date instanceof Date
+          ? row.date.toISOString().slice(0, 10)
+          : String(row.date).slice(0, 10);
+      const d = new Date(`${dateIso}T12:00:00`);
+      let achieved = "–";
+      if (row.goal_achieved === "ja") achieved = "✓";
+      else if (row.goal_achieved === "teilweise") achieved = "◐";
+      else if (row.goal_achieved === "nein") achieved = "✗";
+      else if (!row.goal_achieved) achieved = "○";
+
+      return {
+        date: dateIso,
+        weekday: weekdayShort[d.getDay()],
+        subject: row.subject,
+        goal: row.goal,
+        achieved,
+        goalAchieved: row.goal_achieved
+      };
+    });
+
+    const stats = {
+      gesetzt: rows.length,
+      erreicht: rows.filter((r) => r.goalAchieved === "ja").length,
+      teilweise: rows.filter((r) => r.goalAchieved === "teilweise").length,
+      offen: rows.filter((r) => !r.goalAchieved).length
+    };
+
+    const xpRes = await pool.query(
+      `
+      SELECT COALESCE(SUM(amount), 0) AS total
+      FROM xp_transactions
+      WHERE student_id=$1
+        AND school_id=$2
+        AND source IN ('logbuch_plan','logbuch_check','logbuch_reflect','logbuch_week')
+        AND created_at >= $3::date
+        AND created_at < ($4::date + INTERVAL '1 day')
+    `,
+      [studentId, schoolId, weekStart, addDaysIso(weekEnd, 1)]
+    );
+
+    const weekReflectionRes = await pool.query(
+      `
+      SELECT id, time_wasters, created_at
+      FROM log_week_reflections
+      WHERE user_id=$1 AND week_start=$2
+    `,
+      [studentId, weekStart]
+    );
+
+    res.json({
+      weekStart,
+      weekEnd,
+      weekNumber,
+      weekLabel: `KW ${weekNumber} · ${startLabel}. – ${endLabel}`,
+      stats,
+      xpThisWeek: Number(xpRes.rows[0]?.total || 0),
+      rows,
+      timeWasterItems: LOG_TIME_WASTERS,
+      timeWasterLevels: LOG_TIME_WASTER_LEVELS,
+      weekReflection: weekReflectionRes.rows[0] || null
+    });
+  } catch (err) {
+    console.error("❌ /api/student/log/week:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.post("/api/student/log/week-reflection", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const { weekStart, timeWasters } = req.body;
+
+    const cleanWeekStart = isoDateOrToday(weekStart);
+    if (!cleanWeekStart || mondayOfWeek(cleanWeekStart) !== cleanWeekStart) {
+      return res.json({
+        success: false,
+        message: "Ungültiger Wochenstart (Montag erwartet)."
+      });
+    }
+
+    if (!timeWasters || typeof timeWasters !== "object") {
+      return res.json({ success: false, message: "Zeitfresser-Matrix fehlt." });
+    }
+
+    const cleanWasters = {};
+    for (const item of LOG_TIME_WASTERS) {
+      const level = timeWasters[item];
+      if (!level || !LOG_TIME_WASTER_LEVELS.includes(level)) {
+        return res.json({
+          success: false,
+          message: `Bitte alle Zeitfresser bewerten (${item}).`
+        });
+      }
+      cleanWasters[item] = level;
+    }
+
+    const existingRes = await pool.query(
+      "SELECT id FROM log_week_reflections WHERE user_id=$1 AND week_start=$2",
+      [studentId, cleanWeekStart]
+    );
+
+    if (existingRes.rows.length) {
+      return res.json({
+        success: false,
+        message: "Wochenreflexion für diese Woche ist bereits abgeschlossen."
+      });
+    }
+
+    const insertRes = await pool.query(
+      `
+      INSERT INTO log_week_reflections (user_id, school_id, week_start, time_wasters)
+      VALUES ($1,$2,$3,$4)
+      RETURNING id, created_at
+    `,
+      [studentId, schoolId, cleanWeekStart, JSON.stringify(cleanWasters)]
+    );
+
+    await awardLogbuchXP(
+      studentId,
+      LOGBUCH_XP.weekReflection,
+      "logbuch_week",
+      schoolId
+    );
+
+    res.json({
+      success: true,
+      reflection: insertRes.rows[0],
+      xpAwarded: LOGBUCH_XP.weekReflection
+    });
+  } catch (err) {
+    console.error("❌ /api/student/log/week-reflection:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// STUDENT: SRL-Logbuch – Mein Tag
+// -------------------------------------------------------
+app.get("/api/student/log/today", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const date = isoDateOrToday(req.query.date);
+    if (!date) return res.status(400).json({ error: "Ungültiges Datum" });
+
+    const weekday = weekdayFromIsoDate(date);
+    const d = new Date(`${date}T12:00:00`);
+    const weekdayLabels = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+    const weekdayLabel = weekdayLabels[d.getDay()];
+    const dateLabel = d.toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
+
+    const userRes = await pool.query(
+      "SELECT class_id FROM users WHERE id=$1",
+      [studentId]
+    );
+    const classId = userRes.rows[0]?.class_id;
+
+    let timetable = [];
+    if (classId && weekday) {
+      const tRes = await pool.query(
+        `
+        SELECT timeslot, subject, room
+        FROM timetables
+        WHERE class_id=$1 AND weekday=$2 AND school_id=$3
+        ORDER BY timeslot ASC
+      `,
+        [classId, weekday, schoolId]
+      );
+      timetable = tRes.rows;
+    }
+
+    const entriesRes = await pool.query(
+      `
+      SELECT
+        le.id, le.date, le.timeslot, le.subject, le.goal,
+        le.confidence_before, le.created_at,
+        lc.id AS check_id,
+        lr.id AS reflection_id,
+        lr.goal_achieved, lr.how_worked, lr.next_step,
+        lr.confidence_after, lr.learned_today
+      FROM log_entries le
+      LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
+      LEFT JOIN log_reflections lr ON lr.log_entry_id = le.id
+      WHERE le.user_id=$1 AND le.date=$2
+      ORDER BY le.timeslot ASC NULLS LAST, le.subject ASC
+    `,
+      [studentId, date]
+    );
+
+    const entries = entriesRes.rows.map((row) => ({
+      id: row.id,
+      date: row.date,
+      timeslot: row.timeslot,
+      subject: row.subject,
+      goal: row.goal,
+      confidence_before: row.confidence_before,
+      created_at: row.created_at,
+      hasCheck: !!row.check_id,
+      hasReflection: !!row.reflection_id,
+      reflection: row.reflection_id
+        ? {
+            goal_achieved: row.goal_achieved,
+            how_worked: row.how_worked,
+            next_step: row.next_step,
+            confidence_after: row.confidence_after,
+            learned_today: row.learned_today
+          }
+        : null
+    }));
+
+    const findEntryForSlot = (slot) => {
+      const exact = entries.find(
+        (e) =>
+          e.subject === slot.subject &&
+          e.timeslot &&
+          slot.timeslot &&
+          e.timeslot === slot.timeslot
+      );
+      if (exact) return exact;
+
+      const bySubject = entries.find(
+        (e) =>
+          e.subject === slot.subject &&
+          (!e.timeslot || !slot.timeslot || e.timeslot === slot.timeslot)
+      );
+      return bySubject || null;
+    };
+
+    const blocks = [];
+    const usedEntryIds = new Set();
+
+    for (const slot of timetable) {
+      const entry = findEntryForSlot(slot);
+      if (entry) usedEntryIds.add(entry.id);
+      blocks.push({ slot, entry });
+    }
+
+    for (const entry of entries) {
+      if (!usedEntryIds.has(entry.id)) {
+        blocks.push({
+          slot: { subject: entry.subject, timeslot: entry.timeslot, room: null },
+          entry
+        });
+      }
+    }
+
+    const phases = {
+      plan: entries.length > 0,
+      check: entries.some((e) => e.hasCheck),
+      reflect: entries.some((e) => e.hasReflection)
+    };
+
+    const timetableSubjects = [...new Set(timetable.map((t) => t.subject))];
+    const todayIso = new Date().toISOString().slice(0, 10);
+
+    res.json({
+      date,
+      weekday,
+      weekdayLabel,
+      dateLabel,
+      isToday: date === todayIso,
+      isPast: date < todayIso,
+      timetable,
+      timetableSubjects,
+      entries,
+      blocks,
+      phases
+    });
+  } catch (err) {
+    console.error("❌ /api/student/log/today:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// STUDENT: SRL-Logbuch – Zwischen-Check
+// -------------------------------------------------------
+app.get("/api/student/log/check-context", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const entryId = req.query.entryId;
+
+    if (!entryId) {
+      return res.status(400).json({ error: "entryId fehlt" });
+    }
+
+    const entryRes = await pool.query(
+      `
+      SELECT id, date, timeslot, subject, goal, created_at
+      FROM log_entries
+      WHERE id=$1 AND user_id=$2
+    `,
+      [entryId, studentId]
+    );
+
+    if (!entryRes.rows.length) {
+      return res.json({ entry: null, existingCheck: null });
+    }
+
+    const checkRes = await pool.query(
+      `
+      SELECT id, on_track, understands, progress, change_note, created_at
+      FROM log_checks
+      WHERE log_entry_id=$1
+    `,
+      [entryId]
+    );
+
+    res.json({
+      entry: entryRes.rows[0],
+      existingCheck: checkRes.rows[0] || null
+    });
+  } catch (err) {
+    console.error("❌ /api/student/log/check-context:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.post("/api/student/log/check", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+
+    const {
+      logEntryId,
+      onTrack,
+      understands,
+      progress,
+      changeNote = null
+    } = req.body;
+
+    if (!logEntryId) {
+      return res.json({ success: false, message: "Lern-Eintrag fehlt." });
+    }
+
+    const entryRes = await pool.query(
+      "SELECT id FROM log_entries WHERE id=$1 AND user_id=$2",
+      [logEntryId, studentId]
+    );
+
+    if (!entryRes.rows.length) {
+      return res.json({ success: false, message: "Lern-Eintrag nicht gefunden." });
+    }
+
+    if (!onTrack || !LOG_CHECK_RATINGS.includes(onTrack)) {
+      return res.json({ success: false, message: "Bitte alle drei Check-Fragen beantworten." });
+    }
+    if (!understands || !LOG_CHECK_RATINGS.includes(understands)) {
+      return res.json({ success: false, message: "Bitte alle drei Check-Fragen beantworten." });
+    }
+    if (!progress || !LOG_CHECK_RATINGS.includes(progress)) {
+      return res.json({ success: false, message: "Bitte alle drei Check-Fragen beantworten." });
+    }
+
+    const hasThumbsDown = [onTrack, understands, progress].includes("👎");
+    const cleanChangeNote =
+      typeof changeNote === "string" && changeNote.trim()
+        ? changeNote.trim().slice(0, 200)
+        : null;
+
+    if (hasThumbsDown && !cleanChangeNote) {
+      return res.json({
+        success: false,
+        message: "Bitte notiere, was du jetzt änderst (mindestens ein 👎)."
+      });
+    }
+
+    const existingRes = await pool.query(
+      "SELECT id FROM log_checks WHERE log_entry_id=$1",
+      [logEntryId]
+    );
+
+    if (existingRes.rows.length) {
+      return res.json({
+        success: false,
+        message: "Zwischen-Check für diesen Eintrag ist bereits abgeschlossen.",
+        checkId: existingRes.rows[0].id
+      });
+    }
+
+    const insertRes = await pool.query(
+      `
+      INSERT INTO log_checks (log_entry_id, on_track, understands, progress, change_note)
+      VALUES ($1,$2,$3,$4,$5)
+      RETURNING id, created_at
+    `,
+      [
+        logEntryId,
+        onTrack,
+        understands,
+        progress,
+        hasThumbsDown ? cleanChangeNote : null
+      ]
+    );
+
+    await awardLogbuchXP(studentId, LOGBUCH_XP.check, "logbuch_check", schoolId);
+
+    res.json({
+      success: true,
+      check: insertRes.rows[0],
+      xpAwarded: LOGBUCH_XP.check
+    });
+  } catch (err) {
+    console.error("❌ /api/student/log/check:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// STUDENT: SRL-Logbuch – Tagesabschluss
+// -------------------------------------------------------
+app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const entryId = req.query.entryId;
+
+    if (!entryId) {
+      return res.status(400).json({ error: "entryId fehlt" });
+    }
+
+    const entryRes = await pool.query(
+      `
+      SELECT id, date, timeslot, subject, goal, confidence_before, created_at
+      FROM log_entries
+      WHERE id=$1 AND user_id=$2
+    `,
+      [entryId, studentId]
+    );
+
+    if (!entryRes.rows.length) {
+      return res.json({ entry: null, existingReflection: null });
+    }
+
+    const reflectionRes = await pool.query(
+      `
+      SELECT id, goal_achieved, how_worked, next_step, confidence_after,
+             learned_today, created_at
+      FROM log_reflections
+      WHERE log_entry_id=$1
+    `,
+      [entryId]
+    );
+
+    res.json({
+      entry: entryRes.rows[0],
+      existingReflection: reflectionRes.rows[0] || null
+    });
+  } catch (err) {
+    console.error("❌ /api/student/log/reflect-context:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.post("/api/student/log/reflect", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+
+    const {
+      logEntryId,
+      goalAchieved,
+      howWorked,
+      nextStep,
+      confidenceAfter,
+      learnedToday = null
+    } = req.body;
+
+    if (!logEntryId) {
+      return res.json({ success: false, message: "Lern-Eintrag fehlt." });
+    }
+
+    const entryRes = await pool.query(
+      "SELECT id FROM log_entries WHERE id=$1 AND user_id=$2",
+      [logEntryId, studentId]
+    );
+
+    if (!entryRes.rows.length) {
+      return res.json({ success: false, message: "Lern-Eintrag nicht gefunden." });
+    }
+
+    if (!goalAchieved || !LOG_GOAL_ACHIEVED.includes(goalAchieved)) {
+      return res.json({ success: false, message: "Bitte Zielerreichung wählen." });
+    }
+
+    if (!howWorked || !LOG_HOW_WORKED.includes(howWorked)) {
+      return res.json({ success: false, message: "Bitte Arbeitsweise wählen." });
+    }
+
+    if (!nextStep || !LOG_NEXT_STEPS.includes(nextStep)) {
+      return res.json({ success: false, message: "Bitte nächsten Schritt wählen." });
+    }
+
+    const confidence = Number(confidenceAfter);
+    if (!Number.isInteger(confidence) || confidence < 1 || confidence > 5) {
+      return res.json({
+        success: false,
+        message: "Selbstwirksamkeit muss zwischen 1 und 5 liegen."
+      });
+    }
+
+    const cleanLearned =
+      typeof learnedToday === "string" && learnedToday.trim()
+        ? learnedToday.trim().slice(0, 200)
+        : null;
+
+    const existingRes = await pool.query(
+      "SELECT id FROM log_reflections WHERE log_entry_id=$1",
+      [logEntryId]
+    );
+
+    if (existingRes.rows.length) {
+      return res.json({
+        success: false,
+        message: "Reflexion für diesen Eintrag ist bereits abgeschlossen.",
+        reflectionId: existingRes.rows[0].id
+      });
+    }
+
+    const insertRes = await pool.query(
+      `
+      INSERT INTO log_reflections (
+        log_entry_id, goal_achieved, how_worked, next_step,
+        confidence_after, learned_today
+      )
+      VALUES ($1,$2,$3,$4,$5,$6)
+      RETURNING id, created_at
+    `,
+      [logEntryId, goalAchieved, howWorked, nextStep, confidence, cleanLearned]
+    );
+
+    await awardLogbuchXP(studentId, LOGBUCH_XP.reflect, "logbuch_reflect", schoolId);
+
+    res.json({
+      success: true,
+      reflection: insertRes.rows[0],
+      xpAwarded: LOGBUCH_XP.reflect
+    });
+  } catch (err) {
+    console.error("❌ /api/student/log/reflect:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// STUDENT: SRL-Logbuch – Kompetenz-Status
+// -------------------------------------------------------
+app.get("/api/student/competencies", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+
+    const userRes = await pool.query(
+      "SELECT name FROM users WHERE id=$1",
+      [studentId]
+    );
+    const studentName = userRes.rows[0]?.name || "Schüler:in";
+
+    const resDb = await pool.query(
+      `
+      SELECT id, subject, topic, status, updated_at
+      FROM competency_status
+      WHERE user_id=$1
+      ORDER BY subject ASC, topic ASC
+    `,
+      [studentId]
+    );
+
+    const bySubject = {};
+    for (const row of resDb.rows) {
+      if (!bySubject[row.subject]) bySubject[row.subject] = [];
+      bySubject[row.subject].push({
+        id: row.id,
+        subject: row.subject,
+        topic: row.topic,
+        status: row.status,
+        statusLabel: LOG_COMPETENCY_STATUS_LABELS[row.status] || row.status,
+        updatedAt: row.updated_at
+      });
+    }
+
+    const subjectOrder = [...LOG_SUBJECTS];
+    const grouped = [];
+
+    for (const subject of subjectOrder) {
+      if (bySubject[subject]?.length) {
+        grouped.push({ subject, items: bySubject[subject] });
+        delete bySubject[subject];
+      }
+    }
+
+    for (const [subject, items] of Object.entries(bySubject)) {
+      grouped.push({ subject, items });
+    }
+
+    res.json({
+      studentName,
+      grouped,
+      statuses: LOG_COMPETENCY_STATUSES.map((s) => ({
+        id: s,
+        label: LOG_COMPETENCY_STATUS_LABELS[s]
+      }))
+    });
+  } catch (err) {
+    console.error("❌ /api/student/competencies:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// TEACHER: Klassenübersicht (Dashboard)
+// -------------------------------------------------------
+app.get("/api/teacher/dashboard", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.query.classId);
+    const date = isoDateOrToday(req.query.date);
+
+    if (!classId) {
+      return res.status(400).json({ error: "classId fehlt" });
+    }
+    if (!date) {
+      return res.status(400).json({ error: "Ungültiges Datum" });
+    }
+
+    const classRes = await pool.query(
+      "SELECT id, name FROM classes WHERE id=$1 AND school_id=$2",
+      [classId, schoolId]
+    );
+    if (!classRes.rows.length) {
+      return res.status(404).json({ error: "Klasse nicht gefunden" });
+    }
+
+    const weekday = weekdayFromIsoDate(date);
+    const d = new Date(`${date}T12:00:00`);
+    const weekdayLabels = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+
+    let timetable = [];
+    if (weekday) {
+      const tRes = await pool.query(
+        `
+        SELECT timeslot, subject, room
+        FROM timetables
+        WHERE class_id=$1 AND weekday=$2 AND school_id=$3
+        ORDER BY timeslot ASC
+      `,
+        [classId, weekday, schoolId]
+      );
+      timetable = tRes.rows.map((row, idx) => ({
+        slot: idx + 1,
+        timeslot: row.timeslot,
+        subject: row.subject,
+        room: row.room
+      }));
+    }
+
+    const studentsRes = await pool.query(
+      `
+      SELECT id, name
+      FROM users
+      WHERE role='student' AND class_id=$1 AND school_id=$2
+      ORDER BY name ASC
+    `,
+      [classId, schoolId]
+    );
+
+    const studentIds = studentsRes.rows.map((s) => s.id);
+
+    let entriesByStudent = {};
+    let streakByStudent = {};
+
+    if (studentIds.length) {
+      const entriesRes = await pool.query(
+        `
+        SELECT
+          le.*,
+          lr.goal_achieved,
+          lr.confidence_after,
+          lr.next_step,
+          lr.id AS reflection_id
+        FROM log_entries le
+        LEFT JOIN log_reflections lr ON lr.log_entry_id = le.id
+        WHERE le.user_id = ANY($1::int[])
+          AND le.date = $2
+        ORDER BY le.timeslot ASC NULLS LAST, le.subject ASC
+      `,
+        [studentIds, date]
+      );
+
+      for (const row of entriesRes.rows) {
+        if (!entriesByStudent[row.user_id]) entriesByStudent[row.user_id] = [];
+        entriesByStudent[row.user_id].push(row);
+      }
+
+      const streakRes = await pool.query(
+        `
+        SELECT le.user_id, lr.goal_achieved, le.date
+        FROM log_reflections lr
+        JOIN log_entries le ON le.id = lr.log_entry_id
+        WHERE le.user_id = ANY($1::int[])
+          AND le.date <= $2
+        ORDER BY le.user_id ASC, le.date DESC, le.created_at DESC
+      `,
+        [studentIds, date]
+      );
+
+      for (const row of streakRes.rows) {
+        if (!streakByStudent[row.user_id]) streakByStudent[row.user_id] = [];
+        streakByStudent[row.user_id].push(row);
+      }
+    }
+
+    const students = studentsRes.rows.map((student) => {
+      const entries = entriesByStudent[student.id] || [];
+      const streakRows = streakByStudent[student.id] || [];
+
+      const dayReflections = entries
+        .filter((e) => e.reflection_id)
+        .map((e) => ({
+          log_entry_id: e.id,
+          goal_achieved: e.goal_achieved,
+          confidence_after: e.confidence_after,
+          next_step: e.next_step
+        }));
+
+      const threeJa = hasThreeJaStreak(streakRows);
+      const hint = computeStudentHint(entries, dayReflections, threeJa);
+
+      const primary = entries[0] || null;
+      const primaryReflection = primary?.reflection_id
+        ? {
+            goal_achieved: primary.goal_achieved,
+            confidence_after: primary.confidence_after,
+            next_step: primary.next_step
+          }
+        : null;
+
+      let goalAchievedLabel = "–";
+      if (dayReflections.length) {
+        const achieved = dayReflections.map((r) => r.goal_achieved);
+        if (achieved.every((a) => a === "ja")) goalAchievedLabel = "✓";
+        else if (achieved.some((a) => a === "ja")) goalAchievedLabel = "◐";
+        else if (achieved.some((a) => a === "teilweise")) goalAchievedLabel = "◐";
+        else if (achieved.some((a) => a === "nein")) goalAchievedLabel = "✗";
+        else goalAchievedLabel = "○";
+      }
+
+      const confidenceBefore = primary?.confidence_before ?? null;
+      const confidenceAfter = primary?.confidence_after ?? null;
+      const nextStep = primary?.next_step || null;
+
+      return {
+        id: student.id,
+        name: student.name,
+        goalSet: entries.length > 0,
+        goalCount: entries.length,
+        goals: entries.map((e) => ({ subject: e.subject, goal: e.goal })),
+        goalAchieved: goalAchievedLabel,
+        hasReflection: dayReflections.length > 0,
+        confidenceBefore,
+        confidenceAfter,
+        confidenceLabel:
+          confidenceBefore != null && confidenceAfter != null
+            ? `${confidenceBefore} → ${confidenceAfter}`
+            : confidenceBefore != null
+              ? `${confidenceBefore} → –`
+              : "–",
+        nextStep,
+        nextStepLabel: nextStep ? LOG_NEXT_STEP_LABELS[nextStep] || nextStep : "–",
+        hint
+      };
+    });
+
+    res.json({
+      classId,
+      className: classRes.rows[0].name,
+      date,
+      weekday,
+      weekdayLabel: weekdayLabels[d.getDay()],
+      dateLabel: d.toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      }),
+      timetable,
+      students
+    });
+  } catch (err) {
+    console.error("❌ /api/teacher/dashboard:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.get("/api/teacher/student-week", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const studentId = Number(req.query.studentId);
+    const refDate = isoDateOrToday(req.query.date);
+    if (!studentId || !refDate) {
+      return res.status(400).json({ error: "Parameter fehlen" });
+    }
+
+    const studentRes = await pool.query(
+      "SELECT id, name, class_id FROM users WHERE id=$1 AND role='student' AND school_id=$2",
+      [studentId, schoolId]
+    );
+    if (!studentRes.rows.length) {
+      return res.status(404).json({ error: "Schüler:in nicht gefunden" });
+    }
+
+    const weekStart = mondayOfWeek(refDate);
+    const weekEnd = fridayOfWeek(weekStart);
+
+    const entriesRes = await pool.query(
+      `
+      SELECT le.date, le.subject, le.goal, lr.goal_achieved,
+             le.confidence_before, lr.confidence_after, lr.next_step
+      FROM log_entries le
+      LEFT JOIN log_reflections lr ON lr.log_entry_id = le.id
+      WHERE le.user_id=$1 AND le.date >= $2 AND le.date <= $3
+      ORDER BY le.date ASC, le.subject ASC
+    `,
+      [studentId, weekStart, weekEnd]
+    );
+
+    const weekdayShort = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+    const rows = entriesRes.rows.map((row) => {
+      const dateIso =
+        row.date instanceof Date
+          ? row.date.toISOString().slice(0, 10)
+          : String(row.date).slice(0, 10);
+      const d = new Date(`${dateIso}T12:00:00`);
+      let achieved = "○";
+      if (row.goal_achieved === "ja") achieved = "✓";
+      else if (row.goal_achieved === "teilweise") achieved = "◐";
+      else if (row.goal_achieved === "nein") achieved = "✗";
+
+      return {
+        date: dateIso,
+        weekday: weekdayShort[d.getDay()],
+        subject: row.subject,
+        goal: row.goal,
+        achieved,
+        confidenceLabel:
+          row.confidence_before != null && row.confidence_after != null
+            ? `${row.confidence_before} → ${row.confidence_after}`
+            : "–",
+        nextStepLabel: row.next_step
+          ? LOG_NEXT_STEP_LABELS[row.next_step] || row.next_step
+          : "–"
+      };
+    });
+
+    res.json({
+      student: studentRes.rows[0],
+      weekStart,
+      weekEnd,
+      rows
+    });
+  } catch (err) {
+    console.error("❌ /api/teacher/student-week:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// TEACHER: Stundenplan-Editor
+// -------------------------------------------------------
+const TIMETABLE_MAX_SLOTS_PER_DAY = 7;
+
+app.get("/api/teacher/timetable", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.query.classId);
+
+    if (!classId) {
+      return res.status(400).json({ error: "classId fehlt" });
+    }
+
+    const classRes = await pool.query(
+      "SELECT id, name FROM classes WHERE id=$1 AND school_id=$2",
+      [classId, schoolId]
+    );
+    if (!classRes.rows.length) {
+      return res.status(404).json({ error: "Klasse nicht gefunden" });
+    }
+
+    const rowsRes = await pool.query(
+      `
+      SELECT id, weekday, timeslot, subject, room
+      FROM timetables
+      WHERE class_id=$1 AND school_id=$2
+      ORDER BY weekday ASC, timeslot ASC
+    `,
+      [classId, schoolId]
+    );
+
+    const weekdays = [
+      { id: 1, label: "Montag" },
+      { id: 2, label: "Dienstag" },
+      { id: 3, label: "Mittwoch" },
+      { id: 4, label: "Donnerstag" },
+      { id: 5, label: "Freitag" }
+    ];
+
+    const days = weekdays.map((day) => {
+      const slots = rowsRes.rows
+        .filter((r) => r.weekday === day.id)
+        .slice(0, TIMETABLE_MAX_SLOTS_PER_DAY)
+        .map((r) => ({
+          id: r.id,
+          timeslot: r.timeslot,
+          subject: r.subject,
+          room: r.room || ""
+        }));
+
+      while (slots.length < TIMETABLE_MAX_SLOTS_PER_DAY) {
+        slots.push({ id: null, timeslot: "", subject: "", room: "" });
+      }
+
+      return { ...day, slots };
+    });
+
+    res.json({
+      classId,
+      className: classRes.rows[0].name,
+      maxSlotsPerDay: TIMETABLE_MAX_SLOTS_PER_DAY,
+      subjects: LOG_SUBJECTS,
+      weekdays,
+      days
+    });
+  } catch (err) {
+    console.error("❌ /api/teacher/timetable:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.put("/api/teacher/timetable", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.body.classId);
+    const entries = req.body.entries;
+
+    if (!classId) {
+      return res.json({ success: false, message: "classId fehlt." });
+    }
+    if (!Array.isArray(entries)) {
+      return res.json({ success: false, message: "Ungültige Daten." });
+    }
+
+    const classRes = await pool.query(
+      "SELECT id FROM classes WHERE id=$1 AND school_id=$2",
+      [classId, schoolId]
+    );
+    if (!classRes.rows.length) {
+      return res.json({ success: false, message: "Klasse nicht gefunden." });
+    }
+
+    const perDay = {};
+    const cleaned = [];
+
+    for (const entry of entries) {
+      const weekday = Number(entry.weekday);
+      const timeslot = String(entry.timeslot || "").trim();
+      const subject = String(entry.subject || "").trim();
+      const room = String(entry.room || "").trim() || null;
+
+      if (!timeslot && !subject && !room) continue;
+      if (!timeslot || !subject) {
+        return res.json({
+          success: false,
+          message: "Zeitslot und Fach sind Pflicht, wenn eine Stunde eingetragen wird."
+        });
+      }
+      if (weekday < 1 || weekday > 5) {
+        return res.json({ success: false, message: "Ungültiger Wochentag." });
+      }
+
+      perDay[weekday] = (perDay[weekday] || 0) + 1;
+      if (perDay[weekday] > TIMETABLE_MAX_SLOTS_PER_DAY) {
+        return res.json({
+          success: false,
+          message: `Maximal ${TIMETABLE_MAX_SLOTS_PER_DAY} Stunden pro Tag.`
+        });
+      }
+
+      cleaned.push({ weekday, timeslot, subject, room });
+    }
+
+    await pool.query("BEGIN");
+    try {
+      await pool.query(
+        "DELETE FROM timetables WHERE class_id=$1 AND school_id=$2",
+        [classId, schoolId]
+      );
+
+      for (const row of cleaned) {
+        await pool.query(
+          `
+          INSERT INTO timetables (class_id, school_id, weekday, timeslot, subject, room)
+          VALUES ($1,$2,$3,$4,$5,$6)
+        `,
+          [classId, schoolId, row.weekday, row.timeslot, row.subject, row.room]
+        );
+      }
+
+      await pool.query("COMMIT");
+    } catch (txErr) {
+      await pool.query("ROLLBACK");
+      throw txErr;
+    }
+
+    res.json({ success: true, saved: cleaned.length });
+  } catch (err) {
+    console.error("❌ /api/teacher/timetable:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+function activityLevelForDay(entryCount, hasCheck, hasReflection) {
+  if (!entryCount) return 0;
+  if (hasReflection) return 3;
+  if (hasCheck) return 2;
+  return 1;
+}
+
+// -------------------------------------------------------
+// TEACHER: Wochenübersicht Klasse (Heatmap)
+// -------------------------------------------------------
+app.get("/api/teacher/week", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.query.classId);
+    const refDate = isoDateOrToday(req.query.weekStart) || isoDateOrToday(req.query.date);
+
+    if (!classId) {
+      return res.status(400).json({ error: "classId fehlt" });
+    }
+    if (!refDate) {
+      return res.status(400).json({ error: "Ungültiges Datum" });
+    }
+
+    const classRes = await pool.query(
+      "SELECT id, name FROM classes WHERE id=$1 AND school_id=$2",
+      [classId, schoolId]
+    );
+    if (!classRes.rows.length) {
+      return res.status(404).json({ error: "Klasse nicht gefunden" });
+    }
+
+    const weekStart = mondayOfWeek(refDate);
+    const weekEnd = fridayOfWeek(weekStart);
+    const weekNumber = isoWeekNumber(weekStart);
+
+    const startLabel = new Date(`${weekStart}T12:00:00`).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit"
+    });
+    const endLabel = new Date(`${weekEnd}T12:00:00`).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
+
+    const weekdayShort = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+    const days = [];
+    for (let i = 0; i < 5; i++) {
+      const dateIso = addDaysIso(weekStart, i);
+      const d = new Date(`${dateIso}T12:00:00`);
+      days.push({
+        date: dateIso,
+        weekday: weekdayShort[d.getDay()],
+        label: d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })
+      });
+    }
+
+    const studentsRes = await pool.query(
+      `
+      SELECT id, name
+      FROM users
+      WHERE role='student' AND class_id=$1 AND school_id=$2
+      ORDER BY name ASC
+    `,
+      [classId, schoolId]
+    );
+
+    const studentIds = studentsRes.rows.map((s) => s.id);
+    const activityMap = {};
+
+    if (studentIds.length) {
+      const actRes = await pool.query(
+        `
+        SELECT
+          le.user_id,
+          le.date,
+          COUNT(le.id)::int AS entry_count,
+          BOOL_OR(lc.id IS NOT NULL) AS has_check,
+          BOOL_OR(lr.id IS NOT NULL) AS has_reflection
+        FROM log_entries le
+        LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
+        LEFT JOIN log_reflections lr ON lr.log_entry_id = le.id
+        WHERE le.user_id = ANY($1::int[])
+          AND le.date >= $2
+          AND le.date <= $3
+        GROUP BY le.user_id, le.date
+      `,
+        [studentIds, weekStart, weekEnd]
+      );
+
+      for (const row of actRes.rows) {
+        const dateIso =
+          row.date instanceof Date
+            ? row.date.toISOString().slice(0, 10)
+            : String(row.date).slice(0, 10);
+        const key = `${row.user_id}_${dateIso}`;
+        activityMap[key] = {
+          entryCount: Number(row.entry_count),
+          hasCheck: !!row.has_check,
+          hasReflection: !!row.has_reflection,
+          level: activityLevelForDay(
+            Number(row.entry_count),
+            !!row.has_check,
+            !!row.has_reflection
+          )
+        };
+      }
+    }
+
+    const students = studentsRes.rows.map((student) => {
+      const cells = days.map((day) => {
+        const key = `${student.id}_${day.date}`;
+        const act = activityMap[key] || {
+          entryCount: 0,
+          hasCheck: false,
+          hasReflection: false,
+          level: 0
+        };
+        let detail = "Keine Aktivität";
+        if (act.level === 1) detail = `${act.entryCount} Ziel(e) gesetzt`;
+        else if (act.level === 2) detail = `${act.entryCount} Ziel(e), Check`;
+        else if (act.level === 3) detail = `${act.entryCount} Ziel(e), Reflexion`;
+
+        return {
+          date: day.date,
+          level: act.level,
+          entryCount: act.entryCount,
+          hasCheck: act.hasCheck,
+          hasReflection: act.hasReflection,
+          detail
+        };
+      });
+
+      return { id: student.id, name: student.name, cells };
+    });
+
+    res.json({
+      classId,
+      className: classRes.rows[0].name,
+      weekStart,
+      weekEnd,
+      weekNumber,
+      weekLabel: `KW ${weekNumber} · ${startLabel}. – ${endLabel}`,
+      days,
+      students,
+      legend: [
+        { level: 0, label: "Keine Aktivität" },
+        { level: 1, label: "Ziel gesetzt" },
+        { level: 2, label: "Check" },
+        { level: 3, label: "Reflexion" }
+      ]
+    });
+  } catch (err) {
+    console.error("❌ /api/teacher/week:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
 });
 
 // -------------------------------------------------------
@@ -2655,13 +4524,45 @@ app.get("/first-login", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "first-login.html"));
 });
 
-app.get("/admin", isAdmin, (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "admin.html"));
+app.get("/admin", isAdmin, (_req, res) => {
+  res.redirect(302, "/teacher/dashboard");
 });
 
-app.get("/student", isStudent, (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "student.html"));
+const teacherSpaPaths = [
+  "/teacher/dashboard",
+  "/teacher/timetable",
+  "/teacher/week"
+];
+
+for (const route of teacherSpaPaths) {
+  app.get(route, isAdmin, (_req, res) => {
+    res.sendFile(path.join(__dirname, "public", "admin.html"));
+  });
+}
+
+app.get("/student", isStudent, (_req, res) => {
+  res.redirect(302, "/student/today");
 });
+
+const studentSpaPaths = [
+  "/student/today",
+  "/student/plan",
+  "/student/check",
+  "/student/reflect",
+  "/student/week",
+  "/student/competencies",
+  "/student/status",
+  "/student/missionen",
+  "/student/belohnungen",
+  "/student/charakter",
+  "/student/xp"
+];
+
+for (const route of studentSpaPaths) {
+  app.get(route, isStudent, (_req, res) => {
+    res.sendFile(path.join(__dirname, "public", "student.html"));
+  });
+}
 
 app.get("/superadmin", isSuperadmin, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "superadmin.html"));

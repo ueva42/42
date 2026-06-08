@@ -8,7 +8,7 @@
   <!-- Google Fonts für Comic-/GTA-Feeling -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Orbitron:wght@500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
 
   <style>
     /* ================================
@@ -521,6 +521,78 @@
         font-size: 24px;
       }
     }
+
+    /* Teacher Dashboard */
+    .td-toolbar { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+    .td-nav { display:flex; align-items:center; gap:10px; }
+    .td-arrow { width:38px; height:38px; border-radius:10px; border:1px solid rgba(148,163,184,0.4); background:#0f172a; color:#e5e7eb; font-size:20px; cursor:pointer; }
+    .td-arrow:hover { border-color:#38bdf8; box-shadow:0 0 10px rgba(56,189,248,0.2); }
+    .td-date-wrap { text-align:center; min-width:140px; }
+    .td-date { font-family:"Orbitron",system-ui; font-size:14px; letter-spacing:0.08em; text-transform:uppercase; }
+    .td-date-sub { font-size:12px; opacity:0.65; }
+    .td-class-select label { margin-right:8px; font-size:13px; }
+    .td-timetable-bar { display:flex; gap:10px; overflow-x:auto; padding-bottom:6px; }
+    .td-timetable-slot { min-width:110px; border-radius:12px; border:1px solid rgba(56,189,248,0.35); background:rgba(15,23,42,0.8); padding:10px; text-align:center; }
+    .td-slot-nr { display:block; font-size:10px; opacity:0.6; letter-spacing:0.1em; }
+    .td-slot-subject { display:block; font-family:"Orbitron",system-ui; font-size:12px; margin:4px 0; }
+    .td-slot-time { display:block; font-size:10px; opacity:0.55; }
+    .td-timetable-empty, .td-empty, .td-loading, .td-error { font-size:13px; opacity:0.7; }
+    .td-table-wrap { overflow-x:auto; margin-top:8px; }
+    .td-table { width:100%; border-collapse:collapse; font-size:13px; min-width:760px; }
+    .td-table th, .td-table td { border-bottom:1px solid rgba(148,163,184,0.2); padding:10px 8px; text-align:left; vertical-align:top; }
+    .td-table th { font-family:"Orbitron",system-ui; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; opacity:0.7; }
+    .td-row { cursor:pointer; transition:background 0.15s ease; }
+    .td-row:hover { background:rgba(56,189,248,0.08); }
+    .td-hint { display:inline-block; padding:4px 8px; border-radius:999px; font-size:11px; letter-spacing:0.04em; white-space:nowrap; }
+    .td-hint-yellow { background:rgba(251,191,36,0.2); color:#fde68a; border:1px solid rgba(251,191,36,0.4); }
+    .td-hint-red { background:rgba(248,113,113,0.2); color:#fecaca; border:1px solid rgba(248,113,113,0.4); }
+    .td-hint-green { background:rgba(74,222,128,0.2); color:#bbf7d0; border:1px solid rgba(74,222,128,0.4); }
+    .td-hint-blue { background:rgba(96,165,250,0.2); color:#bfdbfe; border:1px solid rgba(96,165,250,0.4); }
+    .td-slide-from-right { animation:tdSlideFromRight 0.28s ease; }
+    .td-slide-from-left { animation:tdSlideFromLeft 0.28s ease; }
+    @keyframes tdSlideFromRight { from{transform:translateX(24px);opacity:0.35} to{transform:translateX(0);opacity:1} }
+    @keyframes tdSlideFromLeft { from{transform:translateX(-24px);opacity:0.35} to{transform:translateX(0);opacity:1} }
+    .td-modal-overlay { position:fixed; inset:0; background:rgba(2,6,23,0.85); display:flex; align-items:center; justify-content:center; z-index:1000; padding:20px; }
+    .td-modal { width:100%; max-width:820px; max-height:85vh; overflow:auto; background:#0f172a; border:1px solid rgba(56,189,248,0.35); border-radius:16px; padding:18px; }
+    .td-modal-head { display:flex; justify-content:space-between; align-items:center; }
+    .td-modal-head h3 { margin:0; font-family:"Orbitron",system-ui; font-size:15px; }
+    .td-modal-close { border:none; background:transparent; color:#e5e7eb; font-size:18px; cursor:pointer; }
+    .td-modal-sub { font-size:12px; opacity:0.65; margin:8px 0 14px; }
+    .td-detail-table { width:100%; border-collapse:collapse; font-size:12px; }
+    .td-detail-table th, .td-detail-table td { border-bottom:1px solid rgba(148,163,184,0.2); padding:8px 6px; text-align:left; }
+    .tab-placeholder { opacity:0.75; font-size:14px; padding:20px 0; }
+    .tt-toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:14px 0; }
+    .tt-toolbar label { font-size:13px; }
+    .tt-grid { display:grid; grid-template-columns:repeat(5, minmax(150px, 1fr)); gap:10px; overflow-x:auto; padding-bottom:8px; }
+    .tt-day-col { border:1px solid rgba(148,163,184,0.25); border-radius:12px; background:rgba(15,23,42,0.55); padding:8px; min-width:150px; }
+    .tt-day-head { font-family:"Orbitron",system-ui; font-size:12px; letter-spacing:0.1em; text-align:center; margin-bottom:8px; color:#7dd3fc; }
+    .tt-slot { border:1px solid rgba(148,163,184,0.2); border-radius:10px; padding:8px; margin-bottom:8px; background:rgba(2,6,23,0.5); }
+    .tt-slot-nr { font-size:10px; opacity:0.55; margin-bottom:6px; }
+    .tt-input { width:100%; box-sizing:border-box; margin-bottom:6px; padding:7px 8px; border-radius:8px; border:1px solid rgba(148,163,184,0.35); background:#0f172a; color:#f9fafb; font-size:12px; }
+    .tt-input:focus { outline:none; border-color:#38bdf8; }
+    .tt-msg { border-radius:10px; padding:10px 12px; font-size:13px; margin-bottom:10px; }
+    .tt-msg-error { background:rgba(127,29,29,0.35); border:1px solid rgba(248,113,113,0.4); color:#fecaca; }
+    .tt-msg-ok { background:rgba(20,83,45,0.35); border:1px solid rgba(74,222,128,0.4); color:#bbf7d0; }
+    .tt-loading, .tt-error, .tt-empty { font-size:13px; opacity:0.7; padding:12px 0; }
+    @media (max-width: 900px) {
+      .tt-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+    }
+    .tw-shell { display:flex; flex-direction:column; gap:12px; }
+    .tw-legend { display:flex; flex-wrap:wrap; gap:12px; margin:10px 0 14px; font-size:12px; opacity:0.85; }
+    .tw-legend-item { display:inline-flex; align-items:center; gap:6px; }
+    .tw-table-wrap { overflow:auto; }
+    .tw-table { border-collapse:collapse; min-width:640px; width:100%; }
+    .tw-table th, .tw-table td { border:1px solid rgba(148,163,184,0.2); padding:8px; text-align:center; vertical-align:middle; }
+    .tw-corner, .tw-student-name { text-align:left; font-size:13px; }
+    .tw-student-name { font-weight:500; white-space:nowrap; }
+    .tw-day-name { display:block; font-family:"Orbitron",system-ui; font-size:11px; letter-spacing:0.08em; }
+    .tw-day-date { display:block; font-size:10px; opacity:0.6; margin-top:2px; }
+    .tw-cell { width:42px; height:32px; border-radius:8px; margin:0 auto; border:1px solid rgba(148,163,184,0.25); }
+    .tw-lvl-0 { background:#1e293b; }
+    .tw-lvl-1 { background:rgba(34,211,238,0.45); box-shadow:0 0 8px rgba(34,211,238,0.2); }
+    .tw-lvl-2 { background:rgba(245,158,11,0.5); box-shadow:0 0 8px rgba(245,158,11,0.2); }
+    .tw-lvl-3 { background:rgba(74,222,128,0.55); box-shadow:0 0 8px rgba(74,222,128,0.25); }
+    .tw-loading, .tw-error, .tw-empty { font-size:13px; opacity:0.7; padding:12px 0; }
   </style>
 </head>
 <body>
@@ -535,19 +607,33 @@
     </div>
   </div>
 
-  <!-- XP ganz oben -->
-  <div class="nav-item active" onclick="showTab('xpTab', event)">
+  <div class="nav-item active" data-tab="dashboardTab" onclick="showTab('dashboardTab', event)">
+    <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+    <span class="nav-label">Klassenübersicht</span>
+  </div>
+
+  <div class="nav-item" data-tab="teacherWeekTab" onclick="showTab('teacherWeekTab', event)">
+    <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+    <span class="nav-label">Woche Klasse</span>
+  </div>
+
+  <div class="nav-item" data-tab="timetableTab" onclick="showTab('timetableTab', event)">
+    <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+    <span class="nav-label">Stundenplan</span>
+  </div>
+
+  <div class="nav-item" data-tab="xpTab" onclick="showTab('xpTab', event)">
     <svg viewBox="0 0 24 24"><path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/></svg>
     <span class="nav-label">XP-Verwaltung</span>
   </div>
 
   <!-- KLASSEN-FORTSCHRITT / VOTING -->
-  <div class="nav-item" onclick="showTab('classProgressTab', event)">
+  <div class="nav-item" data-tab="classProgressTab" onclick="showTab('classProgressTab', event)">
     <svg viewBox="0 0 24 24"><path d="M4 20h3v-7H4v7zm6 0h3V4h-3v16zm6 0h3v-4h-3v4z"/></svg>
     <span class="nav-label">Klassen-Voting</span>
   </div>
 
-  <div class="nav-item" onclick="showTab('classTab', event)">
+  <div class="nav-item" data-tab="classTab" onclick="showTab('classTab', event)">
     <svg viewBox="0 0 24 24"><path d="M12 12c2.5 0 4.5-2 4.5-4.5S14.5 3 12 3 7.5 5 7.5 7.5 9.5 12 12 12zm0 1.5c-3 0-9 1.5-9 4.5V21h18v-3c0-3-6-4.5-9-4.5z"/></svg>
     <span class="nav-label">Klassen & Schüler</span>
   </div>
@@ -557,23 +643,23 @@
     <span class="nav-label">Missionen</span>
   </div>
 
-  <div class="nav-item" onclick="showTab('bonusTab', event)">
+  <div class="nav-item" data-tab="bonusTab" onclick="showTab('bonusTab', event)">
     <svg viewBox="0 0 24 24"><path d="M4 6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v1c0 .6.4 1 1 1h3c.6 0 1-.4 1-1V6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v3.1c-.9.2-1.6.9-1.8 1.8-.2.9.1 1.9.8 2.5.3.3.6.5 1 .6V18c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1V15c.4-.1.7-.3 1-.6.7-.7 1-1.6.8-2.5-.2-.9-.9-1.6-1.8-1.8V6z"/></svg>
     <span class="nav-label">Bonuskarten</span>
   </div>
 
-  <div class="nav-item" onclick="showTab('characterTab', event)">
+  <div class="nav-item" data-tab="characterTab" onclick="showTab('characterTab', event)">
     <svg viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4zm0 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/></svg>
     <span class="nav-label">Charaktere</span>
   </div>
 
-  <div class="nav-item" onclick="showTab('levelTab', event)">
+  <div class="nav-item" data-tab="levelTab" onclick="showTab('levelTab', event)">
     <svg viewBox="0 0 24 24"><path d="M4 21h16v-2H4v2zm2-4h12v-3H6v3zm3-5h6V4H9v8z"/></svg>
     <span class="nav-label">Level</span>
   </div>
 
   <!-- Profil & Passwort -->
-  <div class="nav-item" onclick="showTab('profileTab', event)">
+  <div class="nav-item" data-tab="profileTab" onclick="showTab('profileTab', event)">
     <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 110 10 5 5 0 010-10zm0 12c-3.3 0-7 1.7-7 4.5V20h14v-1.5C19 15.7 15.3 14 12 14zm6.7-3.7l1.3 1.3-4.9 4.9-2.1-2.1 1.3-1.3.8.8 3.6-3.6z"/></svg>
     <span class="nav-label">Profil & Passwort</span>
   </div>
@@ -595,8 +681,23 @@
       </div>
     </div>
 
+    <!-- KLASSENÜBERSICHT -->
+    <div id="dashboardTab" class="tab">
+      <div id="dashboardTabRoot"></div>
+    </div>
+
+    <!-- WOCHE KLASSE -->
+    <div id="teacherWeekTab" class="tab hidden">
+      <div id="teacherWeekTabRoot"></div>
+    </div>
+
+    <!-- STUNDENPLAN -->
+    <div id="timetableTab" class="tab hidden">
+      <div id="timetableTabRoot"></div>
+    </div>
+
     <!-- XP TAB -->
-    <div id="xpTab" class="tab">
+    <div id="xpTab" class="tab hidden">
       <div class="panel">
         <h2>XP-Verwaltung</h2>
         <div class="hint">Wähle eine Klasse, markiere Schüler:innen und verteile XP direkt oder über Missionen.</div>
@@ -887,19 +988,54 @@
   </div>
 </div>
 
-<script>
-/* ---------------------------- TABS ---------------------------- */
-function showTab(id, ev) {
-  // Inhalt
-  document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
-  document.getElementById(id).classList.remove("hidden");
+<script src="/js/logbuch-swipe.js"></script>
+<script src="/js/teacher-dashboard.js"></script>
+<script src="/js/teacher-timetable.js"></script>
+<script src="/js/teacher-week.js"></script>
 
-  // Sidebar-Active
+<script>
+const TEACHER_TAB_ROUTES = {
+  dashboardTab: "/teacher/dashboard",
+  teacherWeekTab: "/teacher/week",
+  timetableTab: "/teacher/timetable",
+  xpTab: "/admin#xp",
+  classProgressTab: "/admin#classProgress",
+  classTab: "/admin#class",
+  missionTab: "/admin#mission",
+  bonusTab: "/admin#bonus",
+  characterTab: "/admin#character",
+  levelTab: "/admin#level",
+  profileTab: "/admin#profile"
+};
+
+const ROUTE_TABS = {
+  "/teacher/dashboard": "dashboardTab",
+  "/teacher/week": "teacherWeekTab",
+  "/teacher/timetable": "timetableTab"
+};
+
+/* ---------------------------- TABS ---------------------------- */
+function showTab(id, ev, options = {}) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
+  const tab = document.getElementById(id);
+  if (tab) tab.classList.remove("hidden");
+
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-  if (ev && ev.currentTarget && !ev.currentTarget.classList.contains("nav-item-logout")) {
-    ev.currentTarget.classList.add("active");
+  const navItem = ev?.currentTarget || document.querySelector(`.nav-item[data-tab="${id}"]`);
+  if (navItem && !navItem.classList.contains("nav-item-logout")) {
+    navItem.classList.add("active");
   }
 
+  if (!options.skipHistory && TEACHER_TAB_ROUTES[id]?.startsWith("/teacher")) {
+    const url = TEACHER_TAB_ROUTES[id];
+    if (location.pathname !== url) {
+      history.pushState({ tab: id }, "", url);
+    }
+  }
+
+  if (id === "dashboardTab" && window.TeacherDashboard) TeacherDashboard.init();
+  if (id === "timetableTab" && window.TeacherTimetable) TeacherTimetable.init();
+  if (id === "teacherWeekTab" && window.TeacherWeek) TeacherWeek.init();
   if (id === "xpTab") loadXPInit();
   if (id === "classTab") loadClassesForManage();
   if (id === "missionTab") loadMissions();
@@ -909,6 +1045,16 @@ function showTab(id, ev) {
   if (id === "profileTab") loadAdminProfile();
   if (id === "classProgressTab") loadClassProgressInit();
 }
+
+function initAdminRoute() {
+  const tab = ROUTE_TABS[location.pathname] || "dashboardTab";
+  showTab(tab, null, { skipHistory: true });
+}
+
+window.addEventListener("popstate", (e) => {
+  const tab = e.state?.tab || ROUTE_TABS[location.pathname] || "dashboardTab";
+  showTab(tab, null, { skipHistory: true });
+});
 
 /* ---------------------------- LOGOUT ---------------------------- */
 async function logout() {
@@ -1770,8 +1916,7 @@ async function fixClassRewardOption(optionId) {
   await loadAdminClassProgress();
 }
 
-/* Default Ansicht */
-showTab("xpTab");
+initAdminRoute();
 </script>
 
 </body>

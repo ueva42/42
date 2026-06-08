@@ -6,7 +6,7 @@
   <title>Streets of Logic – XP Edition</title>
 
   <!-- GTA-ähnliche Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
 
   <style>
 /* ============================================
@@ -371,6 +371,728 @@ a { color: inherit; }
   padding: 28px 40px;
   overflow-y: auto;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.main-area > h1,
+.main-area > #notifWrap,
+.main-area > .section {
+  width: 100%;
+  max-width: 480px;
+}
+
+/* ============================================
+   SRL-LOGBUCH SCREENS
+============================================ */
+.logbuch-screen .logbuch-title {
+  font-family: "Orbitron", system-ui;
+  font-size: 20px;
+  letter-spacing: 0.12em;
+  color: #e5e7eb;
+}
+
+.logbuch-root {
+  margin-top: 12px;
+}
+
+.logbuch-placeholder {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  padding: 20px 18px;
+  background: rgba(2, 6, 23, 0.72);
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+}
+
+.logbuch-placeholder-tag {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.logbuch-placeholder-title {
+  margin: 0 0 8px;
+  font-family: "Orbitron", system-ui;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.logbuch-placeholder-sub {
+  margin: 0 0 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0.88;
+}
+
+.logbuch-placeholder-hint {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.55;
+}
+
+.logbuch-phase-plan .logbuch-placeholder {
+  border-color: rgba(0, 255, 255, 0.45);
+  box-shadow: 0 0 18px rgba(0, 255, 255, 0.15);
+}
+
+.logbuch-phase-check .logbuch-placeholder {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.15);
+}
+
+.logbuch-phase-reflect .logbuch-placeholder {
+  border-color: rgba(167, 139, 250, 0.5);
+  box-shadow: 0 0 18px rgba(167, 139, 250, 0.15);
+}
+
+.logbuch-phase-week .logbuch-placeholder {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 18px rgba(59, 130, 246, 0.15);
+}
+
+.logbuch-plan-form { display: flex; flex-direction: column; gap: 18px; }
+.logbuch-plan-date {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.logbuch-field-label {
+  margin: 0 0 10px;
+  font-family: "Orbitron", system-ui;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.logbuch-field-label .req { color: #0ff; }
+.logbuch-field-label .opt { font-size: 10px; opacity: 0.55; text-transform: none; letter-spacing: 0; }
+.logbuch-opt-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.logbuch-opt-grid-tall .logbuch-opt { min-height: 44px; }
+.logbuch-opt {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e5e7eb;
+  font-size: 13px;
+  line-height: 1.35;
+  cursor: pointer;
+  text-align: left;
+  transition: 0.15s ease;
+}
+.logbuch-opt:hover:not(.disabled):not(.locked) {
+  border-color: rgba(0, 255, 255, 0.55);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.12);
+}
+.logbuch-opt.active {
+  border-color: #0ff;
+  background: rgba(0, 255, 255, 0.12);
+  box-shadow: 0 0 16px rgba(0, 255, 255, 0.25);
+  color: #ecfeff;
+}
+.logbuch-opt.locked, .logbuch-opt.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.logbuch-opt-lock {
+  display: block;
+  font-size: 10px;
+  margin-top: 4px;
+  opacity: 0.7;
+}
+.logbuch-collapse-btn {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(2, 6, 23, 0.6);
+  color: #e5e7eb;
+  font-family: "Orbitron", system-ui;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.logbuch-collapse-body { margin-top: 10px; }
+.logbuch-strategy-group { margin-bottom: 12px; }
+.logbuch-strategy-cat {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-bottom: 6px;
+}
+.logbuch-confidence {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+.logbuch-conf-btn {
+  flex: 1;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 10px;
+  padding: 12px 0;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e5e7eb;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.logbuch-conf-btn.active {
+  border-color: #0ff;
+  background: rgba(0, 255, 255, 0.15);
+  box-shadow: 0 0 14px rgba(0, 255, 255, 0.2);
+}
+.logbuch-confidence-hint {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  opacity: 0.55;
+  margin-top: 6px;
+}
+.logbuch-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #f9fafb;
+  font-size: 14px;
+}
+.logbuch-input:focus {
+  outline: none;
+  border-color: #0ff;
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.15);
+}
+.logbuch-char-count {
+  text-align: right;
+  font-size: 11px;
+  opacity: 0.55;
+  margin-top: 4px;
+}
+.logbuch-btn {
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-family: "Orbitron", system-ui;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+.logbuch-btn-plan {
+  background: linear-gradient(135deg, #0891b2, #0ff);
+  color: #042f2e;
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.35);
+}
+.logbuch-btn-plan:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 28px rgba(0, 255, 255, 0.45);
+}
+.logbuch-btn-plan:disabled { opacity: 0.6; cursor: wait; }
+.logbuch-btn-secondary {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: #e5e7eb;
+}
+.logbuch-msg {
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.logbuch-msg-error {
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+}
+.logbuch-msg-info {
+  border: 1px solid rgba(0, 255, 255, 0.35);
+  background: rgba(0, 255, 255, 0.08);
+}
+.logbuch-existing-goal { color: #0ff; }
+.logbuch-loading {
+  text-align: center;
+  padding: 24px;
+  opacity: 0.7;
+  font-size: 14px;
+}
+
+.logbuch-reflect-goal {
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(167, 139, 250, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.logbuch-reflect-subject {
+  font-family: "Orbitron", system-ui;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #c4b5fd;
+}
+.logbuch-reflect-goal-text { font-size: 14px; line-height: 1.45; }
+.logbuch-reflect-before {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.7;
+}
+.logbuch-field-label .req-reflect { color: #a78bfa; }
+.logbuch-opt-reflect.active,
+.logbuch-conf-btn-reflect.active {
+  border-color: #a78bfa;
+  background: rgba(167, 139, 250, 0.15);
+  box-shadow: 0 0 14px rgba(167, 139, 250, 0.25);
+  color: #ede9fe;
+}
+.logbuch-opt-reflect:hover:not(.disabled) {
+  border-color: rgba(167, 139, 250, 0.55);
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.12);
+}
+.logbuch-btn-reflect {
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+  color: #f5f3ff;
+  box-shadow: 0 0 20px rgba(167, 139, 250, 0.35);
+}
+.logbuch-btn-reflect:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 28px rgba(167, 139, 250, 0.45);
+}
+
+.today-shell { display: flex; flex-direction: column; gap: 14px; }
+.today-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.today-arrow {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.85);
+  color: #e5e7eb;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+.today-arrow:hover {
+  border-color: #0ff;
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.2);
+}
+.today-date-wrap { text-align: center; flex: 1; }
+.today-date {
+  font-family: "Orbitron", system-ui;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.today-date-sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
+.today-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.today-tag {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 255, 255, 0.35);
+  background: rgba(0, 255, 255, 0.08);
+  color: #a5f3fc;
+}
+.today-phases {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.today-phase {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 10px 8px;
+  text-align: center;
+  background: rgba(2, 6, 23, 0.55);
+  opacity: 0.65;
+  transition: 0.2s ease;
+}
+.today-phase.done { opacity: 1; }
+.today-phase-plan.done { border-color: rgba(0, 255, 255, 0.5); box-shadow: 0 0 10px rgba(0, 255, 255, 0.12); }
+.today-phase-check.done { border-color: rgba(245, 158, 11, 0.5); box-shadow: 0 0 10px rgba(245, 158, 11, 0.12); }
+.today-phase-reflect.done { border-color: rgba(167, 139, 250, 0.5); box-shadow: 0 0 10px rgba(167, 139, 250, 0.12); }
+.today-phase-check { color: #fcd34d; }
+.today-phase-reflect { color: #c4b5fd; }
+.today-phase-plan { color: #67e8f9; }
+.today-phase-check .today-phase-label,
+.today-phase-reflect .today-phase-label,
+.today-phase-plan .today-phase-label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+.today-phase-check { font-family: "Orbitron", system-ui; }
+.today-slide-viewport { overflow: hidden; }
+.today-slide-panel {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.today-slide-from-right {
+  animation: todaySlideFromRight 0.28s ease;
+}
+.today-slide-from-left {
+  animation: todaySlideFromLeft 0.28s ease;
+}
+@keyframes todaySlideFromRight {
+  from { transform: translateX(28px); opacity: 0.35; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes todaySlideFromLeft {
+  from { transform: translateX(-28px); opacity: 0.35; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.today-blocks { display: flex; flex-direction: column; gap: 12px; }
+.today-block {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 14px;
+  background: rgba(2, 6, 23, 0.65);
+}
+.today-block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.today-block-subject {
+  font-family: "Orbitron", system-ui;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #a5f3fc;
+}
+.today-block-slot { font-size: 11px; opacity: 0.6; }
+.today-block-goal { margin: 0 0 10px; font-size: 14px; line-height: 1.45; }
+.today-block-muted { margin: 0; font-size: 13px; opacity: 0.55; }
+.today-block-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-bottom: 8px;
+}
+.today-block-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.today-action-btn { font-size: 12px; padding: 12px 14px; }
+.today-plan-btn { margin-top: 4px; }
+.logbuch-btn-check {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+  color: #1f1300;
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.3);
+}
+.logbuch-btn-check:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.4);
+}
+.logbuch-btn-check:disabled,
+.logbuch-btn-reflect:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}
+
+.logbuch-check-goal {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.08);
+}
+.logbuch-check-goal .logbuch-reflect-subject { color: #fcd34d; }
+.logbuch-field-label .req-check { color: #f59e0b; }
+.logbuch-rating-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.logbuch-rating-btn {
+  flex: 1;
+  max-width: 72px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 14px;
+  padding: 14px 0;
+  background: rgba(15, 23, 42, 0.85);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+.logbuch-rating-btn:hover {
+  border-color: rgba(245, 158, 11, 0.55);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);
+}
+.logbuch-rating-btn.active {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.3);
+}
+
+.week-shell { display: flex; flex-direction: column; gap: 14px; }
+.week-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.week-stat {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 12px 10px;
+  text-align: center;
+  background: rgba(2, 6, 23, 0.55);
+}
+.week-stat-n {
+  display: block;
+  font-family: "Orbitron", system-ui;
+  font-size: 20px;
+  color: #e5e7eb;
+}
+.week-stat-l {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-top: 4px;
+}
+.week-stat-ok .week-stat-n { color: #4ade80; }
+.week-stat-part .week-stat-n { color: #fbbf24; }
+.week-stat-open .week-stat-n { color: #94a3b8; }
+.week-stat-xp .week-stat-n { color: #60a5fa; }
+.week-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.week-table th,
+.week-table td {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 8px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.week-table th {
+  font-family: "Orbitron", system-ui;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.week-achieved { text-align: center; font-size: 16px; width: 32px; }
+.week-empty { font-size: 13px; opacity: 0.6; margin: 0; }
+.week-matrix { margin-top: 8px; }
+.week-matrix-hint { margin: 0 0 12px; font-size: 12px; opacity: 0.65; }
+.week-matrix-row {
+  margin-bottom: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 10px;
+  background: rgba(2, 6, 23, 0.45);
+}
+.week-matrix-item { font-size: 13px; margin-bottom: 8px; }
+.week-matrix-levels { display: flex; gap: 6px; }
+.week-level-btn,
+.week-level-read {
+  flex: 1;
+  text-align: center;
+  border-radius: 10px;
+  padding: 8px 4px;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+.week-level-btn {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.85);
+  color: #e5e7eb;
+  cursor: pointer;
+}
+.week-level-btn.active,
+.week-level-read.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.18);
+  color: #bfdbfe;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+}
+.week-level-read {
+  opacity: 0.45;
+  border: 1px solid transparent;
+}
+.logbuch-btn-week {
+  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+  color: #eff6ff;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.35);
+}
+.logbuch-btn-week:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 28px rgba(59, 130, 246, 0.45);
+}
+
+.comp-shell { display: flex; flex-direction: column; gap: 16px; }
+.comp-intro { margin: 0; font-size: 13px; opacity: 0.75; line-height: 1.5; }
+.comp-subject-title {
+  margin: 0 0 10px;
+  font-family: "Orbitron", system-ui;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #a5f3fc;
+}
+.comp-cards { display: flex; flex-direction: column; gap: 10px; }
+.comp-subject-group { margin-bottom: 8px; }
+.comp-card {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 14px;
+  background: rgba(2, 6, 23, 0.65);
+}
+.comp-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.comp-topic { font-size: 15px; font-weight: bold; line-height: 1.35; }
+.comp-status-badge {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.comp-updated { margin-top: 8px; font-size: 11px; opacity: 0.55; }
+.comp-request-btn {
+  margin-top: 12px;
+  width: 100%;
+  border: 1px solid rgba(0, 255, 255, 0.45);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 255, 255, 0.08);
+  color: #a5f3fc;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.comp-request-btn:hover {
+  box-shadow: 0 0 14px rgba(0, 255, 255, 0.2);
+}
+.comp-empty {
+  border-radius: 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  padding: 24px 16px;
+  text-align: center;
+}
+.comp-empty p { margin: 0 0 8px; }
+.comp-empty-hint { font-size: 12px; opacity: 0.55; }
+.status-offen { border-color: rgba(148, 163, 184, 0.4); }
+.status-offen .comp-status-badge { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+.status-in-arbeit { border-color: rgba(56, 189, 248, 0.45); box-shadow: 0 0 10px rgba(56, 189, 248, 0.08); }
+.status-in-arbeit .comp-status-badge { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; }
+.status-bereit { border-color: rgba(74, 222, 128, 0.45); box-shadow: 0 0 10px rgba(74, 222, 128, 0.1); }
+.status-bereit .comp-status-badge { background: rgba(74, 222, 128, 0.2); color: #86efac; }
+.status-test { border-color: rgba(251, 191, 36, 0.45); box-shadow: 0 0 10px rgba(251, 191, 36, 0.1); }
+.status-test .comp-status-badge { background: rgba(251, 191, 36, 0.2); color: #fde68a; }
+.status-bestanden { border-color: rgba(250, 204, 21, 0.5); box-shadow: 0 0 12px rgba(250, 204, 21, 0.12); }
+.status-bestanden .comp-status-badge { background: rgba(250, 204, 21, 0.25); color: #fef08a; }
+.status-nacharbeit { border-color: rgba(248, 113, 113, 0.45); box-shadow: 0 0 10px rgba(248, 113, 113, 0.1); }
+.status-nacharbeit .comp-status-badge { background: rgba(248, 113, 113, 0.2); color: #fecaca; }
+.comp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.82);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+  box-sizing: border-box;
+}
+.comp-modal {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 255, 255, 0.35);
+  background: #0f172a;
+  padding: 18px;
+  box-shadow: 0 0 30px rgba(0, 255, 255, 0.15);
+}
+.comp-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.comp-modal-head h3 {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.comp-modal-close {
+  border: none;
+  background: transparent;
+  color: #e5e7eb;
+  font-size: 18px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.comp-modal-hint { margin: 0 0 12px; font-size: 12px; opacity: 0.65; }
+.comp-modal-text {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 180px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(2, 6, 23, 0.8);
+  color: #f9fafb;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  margin-bottom: 12px;
+}
+.comp-modal-actions { display: flex; flex-direction: column; gap: 8px; }
+.comp-copy-msg {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: #4ade80;
 }
 
 h1 {
@@ -961,23 +1683,35 @@ h2 {
     </div>
   </div>
 
-  <div class="menu-item active" onclick="showSection(event,'status')">
+  <div class="menu-item active" data-section="today" onclick="showSection(event,'today')">
+    <div class="menu-icon">T</div><span class="menu-label">Mein Tag</span>
+  </div>
+
+  <div class="menu-item" data-section="week" onclick="showSection(event,'week')">
+    <div class="menu-icon">W</div><span class="menu-label">Woche</span>
+  </div>
+
+  <div class="menu-item" data-section="competencies" onclick="showSection(event,'competencies')">
+    <div class="menu-icon">K</div><span class="menu-label">Kompetenzen</span>
+  </div>
+
+  <div class="menu-item" data-section="status" onclick="showSection(event,'status')">
     <div class="menu-icon">S</div><span class="menu-label">Status</span>
   </div>
 
-  <div class="menu-item" onclick="showSection(event,'charakter')">
-    <div class="menu-icon">C</div><span class="menu-label">Charakter</span>
-  </div>
-
-  <div class="menu-item" onclick="showSection(event,'missionen')">
+  <div class="menu-item" data-section="missionen" onclick="showSection(event,'missionen')">
     <div class="menu-icon">M</div><span class="menu-label">Missionen</span>
   </div>
 
-  <div class="menu-item" onclick="showSection(event,'belohnungen')">
+  <div class="menu-item" data-section="belohnungen" onclick="showSection(event,'belohnungen')">
     <div class="menu-icon">B</div><span class="menu-label">Belohnungen</span>
   </div>
 
-  <div class="menu-item" onclick="showSection(event,'xp')">
+  <div class="menu-item" data-section="charakter" onclick="showSection(event,'charakter')">
+    <div class="menu-icon">C</div><span class="menu-label">Charakter</span>
+  </div>
+
+  <div class="menu-item" data-section="xp" onclick="showSection(event,'xp')">
     <div class="menu-icon">XP</div><span class="menu-label">XP-Historie</span>
   </div>
 
@@ -1006,8 +1740,44 @@ h2 {
     </div>
   </div>
 
+  <!-- MEIN TAG -->
+  <div id="today-section" class="card section logbuch-screen" style="display:none;">
+    <h2 class="logbuch-title">Mein Tag</h2>
+    <div id="today-screen-root" class="logbuch-root"></div>
+  </div>
+
+  <!-- WOCHE -->
+  <div id="week-section" class="card section logbuch-screen logbuch-phase-week" style="display:none;">
+    <h2 class="logbuch-title">Meine Woche</h2>
+    <div id="week-screen-root" class="logbuch-root"></div>
+  </div>
+
+  <!-- KOMPETENZEN -->
+  <div id="competencies-section" class="card section logbuch-screen" style="display:none;">
+    <h2 class="logbuch-title">Kompetenz-Status</h2>
+    <div id="competencies-screen-root" class="logbuch-root"></div>
+  </div>
+
+  <!-- PLANEN -->
+  <div id="plan-section" class="card section logbuch-screen logbuch-phase-plan" style="display:none;">
+    <h2 class="logbuch-title">Planen</h2>
+    <div id="plan-screen-root" class="logbuch-root"></div>
+  </div>
+
+  <!-- ZWISCHEN-CHECK -->
+  <div id="check-section" class="card section logbuch-screen logbuch-phase-check" style="display:none;">
+    <h2 class="logbuch-title">Zwischen-Check</h2>
+    <div id="check-screen-root" class="logbuch-root"></div>
+  </div>
+
+  <!-- TAGESABSCHLUSS -->
+  <div id="reflect-section" class="card section logbuch-screen logbuch-phase-reflect" style="display:none;">
+    <h2 class="logbuch-title">Tagesabschluss</h2>
+    <div id="reflect-screen-root" class="logbuch-root"></div>
+  </div>
+
   <!-- STATUS -->
-  <div id="status-section" class="card section">
+  <div id="status-section" class="card section" style="display:none;">
     <h2>Status</h2>
     <div id="userCard"></div>
     <div id="levelBar" style="margin-top:10px;margin-bottom:25px;"></div>
@@ -1056,6 +1826,17 @@ h2 {
   </div>
 </div>
 
+<script src="/js/logbuch-constants.js"></script>
+<script src="/js/logbuch-swipe.js"></script>
+<script src="/js/student-router.js"></script>
+<script src="/js/logbuch-plan.js"></script>
+<script src="/js/logbuch-check.js"></script>
+<script src="/js/logbuch-reflect.js"></script>
+<script src="/js/logbuch-today.js"></script>
+<script src="/js/logbuch-week.js"></script>
+<script src="/js/logbuch-competencies.js"></script>
+<script src="/js/logbuch-screens.js"></script>
+
 <script>
 /* ============================================
    LOADING OVERLAY CONTROL
@@ -1080,7 +1861,11 @@ setTimeout(hideLoader, 7000);
 ============================================ */
 function toggleMenu() { document.body.classList.toggle("menu-open"); }
 
-function showSection(ev, name) {
+function showSection(ev, name, options = {}) {
+  if (window.StudentRouter) {
+    window.StudentRouter.navigateToSection(name, options);
+    return;
+  }
   document.querySelectorAll(".section").forEach(s => s.style.display = "none");
   const section = document.getElementById(name + "-section");
   if (section) section.style.display = "block";
@@ -1267,7 +2052,7 @@ initNotifUI();
 ============================================ */
 let xpPerMission = {};
 
-async function loadMe() {
+window.loadMe = async function loadMe() {
   const r = await fetch("/api/student/me");
   const data = await r.json();
   const u = data.user;
@@ -1799,6 +2584,10 @@ loadMe();
 loadMissions();
 loadRewards();
 loadClassProgress();
+
+if (window.StudentRouter) {
+  window.StudentRouter.initFromPath();
+}
 </script>
 
 </body>
