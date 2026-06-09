@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Levelcheck-Themen verwalten (pro Klasse).
+ * Lehrkraft – Levelchecks mit Raster-Zielen.
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -21,21 +21,21 @@
     error: ""
   };
 
-  function subjectsList() {
-    const fromApi = state.data?.subjects;
-    return Array.isArray(fromApi) && fromApi.length ? fromApi : FALLBACK_SUBJECTS;
-  }
-
-  function sameId(a, b) {
-    return String(a) === String(b);
-  }
-
   function escapeHtml(str) {
     return String(str ?? "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  function sameId(a, b) {
+    return String(a) === String(b);
+  }
+
+  function subjectsList() {
+    const fromApi = state.data?.subjects;
+    return Array.isArray(fromApi) && fromApi.length ? fromApi : FALLBACK_SUBJECTS;
   }
 
   function subjectOptions(subjects, selected) {
@@ -47,13 +47,11 @@
       .join("");
   }
 
-  function renderAddForm() {
-    if (!state.data?.ok) return "";
-
+  function renderAddLevelCheckForm() {
     return `
-      <form class="tc-add-form" id="tcAddForm">
-        <h3>Neues Levelcheck-Thema</h3>
-        <p class="tc-hint">Schüler:innen laden pro Thema drei Nachweise hoch: Rookie → Operator → Street Legend.</p>
+      <form class="tc-add-form" id="tcAddLevelCheckForm">
+        <h3>Neuer Levelcheck</h3>
+        <p class="tc-hint">z. B. „Levelcheck I“ mit mehreren Raster-Zielen (Ziel 1, Ziel 2, …).</p>
         <div class="tc-add-grid">
           <label>
             Fach
@@ -63,65 +61,52 @@
             </select>
           </label>
           <label>
-            Thema
-            <input type="text" id="tcAddTopic" maxlength="200" required placeholder="z. B. Bruchrechnung – Erweitern">
+            Name
+            <input type="text" id="tcAddName" maxlength="120" required placeholder="z. B. Levelcheck I">
           </label>
         </div>
-        <button type="submit" class="action" id="tcAddBtn" ${state.saving ? "disabled" : ""}>
-          ${state.saving ? "Speichern…" : "Thema hinzufügen"}
+        <button type="submit" class="action" id="tcAddLevelCheckBtn" ${state.saving ? "disabled" : ""}>
+          ${state.saving ? "Speichern…" : "Levelcheck anlegen"}
         </button>
       </form>`;
   }
 
-  function renderTierLegend() {
-    const tiers = state.data?.tiers || [];
-    if (!tiers.length) return "";
-
+  function renderGoalRow(checkId, goal) {
     return `
-      <div class="tc-tier-legend">
-        ${tiers
-          .map(
-            (t) =>
-              `<span class="tc-tier-pill"><strong>${escapeHtml(t.label)}</strong> +${t.xp} XP</span>`
-          )
-          .join("")}
-      </div>`;
+      <li class="tc-goal-item">
+        <span class="tc-goal-num">${goal.sortOrder}.</span>
+        <span class="tc-goal-text">${escapeHtml(goal.text)}</span>
+        <button type="button" class="tc-delete-btn tc-goal-del" data-goal-id="${escapeHtml(goal.id)}">×</button>
+      </li>`;
   }
 
-  function renderTable() {
-    const topics = state.data?.topics || [];
-    if (!topics.length) {
-      return `<p class="tc-empty">Noch keine Levelcheck-Themen für diese Klasse.</p>`;
-    }
-
+  function renderLevelCheck(lc) {
     return `
-      <div class="tc-table-wrap">
-        <table class="tc-table">
-          <thead>
-            <tr>
-              <th>Fach</th>
-              <th>Thema</th>
-              <th>Uploads</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${topics
-              .map(
-                (t) => `
-              <tr data-topic-id="${escapeHtml(t.id)}">
-                <td>${escapeHtml(t.subject)}</td>
-                <td>${escapeHtml(t.topic)}</td>
-                <td>${t.uploadCount || 0}</td>
-                <td>
-                  <button type="button" class="tc-delete-btn" data-topic-id="${escapeHtml(t.id)}">Löschen</button>
-                </td>
-              </tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>`;
+      <article class="tc-levelcheck-card" data-check-id="${escapeHtml(lc.id)}">
+        <div class="tc-levelcheck-head">
+          <div>
+            <span class="tc-levelcheck-subject">${escapeHtml(lc.subject)}</span>
+            <h4 class="tc-levelcheck-name">${escapeHtml(lc.name)}</h4>
+          </div>
+          <button type="button" class="tc-delete-btn" data-check-id="${escapeHtml(lc.id)}">Levelcheck löschen</button>
+        </div>
+        <ol class="tc-goal-list">
+          ${(lc.goals || []).map((g) => renderGoalRow(lc.id, g)).join("")}
+          ${!(lc.goals || []).length ? `<li class="tc-goal-empty">Noch keine Ziele – unten das erste Ziel eintragen.</li>` : ""}
+        </ol>
+        <form class="tc-goal-add-form" data-check-id="${escapeHtml(lc.id)}">
+          <input type="text" class="tc-goal-input" maxlength="300" placeholder="Neues Raster-Ziel (z. B. Brüche erweitern)" required>
+          <button type="submit" class="action tc-goal-add-btn">Ziel hinzufügen</button>
+        </form>
+      </article>`;
+  }
+
+  function renderLevelChecksList() {
+    const checks = state.data?.levelChecks || [];
+    if (!checks.length) {
+      return `<p class="tc-empty">Noch keine Levelchecks. Lege oben den ersten an.</p>`;
+    }
+    return `<div class="tc-levelcheck-list">${checks.map(renderLevelCheck).join("")}</div>`;
   }
 
   function render() {
@@ -129,19 +114,19 @@
     if (!root) return;
 
     if (state.loading && !state.data) {
-      root.innerHTML = `<div class="tc-loading">Lade Levelcheck-Themen…</div>`;
+      root.innerHTML = `<div class="tc-loading">Lade Levelchecks…</div>`;
       return;
     }
 
-    if (!state.data?.ok) {
-      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Levelcheck-Themen konnten nicht geladen werden.")}</div>`;
+    if (!state.data) {
+      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Levelchecks konnten nicht geladen werden.")}</div>`;
       return;
     }
 
     root.innerHTML = `
       <div class="panel">
-        <h2>Levelcheck-Themen</h2>
-        <p class="hint">Lege pro Klasse Fach-Themen an. Schüler:innen laden dafür Nachweise hoch und erhalten XP – du musst keinen Status mehr pflegen.</p>
+        <h2>Levelchecks</h2>
+        <p class="hint">Pro Levelcheck mehrere Ziele eintragen. Schüler:innen sehen eine Matrix und markieren selbst: Rookie, Operator oder Street Legend.</p>
 
         <div class="tc-toolbar">
           <label>Klasse:
@@ -149,13 +134,11 @@
           </label>
         </div>
 
-        ${renderTierLegend()}
-
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
 
-        ${renderAddForm()}
-        ${renderTable()}
+        ${renderAddLevelCheckForm()}
+        ${renderLevelChecksList()}
       </div>`;
 
     bindHandlers(root);
@@ -178,26 +161,37 @@
       state.classId = Number(e.target.value);
       state.message = "";
       state.error = "";
-      loadTopics();
+      loadData();
     });
 
-    root.querySelector("#tcAddForm")?.addEventListener("submit", (e) => {
+    root.querySelector("#tcAddLevelCheckForm")?.addEventListener("submit", (e) => {
       e.preventDefault();
-      addTopic();
+      addLevelCheck();
     });
 
-    root.querySelectorAll(".tc-delete-btn").forEach((btn) => {
-      btn.addEventListener("click", () => deleteTopic(btn.dataset.topicId));
+    root.querySelectorAll(".tc-goal-add-form").forEach((form) => {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        addGoal(form);
+      });
+    });
+
+    root.querySelectorAll(".tc-levelcheck-head .tc-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", () => deleteLevelCheck(btn.dataset.checkId));
+    });
+
+    root.querySelectorAll(".tc-goal-del").forEach((btn) => {
+      btn.addEventListener("click", () => deleteGoal(btn.dataset.goalId));
     });
   }
 
-  async function addTopic() {
+  async function addLevelCheck() {
     const root = document.getElementById("competenciesTabRoot");
     const subject = root?.querySelector("#tcAddSubject")?.value;
-    const topic = root?.querySelector("#tcAddTopic")?.value?.trim();
+    const name = root?.querySelector("#tcAddName")?.value?.trim();
 
-    if (!subject || !topic) {
-      state.error = "Bitte Fach und Thema ausfüllen.";
+    if (!subject || !name) {
+      state.error = "Bitte Fach und Levelcheck-Namen ausfüllen.";
       state.message = "";
       render();
       return;
@@ -209,23 +203,22 @@
     render();
 
     try {
-      const res = await fetch("/api/teacher/levelcheck-topics", {
+      const res = await fetch("/api/teacher/levelchecks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId: state.classId, subject, topic })
+        body: JSON.stringify({ classId: state.classId, subject, name })
       });
       const data = await res.json();
+      state.saving = false;
 
       if (!data.success) {
-        state.saving = false;
         state.error = data.message || "Speichern fehlgeschlagen.";
         render();
         return;
       }
 
-      state.saving = false;
-      state.message = "Thema angelegt.";
-      await loadTopics();
+      state.message = `„${name}" angelegt – jetzt Ziele hinzufügen.`;
+      await loadData();
     } catch (err) {
       console.error(err);
       state.saving = false;
@@ -234,24 +227,51 @@
     }
   }
 
-  async function deleteTopic(topicId) {
-    if (!confirm("Dieses Thema und alle zugehörigen Uploads wirklich löschen?")) return;
+  async function addGoal(form) {
+    const checkId = form.dataset.checkId;
+    const input = form.querySelector(".tc-goal-input");
+    const goalText = input?.value?.trim();
+    if (!goalText) return;
 
     try {
-      const res = await fetch(`/api/teacher/levelcheck-topics/${encodeURIComponent(topicId)}`, {
-        method: "DELETE"
+      const res = await fetch(`/api/teacher/levelchecks/${encodeURIComponent(checkId)}/goals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goalText })
       });
       const data = await res.json();
 
+      if (!data.success) {
+        state.error = data.message || "Ziel konnte nicht gespeichert werden.";
+        render();
+        return;
+      }
+
+      state.message = "Ziel hinzugefügt.";
+      state.error = "";
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      state.error = "Netzwerkfehler.";
+      render();
+    }
+  }
+
+  async function deleteLevelCheck(checkId) {
+    if (!confirm("Diesen Levelcheck und alle Ziele wirklich löschen?")) return;
+
+    try {
+      const res = await fetch(`/api/teacher/levelchecks/${encodeURIComponent(checkId)}`, {
+        method: "DELETE"
+      });
+      const data = await res.json();
       if (!data.success) {
         state.error = data.message || "Löschen fehlgeschlagen.";
         render();
         return;
       }
-
-      state.message = "Thema gelöscht.";
-      state.error = "";
-      await loadTopics();
+      state.message = "Levelcheck gelöscht.";
+      await loadData();
     } catch (err) {
       console.error(err);
       state.error = "Netzwerkfehler.";
@@ -259,26 +279,48 @@
     }
   }
 
-  async function loadTopics() {
+  async function deleteGoal(goalId) {
+    if (!confirm("Dieses Ziel wirklich löschen?")) return;
+
+    try {
+      const res = await fetch(`/api/teacher/levelcheck-goals/${encodeURIComponent(goalId)}`, {
+        method: "DELETE"
+      });
+      const data = await res.json();
+      if (!data.success) {
+        state.error = data.message || "Löschen fehlgeschlagen.";
+        render();
+        return;
+      }
+      state.message = "Ziel gelöscht.";
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      state.error = "Netzwerkfehler.";
+      render();
+    }
+  }
+
+  async function loadData() {
     if (!state.classId) return;
 
     state.loading = true;
-    if (!state.data?.ok) render();
+    if (!state.data) render();
 
     try {
       const params = new URLSearchParams({ classId: String(state.classId) });
-      const res = await fetch(`/api/teacher/levelcheck-topics?${params}`);
+      const res = await fetch(`/api/teacher/levelchecks?${params}`);
       const payload = await res.json();
 
       if (!res.ok) {
         state.loading = false;
         state.data = null;
-        state.error = payload.error || payload.message || "Laden fehlgeschlagen.";
+        state.error = payload.error || "Laden fehlgeschlagen.";
         render();
         return;
       }
 
-      state.data = { ...payload, ok: true };
+      state.data = payload;
       state.loading = false;
       state.error = "";
       render();
@@ -307,11 +349,10 @@
     state.data = null;
 
     const root = document.getElementById("competenciesTabRoot");
-    if (root) root.innerHTML = `<div class="tc-loading">Lade Levelcheck-Themen…</div>`;
+    if (root) root.innerHTML = `<div class="tc-loading">Lade Levelchecks…</div>`;
 
     try {
       const classes = await loadClasses();
-
       if (!classes.length) {
         if (root) {
           root.innerHTML = `<div class="tc-empty">Bitte zuerst eine Klasse anlegen (Menü „Klassen & Schüler“).</div>`;
@@ -323,7 +364,7 @@
         state.classId = Number(classes[0].id);
       }
 
-      await loadTopics();
+      await loadData();
     } catch (err) {
       console.error(err);
       if (root) {

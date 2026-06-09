@@ -15,7 +15,7 @@
     },
     competencies: {
       title: "Levelchecks",
-      subtitle: "Nachweise hochladen: Rookie → Operator → Street Legend.",
+      subtitle: "Raster-Matrix: pro Ziel deine Stufe markieren.",
       phase: null
     },
     plan: {

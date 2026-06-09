@@ -608,6 +608,19 @@
     .tc-hint { margin:0 0 12px; font-size:12px; opacity:0.7; line-height:1.45; }
     .tc-tier-legend { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 4px; }
     .tc-tier-pill { font-size:11px; padding:6px 10px; border-radius:999px; border:1px solid rgba(148,163,184,0.3); background:rgba(15,23,42,0.5); }
+    .tc-levelcheck-list { display:flex; flex-direction:column; gap:14px; margin-top:16px; }
+    .tc-levelcheck-card { border-radius:12px; border:1px solid rgba(148,163,184,0.25); background:rgba(15,23,42,0.45); padding:14px; }
+    .tc-levelcheck-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px; }
+    .tc-levelcheck-subject { font-size:10px; letter-spacing:0.12em; text-transform:uppercase; opacity:0.65; }
+    .tc-levelcheck-name { margin:4px 0 0; font-size:16px; }
+    .tc-goal-list { margin:0 0 10px; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px; }
+    .tc-goal-item { display:flex; align-items:flex-start; gap:8px; padding:8px 10px; border-radius:8px; background:rgba(2,6,23,0.5); font-size:13px; }
+    .tc-goal-num { opacity:0.6; min-width:1.5em; }
+    .tc-goal-text { flex:1; line-height:1.4; }
+    .tc-goal-empty { font-size:12px; opacity:0.6; padding:8px 0; list-style:none; }
+    .tc-goal-add-form { display:flex; gap:8px; flex-wrap:wrap; }
+    .tc-goal-input { flex:1; min-width:200px; padding:8px 10px; border-radius:8px; border:1px solid rgba(148,163,184,0.35); background:#0f172a; color:#f9fafb; font-size:12px; }
+    .tc-goal-del { padding:2px 8px; min-width:auto; }
     .tc-msg { border-radius:10px; padding:10px 12px; font-size:13px; margin-bottom:10px; }
     .tc-msg-ok { background:rgba(20,83,45,0.35); border:1px solid rgba(74,222,128,0.4); color:#bbf7d0; }
     .tc-msg-err { background:rgba(127,29,29,0.35); border:1px solid rgba(248,113,113,0.4); color:#fecaca; }
@@ -646,7 +659,7 @@
 
   <div class="nav-item" data-tab="competenciesTab" onclick="showTab('competenciesTab', event)">
     <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
-    <span class="nav-label">Levelcheck-Themen</span>
+    <span class="nav-label">Levelchecks</span>
   </div>
 
   <div class="nav-item" data-tab="xpTab" onclick="showTab('xpTab', event)">
@@ -1024,7 +1037,7 @@
 <script src="/js/teacher-dashboard.js"></script>
 <script src="/js/teacher-timetable.js"></script>
 <script src="/js/teacher-week.js"></script>
-<script src="/js/teacher-competencies.js?v=2"></script>
+<script src="/js/teacher-competencies.js?v=3"></script>
 
 <script>
 const TEACHER_TAB_ROUTES = {

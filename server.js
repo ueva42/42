@@ -957,6 +957,57 @@ async function migrate() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_checks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER,
+      class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+      subject TEXT NOT NULL,
+      name TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await ensureColumn("level_checks", "school_id", "INTEGER");
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_check_goals (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER,
+      level_check_id UUID NOT NULL REFERENCES level_checks(id) ON DELETE CASCADE,
+      goal_text TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await ensureColumn("level_check_goals", "school_id", "INTEGER");
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_check_marks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER,
+      goal_id UUID NOT NULL REFERENCES level_check_goals(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tier TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(goal_id, user_id)
+    )
+  `);
+  await ensureColumn("level_check_marks", "school_id", "INTEGER");
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_level_checks_class
+    ON level_checks (class_id, subject, sort_order)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_level_check_goals_check
+    ON level_check_goals (level_check_id, sort_order)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_level_check_marks_user
+    ON level_check_marks (user_id, goal_id)
+  `);
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_timetables_class_weekday
     ON timetables (class_id, weekday)
   `);
@@ -1165,6 +1216,18 @@ async function migrate() {
   );
   await pool.query(
     "UPDATE level_check_uploads SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE level_checks SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE level_check_goals SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE level_check_marks SET school_id=$1 WHERE school_id IS NULL",
     [defaultSchoolId]
   );
   // Backfill reward_id / image_url (WHERE-only refs to target table – safe in PG UPDATE)
@@ -2358,15 +2421,101 @@ app.post("/api/student/log/reflect", isStudent, async (req, res) => {
   }
 });
 
-function levelCheckTierUnlocked(tier, uploadsByTier) {
-  if (tier === "rookie") return true;
-  if (tier === "operator") return !!uploadsByTier.rookie;
-  if (tier === "street_legend") return !!uploadsByTier.operator;
-  return false;
+function levelCheckTiersPayload() {
+  return LEVEL_CHECK_TIERS.map((t) => ({
+    id: t,
+    label: LEVEL_CHECK_TIER_LABELS[t]
+  }));
+}
+
+async function getLevelChecksForClass(classId, schoolId, studentId = null) {
+  const checksRes = await pool.query(
+    `
+    SELECT id, subject, name, sort_order, created_at
+    FROM level_checks
+    WHERE class_id=$1 AND school_id=$2
+    ORDER BY subject ASC, sort_order ASC, name ASC
+  `,
+    [classId, schoolId]
+  );
+
+  if (!checksRes.rows.length) {
+    return [];
+  }
+
+  const checkIds = checksRes.rows.map((c) => c.id);
+
+  const goalsRes = await pool.query(
+    `
+    SELECT id, level_check_id, goal_text, sort_order
+    FROM level_check_goals
+    WHERE level_check_id = ANY($1::uuid[])
+    ORDER BY sort_order ASC, created_at ASC
+  `,
+    [checkIds]
+  );
+
+  let marksByGoal = {};
+  if (studentId) {
+    const marksRes = await pool.query(
+      `
+      SELECT m.goal_id, m.tier, m.updated_at
+      FROM level_check_marks m
+      JOIN level_check_goals g ON g.id = m.goal_id
+      WHERE m.user_id=$1 AND g.level_check_id = ANY($2::uuid[])
+    `,
+      [studentId, checkIds]
+    );
+    for (const row of marksRes.rows) {
+      marksByGoal[row.goal_id] = {
+        tier: row.tier,
+        updatedAt: row.updated_at
+      };
+    }
+  }
+
+  const goalsByCheck = {};
+  for (const g of goalsRes.rows) {
+    if (!goalsByCheck[g.level_check_id]) goalsByCheck[g.level_check_id] = [];
+    goalsByCheck[g.level_check_id].push({
+      id: g.id,
+      text: g.goal_text,
+      sortOrder: g.sort_order,
+      mark: marksByGoal[g.id] || null
+    });
+  }
+
+  return checksRes.rows.map((c) => ({
+    id: c.id,
+    subject: c.subject,
+    name: c.name,
+    sortOrder: c.sort_order,
+    goals: goalsByCheck[c.id] || []
+  }));
+}
+
+function groupLevelChecksBySubject(checks) {
+  const bySubject = {};
+  for (const check of checks) {
+    if (!bySubject[check.subject]) bySubject[check.subject] = [];
+    bySubject[check.subject].push(check);
+  }
+
+  const grouped = [];
+  for (const subject of LOG_SUBJECTS) {
+    if (bySubject[subject]?.length) {
+      grouped.push({ subject, levelChecks: bySubject[subject] });
+      delete bySubject[subject];
+    }
+  }
+  for (const [subject, levelChecks] of Object.entries(bySubject)) {
+    grouped.push({ subject, levelChecks });
+  }
+  return grouped;
 }
 
 // -------------------------------------------------------
-// STUDENT: Levelchecks – Themen + Upload-Nachweise
+// STUDENT: Levelchecks – Matrix (Selbsteinschätzung)
 // -------------------------------------------------------
 app.get("/api/student/levelchecks", isStudent, async (req, res) => {
   try {
@@ -2377,90 +2526,17 @@ app.get("/api/student/levelchecks", isStudent, async (req, res) => {
     if (!classId) {
       return res.json({
         hasClass: false,
-        topics: [],
-        tiers: LEVEL_CHECK_TIERS.map((t) => ({
-          id: t,
-          label: LEVEL_CHECK_TIER_LABELS[t],
-          xp: LEVEL_CHECK_XP[t]
-        }))
+        grouped: [],
+        tiers: levelCheckTiersPayload()
       });
     }
 
-    const topicsRes = await pool.query(
-      `
-      SELECT id, subject, topic, created_at
-      FROM level_check_topics
-      WHERE class_id=$1 AND school_id=$2
-      ORDER BY subject ASC, topic ASC
-    `,
-      [classId, schoolId]
-    );
-
-    const uploadsRes = await pool.query(
-      `
-      SELECT topic_id, tier, file_url, file_name, xp_awarded, created_at
-      FROM level_check_uploads
-      WHERE user_id=$1 AND school_id=$2
-    `,
-      [studentId, schoolId]
-    );
-
-    const uploadsByTopic = {};
-    for (const row of uploadsRes.rows) {
-      if (!uploadsByTopic[row.topic_id]) uploadsByTopic[row.topic_id] = {};
-      uploadsByTopic[row.topic_id][row.tier] = {
-        fileUrl: row.file_url,
-        fileName: row.file_name,
-        xpAwarded: row.xp_awarded,
-        uploadedAt: row.created_at
-      };
-    }
-
-    const topics = topicsRes.rows.map((t) => {
-      const uploads = uploadsByTopic[t.id] || {};
-      const tiers = LEVEL_CHECK_TIERS.map((tier) => ({
-        id: tier,
-        label: LEVEL_CHECK_TIER_LABELS[tier],
-        xp: LEVEL_CHECK_XP[tier],
-        unlocked: levelCheckTierUnlocked(tier, uploads),
-        upload: uploads[tier] || null
-      }));
-      const doneCount = tiers.filter((x) => x.upload).length;
-      return {
-        id: t.id,
-        subject: t.subject,
-        topic: t.topic,
-        doneCount,
-        totalTiers: LEVEL_CHECK_TIERS.length,
-        tiers
-      };
-    });
-
-    const bySubject = {};
-    for (const topic of topics) {
-      if (!bySubject[topic.subject]) bySubject[topic.subject] = [];
-      bySubject[topic.subject].push(topic);
-    }
-
-    const grouped = [];
-    for (const subject of LOG_SUBJECTS) {
-      if (bySubject[subject]?.length) {
-        grouped.push({ subject, topics: bySubject[subject] });
-        delete bySubject[subject];
-      }
-    }
-    for (const [subject, subjectTopics] of Object.entries(bySubject)) {
-      grouped.push({ subject, topics: subjectTopics });
-    }
+    const checks = await getLevelChecksForClass(classId, schoolId, studentId);
 
     res.json({
       hasClass: true,
-      grouped,
-      tiers: LEVEL_CHECK_TIERS.map((t) => ({
-        id: t,
-        label: LEVEL_CHECK_TIER_LABELS[t],
-        xp: LEVEL_CHECK_XP[t]
-      }))
+      grouped: groupLevelChecksBySubject(checks),
+      tiers: levelCheckTiersPayload()
     });
   } catch (err) {
     console.error("❌ /api/student/levelchecks:", err);
@@ -2468,124 +2544,84 @@ app.get("/api/student/levelchecks", isStudent, async (req, res) => {
   }
 });
 
-app.post(
-  "/api/student/levelcheck-upload",
-  isStudent,
-  upload.single("file"),
-  async (req, res) => {
-    try {
-      const studentId = req.session.user.id;
-      const schoolId = req.session.user.school_id;
-      const classId = req.session.user.class_id;
-      const topicId = req.body.topicId;
-      const tier = req.body.tier;
+app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const classId = req.session.user.class_id;
+    const goalId = req.body.goalId;
+    const tier = req.body.tier;
 
-      if (!classId) {
-        return res.json({ success: false, message: "Keine Klasse zugeordnet." });
-      }
-      if (!topicId || !tier) {
-        return res.json({ success: false, message: "Thema und Stufe fehlen." });
-      }
-      if (!LEVEL_CHECK_TIERS.includes(tier)) {
-        return res.json({ success: false, message: "Ungültige Stufe." });
-      }
-      if (!req.file) {
-        return res.json({ success: false, message: "Bitte eine Datei wählen." });
-      }
+    if (!classId) {
+      return res.json({ success: false, message: "Keine Klasse zugeordnet." });
+    }
+    if (!goalId || !tier) {
+      return res.json({ success: false, message: "Ziel und Stufe fehlen." });
+    }
+    if (!LEVEL_CHECK_TIERS.includes(tier)) {
+      return res.json({ success: false, message: "Ungültige Stufe." });
+    }
 
-      const topicRes = await pool.query(
-        `
-        SELECT id FROM level_check_topics
-        WHERE id=$1 AND class_id=$2 AND school_id=$3
-      `,
-        [topicId, classId, schoolId]
+    const goalRes = await pool.query(
+      `
+      SELECT g.id
+      FROM level_check_goals g
+      JOIN level_checks lc ON lc.id = g.level_check_id
+      WHERE g.id=$1 AND lc.class_id=$2 AND lc.school_id=$3
+    `,
+      [goalId, classId, schoolId]
+    );
+    if (!goalRes.rows.length) {
+      return res.json({ success: false, message: "Ziel nicht gefunden." });
+    }
+
+    const existing = await pool.query(
+      `SELECT id, tier FROM level_check_marks WHERE goal_id=$1 AND user_id=$2`,
+      [goalId, studentId]
+    );
+
+    if (existing.rows.length && existing.rows[0].tier === tier) {
+      await pool.query(
+        `DELETE FROM level_check_marks WHERE id=$1`,
+        [existing.rows[0].id]
       );
-      if (!topicRes.rows.length) {
-        return res.json({ success: false, message: "Thema nicht gefunden." });
-      }
+      return res.json({ success: true, tier: null, cleared: true });
+    }
 
-      const existingRes = await pool.query(
-        `
-        SELECT id FROM level_check_uploads
-        WHERE topic_id=$1 AND user_id=$2 AND tier=$3
-      `,
-        [topicId, studentId, tier]
+    if (existing.rows.length) {
+      await pool.query(
+        `UPDATE level_check_marks SET tier=$1, updated_at=NOW() WHERE id=$2`,
+        [tier, existing.rows[0].id]
       );
-      if (existingRes.rows.length) {
-        return res.json({
-          success: false,
-          message: "Für diese Stufe wurde bereits ein Nachweis hochgeladen."
-        });
-      }
-
-      const priorTiers = LEVEL_CHECK_TIERS.slice(0, LEVEL_CHECK_TIERS.indexOf(tier));
-      if (priorTiers.length) {
-        const priorRes = await pool.query(
-          `
-          SELECT tier FROM level_check_uploads
-          WHERE topic_id=$1 AND user_id=$2 AND tier = ANY($3::text[])
-        `,
-          [topicId, studentId, priorTiers]
-        );
-        const have = new Set(priorRes.rows.map((r) => r.tier));
-        for (const pt of priorTiers) {
-          if (!have.has(pt)) {
-            return res.json({
-              success: false,
-              message: `Bitte zuerst den ${LEVEL_CHECK_TIER_LABELS[pt]}-Check hochladen.`
-            });
-          }
-        }
-      }
-
-      const safeName = (req.file.originalname || "nachweis").replace(/[^\w.\-äöüÄÖÜß ]+/g, "_");
-      const fileName = `levelchecks/${schoolId}_${classId}_${studentId}_${topicId}_${tier}_${Date.now()}_${safeName}`;
-
-      await r2.send(
-        new PutObjectCommand({
-          Bucket: process.env.R2_BUCKET,
-          Key: fileName,
-          Body: req.file.buffer,
-          ContentType: req.file.mimetype
-        })
-      );
-
-      const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
-      const xpAmount = LEVEL_CHECK_XP[tier] || 5;
-
+    } else {
       await pool.query(
         `
-        INSERT INTO level_check_uploads
-          (school_id, topic_id, user_id, tier, file_url, file_name, xp_awarded)
-        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        INSERT INTO level_check_marks (school_id, goal_id, user_id, tier)
+        VALUES ($1,$2,$3,$4)
       `,
-        [schoolId, topicId, studentId, tier, url, safeName, xpAmount]
+        [schoolId, goalId, studentId, tier]
       );
-
-      await awardLogbuchXP(studentId, xpAmount, `levelcheck_${tier}`, schoolId);
-
-      res.json({
-        success: true,
-        fileUrl: url,
-        xpAwarded: xpAmount,
-        tierLabel: LEVEL_CHECK_TIER_LABELS[tier]
-      });
-    } catch (err) {
-      console.error("❌ /api/student/levelcheck-upload:", err);
-      res.status(500).json({ success: false, message: "Upload fehlgeschlagen." });
     }
-  }
-);
 
-// Alias für bestehenden Screen-Pfad
+    res.json({
+      success: true,
+      tier,
+      tierLabel: LEVEL_CHECK_TIER_LABELS[tier]
+    });
+  } catch (err) {
+    console.error("❌ /api/student/levelcheck-mark:", err);
+    res.status(500).json({ success: false, message: "Speichern fehlgeschlagen." });
+  }
+});
+
 app.get("/api/student/competencies", isStudent, (req, res) => {
   res.redirect(307, "/api/student/levelchecks");
 });
 
 // -------------------------------------------------------
-// TEACHER: Levelcheck-Themen verwalten
+// TEACHER: Levelchecks + Raster-Ziele
 // -------------------------------------------------------
-app.get("/api/teacher/levelcheck-topics", isAdmin, async (req, res) => {
+app.get("/api/teacher/levelchecks", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.query.classId);
@@ -2602,51 +2638,37 @@ app.get("/api/teacher/levelcheck-topics", isAdmin, async (req, res) => {
       return res.status(404).json({ error: "Klasse nicht gefunden" });
     }
 
-    const topicsRes = await pool.query(
-      `
-      SELECT t.id, t.subject, t.topic, t.created_at,
-        (SELECT COUNT(*)::int FROM level_check_uploads u WHERE u.topic_id = t.id) AS upload_count
-      FROM level_check_topics t
-      WHERE t.class_id=$1 AND t.school_id=$2
-      ORDER BY t.subject ASC, t.topic ASC
-    `,
-      [classId, schoolId]
-    );
+    const checks = await getLevelChecksForClass(classId, schoolId);
 
     res.json({
       classId,
       className: classRes.rows[0].name,
       subjects: LOG_SUBJECTS,
-      tiers: LEVEL_CHECK_TIERS.map((t) => ({
-        id: t,
-        label: LEVEL_CHECK_TIER_LABELS[t],
-        xp: LEVEL_CHECK_XP[t]
-      })),
-      topics: topicsRes.rows.map((row) => ({
-        id: row.id,
-        subject: row.subject,
-        topic: row.topic,
-        uploadCount: row.upload_count,
-        createdAt: row.created_at
-      }))
+      tiers: levelCheckTiersPayload(),
+      levelChecks: checks
     });
   } catch (err) {
-    console.error("❌ /api/teacher/levelcheck-topics:", err);
+    console.error("❌ /api/teacher/levelchecks:", err);
     res.status(500).json({ error: "Serverfehler" });
   }
 });
 
-app.post("/api/teacher/levelcheck-topics", isAdmin, async (req, res) => {
+app.get("/api/teacher/levelcheck-topics", isAdmin, (req, res) => {
+  const q = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(307, `/api/teacher/levelchecks${q}`);
+});
+
+app.post("/api/teacher/levelchecks", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.body.classId);
     const subject = String(req.body.subject || "").trim();
-    const topic = String(req.body.topic || "").trim();
+    const name = String(req.body.name || "").trim();
 
-    if (!classId || !subject || !topic) {
+    if (!classId || !subject || !name) {
       return res.json({
         success: false,
-        message: "Klasse, Fach und Thema sind Pflicht."
+        message: "Klasse, Fach und Levelcheck-Name sind Pflicht."
       });
     }
 
@@ -2662,49 +2684,128 @@ app.post("/api/teacher/levelcheck-topics", isAdmin, async (req, res) => {
       return res.json({ success: false, message: "Klasse nicht gefunden." });
     }
 
+    const orderRes = await pool.query(
+      `
+      SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order
+      FROM level_checks
+      WHERE class_id=$1 AND school_id=$2 AND subject=$3
+    `,
+      [classId, schoolId, subject]
+    );
+
     const ins = await pool.query(
       `
-      INSERT INTO level_check_topics (school_id, class_id, subject, topic)
-      VALUES ($1,$2,$3,$4)
-      RETURNING id, subject, topic, created_at
+      INSERT INTO level_checks (school_id, class_id, subject, name, sort_order)
+      VALUES ($1,$2,$3,$4,$5)
+      RETURNING id, subject, name, sort_order, created_at
     `,
-      [schoolId, classId, subject, topic.slice(0, 200)]
+      [schoolId, classId, subject, name.slice(0, 120), orderRes.rows[0].next_order]
     );
 
     const row = ins.rows[0];
     res.json({
       success: true,
-      topic: {
+      levelCheck: {
         id: row.id,
         subject: row.subject,
-        topic: row.topic,
-        uploadCount: 0,
+        name: row.name,
+        sortOrder: row.sort_order,
+        goals: [],
         createdAt: row.created_at
       }
     });
   } catch (err) {
-    console.error("❌ POST /api/teacher/levelcheck-topics:", err);
+    console.error("❌ POST /api/teacher/levelchecks:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
 
-app.delete("/api/teacher/levelcheck-topics/:id", isAdmin, async (req, res) => {
+app.post("/api/teacher/levelchecks/:id/goals", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const id = req.params.id;
+    const levelCheckId = req.params.id;
+    const goalText = String(req.body.goalText || "").trim();
 
-    const del = await pool.query(
-      "DELETE FROM level_check_topics WHERE id=$1 AND school_id=$2 RETURNING id",
-      [id, schoolId]
-    );
-
-    if (!del.rows.length) {
-      return res.json({ success: false, message: "Thema nicht gefunden." });
+    if (!goalText) {
+      return res.json({ success: false, message: "Zieltext fehlt." });
     }
 
+    const checkRes = await pool.query(
+      `SELECT id FROM level_checks WHERE id=$1 AND school_id=$2`,
+      [levelCheckId, schoolId]
+    );
+    if (!checkRes.rows.length) {
+      return res.json({ success: false, message: "Levelcheck nicht gefunden." });
+    }
+
+    const orderRes = await pool.query(
+      `
+      SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order
+      FROM level_check_goals
+      WHERE level_check_id=$1
+    `,
+      [levelCheckId]
+    );
+
+    const ins = await pool.query(
+      `
+      INSERT INTO level_check_goals (school_id, level_check_id, goal_text, sort_order)
+      VALUES ($1,$2,$3,$4)
+      RETURNING id, goal_text, sort_order
+    `,
+      [schoolId, levelCheckId, goalText.slice(0, 300), orderRes.rows[0].next_order]
+    );
+
+    const row = ins.rows[0];
+    res.json({
+      success: true,
+      goal: {
+        id: row.id,
+        text: row.goal_text,
+        sortOrder: row.sort_order
+      }
+    });
+  } catch (err) {
+    console.error("❌ POST goal:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.delete("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const del = await pool.query(
+      `DELETE FROM level_checks WHERE id=$1 AND school_id=$2 RETURNING id`,
+      [req.params.id, schoolId]
+    );
+    if (!del.rows.length) {
+      return res.json({ success: false, message: "Levelcheck nicht gefunden." });
+    }
     res.json({ success: true });
   } catch (err) {
-    console.error("❌ DELETE /api/teacher/levelcheck-topics:", err);
+    console.error("❌ DELETE levelcheck:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.delete("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const del = await pool.query(
+      `
+      DELETE FROM level_check_goals g
+      USING level_checks lc
+      WHERE g.id=$1 AND g.level_check_id = lc.id AND lc.school_id=$2
+      RETURNING g.id
+    `,
+      [req.params.id, schoolId]
+    );
+    if (!del.rows.length) {
+      return res.json({ success: false, message: "Ziel nicht gefunden." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE goal:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
