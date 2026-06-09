@@ -1,10 +1,9 @@
 /**
- * Lehrkraft – Kompetenz-Status verwalten.
+ * Lehrkraft – Levelcheck-Themen verwalten (pro Klasse).
  */
 (function () {
   const state = {
     classId: null,
-    studentId: null,
     data: null,
     loading: false,
     saving: false,
@@ -20,26 +19,6 @@
       .replace(/"/g, "&quot;");
   }
 
-  function formatDate(val) {
-    if (!val) return "–";
-    const d = new Date(val);
-    if (Number.isNaN(d.getTime())) return "–";
-    return d.toLocaleDateString("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
-    });
-  }
-
-  function statusOptions(statuses, selected) {
-    return (statuses || [])
-      .map(
-        (s) =>
-          `<option value="${escapeHtml(s.id)}" ${s.id === selected ? "selected" : ""}>${escapeHtml(s.label)}</option>`
-      )
-      .join("");
-  }
-
   function subjectOptions(subjects, selected) {
     return (subjects || [])
       .map(
@@ -51,25 +30,13 @@
 
   function renderAddForm() {
     const d = state.data;
-    if (!d?.students?.length) {
-      return `<p class="tc-empty">Keine Schüler:innen in dieser Klasse.</p>`;
-    }
+    if (!d) return "";
 
     return `
       <div class="tc-add-form">
-        <h3>Neues Thema anlegen</h3>
+        <h3>Neues Levelcheck-Thema</h3>
+        <p class="tc-hint">Schüler:innen laden pro Thema drei Nachweise hoch: Rookie → Operator → Street Legend.</p>
         <div class="tc-add-grid">
-          <label>
-            Schüler:in
-            <select id="tcAddStudent">
-              ${d.students
-                .map(
-                  (s) =>
-                    `<option value="${s.id}" ${state.studentId === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`
-                )
-                .join("")}
-            </select>
-          </label>
           <label>
             Fach
             <select id="tcAddSubject">
@@ -81,12 +48,6 @@
             Thema
             <input type="text" id="tcAddTopic" maxlength="200" placeholder="z. B. Bruchrechnung – Erweitern">
           </label>
-          <label>
-            Status
-            <select id="tcAddStatus">
-              ${statusOptions(d.statuses, "offen")}
-            </select>
-          </label>
         </div>
         <button class="action" id="tcAddBtn" ${state.saving ? "disabled" : ""}>
           ${state.saving ? "Speichern…" : "Thema hinzufügen"}
@@ -94,10 +55,25 @@
       </div>`;
   }
 
+  function renderTierLegend() {
+    const tiers = state.data?.tiers || [];
+    if (!tiers.length) return "";
+
+    return `
+      <div class="tc-tier-legend">
+        ${tiers
+          .map(
+            (t) =>
+              `<span class="tc-tier-pill"><strong>${escapeHtml(t.label)}</strong> +${t.xp} XP</span>`
+          )
+          .join("")}
+      </div>`;
+  }
+
   function renderTable() {
-    const entries = state.data?.entries || [];
-    if (!entries.length) {
-      return `<p class="tc-empty">Noch keine Kompetenz-Einträge für diese Auswahl.</p>`;
+    const topics = state.data?.topics || [];
+    if (!topics.length) {
+      return `<p class="tc-empty">Noch keine Levelcheck-Themen für diese Klasse.</p>`;
     }
 
     return `
@@ -105,30 +81,22 @@
         <table class="tc-table">
           <thead>
             <tr>
-              <th>Schüler:in</th>
               <th>Fach</th>
               <th>Thema</th>
-              <th>Status</th>
-              <th>Aktualisiert</th>
+              <th>Uploads</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            ${entries
+            ${topics
               .map(
-                (e) => `
-              <tr data-entry-id="${escapeHtml(e.id)}">
-                <td>${escapeHtml(e.studentName)}</td>
-                <td>${escapeHtml(e.subject)}</td>
-                <td>${escapeHtml(e.topic)}</td>
+                (t) => `
+              <tr data-topic-id="${escapeHtml(t.id)}">
+                <td>${escapeHtml(t.subject)}</td>
+                <td>${escapeHtml(t.topic)}</td>
+                <td>${t.uploadCount || 0}</td>
                 <td>
-                  <select class="tc-status-select" data-entry-id="${escapeHtml(e.id)}">
-                    ${statusOptions(state.data.statuses, e.status)}
-                  </select>
-                </td>
-                <td>${formatDate(e.updatedAt)}</td>
-                <td>
-                  <button type="button" class="tc-delete-btn" data-entry-id="${escapeHtml(e.id)}">Löschen</button>
+                  <button type="button" class="tc-delete-btn" data-topic-id="${escapeHtml(t.id)}">Löschen</button>
                 </td>
               </tr>`
               )
@@ -143,30 +111,27 @@
     if (!root) return;
 
     if (state.loading && !state.data) {
-      root.innerHTML = `<div class="tc-loading">Lade Kompetenzen…</div>`;
+      root.innerHTML = `<div class="tc-loading">Lade Levelcheck-Themen…</div>`;
       return;
     }
 
     if (!state.data) {
-      root.innerHTML = `<div class="tc-error">Kompetenzen konnten nicht geladen werden.</div>`;
+      root.innerHTML = `<div class="tc-error">Levelcheck-Themen konnten nicht geladen werden.</div>`;
       return;
     }
 
     root.innerHTML = `
       <div class="panel">
-        <h2>Kompetenz-Status</h2>
-        <p class="hint">Lege pro Schüler:in Fach-Themen an und setze den Lernstand. Schüler:innen sehen das unter „Kompetenzen“ und können ab „In Arbeit“ / „Bereit“ einen Levelaufstieg beantragen.</p>
+        <h2>Levelcheck-Themen</h2>
+        <p class="hint">Lege pro Klasse Fach-Themen an. Schüler:innen laden dafür Nachweise hoch und erhalten XP – du musst keinen Status mehr pflegen.</p>
 
         <div class="tc-toolbar">
           <label>Klasse:
             <select id="tcClassSelect"></select>
           </label>
-          <label>Schüler:in:
-            <select id="tcStudentSelect">
-              <option value="">Alle</option>
-            </select>
-          </label>
         </div>
+
+        ${renderTierLegend()}
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
@@ -177,7 +142,6 @@
 
     bindHandlers(root);
     fillClassSelect(root);
-    fillStudentSelect(root);
   }
 
   function fillClassSelect(root) {
@@ -191,55 +155,28 @@
       .join("");
   }
 
-  function fillStudentSelect(root) {
-    const sel = root.querySelector("#tcStudentSelect");
-    if (!sel || !state.data?.students) return;
-    sel.innerHTML =
-      `<option value="">Alle</option>` +
-      state.data.students
-        .map(
-          (s) =>
-            `<option value="${s.id}" ${state.studentId === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`
-        )
-        .join("");
-  }
-
   function bindHandlers(root) {
     root.querySelector("#tcClassSelect")?.addEventListener("change", (e) => {
       state.classId = Number(e.target.value);
-      state.studentId = null;
       state.message = "";
       state.error = "";
-      loadCompetencies();
+      loadTopics();
     });
 
-    root.querySelector("#tcStudentSelect")?.addEventListener("change", (e) => {
-      state.studentId = e.target.value ? Number(e.target.value) : null;
-      state.message = "";
-      state.error = "";
-      loadCompetencies();
-    });
-
-    root.querySelector("#tcAddBtn")?.addEventListener("click", addEntry);
-
-    root.querySelectorAll(".tc-status-select").forEach((sel) => {
-      sel.addEventListener("change", () => updateStatus(sel.dataset.entryId, sel.value));
-    });
+    root.querySelector("#tcAddBtn")?.addEventListener("click", addTopic);
 
     root.querySelectorAll(".tc-delete-btn").forEach((btn) => {
-      btn.addEventListener("click", () => deleteEntry(btn.dataset.entryId));
+      btn.addEventListener("click", () => deleteTopic(btn.dataset.topicId));
     });
   }
 
-  async function addEntry() {
+  async function addTopic() {
     const root = document.getElementById("competenciesTabRoot");
-    const userId = Number(root?.querySelector("#tcAddStudent")?.value);
     const subject = root?.querySelector("#tcAddSubject")?.value;
     const topic = root?.querySelector("#tcAddTopic")?.value?.trim();
-    const status = root?.querySelector("#tcAddStatus")?.value || "offen";
 
-    if (!userId || !subject || !topic) {
-      state.error = "Bitte Schüler:in, Fach und Thema ausfüllen.";
+    if (!subject || !topic) {
+      state.error = "Bitte Fach und Thema ausfüllen.";
       state.message = "";
       render();
       return;
@@ -251,10 +188,10 @@
     render();
 
     try {
-      const res = await fetch("/api/teacher/competencies", {
+      const res = await fetch("/api/teacher/levelcheck-topics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, subject, topic, status })
+        body: JSON.stringify({ classId: state.classId, subject, topic })
       });
       const data = await res.json();
 
@@ -267,8 +204,7 @@
 
       state.saving = false;
       state.message = "Thema angelegt.";
-      state.studentId = userId;
-      await loadCompetencies();
+      await loadTopics();
     } catch (err) {
       console.error(err);
       state.saving = false;
@@ -277,36 +213,11 @@
     }
   }
 
-  async function updateStatus(entryId, status) {
-    try {
-      const res = await fetch(`/api/teacher/competencies/${encodeURIComponent(entryId)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status })
-      });
-      const data = await res.json();
-
-      if (!data.success) {
-        state.error = data.message || "Status konnte nicht gespeichert werden.";
-        render();
-        return;
-      }
-
-      state.message = "Status aktualisiert.";
-      state.error = "";
-      await loadCompetencies();
-    } catch (err) {
-      console.error(err);
-      state.error = "Netzwerkfehler.";
-      render();
-    }
-  }
-
-  async function deleteEntry(entryId) {
-    if (!confirm("Diesen Kompetenz-Eintrag wirklich löschen?")) return;
+  async function deleteTopic(topicId) {
+    if (!confirm("Dieses Thema und alle zugehörigen Uploads wirklich löschen?")) return;
 
     try {
-      const res = await fetch(`/api/teacher/competencies/${encodeURIComponent(entryId)}`, {
+      const res = await fetch(`/api/teacher/levelcheck-topics/${encodeURIComponent(topicId)}`, {
         method: "DELETE"
       });
       const data = await res.json();
@@ -317,9 +228,9 @@
         return;
       }
 
-      state.message = "Eintrag gelöscht.";
+      state.message = "Thema gelöscht.";
       state.error = "";
-      await loadCompetencies();
+      await loadTopics();
     } catch (err) {
       console.error(err);
       state.error = "Netzwerkfehler.";
@@ -327,7 +238,7 @@
     }
   }
 
-  async function loadCompetencies() {
+  async function loadTopics() {
     if (!state.classId) return;
 
     state.loading = true;
@@ -335,9 +246,7 @@
 
     try {
       const params = new URLSearchParams({ classId: String(state.classId) });
-      if (state.studentId) params.set("studentId", String(state.studentId));
-
-      const res = await fetch(`/api/teacher/competencies?${params}`);
+      const res = await fetch(`/api/teacher/levelcheck-topics?${params}`);
       state.data = await res.json();
       state.loading = false;
       render();
@@ -355,7 +264,7 @@
     state.data = null;
 
     const root = document.getElementById("competenciesTabRoot");
-    if (root) root.innerHTML = `<div class="tc-loading">Lade Kompetenzen…</div>`;
+    if (root) root.innerHTML = `<div class="tc-loading">Lade Levelcheck-Themen…</div>`;
 
     try {
       if (!window.__tcClasses) {
@@ -371,7 +280,7 @@
       }
 
       state.classId = state.classId || window.__tcClasses[0].id;
-      await loadCompetencies();
+      await loadTopics();
     } catch (err) {
       console.error(err);
       if (root) root.innerHTML = `<div class="tc-error">Fehler beim Laden.</div>`;

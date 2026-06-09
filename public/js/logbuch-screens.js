@@ -14,8 +14,8 @@
       phase: "week"
     },
     competencies: {
-      title: "Kompetenz-Status",
-      subtitle: "Deine Themen und Levelkarten nach Fach.",
+      title: "Levelchecks",
+      subtitle: "Nachweise hochladen: Rookie → Operator → Street Legend.",
       phase: null
     },
     plan: {

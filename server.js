@@ -28,6 +28,18 @@ const LOGBUCH_XP = {
   weekReflection: 10
 };
 
+const LEVEL_CHECK_TIERS = ["rookie", "operator", "street_legend"];
+const LEVEL_CHECK_TIER_LABELS = {
+  rookie: "Rookie",
+  operator: "Operator",
+  street_legend: "Street Legend"
+};
+const LEVEL_CHECK_XP = {
+  rookie: 5,
+  operator: 8,
+  street_legend: 12
+};
+
 const LOG_SUBJECTS = [
   "Mathe",
   "Deutsch",
@@ -897,6 +909,44 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS idx_competency_status_user_subject
     ON competency_status (user_id, subject)
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_check_topics (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER,
+      class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+      subject TEXT NOT NULL,
+      topic TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await ensureColumn("level_check_topics", "school_id", "INTEGER");
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_check_uploads (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER,
+      topic_id UUID NOT NULL REFERENCES level_check_topics(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tier TEXT NOT NULL,
+      file_url TEXT NOT NULL,
+      file_name TEXT,
+      xp_awarded INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(topic_id, user_id, tier)
+    )
+  `);
+  await ensureColumn("level_check_uploads", "school_id", "INTEGER");
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_level_check_topics_class
+    ON level_check_topics (class_id, subject)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_level_check_uploads_user
+    ON level_check_uploads (user_id, topic_id)
+  `);
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_timetables_class_weekday
     ON timetables (class_id, weekday)
@@ -2255,91 +2305,237 @@ app.post("/api/student/log/reflect", isStudent, async (req, res) => {
   }
 });
 
+function levelCheckTierUnlocked(tier, uploadsByTier) {
+  if (tier === "rookie") return true;
+  if (tier === "operator") return !!uploadsByTier.rookie;
+  if (tier === "street_legend") return !!uploadsByTier.operator;
+  return false;
+}
+
 // -------------------------------------------------------
-// STUDENT: SRL-Logbuch – Kompetenz-Status
+// STUDENT: Levelchecks – Themen + Upload-Nachweise
 // -------------------------------------------------------
-app.get("/api/student/competencies", isStudent, async (req, res) => {
+app.get("/api/student/levelchecks", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const classId = req.session.user.class_id;
 
-    const userRes = await pool.query(
-      "SELECT name FROM users WHERE id=$1",
-      [studentId]
-    );
-    const studentName = userRes.rows[0]?.name || "Schüler:in";
-
-    const resDb = await pool.query(
-      `
-      SELECT id, subject, topic, status, updated_at
-      FROM competency_status
-      WHERE user_id=$1
-      ORDER BY subject ASC, topic ASC
-    `,
-      [studentId]
-    );
-
-    const bySubject = {};
-    for (const row of resDb.rows) {
-      if (!bySubject[row.subject]) bySubject[row.subject] = [];
-      bySubject[row.subject].push({
-        id: row.id,
-        subject: row.subject,
-        topic: row.topic,
-        status: row.status,
-        statusLabel: LOG_COMPETENCY_STATUS_LABELS[row.status] || row.status,
-        updatedAt: row.updated_at
+    if (!classId) {
+      return res.json({
+        hasClass: false,
+        topics: [],
+        tiers: LEVEL_CHECK_TIERS.map((t) => ({
+          id: t,
+          label: LEVEL_CHECK_TIER_LABELS[t],
+          xp: LEVEL_CHECK_XP[t]
+        }))
       });
     }
 
-    const subjectOrder = [...LOG_SUBJECTS];
-    const grouped = [];
+    const topicsRes = await pool.query(
+      `
+      SELECT id, subject, topic, created_at
+      FROM level_check_topics
+      WHERE class_id=$1 AND school_id=$2
+      ORDER BY subject ASC, topic ASC
+    `,
+      [classId, schoolId]
+    );
 
-    for (const subject of subjectOrder) {
+    const uploadsRes = await pool.query(
+      `
+      SELECT topic_id, tier, file_url, file_name, xp_awarded, created_at
+      FROM level_check_uploads
+      WHERE user_id=$1 AND school_id=$2
+    `,
+      [studentId, schoolId]
+    );
+
+    const uploadsByTopic = {};
+    for (const row of uploadsRes.rows) {
+      if (!uploadsByTopic[row.topic_id]) uploadsByTopic[row.topic_id] = {};
+      uploadsByTopic[row.topic_id][row.tier] = {
+        fileUrl: row.file_url,
+        fileName: row.file_name,
+        xpAwarded: row.xp_awarded,
+        uploadedAt: row.created_at
+      };
+    }
+
+    const topics = topicsRes.rows.map((t) => {
+      const uploads = uploadsByTopic[t.id] || {};
+      const tiers = LEVEL_CHECK_TIERS.map((tier) => ({
+        id: tier,
+        label: LEVEL_CHECK_TIER_LABELS[tier],
+        xp: LEVEL_CHECK_XP[tier],
+        unlocked: levelCheckTierUnlocked(tier, uploads),
+        upload: uploads[tier] || null
+      }));
+      const doneCount = tiers.filter((x) => x.upload).length;
+      return {
+        id: t.id,
+        subject: t.subject,
+        topic: t.topic,
+        doneCount,
+        totalTiers: LEVEL_CHECK_TIERS.length,
+        tiers
+      };
+    });
+
+    const bySubject = {};
+    for (const topic of topics) {
+      if (!bySubject[topic.subject]) bySubject[topic.subject] = [];
+      bySubject[topic.subject].push(topic);
+    }
+
+    const grouped = [];
+    for (const subject of LOG_SUBJECTS) {
       if (bySubject[subject]?.length) {
-        grouped.push({ subject, items: bySubject[subject] });
+        grouped.push({ subject, topics: bySubject[subject] });
         delete bySubject[subject];
       }
     }
-
-    for (const [subject, items] of Object.entries(bySubject)) {
-      grouped.push({ subject, items });
+    for (const [subject, subjectTopics] of Object.entries(bySubject)) {
+      grouped.push({ subject, topics: subjectTopics });
     }
 
     res.json({
-      studentName,
+      hasClass: true,
       grouped,
-      statuses: LOG_COMPETENCY_STATUSES.map((s) => ({
-        id: s,
-        label: LOG_COMPETENCY_STATUS_LABELS[s]
+      tiers: LEVEL_CHECK_TIERS.map((t) => ({
+        id: t,
+        label: LEVEL_CHECK_TIER_LABELS[t],
+        xp: LEVEL_CHECK_XP[t]
       }))
     });
   } catch (err) {
-    console.error("❌ /api/student/competencies:", err);
+    console.error("❌ /api/student/levelchecks:", err);
     res.status(500).json({ error: "Serverfehler" });
   }
 });
 
-// -------------------------------------------------------
-// TEACHER: Kompetenz-Status verwalten
-// -------------------------------------------------------
-async function getStudentInSchool(studentId, schoolId) {
-  const r = await pool.query(
-    `
-    SELECT id, name, class_id
-    FROM users
-    WHERE id=$1 AND role='student' AND school_id=$2
-    LIMIT 1
-  `,
-    [studentId, schoolId]
-  );
-  return r.rows[0] || null;
-}
+app.post(
+  "/api/student/levelcheck-upload",
+  isStudent,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const studentId = req.session.user.id;
+      const schoolId = req.session.user.school_id;
+      const classId = req.session.user.class_id;
+      const topicId = req.body.topicId;
+      const tier = req.body.tier;
 
-app.get("/api/teacher/competencies", isAdmin, async (req, res) => {
+      if (!classId) {
+        return res.json({ success: false, message: "Keine Klasse zugeordnet." });
+      }
+      if (!topicId || !tier) {
+        return res.json({ success: false, message: "Thema und Stufe fehlen." });
+      }
+      if (!LEVEL_CHECK_TIERS.includes(tier)) {
+        return res.json({ success: false, message: "Ungültige Stufe." });
+      }
+      if (!req.file) {
+        return res.json({ success: false, message: "Bitte eine Datei wählen." });
+      }
+
+      const topicRes = await pool.query(
+        `
+        SELECT id FROM level_check_topics
+        WHERE id=$1 AND class_id=$2 AND school_id=$3
+      `,
+        [topicId, classId, schoolId]
+      );
+      if (!topicRes.rows.length) {
+        return res.json({ success: false, message: "Thema nicht gefunden." });
+      }
+
+      const existingRes = await pool.query(
+        `
+        SELECT id FROM level_check_uploads
+        WHERE topic_id=$1 AND user_id=$2 AND tier=$3
+      `,
+        [topicId, studentId, tier]
+      );
+      if (existingRes.rows.length) {
+        return res.json({
+          success: false,
+          message: "Für diese Stufe wurde bereits ein Nachweis hochgeladen."
+        });
+      }
+
+      const priorTiers = LEVEL_CHECK_TIERS.slice(0, LEVEL_CHECK_TIERS.indexOf(tier));
+      if (priorTiers.length) {
+        const priorRes = await pool.query(
+          `
+          SELECT tier FROM level_check_uploads
+          WHERE topic_id=$1 AND user_id=$2 AND tier = ANY($3::text[])
+        `,
+          [topicId, studentId, priorTiers]
+        );
+        const have = new Set(priorRes.rows.map((r) => r.tier));
+        for (const pt of priorTiers) {
+          if (!have.has(pt)) {
+            return res.json({
+              success: false,
+              message: `Bitte zuerst den ${LEVEL_CHECK_TIER_LABELS[pt]}-Check hochladen.`
+            });
+          }
+        }
+      }
+
+      const safeName = (req.file.originalname || "nachweis").replace(/[^\w.\-äöüÄÖÜß ]+/g, "_");
+      const fileName = `levelchecks/${schoolId}_${classId}_${studentId}_${topicId}_${tier}_${Date.now()}_${safeName}`;
+
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: process.env.R2_BUCKET,
+          Key: fileName,
+          Body: req.file.buffer,
+          ContentType: req.file.mimetype
+        })
+      );
+
+      const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+      const xpAmount = LEVEL_CHECK_XP[tier] || 5;
+
+      await pool.query(
+        `
+        INSERT INTO level_check_uploads
+          (school_id, topic_id, user_id, tier, file_url, file_name, xp_awarded)
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `,
+        [schoolId, topicId, studentId, tier, url, safeName, xpAmount]
+      );
+
+      await awardLogbuchXP(studentId, xpAmount, `levelcheck_${tier}`, schoolId);
+
+      res.json({
+        success: true,
+        fileUrl: url,
+        xpAwarded: xpAmount,
+        tierLabel: LEVEL_CHECK_TIER_LABELS[tier]
+      });
+    } catch (err) {
+      console.error("❌ /api/student/levelcheck-upload:", err);
+      res.status(500).json({ success: false, message: "Upload fehlgeschlagen." });
+    }
+  }
+);
+
+// Alias für bestehenden Screen-Pfad
+app.get("/api/student/competencies", isStudent, (req, res) => {
+  res.redirect(307, "/api/student/levelchecks");
+});
+
+// -------------------------------------------------------
+// TEACHER: Levelcheck-Themen verwalten
+// -------------------------------------------------------
+app.get("/api/teacher/levelcheck-topics", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.query.classId);
-    const studentId = req.query.studentId ? Number(req.query.studentId) : null;
 
     if (!classId) {
       return res.status(400).json({ error: "classId fehlt" });
@@ -2353,85 +2549,51 @@ app.get("/api/teacher/competencies", isAdmin, async (req, res) => {
       return res.status(404).json({ error: "Klasse nicht gefunden" });
     }
 
-    const studentsRes = await pool.query(
+    const topicsRes = await pool.query(
       `
-      SELECT id, name
-      FROM users
-      WHERE role='student' AND class_id=$1 AND school_id=$2
-      ORDER BY name ASC
+      SELECT t.id, t.subject, t.topic, t.created_at,
+        (SELECT COUNT(*)::int FROM level_check_uploads u WHERE u.topic_id = t.id) AS upload_count
+      FROM level_check_topics t
+      WHERE t.class_id=$1 AND t.school_id=$2
+      ORDER BY t.subject ASC, t.topic ASC
     `,
       [classId, schoolId]
     );
 
-    const studentIds = studentsRes.rows.map((s) => s.id);
-    let entries = [];
-
-    if (studentIds.length) {
-      const params = [schoolId, studentIds];
-      let filterSql = "";
-      if (studentId) {
-        if (!studentIds.includes(studentId)) {
-          return res.status(404).json({ error: "Schüler:in nicht in dieser Klasse" });
-        }
-        filterSql = " AND cs.user_id = $3";
-        params.push(studentId);
-      }
-
-      const entriesRes = await pool.query(
-        `
-        SELECT cs.id, cs.user_id, cs.subject, cs.topic, cs.status, cs.updated_at,
-               u.name AS student_name
-        FROM competency_status cs
-        JOIN users u ON u.id = cs.user_id
-        WHERE cs.school_id = $1
-          AND cs.user_id = ANY($2::int[])
-          ${filterSql}
-        ORDER BY u.name ASC, cs.subject ASC, cs.topic ASC
-      `,
-        params
-      );
-
-      entries = entriesRes.rows.map((row) => ({
-        id: row.id,
-        userId: row.user_id,
-        studentName: row.student_name,
-        subject: row.subject,
-        topic: row.topic,
-        status: row.status,
-        statusLabel: LOG_COMPETENCY_STATUS_LABELS[row.status] || row.status,
-        updatedAt: row.updated_at
-      }));
-    }
-
     res.json({
       classId,
       className: classRes.rows[0].name,
-      students: studentsRes.rows,
       subjects: LOG_SUBJECTS,
-      statuses: LOG_COMPETENCY_STATUSES.map((s) => ({
-        id: s,
-        label: LOG_COMPETENCY_STATUS_LABELS[s]
+      tiers: LEVEL_CHECK_TIERS.map((t) => ({
+        id: t,
+        label: LEVEL_CHECK_TIER_LABELS[t],
+        xp: LEVEL_CHECK_XP[t]
       })),
-      entries
+      topics: topicsRes.rows.map((row) => ({
+        id: row.id,
+        subject: row.subject,
+        topic: row.topic,
+        uploadCount: row.upload_count,
+        createdAt: row.created_at
+      }))
     });
   } catch (err) {
-    console.error("❌ /api/teacher/competencies:", err);
+    console.error("❌ /api/teacher/levelcheck-topics:", err);
     res.status(500).json({ error: "Serverfehler" });
   }
 });
 
-app.post("/api/teacher/competencies", isAdmin, async (req, res) => {
+app.post("/api/teacher/levelcheck-topics", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const userId = Number(req.body.userId);
+    const classId = Number(req.body.classId);
     const subject = String(req.body.subject || "").trim();
     const topic = String(req.body.topic || "").trim();
-    const status = req.body.status || "offen";
 
-    if (!userId || !subject || !topic) {
+    if (!classId || !subject || !topic) {
       return res.json({
         success: false,
-        message: "Schüler:in, Fach und Thema sind Pflicht."
+        message: "Klasse, Fach und Thema sind Pflicht."
       });
     }
 
@@ -2439,146 +2601,57 @@ app.post("/api/teacher/competencies", isAdmin, async (req, res) => {
       return res.json({ success: false, message: "Ungültiges Fach." });
     }
 
-    if (!LOG_COMPETENCY_STATUSES.includes(status)) {
-      return res.json({ success: false, message: "Ungültiger Status." });
-    }
-
-    const student = await getStudentInSchool(userId, schoolId);
-    if (!student) {
-      return res.json({ success: false, message: "Schüler:in nicht gefunden." });
+    const classRes = await pool.query(
+      "SELECT id FROM classes WHERE id=$1 AND school_id=$2",
+      [classId, schoolId]
+    );
+    if (!classRes.rows.length) {
+      return res.json({ success: false, message: "Klasse nicht gefunden." });
     }
 
     const ins = await pool.query(
       `
-      INSERT INTO competency_status (user_id, school_id, subject, topic, status)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, subject, topic, status, updated_at
+      INSERT INTO level_check_topics (school_id, class_id, subject, topic)
+      VALUES ($1,$2,$3,$4)
+      RETURNING id, subject, topic, created_at
     `,
-      [userId, schoolId, subject, topic.slice(0, 200), status]
+      [schoolId, classId, subject, topic.slice(0, 200)]
     );
 
     const row = ins.rows[0];
     res.json({
       success: true,
-      entry: {
+      topic: {
         id: row.id,
-        userId,
-        studentName: student.name,
         subject: row.subject,
         topic: row.topic,
-        status: row.status,
-        statusLabel: LOG_COMPETENCY_STATUS_LABELS[row.status],
-        updatedAt: row.updated_at
+        uploadCount: 0,
+        createdAt: row.created_at
       }
     });
   } catch (err) {
-    console.error("❌ POST /api/teacher/competencies:", err);
+    console.error("❌ POST /api/teacher/levelcheck-topics:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
 
-app.put("/api/teacher/competencies/:id", isAdmin, async (req, res) => {
-  try {
-    const schoolId = req.session.user.school_id;
-    const id = req.params.id;
-    const { status, topic, subject } = req.body;
-
-    const existing = await pool.query(
-      `
-      SELECT cs.id, cs.user_id, u.name AS student_name
-      FROM competency_status cs
-      JOIN users u ON u.id = cs.user_id
-      WHERE cs.id = $1 AND cs.school_id = $2
-    `,
-      [id, schoolId]
-    );
-
-    if (!existing.rows.length) {
-      return res.json({ success: false, message: "Eintrag nicht gefunden." });
-    }
-
-    const updates = [];
-    const params = [id, schoolId];
-    let idx = 3;
-
-    if (status !== undefined) {
-      if (!LOG_COMPETENCY_STATUSES.includes(status)) {
-        return res.json({ success: false, message: "Ungültiger Status." });
-      }
-      updates.push(`status = $${idx++}`);
-      params.push(status);
-    }
-
-    if (subject !== undefined) {
-      if (!LOG_SUBJECTS.includes(subject)) {
-        return res.json({ success: false, message: "Ungültiges Fach." });
-      }
-      updates.push(`subject = $${idx++}`);
-      params.push(subject);
-    }
-
-    if (topic !== undefined) {
-      const cleanTopic = String(topic).trim().slice(0, 200);
-      if (!cleanTopic) {
-        return res.json({ success: false, message: "Thema darf nicht leer sein." });
-      }
-      updates.push(`topic = $${idx++}`);
-      params.push(cleanTopic);
-    }
-
-    if (!updates.length) {
-      return res.json({ success: false, message: "Keine Änderung angegeben." });
-    }
-
-    updates.push("updated_at = NOW()");
-
-    const upd = await pool.query(
-      `
-      UPDATE competency_status
-      SET ${updates.join(", ")}
-      WHERE id = $1 AND school_id = $2
-      RETURNING id, user_id, subject, topic, status, updated_at
-    `,
-      params
-    );
-
-    const row = upd.rows[0];
-    res.json({
-      success: true,
-      entry: {
-        id: row.id,
-        userId: row.user_id,
-        studentName: existing.rows[0].student_name,
-        subject: row.subject,
-        topic: row.topic,
-        status: row.status,
-        statusLabel: LOG_COMPETENCY_STATUS_LABELS[row.status],
-        updatedAt: row.updated_at
-      }
-    });
-  } catch (err) {
-    console.error("❌ PUT /api/teacher/competencies:", err);
-    res.status(500).json({ success: false, message: "Serverfehler" });
-  }
-});
-
-app.delete("/api/teacher/competencies/:id", isAdmin, async (req, res) => {
+app.delete("/api/teacher/levelcheck-topics/:id", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const id = req.params.id;
 
     const del = await pool.query(
-      "DELETE FROM competency_status WHERE id=$1 AND school_id=$2 RETURNING id",
+      "DELETE FROM level_check_topics WHERE id=$1 AND school_id=$2 RETURNING id",
       [id, schoolId]
     );
 
     if (!del.rows.length) {
-      return res.json({ success: false, message: "Eintrag nicht gefunden." });
+      return res.json({ success: false, message: "Thema nicht gefunden." });
     }
 
     res.json({ success: true });
   } catch (err) {
-    console.error("❌ DELETE /api/teacher/competencies:", err);
+    console.error("❌ DELETE /api/teacher/levelcheck-topics:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
@@ -4833,7 +4906,8 @@ const teacherSpaPaths = [
   "/teacher/dashboard",
   "/teacher/timetable",
   "/teacher/week",
-  "/teacher/competencies"
+  "/teacher/competencies",
+  "/teacher/levelchecks"
 ];
 
 for (const route of teacherSpaPaths) {

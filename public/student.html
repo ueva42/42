@@ -963,6 +963,64 @@ a { color: inherit; }
   margin-bottom: 12px;
 }
 .comp-modal-actions { display: flex; flex-direction: column; gap: 8px; }
+/* Levelchecks */
+.lc-shell { display: flex; flex-direction: column; gap: 16px; }
+.lc-intro { margin: 0; font-size: 13px; opacity: 0.75; line-height: 1.5; }
+.lc-subject-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f97316;
+}
+.lc-subject-group { margin-bottom: 12px; }
+.lc-topics { display: flex; flex-direction: column; gap: 12px; }
+.lc-topic-card {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.55);
+  padding: 14px;
+}
+.lc-topic-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.lc-topic-title { margin: 0; font-size: 15px; line-height: 1.35; }
+.lc-topic-progress {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.15);
+  color: #fdba74;
+  white-space: nowrap;
+}
+.lc-tiers { display: flex; flex-direction: column; gap: 10px; }
+.lc-tier {
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+.lc-tier-done { background: rgba(34, 197, 94, 0.08); border-color: rgba(74, 222, 128, 0.25); }
+.lc-tier-ready { background: rgba(56, 189, 248, 0.06); }
+.lc-tier-locked { background: rgba(15, 23, 42, 0.35); opacity: 0.65; }
+.lc-tier-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.lc-tier-name { font-size: 13px; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; }
+.lc-tier-xp { font-size: 11px; color: #fde68a; }
+.lc-tier-link { font-size: 12px; color: #7dd3fc; word-break: break-all; }
+.lc-tier-date { margin-top: 6px; font-size: 11px; opacity: 0.55; }
+.lc-tier-lock-msg { margin: 0; font-size: 12px; opacity: 0.7; }
+.lc-empty {
+  text-align: center;
+  padding: 24px 12px;
+  opacity: 0.75;
+  line-height: 1.5;
+}
+.lc-empty p { margin: 0 0 8px; }
+.lc-empty-hint { font-size: 12px; opacity: 0.55; }
+
 .comp-copy-msg {
   margin-top: 8px;
   text-align: center;
@@ -1573,7 +1631,7 @@ h2 {
   </div>
 
   <div class="menu-item" data-section="competencies" onclick="showSection(event,'competencies')">
-    <div class="menu-icon">K</div><span class="menu-label">Kompetenzen</span>
+    <div class="menu-icon">L</div><span class="menu-label">Levelchecks</span>
   </div>
 
   <div class="menu-item" data-section="status" onclick="showSection(event,'status')">
@@ -1633,9 +1691,9 @@ h2 {
     <div id="week-screen-root" class="logbuch-root"></div>
   </div>
 
-  <!-- KOMPETENZEN -->
+  <!-- LEVELCHECKS -->
   <div id="competencies-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Kompetenz-Status</h2>
+    <h2>Levelchecks</h2>
     <div id="competencies-screen-root" class="logbuch-root"></div>
   </div>
 
