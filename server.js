@@ -1151,6 +1151,14 @@ async function migrate() {
     [defaultSchoolId]
   );
   await pool.query(
+    "UPDATE level_check_topics SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE level_check_uploads SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
     `UPDATE timetables t SET school_id = c.school_id
      FROM classes c
      WHERE t.class_id = c.id AND t.school_id IS NULL`

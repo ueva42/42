@@ -2,6 +2,16 @@
  * Lehrkraft – Levelcheck-Themen verwalten (pro Klasse).
  */
 (function () {
+  const FALLBACK_SUBJECTS = [
+    "Mathe",
+    "Deutsch",
+    "BNT",
+    "Englisch",
+    "Geo",
+    "Geschichte",
+    "Projekt"
+  ];
+
   const state = {
     classId: null,
     data: null,
@@ -10,6 +20,15 @@
     message: "",
     error: ""
   };
+
+  function subjectsList() {
+    const fromApi = state.data?.subjects;
+    return Array.isArray(fromApi) && fromApi.length ? fromApi : FALLBACK_SUBJECTS;
+  }
+
+  function sameId(a, b) {
+    return String(a) === String(b);
+  }
 
   function escapeHtml(str) {
     return String(str ?? "")
@@ -29,30 +48,29 @@
   }
 
   function renderAddForm() {
-    const d = state.data;
-    if (!d) return "";
+    if (!state.data?.ok) return "";
 
     return `
-      <div class="tc-add-form">
+      <form class="tc-add-form" id="tcAddForm">
         <h3>Neues Levelcheck-Thema</h3>
         <p class="tc-hint">Schüler:innen laden pro Thema drei Nachweise hoch: Rookie → Operator → Street Legend.</p>
         <div class="tc-add-grid">
           <label>
             Fach
-            <select id="tcAddSubject">
+            <select id="tcAddSubject" required>
               <option value="">Bitte wählen…</option>
-              ${subjectOptions(d.subjects, null)}
+              ${subjectOptions(subjectsList(), null)}
             </select>
           </label>
           <label>
             Thema
-            <input type="text" id="tcAddTopic" maxlength="200" placeholder="z. B. Bruchrechnung – Erweitern">
+            <input type="text" id="tcAddTopic" maxlength="200" required placeholder="z. B. Bruchrechnung – Erweitern">
           </label>
         </div>
-        <button class="action" id="tcAddBtn" ${state.saving ? "disabled" : ""}>
+        <button type="submit" class="action" id="tcAddBtn" ${state.saving ? "disabled" : ""}>
           ${state.saving ? "Speichern…" : "Thema hinzufügen"}
         </button>
-      </div>`;
+      </form>`;
   }
 
   function renderTierLegend() {
@@ -115,8 +133,8 @@
       return;
     }
 
-    if (!state.data) {
-      root.innerHTML = `<div class="tc-error">Levelcheck-Themen konnten nicht geladen werden.</div>`;
+    if (!state.data?.ok) {
+      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Levelcheck-Themen konnten nicht geladen werden.")}</div>`;
       return;
     }
 
@@ -150,7 +168,7 @@
     sel.innerHTML = window.__tcClasses
       .map(
         (c) =>
-          `<option value="${c.id}" ${c.id === state.classId ? "selected" : ""}>${escapeHtml(c.name)}</option>`
+          `<option value="${c.id}" ${sameId(c.id, state.classId) ? "selected" : ""}>${escapeHtml(c.name)}</option>`
       )
       .join("");
   }
@@ -163,7 +181,10 @@
       loadTopics();
     });
 
-    root.querySelector("#tcAddBtn")?.addEventListener("click", addTopic);
+    root.querySelector("#tcAddForm")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      addTopic();
+    });
 
     root.querySelectorAll(".tc-delete-btn").forEach((btn) => {
       btn.addEventListener("click", () => deleteTopic(btn.dataset.topicId));
@@ -242,20 +263,42 @@
     if (!state.classId) return;
 
     state.loading = true;
-    if (!state.data) render();
+    if (!state.data?.ok) render();
 
     try {
       const params = new URLSearchParams({ classId: String(state.classId) });
       const res = await fetch(`/api/teacher/levelcheck-topics?${params}`);
-      state.data = await res.json();
+      const payload = await res.json();
+
+      if (!res.ok) {
+        state.loading = false;
+        state.data = null;
+        state.error = payload.error || payload.message || "Laden fehlgeschlagen.";
+        render();
+        return;
+      }
+
+      state.data = { ...payload, ok: true };
       state.loading = false;
+      state.error = "";
       render();
     } catch (err) {
       console.error(err);
       state.loading = false;
       state.data = null;
+      state.error = "Netzwerkfehler beim Laden.";
       render();
     }
+  }
+
+  async function loadClasses() {
+    const r = await fetch("/api/class");
+    const payload = await r.json();
+    if (!r.ok || !Array.isArray(payload)) {
+      throw new Error(payload?.error || "Klassen konnten nicht geladen werden.");
+    }
+    window.__tcClasses = payload;
+    return payload;
   }
 
   async function init() {
@@ -267,23 +310,25 @@
     if (root) root.innerHTML = `<div class="tc-loading">Lade Levelcheck-Themen…</div>`;
 
     try {
-      if (!window.__tcClasses) {
-        const r = await fetch("/api/class");
-        window.__tcClasses = await r.json();
-      }
+      const classes = await loadClasses();
 
-      if (!window.__tcClasses.length) {
+      if (!classes.length) {
         if (root) {
-          root.innerHTML = `<div class="tc-empty">Bitte zuerst eine Klasse anlegen.</div>`;
+          root.innerHTML = `<div class="tc-empty">Bitte zuerst eine Klasse anlegen (Menü „Klassen & Schüler“).</div>`;
         }
         return;
       }
 
-      state.classId = state.classId || window.__tcClasses[0].id;
+      if (!state.classId || !classes.some((c) => sameId(c.id, state.classId))) {
+        state.classId = Number(classes[0].id);
+      }
+
       await loadTopics();
     } catch (err) {
       console.error(err);
-      if (root) root.innerHTML = `<div class="tc-error">Fehler beim Laden.</div>`;
+      if (root) {
+        root.innerHTML = `<div class="tc-error">${escapeHtml(err.message || "Fehler beim Laden.")}</div>`;
+      }
     }
   }
 
