@@ -170,6 +170,17 @@
       </div>`;
   }
 
+  function emptyMessage(d, editable) {
+    if (!d.hasClass) {
+      return "Dir ist noch keine Klasse zugeordnet – bitte deine Lehrkraft.";
+    }
+    const cls = d.className ? ` (${d.className})` : "";
+    if (editable) {
+      return `Für diesen Tag${cls} sind noch keine Unterrichtsstunden im Stundenplan – deine Lehrkraft trägt sie im Admin-Bereich ein.`;
+    }
+    return `Keine Unterrichtsstunden an diesem Tag${cls}.`;
+  }
+
   function render() {
     const root = document.getElementById("today-screen-root");
     if (!root) return;
@@ -194,11 +205,7 @@
     const blocksHtml =
       blockList.length > 0
         ? blockList.map((b) => renderBlock(b, editable)).join("")
-        : `<p class="today-block-muted">${
-            editable
-              ? "Für diesen Tag sind noch keine Unterrichtsstunden im Stundenplan – deine Lehrkraft trägt sie im Admin-Bereich ein."
-              : "Keine Unterrichtsstunden an diesem Tag."
-          }</p>`;
+        : `<p class="today-block-muted">${emptyMessage(d, editable)}</p>`;
 
     const singleOpen =
       blockList.length === 1 && !blockList[0].entry && editable && blockList[0].slot;
@@ -281,6 +288,7 @@
       const res = await fetch(
         `/api/student/log/today?date=${encodeURIComponent(dateIso)}`
       );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       state.data = data;
       state.loading = false;

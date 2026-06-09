@@ -81,6 +81,48 @@ function timetableSubjectsFromRows(rows) {
   return [...new Set(rows.map((t) => t.subject).filter((s) => s && !isTimetableFreeSubject(s)))];
 }
 
+function sortTimetableSlots(slots) {
+  const order = new Map(TIMETABLE_DEFAULT_TIMES.map((t, i) => [t, i]));
+  return [...slots].sort((a, b) => {
+    const ai = order.has(a.timeslot) ? order.get(a.timeslot) : 999;
+    const bi = order.has(b.timeslot) ? order.get(b.timeslot) : 999;
+    if (ai !== bi) return ai - bi;
+    return String(a.timeslot).localeCompare(String(b.timeslot), "de");
+  });
+}
+
+async function getStudentClassContext(studentId) {
+  const r = await pool.query(
+    `
+    SELECT u.class_id, COALESCE(u.school_id, c.school_id) AS school_id, c.name AS class_name
+    FROM users u
+    LEFT JOIN classes c ON c.id = u.class_id
+    WHERE u.id = $1
+  `,
+    [studentId]
+  );
+  const row = r.rows[0];
+  return {
+    classId: row?.class_id ?? null,
+    schoolId: row?.school_id ?? null,
+    className: row?.class_name ?? null
+  };
+}
+
+async function fetchTimetableForClassDay(classId, weekday) {
+  if (!classId || !weekday) return [];
+  const tRes = await pool.query(
+    `
+    SELECT timeslot, subject, room
+    FROM timetables
+    WHERE class_id = $1 AND weekday = $2
+    ORDER BY timeslot ASC
+  `,
+    [classId, weekday]
+  );
+  return sortTimetableSlots(tRes.rows);
+}
+
 const LOG_GOALS = [
   "Neues Thema verstehen",
   "Verfahren erklären können",
@@ -1327,6 +1369,11 @@ async function migrate() {
      WHERE t.class_id = c.id AND t.school_id IS NULL`
   );
   await pool.query(
+    `UPDATE users u SET school_id = c.school_id
+     FROM classes c
+     WHERE u.class_id = c.id AND u.school_id IS NULL`
+  );
+  await pool.query(
     "UPDATE timetables SET school_id=$1 WHERE school_id IS NULL",
     [defaultSchoolId]
   );
@@ -1679,7 +1726,6 @@ app.get("/api/student/me", isStudent, async (req, res) => {
 app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
-    const schoolId = req.session.user.school_id;
     const date = isoDateOrToday(req.query.date);
     if (!date) return res.status(400).json({ error: "Ungültiges Datum" });
 
@@ -1687,24 +1733,11 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     const subjectQuery = req.query.subject || null;
     const weekday = weekdayFromIsoDate(date);
 
-    const userRes = await pool.query(
-      "SELECT class_id FROM users WHERE id=$1",
-      [studentId]
-    );
-    const classId = userRes.rows[0]?.class_id;
+    const { classId } = await getStudentClassContext(studentId);
 
     let timetable = [];
     if (classId && weekday) {
-      const tRes = await pool.query(
-        `
-        SELECT timeslot, subject, room
-        FROM timetables
-        WHERE class_id=$1 AND weekday=$2 AND school_id=$3
-        ORDER BY timeslot ASC
-      `,
-        [classId, weekday, schoolId]
-      );
-      timetable = tRes.rows;
+      timetable = await fetchTimetableForClassDay(classId, weekday);
     }
 
     let existingEntry = null;
@@ -2071,7 +2104,6 @@ app.post("/api/student/log/week-reflection", isStudent, async (req, res) => {
 app.get("/api/student/log/today", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
-    const schoolId = req.session.user.school_id;
     const date = isoDateOrToday(req.query.date);
     if (!date) return res.status(400).json({ error: "Ungültiges Datum" });
 
@@ -2085,24 +2117,11 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       year: "numeric"
     });
 
-    const userRes = await pool.query(
-      "SELECT class_id FROM users WHERE id=$1",
-      [studentId]
-    );
-    const classId = userRes.rows[0]?.class_id;
+    const { classId, className } = await getStudentClassContext(studentId);
 
     let timetable = [];
     if (classId && weekday) {
-      const tRes = await pool.query(
-        `
-        SELECT timeslot, subject, room
-        FROM timetables
-        WHERE class_id=$1 AND weekday=$2 AND school_id=$3
-        ORDER BY timeslot ASC
-      `,
-        [classId, weekday, schoolId]
-      );
-      timetable = tRes.rows;
+      timetable = await fetchTimetableForClassDay(classId, weekday);
     }
 
     const entriesRes = await pool.query(
@@ -2200,6 +2219,8 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       dateLabel,
       isToday: date === todayIso,
       isPast: date < todayIso,
+      hasClass: !!classId,
+      className,
       timetable: activeTimetable,
       timetableSubjects,
       entries,
@@ -3093,16 +3114,8 @@ app.get("/api/teacher/dashboard", isAdmin, async (req, res) => {
 
     let timetable = [];
     if (weekday) {
-      const tRes = await pool.query(
-        `
-        SELECT timeslot, subject, room
-        FROM timetables
-        WHERE class_id=$1 AND weekday=$2 AND school_id=$3
-        ORDER BY timeslot ASC
-      `,
-        [classId, weekday, schoolId]
-      );
-      timetable = tRes.rows.map((row, idx) => ({
+      const rows = await fetchTimetableForClassDay(classId, weekday);
+      timetable = rows.map((row, idx) => ({
         slot: idx + 1,
         timeslot: row.timeslot,
         subject: row.subject,
@@ -3465,8 +3478,8 @@ app.put("/api/teacher/timetable", isAdmin, async (req, res) => {
     await pool.query("BEGIN");
     try {
       await pool.query(
-        "DELETE FROM timetables WHERE class_id=$1 AND school_id=$2",
-        [classId, schoolId]
+        "DELETE FROM timetables WHERE class_id=$1",
+        [classId]
       );
 
       for (const row of cleaned) {
