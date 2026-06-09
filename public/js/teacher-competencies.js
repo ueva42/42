@@ -9,7 +9,18 @@
     "Englisch",
     "Geo",
     "Geschichte",
-    "Projekt"
+    "Projekt",
+    "Physik",
+    "Chemie",
+    "Biologie",
+    "AES",
+    "Technik",
+    "Französisch",
+    "GK",
+    "Musik",
+    "BK",
+    "WBS",
+    "Religion/Ethik"
   ];
 
   const state = {

@@ -10,6 +10,41 @@
     error: ""
   };
 
+  let initPromise = null;
+  let initGeneration = 0;
+  let loadRequestId = 0;
+
+  async function fetchJson(url, options = {}, retries = 1) {
+    let lastErr = null;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url, options);
+        if (!res.ok) {
+          const err = new Error(`HTTP ${res.status}`);
+          if (attempt < retries && (res.status === 403 || res.status >= 500)) {
+            await new Promise((r) => setTimeout(r, 350));
+            continue;
+          }
+          throw err;
+        }
+        return await res.json();
+      } catch (err) {
+        lastErr = err;
+        if (attempt < retries) {
+          await new Promise((r) => setTimeout(r, 350));
+          continue;
+        }
+      }
+    }
+
+    throw lastErr || new Error("Anfrage fehlgeschlagen");
+  }
+
+  function isLevelcheckPayload(data) {
+    return data && typeof data.hasClass === "boolean" && Array.isArray(data.grouped);
+  }
+
   function escapeHtml(str) {
     return String(str ?? "")
       .replace(/&/g, "&amp;")
@@ -206,7 +241,7 @@
 
       state.message = `${data.tierLabel} hochgeladen – +${data.xpAwarded} XP!`;
       if (typeof loadMe === "function") loadMe();
-      await loadData();
+      await loadData(initGeneration);
     } catch (err) {
       console.error(err);
       state.uploading = null;
@@ -215,14 +250,28 @@
     }
   }
 
-  async function loadData() {
-    const res = await fetch("/api/student/levelcheck");
-    state.data = await res.json();
-    state.loading = false;
-    render();
+  async function loadData(generation = initGeneration) {
+    const requestId = ++loadRequestId;
+
+    try {
+      const data = await fetchJson("/api/student/levelcheck");
+      if (requestId !== loadRequestId || generation !== initGeneration) return;
+      if (!isLevelcheckPayload(data)) throw new Error("Ungültige Levelcheck-Antwort");
+
+      state.data = data;
+      state.loading = false;
+      render();
+    } catch (err) {
+      console.error(err);
+      if (requestId !== loadRequestId || generation !== initGeneration) return;
+      state.loading = false;
+      state.data = null;
+      render();
+    }
   }
 
-  async function init() {
+  async function initInternal() {
+    const generation = ++initGeneration;
     state.loading = true;
     state.uploading = null;
     state.message = "";
@@ -232,14 +281,15 @@
     const root = document.getElementById("levelcheck-screen-root");
     if (root) root.innerHTML = `<div class="logbuch-loading">Lade Levelchecks…</div>`;
 
-    try {
-      await loadData();
-    } catch (err) {
-      console.error(err);
-      state.loading = false;
-      state.data = null;
-      render();
-    }
+    await loadData(generation);
+  }
+
+  function init() {
+    if (initPromise) return initPromise;
+    initPromise = initInternal().finally(() => {
+      initPromise = null;
+    });
+    return initPromise;
   }
 
   window.LogbuchLevelcheck = { init };

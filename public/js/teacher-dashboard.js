@@ -11,6 +11,41 @@
     detailStudentId: null
   };
 
+  let initPromise = null;
+  let initGeneration = 0;
+  let loadRequestId = 0;
+
+  async function fetchJson(url, options = {}, retries = 1) {
+    let lastErr = null;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url, options);
+        if (!res.ok) {
+          const err = new Error(`HTTP ${res.status}`);
+          if (attempt < retries && (res.status === 403 || res.status >= 500)) {
+            await new Promise((r) => setTimeout(r, 350));
+            continue;
+          }
+          throw err;
+        }
+        return await res.json();
+      } catch (err) {
+        lastErr = err;
+        if (attempt < retries) {
+          await new Promise((r) => setTimeout(r, 350));
+          continue;
+        }
+      }
+    }
+
+    throw lastErr || new Error("Anfrage fehlgeschlagen");
+  }
+
+  function isDashboardPayload(data) {
+    return data && Array.isArray(data.students);
+  }
+
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
   }
@@ -60,7 +95,8 @@
   }
 
   function renderTable(students) {
-    if (!students.length) {
+    const rows = Array.isArray(students) ? students : [];
+    if (!rows.length) {
       return `<p class="td-empty">Keine Schüler:innen in dieser Klasse.</p>`;
     }
 
@@ -79,7 +115,7 @@
             </tr>
           </thead>
           <tbody>
-            ${students
+            ${rows
               .map(
                 (s) => `
               <tr class="td-row" data-student-id="${s.id}" tabindex="0">
@@ -264,22 +300,31 @@
     }
   }
 
-  async function loadDashboard(slideDir = null) {
-    if (!state.classId) return;
+  async function loadDashboard(slideDir = null, generation = initGeneration) {
+    if (!state.classId) {
+      state.loading = false;
+      return;
+    }
 
+    const requestId = ++loadRequestId;
     state.slideDir = slideDir;
     state.loading = true;
     if (!state.data) render();
 
     try {
-      const res = await fetch(
+      const data = await fetchJson(
         `/api/teacher/dashboard?classId=${encodeURIComponent(state.classId)}&date=${encodeURIComponent(state.date)}`
       );
-      state.data = await res.json();
+
+      if (requestId !== loadRequestId || generation !== initGeneration) return;
+      if (!isDashboardPayload(data)) throw new Error("Ungültige Dashboard-Antwort");
+
+      state.data = data;
       state.loading = false;
       render();
     } catch (err) {
       console.error(err);
+      if (requestId !== loadRequestId || generation !== initGeneration) return;
       state.loading = false;
       state.data = null;
       render();
@@ -293,31 +338,45 @@
     loadDashboard(dir);
   }
 
-  async function init() {
+  async function initInternal() {
+    const generation = ++initGeneration;
     state.date = todayIso();
     state.data = null;
+    state.loading = true;
 
     const root = document.getElementById("dashboardTabRoot");
     if (root) root.innerHTML = `<div class="td-loading">Lade Klassenübersicht…</div>`;
 
     try {
-      const r = await fetch("/api/class");
-      const classes = await r.json();
-      window.__tdClasses = classes;
+      const classes = await fetchJson("/api/class");
+      if (generation !== initGeneration) return;
 
-      if (!classes.length) {
+      if (!Array.isArray(classes) || !classes.length) {
+        state.loading = false;
         if (root) {
           root.innerHTML = `<div class="td-empty">Bitte zuerst eine Klasse anlegen.</div>`;
         }
         return;
       }
 
+      window.__tdClasses = classes;
       state.classId = state.classId || classes[0].id;
-      await loadDashboard();
+      await loadDashboard(null, generation);
     } catch (err) {
       console.error(err);
+      if (generation !== initGeneration) return;
+      state.loading = false;
+      state.data = null;
       if (root) root.innerHTML = `<div class="td-error">Fehler beim Laden.</div>`;
     }
+  }
+
+  function init() {
+    if (initPromise) return initPromise;
+    initPromise = initInternal().finally(() => {
+      initPromise = null;
+    });
+    return initPromise;
   }
 
   window.TeacherDashboard = { init };

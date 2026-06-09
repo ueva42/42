@@ -47,7 +47,28 @@ const LOG_SUBJECTS = [
   "Englisch",
   "Geo",
   "Geschichte",
-  "Projekt"
+  "Projekt",
+  "Physik",
+  "Chemie",
+  "Biologie",
+  "AES",
+  "Technik",
+  "Französisch",
+  "GK",
+  "Musik",
+  "BK",
+  "WBS",
+  "Religion/Ethik"
+];
+
+const TIMETABLE_DEFAULT_TIMES = [
+  "7.50-8.35",
+  "8.40-9.25",
+  "9.30-10.15",
+  "10.35-11.20",
+  "11.25-12.10",
+  "12.15-13.00",
+  "13.05-13.50"
 ];
 
 const LOG_GOALS = [
@@ -3328,15 +3349,21 @@ app.get("/api/teacher/timetable", isAdmin, async (req, res) => {
       const slots = rowsRes.rows
         .filter((r) => r.weekday === day.id)
         .slice(0, TIMETABLE_MAX_SLOTS_PER_DAY)
-        .map((r) => ({
+        .map((r, idx) => ({
           id: r.id,
-          timeslot: r.timeslot,
+          timeslot: r.timeslot || TIMETABLE_DEFAULT_TIMES[idx] || "",
           subject: r.subject,
           room: r.room || ""
         }));
 
       while (slots.length < TIMETABLE_MAX_SLOTS_PER_DAY) {
-        slots.push({ id: null, timeslot: "", subject: "", room: "" });
+        const idx = slots.length;
+        slots.push({
+          id: null,
+          timeslot: TIMETABLE_DEFAULT_TIMES[idx] || "",
+          subject: "",
+          room: ""
+        });
       }
 
       return { ...day, slots };
@@ -3346,6 +3373,7 @@ app.get("/api/teacher/timetable", isAdmin, async (req, res) => {
       classId,
       className: classRes.rows[0].name,
       maxSlotsPerDay: TIMETABLE_MAX_SLOTS_PER_DAY,
+      defaultTimeslots: TIMETABLE_DEFAULT_TIMES,
       subjects: LOG_SUBJECTS,
       weekdays,
       days
