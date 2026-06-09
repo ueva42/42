@@ -89,6 +89,18 @@
     const ui = UI();
     const slot = block.slot;
     const entry = block.entry;
+    const isFree = block.isFree || slot?.subject === "Frei";
+
+    if (!entry && isFree) {
+      return `
+        <div class="today-block today-block-free">
+          <div class="today-block-head">
+            <span class="today-block-subject">Frei</span>
+            ${slot?.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
+          </div>
+          <p class="today-block-muted">Freie Stunde – kein Logbuch nötig.</p>
+        </div>`;
+    }
 
     if (!entry) {
       if (!editable) {

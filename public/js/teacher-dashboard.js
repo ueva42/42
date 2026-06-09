@@ -84,7 +84,7 @@
         ${timetable
           .map(
             (slot) => `
-          <div class="td-timetable-slot">
+          <div class="td-timetable-slot ${slot.subject === "Frei" ? "td-timetable-slot-free" : ""}">
             <span class="td-slot-nr">${slot.slot}</span>
             <span class="td-slot-subject">${escapeHtml(slot.subject)}</span>
             <span class="td-slot-time">${escapeHtml(slot.timeslot)}</span>

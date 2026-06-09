@@ -71,6 +71,16 @@ const TIMETABLE_DEFAULT_TIMES = [
   "13.05-13.50"
 ];
 
+const TIMETABLE_FREE_SUBJECT = "Frei";
+
+function isTimetableFreeSubject(subject) {
+  return subject === TIMETABLE_FREE_SUBJECT;
+}
+
+function timetableSubjectsFromRows(rows) {
+  return [...new Set(rows.map((t) => t.subject).filter((s) => s && !isTimetableFreeSubject(s)))];
+}
+
 const LOG_GOALS = [
   "Neues Thema verstehen",
   "Verfahren erklären können",
@@ -1716,7 +1726,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       existingEntry = existingRes.rows[0] || null;
     }
 
-    const timetableSubjects = [...new Set(timetable.map((t) => t.subject))];
+    const timetableSubjects = timetableSubjectsFromRows(timetable);
     let suggestedSubject = null;
     if (subjectQuery && LOG_SUBJECTS.includes(subjectQuery)) {
       suggestedSubject = subjectQuery;
@@ -2158,7 +2168,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     for (const slot of timetable) {
       const entry = findEntryForSlot(slot);
       if (entry) usedEntryIds.add(entry.id);
-      blocks.push({ slot, entry });
+      blocks.push({ slot, entry, isFree: isTimetableFreeSubject(slot.subject) });
     }
 
     for (const entry of entries) {
@@ -2176,7 +2186,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       reflect: entries.some((e) => e.hasReflection)
     };
 
-    const timetableSubjects = [...new Set(timetable.map((t) => t.subject))];
+    const timetableSubjects = timetableSubjectsFromRows(timetable);
     const todayIso = new Date().toISOString().slice(0, 10);
 
     res.json({
@@ -3374,6 +3384,7 @@ app.get("/api/teacher/timetable", isAdmin, async (req, res) => {
       className: classRes.rows[0].name,
       maxSlotsPerDay: TIMETABLE_MAX_SLOTS_PER_DAY,
       defaultTimeslots: TIMETABLE_DEFAULT_TIMES,
+      freeSubject: TIMETABLE_FREE_SUBJECT,
       subjects: LOG_SUBJECTS,
       weekdays,
       days
@@ -3415,12 +3426,23 @@ app.put("/api/teacher/timetable", isAdmin, async (req, res) => {
       const room = String(entry.room || "").trim() || null;
 
       if (!timeslot && !subject && !room) continue;
-      if (!timeslot || !subject) {
+
+      if (timeslot && !subject) continue;
+
+      if (!timeslot) {
         return res.json({
           success: false,
-          message: "Zeitslot und Fach sind Pflicht, wenn eine Stunde eingetragen wird."
+          message: "Zeitslot fehlt bei eingetragener Stunde."
         });
       }
+
+      if (!subject) {
+        return res.json({
+          success: false,
+          message: "Bitte Fach wählen oder „Frei“ markieren."
+        });
+      }
+
       if (weekday < 1 || weekday > 5) {
         return res.json({ success: false, message: "Ungültiger Wochentag." });
       }

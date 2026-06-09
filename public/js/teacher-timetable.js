@@ -20,6 +20,8 @@
     "13.05-13.50"
   ];
 
+  const FREE_SUBJECT = "Frei";
+
   const state = {
     classId: null,
     data: null,
@@ -77,6 +79,10 @@
     return grid;
   }
 
+  function isFreeSubject(subject) {
+    return subject === FREE_SUBJECT;
+  }
+
   function subjectOptions(subjects, selected) {
     const opts = (subjects || [])
       .map(
@@ -85,8 +91,13 @@
       )
       .join("");
     const isKnown = (subjects || []).includes(selected);
-    const other = selected && !isKnown ? selected : "";
+    const isFree = isFreeSubject(selected);
+    const other = selected && !isKnown && !isFree ? selected : "";
+    const emptySelected = !selected && !isFree && !other;
+
     return `
+      <option value="" ${emptySelected ? "selected" : ""}>— nicht genutzt —</option>
+      <option value="${FREE_SUBJECT}" ${isFree ? "selected" : ""}>Frei</option>
       ${opts}
       <option value="__other__" ${other ? "selected" : ""}>Sonstiges…</option>
     `;
@@ -112,7 +123,7 @@
     root.innerHTML = `
       <div class="panel">
         <h2>Stundenplan</h2>
-        <p class="hint">Pro Klasse: 5 Tage × max. ${maxSlots} Stunden. Zeitslot und Fach sind Pflicht pro eingetragener Stunde.</p>
+        <p class="hint">Pro Klasse: 5 Tage × max. ${maxSlots} Stunden. Zeitslot ist Pflicht. „Frei“ = freie Stunde ohne Logbuch. „Nicht genutzt“ = wird nicht gespeichert (z. B. wenn ihr weniger als ${maxSlots} Stunden nutzt).</p>
 
         <div class="tt-toolbar">
           <label>Klasse:</label>
@@ -134,7 +145,7 @@
                 ${slots
                   .map(
                     (slot, idx) => `
-                  <div class="tt-slot" data-weekday="${day.id}" data-index="${idx}">
+                  <div class="tt-slot ${isFreeSubject(slot.subject) ? "tt-slot-free" : ""}" data-weekday="${day.id}" data-index="${idx}">
                     <div class="tt-slot-nr">${idx + 1}</div>
                     <input type="text" class="tt-input tt-timeslot" placeholder="7.50-8.35"
                       value="${escapeHtml(slot.timeslot)}" data-field="timeslot">
@@ -142,8 +153,8 @@
                       ${subjectOptions(subjects, slot.subject)}
                     </select>
                     <input type="text" class="tt-input tt-subject-other" placeholder="Fach eingeben"
-                      value="${escapeHtml((subjects.includes(slot.subject) ? "" : slot.subject) || "")}"
-                      style="${subjects.includes(slot.subject) || !slot.subject ? "display:none" : ""}">
+                      value="${escapeHtml((subjects.includes(slot.subject) || isFreeSubject(slot.subject) ? "" : slot.subject) || "")}"
+                      style="${subjects.includes(slot.subject) || isFreeSubject(slot.subject) || !slot.subject ? "display:none" : ""}">
                     <input type="text" class="tt-input" placeholder="Raum (optional)"
                       value="${escapeHtml(slot.room)}" data-field="room">
                   </div>`
@@ -201,7 +212,8 @@
       sel.addEventListener("change", () => {
         const slot = sel.closest(".tt-slot");
         const other = slot?.querySelector(".tt-subject-other");
-        if (!other) return;
+        if (!other || !slot) return;
+        slot.classList.toggle("tt-slot-free", sel.value === FREE_SUBJECT);
         if (sel.value === "__other__") {
           other.style.display = "";
           other.focus();
@@ -220,6 +232,7 @@
     WEEKDAYS.forEach((day) => {
       (state.grid[day.id] || []).forEach((slot) => {
         if (!slot.timeslot && !slot.subject && !slot.room) return;
+        if (!slot.subject) return;
         entries.push({
           weekday: day.id,
           timeslot: slot.timeslot,
