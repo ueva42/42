@@ -1167,35 +1167,41 @@ async function migrate() {
     "UPDATE level_check_uploads SET school_id=$1 WHERE school_id IS NULL",
     [defaultSchoolId]
   );
-  await pool.query(`
-    UPDATE class_reward_options o
-    SET reward_id = COALESCE(o.reward_id, cr.id)
-    FROM class_reward_rounds rr
-    JOIN class_rewards cr
-      ON cr.school_id = rr.school_id AND cr.name = o.name
-    WHERE o.round_id = rr.id AND o.reward_id IS NULL
-  `);
-  await pool.query(`
-    UPDATE class_reward_options o
-    SET image_url = cr.image_url
-    FROM class_rewards cr
-    WHERE o.reward_id = cr.id
-      AND (o.image_url IS NULL OR TRIM(o.image_url) = '')
-      AND cr.image_url IS NOT NULL
-      AND TRIM(cr.image_url) <> ''
-  `);
-  await pool.query(`
-    UPDATE class_reward_options o
-    SET image_url = cr.image_url
-    FROM class_reward_rounds rr
-    JOIN class_rewards cr
-      ON cr.school_id = rr.school_id AND cr.name = o.name
-    WHERE o.round_id = rr.id
-      AND o.reward_id IS NULL
-      AND (o.image_url IS NULL OR TRIM(o.image_url) = '')
-      AND cr.image_url IS NOT NULL
-      AND TRIM(cr.image_url) <> ''
-  `);
+  // Backfill reward_id / image_url (WHERE-only refs to target table – safe in PG UPDATE)
+  try {
+    await pool.query(`
+      UPDATE class_reward_options o
+      SET reward_id = cr.id
+      FROM class_reward_rounds rr, class_rewards cr
+      WHERE o.round_id = rr.id
+        AND o.reward_id IS NULL
+        AND cr.school_id = rr.school_id
+        AND cr.name = o.name
+    `);
+    await pool.query(`
+      UPDATE class_reward_options o
+      SET image_url = cr.image_url
+      FROM class_rewards cr
+      WHERE o.reward_id = cr.id
+        AND (o.image_url IS NULL OR TRIM(o.image_url) = '')
+        AND cr.image_url IS NOT NULL
+        AND TRIM(cr.image_url) <> ''
+    `);
+    await pool.query(`
+      UPDATE class_reward_options o
+      SET image_url = cr.image_url
+      FROM class_reward_rounds rr, class_rewards cr
+      WHERE o.round_id = rr.id
+        AND o.reward_id IS NULL
+        AND cr.school_id = rr.school_id
+        AND cr.name = o.name
+        AND (o.image_url IS NULL OR TRIM(o.image_url) = '')
+        AND cr.image_url IS NOT NULL
+        AND TRIM(cr.image_url) <> ''
+    `);
+  } catch (backfillErr) {
+    console.warn("⚠️ class_reward_options backfill:", backfillErr.message);
+  }
   await pool.query(
     `UPDATE timetables t SET school_id = c.school_id
      FROM classes c
@@ -5033,7 +5039,7 @@ async function boot() {
     await migrate();
   } catch (err) {
     console.error("❌ Migration fehlgeschlagen:", err);
-    process.exit(1);
+    console.error("Server startet trotzdem – bitte Migration prüfen.");
   }
 
   app.listen(PORT, () => {
