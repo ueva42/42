@@ -85,22 +85,16 @@
       </select>`;
   }
 
+  function visibleBlocks(blocks) {
+    return (blocks || []).filter(
+      (b) => b?.slot?.subject && b.slot.subject !== "Frei" && !b.isFree
+    );
+  }
+
   function renderBlock(block, editable) {
     const ui = UI();
     const slot = block.slot;
     const entry = block.entry;
-    const isFree = block.isFree || slot?.subject === "Frei";
-
-    if (!entry && isFree) {
-      return `
-        <div class="today-block today-block-free">
-          <div class="today-block-head">
-            <span class="today-block-subject">Frei</span>
-            ${slot?.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
-          </div>
-          <p class="today-block-muted">Freie Stunde – kein Logbuch nötig.</p>
-        </div>`;
-    }
 
     if (!entry) {
       if (!editable) {
@@ -195,20 +189,19 @@
     const editable = isEditableDate(state.date);
     const slideClass = state.slideDir ? `today-slide-${state.slideDir}` : "";
 
-    const blockList =
-      d.blocks?.length > 0
-        ? d.blocks
-        : editable
-          ? [{ slot: null, entry: null }]
-          : [];
+    const blockList = visibleBlocks(d.blocks);
 
     const blocksHtml =
       blockList.length > 0
         ? blockList.map((b) => renderBlock(b, editable)).join("")
-        : `<p class="today-block-muted">Keine Einträge an diesem Tag.</p>`;
+        : `<p class="today-block-muted">${
+            editable
+              ? "Für diesen Tag sind noch keine Unterrichtsstunden im Stundenplan – deine Lehrkraft trägt sie im Admin-Bereich ein."
+              : "Keine Unterrichtsstunden an diesem Tag."
+          }</p>`;
 
     const singleOpen =
-      blockList.length === 1 && !blockList[0].entry && editable;
+      blockList.length === 1 && !blockList[0].entry && editable && blockList[0].slot;
     const blocksClass = singleOpen
       ? "today-blocks today-blocks-single"
       : "today-blocks";

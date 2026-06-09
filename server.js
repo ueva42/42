@@ -2162,13 +2162,17 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       return bySubject || null;
     };
 
+    const activeTimetable = timetable.filter(
+      (slot) => slot.subject && !isTimetableFreeSubject(slot.subject)
+    );
+
     const blocks = [];
     const usedEntryIds = new Set();
 
-    for (const slot of timetable) {
+    for (const slot of activeTimetable) {
       const entry = findEntryForSlot(slot);
       if (entry) usedEntryIds.add(entry.id);
-      blocks.push({ slot, entry, isFree: isTimetableFreeSubject(slot.subject) });
+      blocks.push({ slot, entry });
     }
 
     for (const entry of entries) {
@@ -2196,7 +2200,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       dateLabel,
       isToday: date === todayIso,
       isPast: date < todayIso,
-      timetable,
+      timetable: activeTimetable,
       timetableSubjects,
       entries,
       blocks,
