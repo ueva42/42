@@ -123,6 +123,47 @@ async function fetchTimetableForClassDay(classId, weekday) {
   return sortTimetableSlots(tRes.rows);
 }
 
+const PLAN_ENTRY_FIELDS = `
+  id, subject, goal, timeslot, work_goals, social_form,
+  strategy, confidence_before, freitext, created_at
+`;
+
+async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId }) {
+  if (entryId) {
+    const byId = await pool.query(
+      `
+      SELECT ${PLAN_ENTRY_FIELDS}
+      FROM log_entries
+      WHERE id=$1 AND user_id=$2
+      LIMIT 1
+    `,
+      [entryId, studentId]
+    );
+    return byId.rows[0] || null;
+  }
+
+  if (!subject || !LOG_SUBJECTS.includes(subject) || !date) return null;
+
+  const flexible = await pool.query(
+    `
+    SELECT ${PLAN_ENTRY_FIELDS}
+    FROM log_entries
+    WHERE user_id=$1 AND date=$2 AND subject=$3
+      AND (
+        $4::text IS NULL
+        OR timeslot IS NULL
+        OR timeslot = $4
+      )
+    ORDER BY
+      CASE WHEN $4::text IS NOT NULL AND timeslot = $4 THEN 0 ELSE 1 END,
+      created_at ASC
+    LIMIT 1
+  `,
+    [studentId, date, subject, timeslot || null]
+  );
+  return flexible.rows[0] || null;
+}
+
 const LOG_GOALS = [
   "Neues Thema verstehen",
   "Verfahren erklären können",
@@ -1731,9 +1772,10 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
 
     const timeslot = req.query.timeslot || null;
     const subjectQuery = req.query.subject || null;
+    const entryId = req.query.entryId || null;
     const weekday = weekdayFromIsoDate(date);
 
-    const { classId } = await getStudentClassContext(studentId);
+    const { classId, schoolId } = await getStudentClassContext(studentId);
 
     let timetable = [];
     if (classId && weekday) {
@@ -1741,22 +1783,14 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     }
 
     let existingEntry = null;
-    if (subjectQuery && LOG_SUBJECTS.includes(subjectQuery)) {
-      const existingRes = await pool.query(
-        `
-        SELECT id, subject, goal, timeslot, work_goals, social_form,
-               strategy, confidence_before, freitext, created_at
-        FROM log_entries
-        WHERE user_id=$1 AND date=$2 AND subject=$3
-          AND (
-            ($4::text IS NULL AND timeslot IS NULL)
-            OR timeslot = $4
-          )
-        LIMIT 1
-      `,
-        [studentId, date, subjectQuery, timeslot]
-      );
-      existingEntry = existingRes.rows[0] || null;
+    if (entryId) {
+      existingEntry = await findPlanLogEntry(studentId, { date, entryId });
+    } else if (subjectQuery && LOG_SUBJECTS.includes(subjectQuery)) {
+      existingEntry = await findPlanLogEntry(studentId, {
+        date,
+        subject: subjectQuery,
+        timeslot
+      });
     }
 
     const timetableSubjects = timetableSubjectsFromRows(timetable);
@@ -1861,25 +1895,18 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         ? freitext.trim().slice(0, 100)
         : null;
 
-    const existingRes = await pool.query(
-      `
-      SELECT id
-      FROM log_entries
-      WHERE user_id=$1 AND date=$2 AND subject=$3
-        AND (
-          ($4::text IS NULL AND timeslot IS NULL)
-          OR timeslot = $4
-        )
-      LIMIT 1
-    `,
-      [studentId, date, subject, timeslot || null]
-    );
+    const existing = await findPlanLogEntry(studentId, {
+      date,
+      subject,
+      timeslot: timeslot || null
+    });
 
-    if (existingRes.rows.length) {
+    if (existing) {
       return res.json({
         success: false,
-        message: "Für dieses Fach ist heute schon ein Ziel gesetzt.",
-        entryId: existingRes.rows[0].id
+        message: "Für diese Stunde ist bereits ein Tagesziel gespeichert – nur Ansicht möglich.",
+        entryId: existing.id,
+        readOnly: true
       });
     }
 

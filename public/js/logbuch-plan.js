@@ -227,6 +227,12 @@
 
       if (!data.success) {
         state.submitting = false;
+        if (data.readOnly && data.entryId) {
+          state.entryId = data.entryId;
+          await loadContext(new URLSearchParams({ date: state.date, entryId: data.entryId }));
+          render();
+          return;
+        }
         state.errorMsg = data.message || "Speichern fehlgeschlagen.";
         render();
         return;
@@ -246,11 +252,10 @@
   }
 
   async function loadContext(query) {
-    const params = new URLSearchParams({
-      date: state.date,
-      ...(state.timeslot ? { timeslot: state.timeslot } : {}),
-      ...(state.subject ? { subject: state.subject } : {})
-    });
+    const params = new URLSearchParams({ date: state.date });
+    if (state.entryId) params.set("entryId", state.entryId);
+    if (state.timeslot) params.set("timeslot", state.timeslot);
+    if (state.subject) params.set("subject", state.subject);
 
     const res = await fetch(`/api/student/log/plan-context?${params}`);
     const data = await res.json();
@@ -267,6 +272,7 @@
     const q = query || new URLSearchParams(location.search);
 
     state.date = q.get("date") || todayIso();
+    state.entryId = q.get("entryId") || null;
     state.timeslot = q.get("timeslot") || null;
     state.subject = q.get("subject") || null;
     state.goal = null;
@@ -276,6 +282,7 @@
     state.confidenceBefore = null;
     state.freitext = "";
     state.existingEntry = null;
+    state.entryId = null;
     state.submitting = false;
     state.errorMsg = "";
 

@@ -138,6 +138,7 @@
     }
 
     const params = new URLSearchParams({ date: state.date });
+    if (entry.id) params.set("entryId", entry.id);
     if (entry.subject) params.set("subject", entry.subject);
     if (entry.timeslot) params.set("timeslot", entry.timeslot);
 
