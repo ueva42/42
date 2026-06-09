@@ -703,32 +703,21 @@ a { color: inherit; }
   to { transform: translateX(0); opacity: 1; }
 }
 .today-blocks {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-@media (min-width: 720px) {
-  .today-blocks:not(.today-blocks-single) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-.today-blocks-single {
-  grid-template-columns: 1fr;
-}
-.today-blocks-single .today-block-open {
-  text-align: center;
-  padding: 22px 18px;
-}
-.today-blocks-single .today-block-head {
-  justify-content: center;
+  display: flex;
   flex-direction: column;
-  margin-bottom: 14px;
+  gap: 14px;
 }
-.today-blocks-single .today-plan-btn {
-  max-width: 520px;
-  margin: 8px auto 0;
-  padding: 12px 24px;
-  font-size: 13px;
+.today-lesson {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.today-lesson-phases {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  opacity: 0.8;
+  letter-spacing: 0.04em;
 }
 .today-block {
   border-radius: 14px;
@@ -1938,7 +1927,7 @@ h2 {
 <script src="/js/logbuch-plan.js?v=2"></script>
 <script src="/js/logbuch-check.js"></script>
 <script src="/js/logbuch-reflect.js"></script>
-<script src="/js/logbuch-today.js?v=5"></script>
+<script src="/js/logbuch-today.js?v=6"></script>
 <script src="/js/logbuch-week.js"></script>
 <script src="/js/logbuch-levelplan.js?v=2"></script>
 <script src="/js/logbuch-levelcheck.js?v=2"></script>

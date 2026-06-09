@@ -38,7 +38,15 @@
     return "–";
   }
 
-  function renderPhaseIndicator(phases) {
+  function blockPhases(entry) {
+    return {
+      plan: !!entry,
+      check: !!entry?.hasCheck,
+      reflect: !!entry?.hasReflection
+    };
+  }
+
+  function renderPhaseIndicator(phases, className = "today-phases-inline") {
     const items = [
       { key: "plan", label: "Plan" },
       { key: "check", label: "Check" },
@@ -46,7 +54,7 @@
     ];
 
     return `
-      <p class="today-phases-inline">
+      <p class="${className}">
         ${items
           .map(
             (p, i) => `
@@ -150,14 +158,6 @@
 
     const actions = !readOnly ? `${viewPlanBtn}${renderActionSelect(entry)}` : viewPlanBtn;
 
-    const statusBits = [];
-    if (entry.hasCheck) statusBits.push("Check ✓");
-    if (entry.hasReflection) statusBits.push("Abschluss ✓");
-    const statusLine =
-      !readOnly && statusBits.length
-        ? `<p class="today-block-status">${statusBits.join(" · ")}</p>`
-        : "";
-
     return `
       <div class="today-block today-block-done">
         <div class="today-block-head">
@@ -165,9 +165,16 @@
           ${entry.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
         </div>
         <p class="today-block-goal">${ui.escapeHtml(entry.goal)}</p>
-        ${statusLine}
         ${summary}
         ${actions}
+      </div>`;
+  }
+
+  function renderLesson(block, editable) {
+    return `
+      <div class="today-lesson">
+        ${renderPhaseIndicator(blockPhases(block.entry), "today-lesson-phases")}
+        ${renderBlock(block, editable)}
       </div>`;
   }
 
@@ -205,14 +212,8 @@
 
     const blocksHtml =
       blockList.length > 0
-        ? blockList.map((b) => renderBlock(b, editable)).join("")
+        ? blockList.map((b) => renderLesson(b, editable)).join("")
         : `<p class="today-block-muted">${emptyMessage(d, editable)}</p>`;
-
-    const singleOpen =
-      blockList.length === 1 && !blockList[0].entry && editable && blockList[0].slot;
-    const blocksClass = singleOpen
-      ? "today-blocks today-blocks-single"
-      : "today-blocks";
 
     root.innerHTML = `
       <div class="today-shell" id="todaySwipeArea">
@@ -225,11 +226,9 @@
           <button type="button" class="today-arrow" data-dir="next" aria-label="Nächster Tag">›</button>
         </div>
 
-        ${renderPhaseIndicator(d.phases)}
-
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="todaySlidePanel">
-            <div class="${blocksClass}">${blocksHtml}</div>
+            <div class="today-blocks">${blocksHtml}</div>
           </div>
         </div>
       </div>`;
