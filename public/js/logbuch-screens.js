@@ -13,9 +13,14 @@
       subtitle: "Überblick über deine Lernziele und Reflexionen.",
       phase: "week"
     },
-    competencies: {
-      title: "Levelchecks",
-      subtitle: "Raster-Matrix: pro Ziel deine Stufe markieren.",
+    levelplan: {
+      title: "Levelplan",
+      subtitle: "Matrix: pro Ziel deine Stufe markieren.",
+      phase: null
+    },
+    levelcheck: {
+      title: "Levelcheck",
+      subtitle: "Nachweise hochladen: Rookie → Operator → Street Legend.",
       phase: null
     },
     plan: {
@@ -78,8 +83,13 @@
       return;
     }
 
-    if (section === "competencies" && window.LogbuchCompetencies) {
-      window.LogbuchCompetencies.init();
+    if (section === "levelplan" && window.LogbuchLevelplan) {
+      window.LogbuchLevelplan.init();
+      return;
+    }
+
+    if (section === "levelcheck" && window.LogbuchLevelcheck) {
+      window.LogbuchLevelcheck.init();
       return;
     }
 

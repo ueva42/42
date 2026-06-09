@@ -1,5 +1,5 @@
 /**
- * SRL-Logbuch – Levelchecks (Matrix: Ziele × Rookie/Operator/Street Legend).
+ * SRL-Logbuch – Levelplan (Matrix pro Levelcheck).
  */
 (function () {
   const state = {
@@ -82,7 +82,10 @@
     return `
       <article class="lc-check-card">
         <div class="lc-check-head">
-          <h4 class="lc-check-name">${escapeHtml(levelCheck.name)}</h4>
+          <div>
+            <span class="lc-check-badge">${escapeHtml(levelCheck.name)}</span>
+            <p class="lc-check-sub">${total} Ziele im Raster</p>
+          </div>
           <span class="lc-check-progress">${marked}/${total} markiert</span>
         </div>
         ${renderMatrix(levelCheck, tiers)}
@@ -91,17 +94,14 @@
 
   function renderGrouped() {
     if (!state.data?.hasClass) {
-      return `
-        <div class="lc-empty">
-          <p>Dir ist noch keine Klasse zugeordnet.</p>
-        </div>`;
+      return `<div class="lc-empty"><p>Dir ist noch keine Klasse zugeordnet.</p></div>`;
     }
 
     if (!state.data?.grouped?.length) {
       return `
         <div class="lc-empty">
-          <p>Noch keine Levelchecks.</p>
-          <p class="lc-empty-hint">Deine Lehrkraft legt Levelchecks mit Raster-Zielen an.</p>
+          <p>Noch kein Levelplan.</p>
+          <p class="lc-empty-hint">Deine Lehrkraft legt Levelchecks mit Zielen an.</p>
         </div>`;
     }
 
@@ -121,24 +121,24 @@
   }
 
   function render() {
-    const root = document.getElementById("competencies-screen-root");
+    const root = document.getElementById("levelplan-screen-root");
     if (!root) return;
 
     if (state.loading && !state.data) {
-      root.innerHTML = `<div class="logbuch-loading">Lade Levelchecks…</div>`;
+      root.innerHTML = `<div class="logbuch-loading">Lade Levelplan…</div>`;
       return;
     }
 
     if (!state.data) {
-      root.innerHTML = `<div class="logbuch-msg logbuch-msg-error">Levelchecks konnten nicht geladen werden.</div>`;
+      root.innerHTML = `<div class="logbuch-msg logbuch-msg-error">Levelplan konnte nicht geladen werden.</div>`;
       return;
     }
 
     root.innerHTML = `
       <div class="lc-shell">
         <p class="lc-intro">
-          Markiere pro Ziel, was du <strong>kannst</strong>: Rookie, Operator oder Street Legend.
-          Nochmal klicken = Markierung entfernen.
+          Dein <strong>Levelplan</strong>: pro Levelcheck die Raster-Ziele markieren
+          (Rookie, Operator, Street Legend). Nochmal klicken = Markierung entfernen.
         </p>
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
@@ -155,8 +155,7 @@
   }
 
   async function setMark(goalId, tier) {
-    const key = `${goalId}_${tier}`;
-    state.saving = key;
+    state.saving = `${goalId}_${tier}`;
     state.error = "";
     state.message = "";
     render();
@@ -186,17 +185,10 @@
   }
 
   async function loadData() {
-    try {
-      const res = await fetch("/api/student/levelchecks");
-      state.data = await res.json();
-      state.loading = false;
-      render();
-    } catch (err) {
-      console.error(err);
-      state.loading = false;
-      state.data = null;
-      render();
-    }
+    const res = await fetch("/api/student/levelplan");
+    state.data = await res.json();
+    state.loading = false;
+    render();
   }
 
   async function init() {
@@ -206,13 +198,18 @@
     state.error = "";
     state.data = null;
 
-    const root = document.getElementById("competencies-screen-root");
-    if (root) {
-      root.innerHTML = `<div class="logbuch-loading">Lade Levelchecks…</div>`;
-    }
+    const root = document.getElementById("levelplan-screen-root");
+    if (root) root.innerHTML = `<div class="logbuch-loading">Lade Levelplan…</div>`;
 
-    await loadData();
+    try {
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      state.loading = false;
+      state.data = null;
+      render();
+    }
   }
 
-  window.LogbuchCompetencies = { init };
+  window.LogbuchLevelplan = { init };
 })();

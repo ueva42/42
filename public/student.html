@@ -1090,6 +1090,54 @@ a { color: inherit; }
   box-shadow: 0 0 10px rgba(34, 197, 94, 0.35);
 }
 .lc-empty-goals { margin: 0; font-size: 12px; opacity: 0.65; }
+.lc-check-badge {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fdba74;
+}
+.lc-check-sub { margin: 4px 0 0; font-size: 11px; opacity: 0.6; }
+.lc-topics { display: flex; flex-direction: column; gap: 12px; }
+.lc-topic-card {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.55);
+  padding: 14px;
+}
+.lc-topic-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.lc-topic-title { margin: 0; font-size: 15px; line-height: 1.35; }
+.lc-topic-meta { margin: 4px 0 0; font-size: 11px; opacity: 0.6; }
+.lc-topic-progress {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.15);
+  color: #fdba74;
+  white-space: nowrap;
+}
+.lc-tiers { display: flex; flex-direction: column; gap: 10px; }
+.lc-tier {
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+.lc-tier-done { background: rgba(34, 197, 94, 0.08); border-color: rgba(74, 222, 128, 0.25); }
+.lc-tier-ready { background: rgba(56, 189, 248, 0.06); }
+.lc-tier-locked { background: rgba(15, 23, 42, 0.35); opacity: 0.65; }
+.lc-tier-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.lc-tier-name { font-size: 13px; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; }
+.lc-tier-xp { font-size: 11px; color: #fde68a; }
+.lc-tier-link { font-size: 12px; color: #7dd3fc; word-break: break-all; }
+.lc-tier-date { margin-top: 6px; font-size: 11px; opacity: 0.55; }
+.lc-tier-lock-msg { margin: 0; font-size: 12px; opacity: 0.7; }
 .lc-empty {
   text-align: center;
   padding: 24px 12px;
@@ -1732,8 +1780,12 @@ h2 {
     <div class="menu-icon">W</div><span class="menu-label">Woche</span>
   </div>
 
-  <div class="menu-item" data-section="competencies" onclick="showSection(event,'competencies')">
-    <div class="menu-icon">L</div><span class="menu-label">Levelchecks</span>
+  <div class="menu-item" data-section="levelplan" onclick="showSection(event,'levelplan')">
+    <div class="menu-icon">P</div><span class="menu-label">Levelplan</span>
+  </div>
+
+  <div class="menu-item" data-section="levelcheck" onclick="showSection(event,'levelcheck')">
+    <div class="menu-icon">L</div><span class="menu-label">Levelcheck</span>
   </div>
 
   <div class="menu-item" data-section="status" onclick="showSection(event,'status')">
@@ -1793,10 +1845,16 @@ h2 {
     <div id="week-screen-root" class="logbuch-root"></div>
   </div>
 
-  <!-- LEVELCHECKS -->
-  <div id="competencies-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Levelchecks</h2>
-    <div id="competencies-screen-root" class="logbuch-root"></div>
+  <!-- LEVELPLAN -->
+  <div id="levelplan-section" class="card section logbuch-screen" style="display:none;">
+    <h2>Levelplan</h2>
+    <div id="levelplan-screen-root" class="logbuch-root"></div>
+  </div>
+
+  <!-- LEVELCHECK -->
+  <div id="levelcheck-section" class="card section logbuch-screen" style="display:none;">
+    <h2>Levelcheck</h2>
+    <div id="levelcheck-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- PLANEN -->
@@ -1876,7 +1934,8 @@ h2 {
 <script src="/js/logbuch-reflect.js"></script>
 <script src="/js/logbuch-today.js"></script>
 <script src="/js/logbuch-week.js"></script>
-<script src="/js/logbuch-competencies.js"></script>
+<script src="/js/logbuch-levelplan.js"></script>
+<script src="/js/logbuch-levelcheck.js"></script>
 <script src="/js/logbuch-screens.js"></script>
 
 <script>

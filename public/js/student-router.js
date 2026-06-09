@@ -5,7 +5,9 @@
   const SECTION_ROUTES = {
     today: "/student/today",
     week: "/student/week",
-    competencies: "/student/competencies",
+    levelplan: "/student/levelplan",
+    levelcheck: "/student/levelcheck",
+    competencies: "/student/levelplan",
     plan: "/student/plan",
     check: "/student/check",
     reflect: "/student/reflect",
@@ -23,7 +25,8 @@
   const SIDEBAR_SECTIONS = new Set([
     "today",
     "week",
-    "competencies",
+    "levelplan",
+    "levelcheck",
     "status",
     "missionen",
     "belohnungen",
