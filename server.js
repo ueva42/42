@@ -1592,7 +1592,8 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     if (subjectQuery && LOG_SUBJECTS.includes(subjectQuery)) {
       const existingRes = await pool.query(
         `
-        SELECT id, subject, goal, timeslot, created_at
+        SELECT id, subject, goal, timeslot, work_goals, social_form,
+               strategy, confidence_before, freitext, created_at
         FROM log_entries
         WHERE user_id=$1 AND date=$2 AND subject=$3
           AND (

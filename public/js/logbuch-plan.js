@@ -36,6 +36,45 @@
     });
   }
 
+  function labelForSocialForm(id) {
+    return C().SOCIAL_FORMS.find((s) => s.id === id)?.label || id || "–";
+  }
+
+  function renderExistingEntry(ui, dateLabel) {
+    const e = state.existingEntry;
+    const workGoals = Array.isArray(e.work_goals) ? e.work_goals : [];
+    const rows = [
+      ["Fach", e.subject],
+      ["Stundenziel", e.goal],
+      ["Arbeitsziele", workGoals.length ? workGoals.join(", ") : "–"],
+      ["Sozialform", e.social_form ? labelForSocialForm(e.social_form) : "–"],
+      ["Lernstrategie", e.strategy || "–"],
+      [
+        "Selbstwirksamkeit vorher",
+        e.confidence_before != null ? String(e.confidence_before) : "–"
+      ],
+      ["Was genau?", e.freitext || "–"]
+    ];
+
+    return `
+      <div class="logbuch-form logbuch-form-readonly">
+        <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${e.timeslot ? ` · ${ui.escapeHtml(e.timeslot)}` : ""}</p>
+        <div class="logbuch-msg logbuch-msg-info">Dein Tagesziel (nur Ansicht – nicht änderbar)</div>
+        <dl class="plan-readonly-list">
+          ${rows
+            .map(
+              ([label, value]) => `
+            <div class="plan-readonly-row">
+              <dt>${ui.escapeHtml(label)}</dt>
+              <dd>${ui.escapeHtml(value)}</dd>
+            </div>`
+            )
+            .join("")}
+        </dl>
+        ${ui.btnGhost("Zurück zu Mein Tag", "planBackBtn")}
+      </div>`;
+  }
+
   function render() {
     const root = document.getElementById("plan-screen-root");
     if (!root) return;
@@ -48,15 +87,7 @@
     });
 
     if (state.existingEntry) {
-      root.innerHTML = `
-        <div class="logbuch-form">
-          <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}</p>
-          <div class="logbuch-msg logbuch-msg-info">
-            Für <b>${ui.escapeHtml(state.existingEntry.subject)}</b> ist heute schon ein Ziel gesetzt:
-            <br><span class="logbuch-existing-goal">${ui.escapeHtml(state.existingEntry.goal)}</span>
-          </div>
-          ${ui.btnGhost("Zurück zu Mein Tag", "planBackBtn")}
-        </div>`;
+      root.innerHTML = renderExistingEntry(ui, dateLabel);
       bindStaticHandlers(root);
       return;
     }

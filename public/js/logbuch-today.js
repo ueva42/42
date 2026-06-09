@@ -131,7 +131,17 @@
       summary = `<div class="today-block-summary"><span>Zwischen-Check abgeschlossen</span></div>`;
     }
 
-    const actions = !readOnly ? renderActionSelect(entry) : "";
+    const params = new URLSearchParams({ date: state.date });
+    if (entry.subject) params.set("subject", entry.subject);
+    if (entry.timeslot) params.set("timeslot", entry.timeslot);
+
+    const viewPlanBtn = `
+      <button type="button" class="logbuch-btn-ghost today-view-plan-btn"
+        data-nav="plan" data-query="${ui.escapeHtml(params.toString())}">
+        Tagesziel ansehen
+      </button>`;
+
+    const actions = !readOnly ? `${viewPlanBtn}${renderActionSelect(entry)}` : viewPlanBtn;
 
     const statusBits = [];
     if (entry.hasCheck) statusBits.push("Check ✓");
