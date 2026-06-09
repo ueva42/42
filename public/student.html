@@ -1198,6 +1198,30 @@ h2 {
 }
 
 /* Bilder für Missionen & Belohnungen */
+.class-reward-img {
+  width: 180px;
+  height: auto;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: 14px;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.class-reward-no-img {
+  width: 180px;
+  height: 120px;
+  border-radius: 14px;
+  margin-bottom: 6px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
 .mission-img {
   width: 250px;
   height: auto;
@@ -2328,10 +2352,22 @@ async function redeemReward(id) {
 ============================================ */
 function resolveImageUrl(url) {
   if (!url) return null;
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("/")) {
-    return url;
+  const trimmed = String(url).trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("/")) {
+    return trimmed;
   }
-  return `/${url.replace(/^\/+/, "")}`;
+  return `/${trimmed.replace(/^\/+/, "")}`;
+}
+
+function classRewardImageHtml(url, name) {
+  const src = resolveImageUrl(url);
+  if (!src) {
+    return `<div class="class-reward-no-img">Kein Bild</div>`;
+  }
+  return `<img src="${src}" alt="${name}"
+    class="class-reward-img"
+    onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'class-reward-no-img',textContent:'Kein Bild'}))">`;
 }
 
 async function loadClassProgress() {
@@ -2482,13 +2518,7 @@ async function loadClassProgress() {
           box-shadow:${isMy ? "0 0 20px rgba(34,197,94,0.65)" : "0 4px 12px rgba(0,0,0,0.9)"};
           font-size:13px;
         ">
-          ${
-            resolveImageUrl(opt.image_url)
-              ? `<img src="${resolveImageUrl(opt.image_url)}" alt="${opt.name}"
-                  style="width:180px;height:auto;max-height:320px;object-fit:cover;border-radius:14px;margin-bottom:6px;"
-                  onerror="this.style.display='none'">`
-              : `<div style="width:180px;height:120px;border-radius:14px;margin-bottom:6px;background:rgba(15,23,42,0.8);border:1px dashed rgba(148,163,184,0.4);display:flex;align-items:center;justify-content:center;font-size:11px;opacity:0.6;">Kein Bild</div>`
-          }
+          ${classRewardImageHtml(opt.image_url, opt.name)}
 
           <div style="font-weight:600;margin-bottom:2px;">${opt.name}</div>
           <div style="font-size:12px;">Benötigte XP: <b>${xpNeeded}</b></div>

@@ -276,6 +276,15 @@ async function awardLogbuchXP(studentId, amount, source, schoolId) {
   await updateStudentLevel(studentId);
 }
 
+function publicImageUrl(url) {
+  const trimmed = String(url ?? "").trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const base = String(process.env.R2_PUBLIC_URL || "").replace(/\/$/, "");
+  if (base) return `${base}/${trimmed.replace(/^\/+/, "")}`;
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
 // -------------------------------------------------------
 // Grundpfade
 // -------------------------------------------------------
@@ -1158,6 +1167,35 @@ async function migrate() {
     "UPDATE level_check_uploads SET school_id=$1 WHERE school_id IS NULL",
     [defaultSchoolId]
   );
+  await pool.query(`
+    UPDATE class_reward_options o
+    SET reward_id = COALESCE(o.reward_id, cr.id)
+    FROM class_reward_rounds rr
+    JOIN class_rewards cr
+      ON cr.school_id = rr.school_id AND cr.name = o.name
+    WHERE o.round_id = rr.id AND o.reward_id IS NULL
+  `);
+  await pool.query(`
+    UPDATE class_reward_options o
+    SET image_url = cr.image_url
+    FROM class_rewards cr
+    WHERE o.reward_id = cr.id
+      AND (o.image_url IS NULL OR TRIM(o.image_url) = '')
+      AND cr.image_url IS NOT NULL
+      AND TRIM(cr.image_url) <> ''
+  `);
+  await pool.query(`
+    UPDATE class_reward_options o
+    SET image_url = cr.image_url
+    FROM class_reward_rounds rr
+    JOIN class_rewards cr
+      ON cr.school_id = rr.school_id AND cr.name = o.name
+    WHERE o.round_id = rr.id
+      AND o.reward_id IS NULL
+      AND (o.image_url IS NULL OR TRIM(o.image_url) = '')
+      AND cr.image_url IS NOT NULL
+      AND TRIM(cr.image_url) <> ''
+  `);
   await pool.query(
     `UPDATE timetables t SET school_id = c.school_id
      FROM classes c
@@ -3442,11 +3480,19 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
         o.round_id,
         o.reward_id,
         o.name,
-        COALESCE(NULLIF(o.image_url, ''), cr.image_url) AS image_url,
-        cr.xp_required
+        COALESCE(
+          NULLIF(TRIM(o.image_url), ''),
+          NULLIF(TRIM(cr_direct.image_url), ''),
+          NULLIF(TRIM(cr_by_name.image_url), '')
+        ) AS image_url,
+        COALESCE(cr_direct.xp_required, cr_by_name.xp_required) AS xp_required
       FROM class_reward_options o
-      LEFT JOIN class_rewards cr
-        ON cr.id = o.reward_id
+      INNER JOIN class_reward_rounds rr ON rr.id = o.round_id
+      LEFT JOIN class_rewards cr_direct ON cr_direct.id = o.reward_id
+      LEFT JOIN class_rewards cr_by_name
+        ON o.reward_id IS NULL
+        AND cr_by_name.school_id = rr.school_id
+        AND cr_by_name.name = o.name
       WHERE o.round_id=$1
       ORDER BY o.id ASC
       `,
@@ -3458,7 +3504,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
       round_id:    o.round_id,
       reward_id:   o.reward_id,
       name:        o.name,
-      image_url:   o.image_url,
+      image_url:   publicImageUrl(o.image_url),
       // fallback: wenn Reward keine eigene XP hat → Rundenziel
       xp_required: o.xp_required || round.xp_required || 0
     }));
@@ -3629,15 +3675,31 @@ app.get("/api/admin/class-progress", isAdmin, async (req, res) => {
 
   const round = roundRes.rows[0];
 
-  const optRes = await pool.query(`
-    SELECT o.id,o.name,o.image_url,
-           COUNT(v.id) AS votes
+  const optRes = await pool.query(
+    `
+    SELECT
+      o.id,
+      o.name,
+      COALESCE(
+        NULLIF(TRIM(o.image_url), ''),
+        NULLIF(TRIM(cr_direct.image_url), ''),
+        NULLIF(TRIM(cr_by_name.image_url), '')
+      ) AS image_url,
+      COUNT(v.id) AS votes
     FROM class_reward_options o
+    INNER JOIN class_reward_rounds rr ON rr.id = o.round_id
+    LEFT JOIN class_rewards cr_direct ON cr_direct.id = o.reward_id
+    LEFT JOIN class_rewards cr_by_name
+      ON o.reward_id IS NULL
+      AND cr_by_name.school_id = rr.school_id
+      AND cr_by_name.name = o.name
     LEFT JOIN class_reward_votes v ON v.option_id = o.id
     WHERE o.round_id=$1
-    GROUP BY o.id,o.name,o.image_url
+    GROUP BY o.id, o.name, o.image_url, cr_direct.image_url, cr_by_name.image_url
     ORDER BY o.id ASC
-  `, [round.id]);
+    `,
+    [round.id]
+  );
 
   const hasReachedTarget = totalXP >= round.target_xp;
 
@@ -3656,7 +3718,7 @@ app.get("/api/admin/class-progress", isAdmin, async (req, res) => {
     options: optRes.rows.map(o => ({
       id: o.id,
       name: o.name,
-      image_url: o.image_url,
+      image_url: publicImageUrl(o.image_url),
       votes: Number(o.votes),
       is_selected: round.fixed_option_id === o.id
     }))

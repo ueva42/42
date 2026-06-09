@@ -1932,6 +1932,7 @@ async function addRewardOptionToRound() {
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({
       roundId: currentRoundId,
+      rewardId: reward.id,
       name: reward.name,
       imageUrl: reward.image_url || null
     })
