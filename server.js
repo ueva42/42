@@ -91,6 +91,28 @@ function sortTimetableSlots(slots) {
   });
 }
 
+function buildTimetableEditorSlots(dayRows) {
+  const slots = TIMETABLE_DEFAULT_TIMES.map((timeslot) => ({
+    id: null,
+    timeslot,
+    subject: "",
+    room: ""
+  }));
+
+  for (const row of dayRows) {
+    const idx = TIMETABLE_DEFAULT_TIMES.indexOf(row.timeslot);
+    if (idx < 0) continue;
+    slots[idx] = {
+      id: row.id,
+      timeslot: TIMETABLE_DEFAULT_TIMES[idx],
+      subject: row.subject,
+      room: row.room || ""
+    };
+  }
+
+  return slots;
+}
+
 async function getStudentClassContext(studentId) {
   const r = await pool.query(
     `
@@ -3400,26 +3422,8 @@ app.get("/api/teacher/timetable", isAdmin, async (req, res) => {
     ];
 
     const days = weekdays.map((day) => {
-      const slots = rowsRes.rows
-        .filter((r) => r.weekday === day.id)
-        .slice(0, TIMETABLE_MAX_SLOTS_PER_DAY)
-        .map((r, idx) => ({
-          id: r.id,
-          timeslot: r.timeslot || TIMETABLE_DEFAULT_TIMES[idx] || "",
-          subject: r.subject,
-          room: r.room || ""
-        }));
-
-      while (slots.length < TIMETABLE_MAX_SLOTS_PER_DAY) {
-        const idx = slots.length;
-        slots.push({
-          id: null,
-          timeslot: TIMETABLE_DEFAULT_TIMES[idx] || "",
-          subject: "",
-          room: ""
-        });
-      }
-
+      const dayRows = rowsRes.rows.filter((r) => r.weekday === day.id);
+      const slots = buildTimetableEditorSlots(dayRows);
       return { ...day, slots };
     });
 

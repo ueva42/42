@@ -62,19 +62,14 @@
     const defaultTimes = defaultTimesFor(data);
     const grid = emptyGrid(maxSlots, defaultTimes);
     data.days.forEach((day) => {
-      grid[day.id] = day.slots.map((s, idx) => ({
-        timeslot: s.timeslot || defaultTimes[idx] || "",
-        subject: s.subject || "",
-        room: s.room || ""
-      }));
-      while (grid[day.id].length < maxSlots) {
-        const idx = grid[day.id].length;
-        grid[day.id].push({
-          timeslot: defaultTimes[idx] || "",
-          subject: "",
-          room: ""
-        });
-      }
+      grid[day.id] = defaultTimes.slice(0, maxSlots).map((timeslot, idx) => {
+        const s = day.slots?.[idx] || {};
+        return {
+          timeslot,
+          subject: s.subject || "",
+          room: s.room || ""
+        };
+      });
     });
     return grid;
   }
@@ -146,9 +141,8 @@
                   .map(
                     (slot, idx) => `
                   <div class="tt-slot ${isFreeSubject(slot.subject) ? "tt-slot-free" : ""}" data-weekday="${day.id}" data-index="${idx}">
-                    <div class="tt-slot-nr">${idx + 1}</div>
-                    <input type="text" class="tt-input tt-timeslot" placeholder="7.50-8.35"
-                      value="${escapeHtml(slot.timeslot)}" data-field="timeslot">
+                    <div class="tt-slot-nr">Stunde ${idx + 1}</div>
+                    <div class="tt-slot-time">${escapeHtml(defaultTimesFor(state.data)[idx] || slot.timeslot)}</div>
                     <select class="tt-input tt-subject-select" data-field="subject">
                       ${subjectOptions(subjects, slot.subject)}
                     </select>
@@ -183,11 +177,12 @@
   }
 
   function readGridFromDom(root) {
-    const grid = emptyGrid(state.data?.maxSlotsPerDay || 7, defaultTimesFor(state.data));
+    const defaultTimes = defaultTimesFor(state.data);
+    const grid = emptyGrid(state.data?.maxSlotsPerDay || 7, defaultTimes);
     root.querySelectorAll(".tt-slot").forEach((slotEl) => {
       const weekday = Number(slotEl.dataset.weekday);
       const index = Number(slotEl.dataset.index);
-      const timeslot = slotEl.querySelector('[data-field="timeslot"]')?.value.trim() || "";
+      const timeslot = defaultTimes[index] || "";
       const subjectSel = slotEl.querySelector(".tt-subject-select");
       let subject = subjectSel?.value || "";
       const otherInput = slotEl.querySelector(".tt-subject-other");
@@ -228,14 +223,14 @@
   }
 
   function collectEntries() {
+    const defaultTimes = defaultTimesFor(state.data);
     const entries = [];
     WEEKDAYS.forEach((day) => {
-      (state.grid[day.id] || []).forEach((slot) => {
-        if (!slot.timeslot && !slot.subject && !slot.room) return;
+      (state.grid[day.id] || []).forEach((slot, idx) => {
         if (!slot.subject) return;
         entries.push({
           weekday: day.id,
-          timeslot: slot.timeslot,
+          timeslot: defaultTimes[idx] || slot.timeslot,
           subject: slot.subject,
           room: slot.room
         });
