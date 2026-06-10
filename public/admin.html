@@ -626,6 +626,11 @@
     .tc-goal-del { padding:2px 8px; min-width:auto; }
     .tc-msg { border-radius:10px; padding:10px 12px; font-size:13px; margin-bottom:10px; }
     .tc-msg-ok { background:rgba(20,83,45,0.35); border:1px solid rgba(74,222,128,0.4); color:#bbf7d0; }
+    .slg-badge { font-size:11px; padding:6px 10px; border-radius:999px; border:1px solid rgba(148,163,184,0.3); background:rgba(15,23,42,0.5); opacity:0.85; }
+    .slg-badge-custom { border-color:rgba(74,222,128,0.45); color:#bbf7d0; }
+    .slg-defaults { margin:12px 0; padding:12px; border-radius:12px; border:1px dashed rgba(148,163,184,0.35); background:rgba(15,23,42,0.35); }
+    .slg-default-list { margin:8px 0 12px; padding-left:18px; font-size:12px; line-height:1.5; opacity:0.85; }
+    .slg-add-form { margin-top:14px; }
     .tc-msg-err { background:rgba(127,29,29,0.35); border:1px solid rgba(248,113,113,0.4); color:#fecaca; }
     .tc-loading, .tc-error, .tc-empty { font-size:13px; opacity:0.7; padding:12px 0; }
     @media (max-width: 900px) {
@@ -658,6 +663,11 @@
   <div class="nav-item" data-tab="timetableTab" onclick="showTab('timetableTab', event)">
     <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
     <span class="nav-label">Stundenplan</span>
+  </div>
+
+  <div class="nav-item" data-tab="lessonGoalsTab" onclick="showTab('lessonGoalsTab', event)">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+    <span class="nav-label">Stundenziele</span>
   </div>
 
   <div class="nav-item" data-tab="competenciesTab" onclick="showTab('competenciesTab', event)">
@@ -737,6 +747,11 @@
     <!-- STUNDENPLAN -->
     <div id="timetableTab" class="tab hidden">
       <div id="timetableTabRoot"></div>
+    </div>
+
+    <!-- STUNDENZIELE -->
+    <div id="lessonGoalsTab" class="tab hidden">
+      <div id="lessonGoalsTabRoot"></div>
     </div>
 
     <!-- KOMPETENZEN -->
@@ -1039,6 +1054,7 @@
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=2"></script>
 <script src="/js/teacher-timetable.js?v=4"></script>
+<script src="/js/teacher-lesson-goals.js?v=1"></script>
 <script src="/js/teacher-week.js"></script>
 <script src="/js/teacher-competencies.js?v=4"></script>
 
@@ -1047,6 +1063,7 @@ const TEACHER_TAB_ROUTES = {
   dashboardTab: "/teacher/dashboard",
   teacherWeekTab: "/teacher/week",
   timetableTab: "/teacher/timetable",
+  lessonGoalsTab: "/teacher/lesson-goals",
   competenciesTab: "/teacher/levelchecks",
   xpTab: "/admin#xp",
   classProgressTab: "/admin#classProgress",
@@ -1062,6 +1079,7 @@ const ROUTE_TABS = {
   "/teacher/dashboard": "dashboardTab",
   "/teacher/week": "teacherWeekTab",
   "/teacher/timetable": "timetableTab",
+  "/teacher/lesson-goals": "lessonGoalsTab",
   "/teacher/competencies": "competenciesTab",
   "/teacher/levelchecks": "competenciesTab"
 };
@@ -1087,6 +1105,7 @@ function showTab(id, ev, options = {}) {
 
   if (id === "dashboardTab" && window.TeacherDashboard) TeacherDashboard.init();
   if (id === "timetableTab" && window.TeacherTimetable) TeacherTimetable.init();
+  if (id === "lessonGoalsTab" && window.TeacherLessonGoals) TeacherLessonGoals.init();
   if (id === "teacherWeekTab" && window.TeacherWeek) TeacherWeek.init();
   if (id === "competenciesTab" && window.TeacherCompetencies) TeacherCompetencies.init();
   if (id === "xpTab") loadXPInit();

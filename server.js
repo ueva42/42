@@ -197,6 +197,66 @@ const LOG_GOALS = [
   "Test/Levelcheck vorbereiten"
 ];
 
+async function fetchCustomSubjectLessonGoals(schoolId, subject = null) {
+  const params = [schoolId];
+  let subjectFilter = "";
+  if (subject) {
+    subjectFilter = " AND subject = $2";
+    params.push(subject);
+  }
+
+  const res = await pool.query(
+    `
+    SELECT id, subject, goal_text, sort_order
+    FROM subject_lesson_goals
+    WHERE school_id = $1${subjectFilter}
+    ORDER BY subject ASC, sort_order ASC, created_at ASC
+  `,
+    params
+  );
+
+  if (subject) {
+    return res.rows.map((row) => ({
+      id: row.id,
+      text: row.goal_text,
+      sortOrder: row.sort_order
+    }));
+  }
+
+  const bySubject = {};
+  for (const row of res.rows) {
+    if (!bySubject[row.subject]) bySubject[row.subject] = [];
+    bySubject[row.subject].push({
+      id: row.id,
+      text: row.goal_text,
+      sortOrder: row.sort_order
+    });
+  }
+  return bySubject;
+}
+
+function lessonGoalsForSubject(customGoalsBySubject, subject) {
+  const custom = customGoalsBySubject?.[subject];
+  if (Array.isArray(custom) && custom.length) {
+    return custom.map((g) => g.text);
+  }
+  return LOG_GOALS;
+}
+
+async function getLessonGoalsForSubject(schoolId, subject) {
+  const custom = await fetchCustomSubjectLessonGoals(schoolId, subject);
+  if (custom.length) {
+    return custom.map((g) => g.text);
+  }
+  return LOG_GOALS;
+}
+
+function isAllowedLessonGoal(goal, allowedGoals) {
+  if (!goal) return false;
+  if (allowedGoals.includes(goal)) return true;
+  return LOG_GOALS.includes(goal);
+}
+
 const LOG_WORK_GOALS = [
   "Konzentriert arbeiten",
   "Kein Handy",
@@ -1165,6 +1225,22 @@ async function migrate() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS subject_lesson_goals (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER NOT NULL,
+      subject TEXT NOT NULL,
+      goal_text TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_subject_lesson_goals_school_subject
+    ON subject_lesson_goals (school_id, subject, sort_order)
+  `);
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_timetables_class_weekday
     ON timetables (class_id, weekday)
   `);
@@ -1824,6 +1900,14 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     }
 
     const socialUnlock = await getSocialFormUnlock(studentId, schoolId);
+    const customLessonGoals = await fetchCustomSubjectLessonGoals(schoolId);
+    const activeSubject =
+      subjectQuery && LOG_SUBJECTS.includes(subjectQuery)
+        ? subjectQuery
+        : suggestedSubject;
+    const lessonGoals = activeSubject
+      ? lessonGoalsForSubject(customLessonGoals, activeSubject)
+      : LOG_GOALS;
 
     res.json({
       date,
@@ -1833,7 +1917,10 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       timetableSubjects,
       suggestedSubject,
       socialUnlock,
-      existingEntry
+      existingEntry,
+      defaultLessonGoals: LOG_GOALS,
+      customLessonGoals,
+      lessonGoals
     });
   } catch (err) {
     console.error("❌ /api/student/log/plan-context:", err);
@@ -1866,7 +1953,8 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
     }
 
-    if (!goal || !LOG_GOALS.includes(goal)) {
+    const allowedGoals = await getLessonGoalsForSubject(schoolId, subject);
+    if (!isAllowedLessonGoal(goal, allowedGoals)) {
       return res.json({ success: false, message: "Bitte ein gültiges Stundenziel wählen." });
     }
 
@@ -3107,6 +3195,141 @@ app.delete("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("❌ DELETE levelcheck:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// TEACHER: Stundenziele pro Fach
+// -------------------------------------------------------
+app.get("/api/teacher/subject-lesson-goals", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const goalsBySubject = await fetchCustomSubjectLessonGoals(schoolId);
+
+    res.json({
+      subjects: LOG_SUBJECTS,
+      defaultGoals: LOG_GOALS,
+      goalsBySubject
+    });
+  } catch (err) {
+    console.error("❌ /api/teacher/subject-lesson-goals:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.post("/api/teacher/subject-lesson-goals", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const subject = String(req.body.subject || "").trim();
+    const goalText = String(req.body.goalText || "").trim();
+
+    if (!subject || !goalText) {
+      return res.json({ success: false, message: "Fach und Zieltext sind Pflicht." });
+    }
+
+    if (!LOG_SUBJECTS.includes(subject)) {
+      return res.json({ success: false, message: "Ungültiges Fach." });
+    }
+
+    const orderRes = await pool.query(
+      `
+      SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order
+      FROM subject_lesson_goals
+      WHERE school_id = $1 AND subject = $2
+    `,
+      [schoolId, subject]
+    );
+
+    const ins = await pool.query(
+      `
+      INSERT INTO subject_lesson_goals (school_id, subject, goal_text, sort_order)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, subject, goal_text, sort_order
+    `,
+      [schoolId, subject, goalText.slice(0, 300), orderRes.rows[0].next_order]
+    );
+
+    const row = ins.rows[0];
+    res.json({
+      success: true,
+      goal: {
+        id: row.id,
+        subject: row.subject,
+        text: row.goal_text,
+        sortOrder: row.sort_order
+      }
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/subject-lesson-goals:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.post("/api/teacher/subject-lesson-goals/seed-defaults", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const subject = String(req.body.subject || "").trim();
+
+    if (!subject || !LOG_SUBJECTS.includes(subject)) {
+      return res.json({ success: false, message: "Ungültiges Fach." });
+    }
+
+    const existing = await pool.query(
+      `SELECT id FROM subject_lesson_goals WHERE school_id = $1 AND subject = $2 LIMIT 1`,
+      [schoolId, subject]
+    );
+    if (existing.rows.length) {
+      return res.json({
+        success: false,
+        message: "Für dieses Fach gibt es schon eigene Ziele."
+      });
+    }
+
+    const goals = [];
+    for (let i = 0; i < LOG_GOALS.length; i++) {
+      const ins = await pool.query(
+        `
+        INSERT INTO subject_lesson_goals (school_id, subject, goal_text, sort_order)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, goal_text, sort_order
+      `,
+        [schoolId, subject, LOG_GOALS[i], i + 1]
+      );
+      const row = ins.rows[0];
+      goals.push({
+        id: row.id,
+        text: row.goal_text,
+        sortOrder: row.sort_order
+      });
+    }
+
+    res.json({ success: true, goals });
+  } catch (err) {
+    console.error("❌ POST seed subject-lesson-goals:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.delete("/api/teacher/subject-lesson-goals/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const del = await pool.query(
+      `
+      DELETE FROM subject_lesson_goals
+      WHERE id = $1 AND school_id = $2
+      RETURNING id
+    `,
+      [req.params.id, schoolId]
+    );
+
+    if (!del.rows.length) {
+      return res.json({ success: false, message: "Ziel nicht gefunden." });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE subject-lesson-goals:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
@@ -5401,7 +5624,8 @@ const teacherSpaPaths = [
   "/teacher/timetable",
   "/teacher/week",
   "/teacher/competencies",
-  "/teacher/levelchecks"
+  "/teacher/levelchecks",
+  "/teacher/lesson-goals"
 ];
 
 for (const route of teacherSpaPaths) {

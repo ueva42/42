@@ -17,9 +17,24 @@
     freitext: "",
     socialUnlock: { gruppe: false, frei: false },
     existingEntry: null,
+    defaultLessonGoals: [],
+    customLessonGoals: {},
     submitting: false,
     errorMsg: ""
   };
+
+  function lessonGoalsForSubject(subject) {
+    if (!subject) {
+      return state.defaultLessonGoals.length ? state.defaultLessonGoals : C().GOALS;
+    }
+
+    const custom = state.customLessonGoals?.[subject];
+    if (Array.isArray(custom) && custom.length) {
+      return custom.map((g) => g.text);
+    }
+
+    return state.defaultLessonGoals.length ? state.defaultLessonGoals : C().GOALS;
+  }
 
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
@@ -103,7 +118,12 @@
 
         ${ui.fieldWrap(
           ui.fieldLabel("Stundenziel", { required: true }),
-          ui.select("goal", C().GOALS.map((g) => ({ value: g, label: g })), state.goal, { phase: "plan" })
+          ui.select(
+            "goal",
+            lessonGoalsForSubject(state.subject).map((g) => ({ value: g, label: g })),
+            state.goal,
+            { phase: "plan" }
+          )
         )}
 
         ${ui.fieldWrap(
@@ -170,7 +190,15 @@
   }
 
   function bindHandlers(root) {
-    UI().bindSelects(root, state);
+    UI().bindSelects(root, state, (field) => {
+      if (field === "subject") {
+        const goals = lessonGoalsForSubject(state.subject);
+        if (state.goal && !goals.includes(state.goal)) {
+          state.goal = null;
+        }
+        render();
+      }
+    });
 
     const freitext = root.querySelector("#planFreitext");
     freitext?.addEventListener("input", () => {
@@ -262,9 +290,18 @@
 
     state.socialUnlock = data.socialUnlock || { gruppe: false, frei: false };
     state.existingEntry = data.existingEntry || null;
+    state.defaultLessonGoals = Array.isArray(data.defaultLessonGoals)
+      ? data.defaultLessonGoals
+      : C().GOALS;
+    state.customLessonGoals = data.customLessonGoals || {};
 
     if (!state.subject && data.suggestedSubject) {
       state.subject = data.suggestedSubject;
+    }
+
+    const goals = lessonGoalsForSubject(state.subject);
+    if (state.goal && !goals.includes(state.goal)) {
+      state.goal = null;
     }
   }
 
