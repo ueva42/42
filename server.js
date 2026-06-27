@@ -49,45 +49,87 @@ const TARGET_GRADE_WHOLE_RULES = {
   6: { rookie: 0.4 }
 };
 
-const TARGET_GRADE_ORDER = [
-  "1",
-  "1-",
-  "2+",
-  "2",
-  "2-",
-  "3+",
-  "3",
-  "3-",
-  "4+",
-  "4",
-  "4-",
-  "5+",
-  "5",
-  "5-",
-  "6"
-];
+const TARGET_GRADE_ORDER = [];
+for (let i = 2; i <= 12; i++) {
+  const num = i / 2;
+  TARGET_GRADE_ORDER.push(Number.isInteger(num) ? String(num) : num.toFixed(1));
+}
+
+const LEGACY_TARGET_GRADE_MAP = {
+  "1-": "1.5",
+  "2+": "1.5",
+  "2-": "2.5",
+  "3+": "2.5",
+  "3-": "3.5",
+  "4+": "3.5",
+  "4-": "4.5",
+  "5+": "4.5",
+  "5-": "5.5"
+};
+
+function formatGradeLabel(key) {
+  if (!key) return "–";
+  return String(key).replace(".", ",");
+}
+
+function lerpGradeRules(rulesA, rulesB, t) {
+  const keys = new Set([
+    ...Object.keys(rulesA || {}),
+    ...Object.keys(rulesB || {})
+  ]);
+  const out = {};
+  for (const key of keys) {
+    const a = rulesA?.[key] ?? 0;
+    const b = rulesB?.[key] ?? 0;
+    out[key] = a + (b - a) * t;
+  }
+  return out;
+}
+
+function buildTargetGradeRulesMap() {
+  const map = {};
+  for (const key of TARGET_GRADE_ORDER) {
+    const num = parseFloat(key);
+    const lower = Math.floor(num);
+    const upper = Math.min(6, Math.ceil(num));
+    if (lower === upper || num === 6) {
+      map[key] = { ...TARGET_GRADE_WHOLE_RULES[lower] };
+      continue;
+    }
+    const t = num - lower;
+    map[key] = lerpGradeRules(
+      TARGET_GRADE_WHOLE_RULES[lower],
+      TARGET_GRADE_WHOLE_RULES[upper],
+      t
+    );
+  }
+  return map;
+}
+
+const TARGET_GRADE_RULES = buildTargetGradeRulesMap();
 
 const TARGET_GRADE_OPTIONS = TARGET_GRADE_ORDER.map((value) => ({
   value,
   label: formatGradeLabel(value)
 }));
 
-function formatGradeLabel(key) {
-  if (!key) return "–";
-  return String(key).replace(/-/g, "−");
-}
+function normalizeTargetGradeKey(raw) {
+  if (raw == null || raw === "") return null;
 
-function gradeIndex(key) {
-  const k = normalizeTargetGradeKey(key);
-  if (!k) return -1;
-  return TARGET_GRADE_ORDER.indexOf(k);
-}
+  let key = String(raw).trim().replace(",", ".").replace("−", "-");
+  if (LEGACY_TARGET_GRADE_MAP[key]) key = LEGACY_TARGET_GRADE_MAP[key];
+  if (TARGET_GRADE_RULES[key]) return key;
 
-function compareGradeKeys(a, b) {
-  const ia = gradeIndex(a);
-  const ib = gradeIndex(b);
-  if (ia < 0 || ib < 0) return null;
-  return ia - ib;
+  const num = Number(key);
+  if (!Number.isFinite(num) || num < 1 || num > 6) return null;
+
+  const halfStep = Math.round(num * 2) / 2;
+  if (Math.abs(halfStep - num) > 0.001) return null;
+
+  const normalized = Number.isInteger(halfStep)
+    ? String(halfStep)
+    : halfStep.toFixed(1);
+  return TARGET_GRADE_RULES[normalized] ? normalized : null;
 }
 
 function gradeRequirementsMet(totalGoals, markCounts, gradeKey) {
@@ -113,128 +155,6 @@ function computeAchievedGradeFromMarks(totalGoals, markCounts) {
       return gradeKey;
     }
   }
-  return null;
-}
-
-function buildGradeAnalysis({
-  targetGrade,
-  computedGrade,
-  achievedGrade,
-  onTrack,
-  summary,
-  totalGoals,
-  unmarked
-}) {
-  const parts = [];
-
-  if (!totalGoals) {
-    return "Noch keine Unterthemen – deine Lehrkraft legt sie im Levelstatus an.";
-  }
-
-  if (computedGrade) {
-    parts.push(`Levelplan-Stand: etwa Note ${formatGradeLabel(computedGrade)}.`);
-  } else if (unmarked === totalGoals) {
-    parts.push("Levelplan-Stand: noch keine Häkchen gesetzt.");
-  } else {
-    parts.push("Levelplan-Stand: noch unter Note 6 – weiter im Levelplan markieren.");
-  }
-
-  if (achievedGrade) {
-    parts.push(`Deine Note: ${formatGradeLabel(achievedGrade)}.`);
-    const cmpNotePlan = compareGradeKeys(achievedGrade, computedGrade);
-    if (computedGrade && cmpNotePlan != null) {
-      if (cmpNotePlan < 0) {
-        parts.push("Deine Note ist besser als dein Levelplan-Stand – stark!");
-      } else if (cmpNotePlan > 0) {
-        parts.push("Im Levelplan noch Luft nach oben, um deiner Note näher zu kommen.");
-      } else {
-        parts.push("Note und Levelplan passen zusammen.");
-      }
-    }
-  }
-
-  if (targetGrade) {
-    const cmpPlanTarget = computedGrade ? compareGradeKeys(computedGrade, targetGrade) : null;
-    if (onTrack) {
-      parts.push(`Ziel Note ${formatGradeLabel(targetGrade)} im Levelplan erreicht.`);
-    } else if (cmpPlanTarget != null && cmpPlanTarget <= 0) {
-      parts.push(`Du liegst auf Kurs Richtung Ziel Note ${formatGradeLabel(targetGrade)}.`);
-    } else if (summary) {
-      parts.push(`Bis Ziel Note ${formatGradeLabel(targetGrade)}: ${summary}.`);
-    } else {
-      parts.push(`Setze dein Ziel Note ${formatGradeLabel(targetGrade)} im Levelplan um.`);
-    }
-
-    if (achievedGrade) {
-      const cmpNoteTarget = compareGradeKeys(achievedGrade, targetGrade);
-      if (cmpNoteTarget != null) {
-        if (cmpNoteTarget <= 0) {
-          parts.push("Du hast dein Ziel schon erreicht oder übertroffen.");
-        } else {
-          parts.push(`Noch ${cmpNoteTarget > 0 ? "eine bessere" : ""} Note bis zum Ziel.`);
-        }
-      }
-    }
-  }
-
-  return parts.join(" ");
-}
-
-function lerpGradeRules(rulesA, rulesB, t) {
-  const keys = new Set([
-    ...Object.keys(rulesA || {}),
-    ...Object.keys(rulesB || {})
-  ]);
-  const out = {};
-  for (const key of keys) {
-    const a = rulesA?.[key] ?? 0;
-    const b = rulesB?.[key] ?? 0;
-    out[key] = a + (b - a) * t;
-  }
-  return out;
-}
-
-function buildTargetGradeRulesMap() {
-  const map = {};
-  const wholeIndices = TARGET_GRADE_ORDER.map((key, idx) =>
-    /^\d+$/.test(key) ? idx : -1
-  );
-
-  for (let i = 0; i < TARGET_GRADE_ORDER.length; i++) {
-    const key = TARGET_GRADE_ORDER[i];
-    if (/^\d+$/.test(key)) {
-      map[key] = { ...TARGET_GRADE_WHOLE_RULES[Number(key)] };
-      continue;
-    }
-
-    let lowerIdx = i - 1;
-    while (lowerIdx >= 0 && wholeIndices[lowerIdx] < 0) lowerIdx--;
-    let upperIdx = i + 1;
-    while (upperIdx < TARGET_GRADE_ORDER.length && wholeIndices[upperIdx] < 0) upperIdx++;
-
-    if (lowerIdx < 0 || upperIdx >= TARGET_GRADE_ORDER.length) continue;
-
-    const lowerKey = TARGET_GRADE_ORDER[lowerIdx];
-    const upperKey = TARGET_GRADE_ORDER[upperIdx];
-    const t = (i - lowerIdx) / (upperIdx - lowerIdx);
-    map[key] = lerpGradeRules(
-      map[lowerKey] || TARGET_GRADE_WHOLE_RULES[Number(lowerKey)],
-      map[upperKey] || TARGET_GRADE_WHOLE_RULES[Number(upperKey)],
-      t
-    );
-  }
-
-  return map;
-}
-
-const TARGET_GRADE_RULES = buildTargetGradeRulesMap();
-
-function normalizeTargetGradeKey(raw) {
-  if (raw == null || raw === "") return null;
-  const key = String(raw).trim().replace("−", "-");
-  if (TARGET_GRADE_RULES[key]) return key;
-  const asNum = Number(key);
-  if (Number.isInteger(asNum) && asNum >= 1 && asNum <= 6) return String(asNum);
   return null;
 }
 
@@ -278,7 +198,6 @@ function buildTopicTargetProgress(check, targetsRow = null) {
   const markCounts = countGoalMarksCumulative(check.goals);
   const targetKey = normalizeTargetGradeKey(targetsRow?.targetGradeKey);
   const achievedKey = normalizeTargetGradeKey(targetsRow?.achievedGradeKey);
-  const computedGrade = computeAchievedGradeFromMarks(totalGoals, markCounts);
   const recommended = targetKey ? recommendedTierCounts(totalGoals, targetKey) : null;
 
   const tiers = LEVEL_CHECK_TIERS.map((tier) => {
@@ -303,15 +222,6 @@ function buildTopicTargetProgress(check, targetsRow = null) {
         });
 
   const summary = buildTargetProgressSummary(tiers, targetKey);
-  const analysis = buildGradeAnalysis({
-    targetGrade: targetKey,
-    computedGrade,
-    achievedGrade: achievedKey,
-    onTrack: allOnTrack,
-    summary,
-    totalGoals,
-    unmarked: markCounts.unmarked
-  });
 
   return {
     id: check.id,
@@ -323,13 +233,10 @@ function buildTopicTargetProgress(check, targetsRow = null) {
     targetGradeLabel: formatGradeLabel(targetKey),
     achievedGrade: achievedKey,
     achievedGradeLabel: formatGradeLabel(achievedKey),
-    computedGrade,
-    computedGradeLabel: formatGradeLabel(computedGrade),
     tiers,
     recommended,
     onTrack: allOnTrack,
-    summary,
-    analysis
+    summary
   };
 }
 
@@ -3228,15 +3135,7 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
       hasClass: true,
       grouped,
       subjects: subjectsFromZielsetzungGroups(grouped),
-      gradeOptions: TARGET_GRADE_OPTIONS,
-      gradeRulesHint: {
-        "1": "Street Legend in mindestens 80 % der Unterthemen",
-        "2": "Operator in allen · Street Legend in mindestens 50 %",
-        "3": "Operator in mindestens 80 % der Unterthemen",
-        "4": "Rookie in mindestens 80 % der Unterthemen",
-        "5": "Rookie in mindestens 60 % der Unterthemen",
-        "6": "Rookie in mindestens 40 % der Unterthemen"
-      }
+      gradeOptions: TARGET_GRADE_OPTIONS
     });
   } catch (err) {
     console.error("❌ /api/student/zielsetzung:", err);
@@ -3262,7 +3161,7 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       if (raw !== "" && raw != null && !targetGradeKey) {
         return res.json({
           success: false,
-          message: "Bitte eine gültige Zielnote wählen (1 bis 6, ggf. mit +/−)."
+          message: "Bitte eine gültige Zielnote wählen (1 bis 6 in 0,5-Schritten)."
         });
       }
     }
@@ -3274,7 +3173,7 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       if (raw !== "" && raw != null && !achievedGradeKey) {
         return res.json({
           success: false,
-          message: "Bitte eine gültige erreichte Note wählen (1 bis 6, ggf. mit +/−)."
+          message: "Bitte eine gültige erreichte Note wählen (1 bis 6 in 0,5-Schritten)."
         });
       }
     }
@@ -3327,10 +3226,9 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       return res.json({ success: true, targetGrade: null, achievedGrade: null });
     }
 
-    const wholeGrade =
-      finalTarget && /^\d+$/.test(finalTarget)
-        ? Number(finalTarget)
-        : existing?.target_grade ?? 3;
+    const wholeGrade = finalTarget
+      ? Math.min(6, Math.max(1, Math.round(parseFloat(finalTarget))))
+      : existing?.target_grade ?? 3;
 
     const upsert = await pool.query(
       `

@@ -1,5 +1,5 @@
 /**
- * SRL-Logbuch – Zielsetzung (Zielnote, erreichte Note & Analyse).
+ * SRL-Logbuch – Zielsetzung (Zielnote & Fortschritts-Balken).
  */
 (function () {
   const state = {
@@ -50,16 +50,21 @@
       .replace(/"/g, "&quot;");
   }
 
+  function formatGradeLabel(value) {
+    return String(value ?? "").replace(".", ",");
+  }
+
   function gradeOptions() {
     const fromApi = state.data?.gradeOptions;
     if (Array.isArray(fromApi) && fromApi.length) {
       return fromApi.map((g) =>
-        typeof g === "object" ? g : { value: String(g), label: String(g).replace(/-/g, "−") }
+        typeof g === "object" ? g : { value: String(g), label: formatGradeLabel(g) }
       );
     }
-    return ["1", "1-", "2+", "2", "2-", "3+", "3", "3-", "4+", "4", "4-", "5+", "5", "5-", "6"].map(
-      (g) => ({ value: g, label: g.replace(/-/g, "−") })
-    );
+    return ["1", "1.5", "2", "2.5", "3", "3.5", "4", "4.5", "5", "5.5", "6"].map((g) => ({
+      value: g,
+      label: formatGradeLabel(g)
+    }));
   }
 
   function availableSubjects() {
@@ -126,12 +131,6 @@
       </div>`;
   }
 
-  function renderAnalysis(topic) {
-    if (!topic.analysis) return "";
-    const cls = topic.onTrack ? "zs-analysis zs-analysis-ok" : "zs-analysis";
-    return `<div class="${cls}">${escapeHtml(topic.analysis)}</div>`;
-  }
-
   function renderTopicCard(topic) {
     const saving = state.saving === topic.id;
     const targetSelected = topic.targetGrade != null ? String(topic.targetGrade) : "";
@@ -144,11 +143,6 @@
           <div>
             <h4 class="zs-topic-title">${escapeHtml(topic.name)}</h4>
             <p class="zs-topic-meta">${topic.totalGoals} Unterthemen</p>
-            ${
-              topic.computedGradeLabel && topic.computedGradeLabel !== "–"
-                ? `<p class="zs-computed-grade">Levelplan-Stand: Note ${escapeHtml(topic.computedGradeLabel)}</p>`
-                : ""
-            }
           </div>
           <div class="zs-grade-row">
             ${renderGradeSelect(topic.id, "target", targetSelected, saving)}
@@ -156,14 +150,12 @@
           </div>
         </div>
 
-        ${renderAnalysis(topic)}
-
         ${
           topic.targetGrade
             ? `<div class="zs-tiers">
                 ${(topic.tiers || []).map((tier) => renderTierBar(tier, topic.totalGoals)).join("")}
               </div>`
-            : `<p class="zs-topic-hint zs-topic-hint-muted">Wähle zuerst deine Zielnote – dann siehst du die nötigen Häkchen.</p>`
+            : `<p class="zs-topic-hint zs-topic-hint-muted">Wähle deine Zielnote – die Balken zeigen, wie viele Häkchen du im Levelplan setzen musst.</p>`
         }
 
         ${
@@ -192,27 +184,6 @@
               .join("")}
           </select>
         </label>
-      </div>`;
-  }
-
-  function renderRulesHint() {
-    const hint = state.data?.gradeRulesHint;
-    if (!hint) return "";
-    const rows = [
-      ["1", hint["1"]],
-      ["2", hint["2"]],
-      ["3", hint["3"]],
-      ["4", hint["4"]],
-      ["5", hint["5"]],
-      ["6", hint["6"]]
-    ].filter(([, text]) => text);
-    if (!rows.length) return "";
-    return `
-      <div class="zs-rules-box">
-        <p class="zs-rules-title">Richtwerte pro Zielnote (Kommastufen dazwischen)</p>
-        <ul class="zs-rules-list">
-          ${rows.map(([g, text]) => `<li><b>Note ${escapeHtml(g)}:</b> ${escapeHtml(text)}</li>`).join("")}
-        </ul>
       </div>`;
   }
 
@@ -264,10 +235,9 @@
     root.innerHTML = `
       <div class="lc-shell zs-shell">
         <p class="lc-intro">
-          <strong>Zielsetzung:</strong> Wähle dein Fach, setze pro Überthema deine <em>Zielnote</em>
-          und trage deine <em>erreichte Note</em> ein. Die Analyse vergleicht beides mit deinem Levelplan.
+          <strong>Zielsetzung:</strong> Wähle dein Fach und setze pro Überthema deine Zielnote.
+          Die Balken zeigen, wie viele Rookie-, Operator- und Street-Legend-Häkchen du im Levelplan brauchst.
         </p>
-        ${renderRulesHint()}
         ${renderSubjectToolbar()}
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
@@ -319,9 +289,9 @@
       state.message =
         field === "achievedGradeKey"
           ? value
-            ? `Erreichte Note ${value.replace(/-/g, "−")} gespeichert.`
+            ? `Erreichte Note ${formatGradeLabel(value)} gespeichert.`
             : "Erreichte Note entfernt."
-          : `Zielnote ${value.replace(/-/g, "−")} gespeichert.`;
+          : `Zielnote ${formatGradeLabel(value)} gespeichert.`;
       await loadData(initGeneration);
     } catch (err) {
       console.error(err);

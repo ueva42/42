@@ -127,13 +127,8 @@
     const target = levelCheck.target;
 
     const targetBadge = target?.targetGrade
-      ? `<span class="lc-target-badge">Zielnote ${escapeHtml(String(target.targetGrade))}</span>`
+      ? `<span class="lc-target-badge">Zielnote ${escapeHtml(target.targetGradeLabel || String(target.targetGrade).replace(".", ","))}</span>`
       : `<span class="lc-target-badge lc-target-badge-empty">Zielnote in Zielsetzung wählen</span>`;
-
-    const targetHint =
-      target?.targetGrade && target.summary
-        ? `<p class="lc-target-hint ${target.onTrack ? "lc-target-hint-ok" : ""}">${escapeHtml(target.summary)}</p>`
-        : "";
 
     return `
       <article class="lc-check-card">
@@ -142,7 +137,6 @@
             <span class="lc-check-badge">${escapeHtml(levelCheck.name)}</span>
             ${targetBadge}
             <p class="lc-check-sub">${total} Unterthemen · ${marked} markiert</p>
-            ${targetHint}
           </div>
         </div>
         ${renderMatrix(levelCheck, tiers)}
