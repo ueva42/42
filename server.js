@@ -40,13 +40,20 @@ const LEVEL_CHECK_XP = {
   street_legend: 12
 };
 
-const TARGET_GRADE_WHOLE_RULES = {
-  1: { rookie: 1, operator: 1, street_legend: 0.8 },
-  2: { rookie: 1, operator: 1, street_legend: 0.5 },
-  3: { rookie: 0.8, operator: 0.8 },
-  4: { rookie: 0.8 },
-  5: { rookie: 0.6 },
-  6: { rookie: 0.4 }
+// Pro Überthema: Anteil der Unterthemen (Häkchen im Levelplan) pro Tier.
+// Halbe Noten sind feste Zwischenstufen zwischen den ganzen Noten (keine Interpolation).
+const TARGET_GRADE_RULES = {
+  "1": { street_legend: 0.8 },
+  "1.5": { operator: 1, street_legend: 0.65 },
+  "2": { operator: 1, street_legend: 0.5 },
+  "2.5": { operator: 1, street_legend: 0.25 },
+  "3": { operator: 0.8 },
+  "3.5": { rookie: 1, operator: 0.5 },
+  "4": { rookie: 0.8 },
+  "4.5": { rookie: 1 },
+  "5": { rookie: 0.6 },
+  "5.5": { rookie: 0.5 },
+  "6": { rookie: 0.4 }
 };
 
 const TARGET_GRADE_ORDER = [];
@@ -71,42 +78,6 @@ function formatGradeLabel(key) {
   if (!key) return "–";
   return String(key).replace(".", ",");
 }
-
-function lerpGradeRules(rulesA, rulesB, t) {
-  const keys = new Set([
-    ...Object.keys(rulesA || {}),
-    ...Object.keys(rulesB || {})
-  ]);
-  const out = {};
-  for (const key of keys) {
-    const a = rulesA?.[key] ?? 0;
-    const b = rulesB?.[key] ?? 0;
-    out[key] = a + (b - a) * t;
-  }
-  return out;
-}
-
-function buildTargetGradeRulesMap() {
-  const map = {};
-  for (const key of TARGET_GRADE_ORDER) {
-    const num = parseFloat(key);
-    const lower = Math.floor(num);
-    const upper = Math.min(6, Math.ceil(num));
-    if (lower === upper || num === 6) {
-      map[key] = { ...TARGET_GRADE_WHOLE_RULES[lower] };
-      continue;
-    }
-    const t = num - lower;
-    map[key] = lerpGradeRules(
-      TARGET_GRADE_WHOLE_RULES[lower],
-      TARGET_GRADE_WHOLE_RULES[upper],
-      t
-    );
-  }
-  return map;
-}
-
-const TARGET_GRADE_RULES = buildTargetGradeRulesMap();
 
 const TARGET_GRADE_OPTIONS = TARGET_GRADE_ORDER.map((value) => ({
   value,
