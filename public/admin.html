@@ -619,6 +619,11 @@
     .tc-levelcheck-name { margin:4px 0 0; font-size:16px; }
     .tc-checkpoint-date-wrap { display:flex; flex-direction:column; gap:4px; margin-top:8px; font-size:11px; opacity:0.85; }
     .tc-checkpoint-date { padding:6px 8px; border-radius:8px; border:1px solid rgba(148,163,184,0.35); background:#0f172a; color:#f9fafb; font-size:12px; max-width:180px; }
+    .tc-checkpoint-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-top:8px; }
+    .tc-checkpoint-row label { display:flex; flex-direction:column; gap:4px; font-size:11px; opacity:0.85; }
+    .tc-checkpoint-row input,
+    .tc-checkpoint-row select { padding:6px 8px; border-radius:8px; border:1px solid rgba(148,163,184,0.35); background:#0f172a; color:#f9fafb; font-size:12px; }
+    .tc-checkpoint-custom-hidden { display:none; }
     .tc-goal-list { margin:0 0 10px; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px; }
     .tc-goal-item { display:flex; align-items:flex-start; gap:8px; padding:8px 10px; border-radius:8px; background:rgba(2,6,23,0.5); font-size:13px; }
     .tc-goal-num { opacity:0.6; min-width:1.5em; }
@@ -1059,7 +1064,7 @@
 <script src="/js/teacher-timetable.js?v=4"></script>
 <script src="/js/teacher-lesson-goals.js?v=1"></script>
 <script src="/js/teacher-week.js"></script>
-<script src="/js/teacher-competencies.js?v=5"></script>
+<script src="/js/teacher-competencies.js?v=6"></script>
 
 <script>
 const TEACHER_TAB_ROUTES = {

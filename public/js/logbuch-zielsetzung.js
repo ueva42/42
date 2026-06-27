@@ -313,9 +313,12 @@
     const datePart = upcoming.checkpointDateLabel
       ? ` · ${escapeHtml(upcoming.checkpointDateLabel)}`
       : " · Termin folgt";
+    const typePart = upcoming.checkpointTypeLabel
+      ? `<span class="zs-upcoming-type">${escapeHtml(upcoming.checkpointTypeLabel)}</span> · `
+      : "";
     return `
       <div class="zs-upcoming-banner">
-        Anstehende Klassenarbeit: <strong>${escapeHtml(upcoming.name)}</strong>${datePart}
+        ${typePart}Anstehend: <strong>${escapeHtml(upcoming.name)}</strong>${datePart}
       </div>`;
   }
 

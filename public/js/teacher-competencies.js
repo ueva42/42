@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Levelstatus (Fach → Klassenarbeit-Thema → Unterthemen).
+ * Lehrkraft – Levelstatus (Fach → Checkpoint-Thema → Unterthemen).
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -21,6 +21,13 @@
     "BK",
     "WBS",
     "Religion/Ethik"
+  ];
+
+  const DEFAULT_CHECKPOINT_TYPES = [
+    { value: "klassenarbeit", label: "Klassenarbeit" },
+    { value: "test", label: "Test" },
+    { value: "praesentation", label: "Präsentation" },
+    { value: "custom", label: "Eigene Angabe" }
   ];
 
   const state = {
@@ -45,6 +52,18 @@
     return String(a) === String(b);
   }
 
+  function checkpointTypeOptions(selected) {
+    const options = state.data?.checkpointTypeOptions?.length
+      ? state.data.checkpointTypeOptions
+      : DEFAULT_CHECKPOINT_TYPES;
+    return options
+      .map(
+        (o) =>
+          `<option value="${escapeHtml(o.value)}" ${o.value === selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`
+      )
+      .join("");
+  }
+
   function subjectsList() {
     const fromApi = state.data?.subjects;
     return Array.isArray(fromApi) && fromApi.length ? fromApi : FALLBACK_SUBJECTS;
@@ -64,17 +83,69 @@
     return (state.data?.levelChecks || []).filter((lc) => lc.subject === subject);
   }
 
+  function typeLabelForTopic(topic) {
+    if (topic.checkpointType === "custom" && topic.checkpointTypeLabel) {
+      return topic.checkpointTypeLabel;
+    }
+    const match = (state.data?.checkpointTypeOptions || DEFAULT_CHECKPOINT_TYPES).find(
+      (o) => o.value === topic.checkpointType
+    );
+    return match?.label || "Klassenarbeit";
+  }
+
+  function renderCheckpointFields(topicOrNull, prefix) {
+    const topic = topicOrNull || {};
+    const type = topic.checkpointType || "klassenarbeit";
+    const isCustom = type === "custom";
+    const checkId = topic.id ? ` data-check-id="${escapeHtml(topic.id)}"` : "";
+    const dateValue = topic.checkpointDate || "";
+
+    return `
+      <div class="tc-checkpoint-row">
+        <label>
+          Termin
+          <input
+            type="date"
+            class="tc-checkpoint-date"
+            ${checkId}
+            id="${prefix}CheckpointDate"
+            value="${escapeHtml(dateValue)}"
+          >
+        </label>
+        <label>
+          Art
+          <select class="tc-checkpoint-type" ${checkId} id="${prefix}CheckpointType">
+            ${checkpointTypeOptions(type)}
+          </select>
+        </label>
+        <label class="tc-checkpoint-custom-wrap ${isCustom ? "" : "tc-checkpoint-custom-hidden"}">
+          Eigene Bezeichnung
+          <input
+            type="text"
+            class="tc-checkpoint-type-custom"
+            ${checkId}
+            id="${prefix}CheckpointTypeCustom"
+            maxlength="80"
+            placeholder="z. B. Projektprüfung"
+            value="${isCustom ? escapeHtml(topic.checkpointTypeLabel || "") : ""}"
+            ${isCustom ? "" : "disabled"}
+          >
+        </label>
+      </div>`;
+  }
+
   function renderAddTopicForm() {
     return `
       <form class="tc-add-form" id="tcAddTopicForm">
-        <h3>Neues Klassenarbeit-Thema</h3>
-        <p class="tc-hint">Überthema für ${escapeHtml(state.subject)} – z. B. „Bruchrechnung“ oder „Satz des Pythagoras“.</p>
-        <div class="tc-add-grid tc-add-grid-single">
+        <h3>Neues Checkpoint-Thema</h3>
+        <p class="tc-hint">Thema für ${escapeHtml(state.subject)} – z. B. „Bruchrechnung“. Termin und Art erscheinen im Checkpoint-Plan der Schüler:innen.</p>
+        <div class="tc-add-grid">
           <label>
             Thema
             <input type="text" id="tcAddTopicName" maxlength="120" required placeholder="z. B. Bruchrechnung">
           </label>
         </div>
+        ${renderCheckpointFields(null, "tcAdd")}
         <button type="submit" class="action" id="tcAddTopicBtn" ${state.saving ? "disabled" : ""}>
           ${state.saving ? "Speichern…" : "Thema anlegen"}
         </button>
@@ -91,22 +162,13 @@
   }
 
   function renderTopic(topic) {
-    const dateValue = topic.checkpointDate || "";
     return `
       <article class="tc-levelcheck-card" data-check-id="${escapeHtml(topic.id)}">
         <div class="tc-levelcheck-head">
           <div>
-            <span class="tc-levelcheck-subject">Klassenarbeit</span>
+            <span class="tc-levelcheck-subject">${escapeHtml(typeLabelForTopic(topic))}</span>
             <h4 class="tc-levelcheck-name">${escapeHtml(topic.name)}</h4>
-            <label class="tc-checkpoint-date-wrap">
-              Termin
-              <input
-                type="date"
-                class="tc-checkpoint-date"
-                data-check-id="${escapeHtml(topic.id)}"
-                value="${escapeHtml(dateValue)}"
-              >
-            </label>
+            ${renderCheckpointFields(topic, `tcTopic-${topic.id}`)}
           </div>
           <button type="button" class="tc-delete-btn" data-check-id="${escapeHtml(topic.id)}">Thema löschen</button>
         </div>
@@ -146,7 +208,7 @@
     root.innerHTML = `
       <div class="panel">
         <h2>Levelstatus</h2>
-        <p class="hint">Pro Fach Klassenarbeit-Themen anlegen, Termine setzen und Unterthemen pflegen. Schüler:innen sehen Termine im Checkpoint-Plan und setzen Zielnoten in der Zielsetzung.</p>
+        <p class="hint">Pro Fach Checkpoint-Themen anlegen: Termin, Art (Klassenarbeit, Test, Präsentation …) und Unterthemen. Schüler:innen sehen Termine im Checkpoint-Plan und setzen Zielnoten in der Zielsetzung.</p>
 
         <div class="tc-toolbar">
           <label>Klasse:
@@ -177,6 +239,29 @@
           `<option value="${c.id}" ${sameId(c.id, state.classId) ? "selected" : ""}>${escapeHtml(c.name)}</option>`
       )
       .join("");
+  }
+
+  function toggleCustomField(wrap, show) {
+    if (!wrap) return;
+    wrap.classList.toggle("tc-checkpoint-custom-hidden", !show);
+    const input = wrap.querySelector(".tc-checkpoint-type-custom");
+    if (input) {
+      input.disabled = !show;
+      if (!show) input.value = "";
+    }
+  }
+
+  function bindCheckpointTypeToggle(scope) {
+    scope.querySelectorAll(".tc-checkpoint-type").forEach((sel) => {
+      sel.addEventListener("change", () => {
+        const card = sel.closest(".tc-levelcheck-card") || sel.closest(".tc-add-form");
+        const wrap = card?.querySelector(".tc-checkpoint-custom-wrap");
+        toggleCustomField(wrap, sel.value === "custom");
+        if (sel.dataset.checkId) {
+          saveCheckpointMeta(sel.dataset.checkId, card);
+        }
+      });
+    });
   }
 
   function bindHandlers(root) {
@@ -214,47 +299,87 @@
       btn.addEventListener("click", () => deleteSubtopic(btn.dataset.goalId));
     });
 
+    bindCheckpointTypeToggle(root);
+
     root.querySelectorAll(".tc-checkpoint-date").forEach((input) => {
-      input.addEventListener("change", () => saveCheckpointDate(input));
+      input.addEventListener("change", () => {
+        if (input.dataset.checkId) {
+          saveCheckpointMeta(input.dataset.checkId, input.closest(".tc-levelcheck-card"));
+        }
+      });
+    });
+
+    root.querySelectorAll(".tc-checkpoint-type-custom").forEach((input) => {
+      input.addEventListener("blur", () => {
+        if (input.dataset.checkId && input.value.trim()) {
+          saveCheckpointMeta(input.dataset.checkId, input.closest(".tc-levelcheck-card"));
+        }
+      });
     });
   }
 
-  async function saveCheckpointDate(input) {
-    const checkId = input.dataset.checkId;
-    if (!checkId) return;
+  function readCheckpointPayload(scope) {
+    const typeEl = scope?.querySelector(".tc-checkpoint-type");
+    const dateEl = scope?.querySelector(".tc-checkpoint-date");
+    const customEl = scope?.querySelector(".tc-checkpoint-type-custom");
+    const checkpointType = typeEl?.value || "klassenarbeit";
+    return {
+      checkpointDate: dateEl?.value || null,
+      checkpointType,
+      checkpointTypeLabel: checkpointType === "custom" ? customEl?.value?.trim() || "" : null
+    };
+  }
+
+  async function saveCheckpointMeta(checkId, scope) {
+    if (!checkId || !scope) return;
+    const payload = readCheckpointPayload(scope);
+    if (payload.checkpointType === "custom" && !payload.checkpointTypeLabel) {
+      state.error = "Bitte eine eigene Bezeichnung eingeben.";
+      render();
+      return;
+    }
+
     state.saving = true;
     state.error = "";
     try {
       const res = await fetch(`/api/teacher/levelchecks/${encodeURIComponent(checkId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checkpointDate: input.value || null })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       state.saving = false;
       if (!data.success) {
-        state.error = data.message || "Termin konnte nicht gespeichert werden.";
+        state.error = data.message || "Checkpoint-Daten konnten nicht gespeichert werden.";
         render();
         return;
       }
       state.message = data.checkpointDate
-        ? `Termin gespeichert: ${data.checkpointDateLabel}`
-        : "Termin entfernt.";
+        ? `${data.checkpointTypeLabel} gespeichert · ${data.checkpointDateLabel}`
+        : `${data.checkpointTypeLabel} gespeichert (ohne Termin)`;
       await loadData();
     } catch (err) {
       console.error(err);
       state.saving = false;
-      state.error = "Netzwerkfehler beim Speichern des Termins.";
+      state.error = "Netzwerkfehler beim Speichern.";
       render();
     }
   }
 
   async function addTopic() {
     const root = document.getElementById("competenciesTabRoot");
+    const form = root?.querySelector("#tcAddTopicForm");
     const name = root?.querySelector("#tcAddTopicName")?.value?.trim();
+    const payload = readCheckpointPayload(form);
 
     if (!state.subject || !name) {
       state.error = "Bitte Thema benennen.";
+      state.message = "";
+      render();
+      return;
+    }
+    if (payload.checkpointType === "custom" && !payload.checkpointTypeLabel) {
+      state.error = "Bitte eine eigene Bezeichnung eingeben.";
       state.message = "";
       render();
       return;
@@ -269,7 +394,12 @@
       const res = await fetch("/api/teacher/levelchecks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId: state.classId, subject: state.subject, name })
+        body: JSON.stringify({
+          classId: state.classId,
+          subject: state.subject,
+          name,
+          ...payload
+        })
       });
       const data = await res.json();
       state.saving = false;
@@ -294,8 +424,10 @@
     const checkId = form.dataset.checkId;
     const input = form.querySelector(".tc-goal-input");
     const goalText = input?.value?.trim();
-    if (!goalText) return;
+    if (!checkId || !goalText) return;
 
+    state.saving = true;
+    state.error = "";
     try {
       const res = await fetch(`/api/teacher/levelchecks/${encodeURIComponent(checkId)}/goals`, {
         method: "POST",
@@ -303,26 +435,25 @@
         body: JSON.stringify({ goalText })
       });
       const data = await res.json();
-
+      state.saving = false;
       if (!data.success) {
         state.error = data.message || "Unterthema konnte nicht gespeichert werden.";
         render();
         return;
       }
-
       state.message = "Unterthema hinzugefügt.";
-      state.error = "";
       await loadData();
     } catch (err) {
       console.error(err);
+      state.saving = false;
       state.error = "Netzwerkfehler.";
       render();
     }
   }
 
   async function deleteTopic(checkId) {
-    if (!confirm("Dieses Thema und alle Unterthemen wirklich löschen?")) return;
-
+    if (!checkId || !confirm("Thema mit allen Unterthemen wirklich löschen?")) return;
+    state.error = "";
     try {
       const res = await fetch(`/api/teacher/levelchecks/${encodeURIComponent(checkId)}`, {
         method: "DELETE"
@@ -343,8 +474,8 @@
   }
 
   async function deleteSubtopic(goalId) {
-    if (!confirm("Dieses Unterthema wirklich löschen?")) return;
-
+    if (!goalId || !confirm("Unterthema wirklich löschen?")) return;
+    state.error = "";
     try {
       const res = await fetch(`/api/teacher/levelcheck-goals/${encodeURIComponent(goalId)}`, {
         method: "DELETE"

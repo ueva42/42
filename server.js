@@ -109,6 +109,41 @@ const LEGACY_TARGET_GRADE_MAP = {
   "5-": "5.5"
 };
 
+const CHECKPOINT_TYPES = {
+  klassenarbeit: "Klassenarbeit",
+  test: "Test",
+  praesentation: "Präsentation",
+  custom: "Eigene Angabe"
+};
+
+const CHECKPOINT_TYPE_OPTIONS = Object.entries(CHECKPOINT_TYPES).map(([value, label]) => ({
+  value,
+  label
+}));
+
+function normalizeCheckpointType(raw) {
+  const key = String(raw ?? "").trim().toLowerCase();
+  return CHECKPOINT_TYPES[key] ? key : "klassenarbeit";
+}
+
+function resolveCheckpointTypeLabel(typeKey, customLabel) {
+  const key = normalizeCheckpointType(typeKey);
+  if (key === "custom") {
+    const text = normalizeFeedbackText(customLabel);
+    return text || CHECKPOINT_TYPES.custom;
+  }
+  return CHECKPOINT_TYPES[key];
+}
+
+function checkpointTypeShortLabel(typeLabel) {
+  const label = String(typeLabel || "").trim();
+  if (!label) return "CP";
+  if (label.length <= 4) return label;
+  if (label.toLowerCase().startsWith("klassen")) return "KA";
+  if (label.toLowerCase().startsWith("präs") || label.toLowerCase().startsWith("praes")) return "Präs.";
+  return label.slice(0, 4) + ".";
+}
+
 function normalizeFeedbackText(raw) {
   if (raw == null) return null;
   const text = String(raw).trim().replace(/\s+/g, " ");
@@ -1620,6 +1655,8 @@ async function migrate() {
   `);
   await ensureColumn("level_checks", "school_id", "INTEGER");
   await ensureColumn("level_checks", "checkpoint_date", "DATE");
+  await ensureColumn("level_checks", "checkpoint_type", "TEXT DEFAULT 'klassenarbeit'");
+  await ensureColumn("level_checks", "checkpoint_type_label", "TEXT");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS level_check_goals (
@@ -3239,7 +3276,7 @@ function levelCheckTierUnlocked(tier, proofsByTier) {
 async function getLevelChecksForClass(classId, schoolId, studentId = null) {
   const checksRes = await pool.query(
     `
-    SELECT id, subject, name, sort_order, created_at, checkpoint_date
+    SELECT id, subject, name, sort_order, created_at, checkpoint_date, checkpoint_type, checkpoint_type_label
     FROM level_checks
     WHERE class_id=$1 AND school_id=$2
     ORDER BY subject ASC, sort_order ASC, name ASC
@@ -3297,6 +3334,8 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
     name: c.name,
     sortOrder: c.sort_order,
     checkpointDate: normalizeIsoDate(c.checkpoint_date),
+    checkpointType: normalizeCheckpointType(c.checkpoint_type),
+    checkpointTypeLabel: c.checkpoint_type_label ?? null,
     goals: goalsByCheck[c.id] || []
   }));
 }
@@ -3321,38 +3360,25 @@ function groupLevelChecksBySubject(checks) {
   return grouped;
 }
 
-function buildCheckpointPlanEvents(levelChecks, studentCheckpoints) {
+function buildCheckpointPlanEvents(levelChecks) {
   const events = [];
 
   for (const check of levelChecks || []) {
     const date = normalizeIsoDate(check.checkpointDate);
     if (!date) continue;
+    const typeKey = normalizeCheckpointType(check.checkpointType);
+    const typeLabel = resolveCheckpointTypeLabel(typeKey, check.checkpointTypeLabel);
     events.push({
-      id: `test-${check.id}`,
-      type: "test",
+      id: `checkpoint-${check.id}`,
+      type: typeKey,
+      typeLabel,
+      typeShort: checkpointTypeShortLabel(typeLabel),
       subject: check.subject,
       title: check.name,
       date,
       dateLabel: formatGermanDate(date),
       levelCheckId: check.id,
-      note: null,
       editable: false
-    });
-  }
-
-  for (const row of studentCheckpoints || []) {
-    const date = normalizeIsoDate(row.checkpoint_date);
-    if (!date) continue;
-    events.push({
-      id: row.id,
-      type: "work",
-      subject: row.subject,
-      title: row.title,
-      date,
-      dateLabel: formatGermanDate(date),
-      levelCheckId: null,
-      note: row.note || null,
-      editable: true
     });
   }
 
@@ -3392,17 +3418,7 @@ app.get("/api/student/checkpoint-plan", isStudent, async (req, res) => {
     }
 
     const checks = await getLevelChecksForClass(classId, schoolId, studentId);
-    const workRes = await pool.query(
-      `
-      SELECT id, subject, title, checkpoint_date, note
-      FROM student_checkpoints
-      WHERE user_id = $1 AND school_id = $2
-      ORDER BY checkpoint_date ASC, created_at ASC
-    `,
-      [studentId, schoolId]
-    );
-
-    let events = buildCheckpointPlanEvents(checks, workRes.rows);
+    let events = buildCheckpointPlanEvents(checks);
     const subjectsWithTopics = [...new Set(checks.map((c) => c.subject))];
 
     if (subjectFilter && LOG_SUBJECTS.includes(subjectFilter)) {
@@ -3422,6 +3438,7 @@ app.get("/api/student/checkpoint-plan", isStudent, async (req, res) => {
       hasClass: true,
       subjects: LOG_SUBJECTS,
       subjectsWithTopics,
+      checkpointTypeOptions: CHECKPOINT_TYPE_OPTIONS,
       selectedSubject: subjectFilter || "",
       month,
       today,
@@ -3436,74 +3453,18 @@ app.get("/api/student/checkpoint-plan", isStudent, async (req, res) => {
   }
 });
 
-app.post("/api/student/checkpoint-plan", isStudent, async (req, res) => {
-  try {
-    const studentId = req.session.user.id;
-    const schoolId = req.session.user.school_id;
-    const subject = String(req.body.subject || "").trim();
-    const title = String(req.body.title || "").trim();
-    const checkpointDate = normalizeIsoDate(req.body.checkpointDate);
-    const note = normalizeFeedbackText(req.body.note);
-
-    if (!subject || !LOG_SUBJECTS.includes(subject)) {
-      return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
-    }
-    if (!title) {
-      return res.json({ success: false, message: "Bitte einen Titel eingeben." });
-    }
-    if (!checkpointDate) {
-      return res.json({ success: false, message: "Bitte ein Datum wählen." });
-    }
-
-    const ins = await pool.query(
-      `
-      INSERT INTO student_checkpoints (school_id, user_id, subject, title, checkpoint_date, note)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, subject, title, checkpoint_date, note
-    `,
-      [schoolId, studentId, subject, title.slice(0, 120), checkpointDate, note]
-    );
-
-    const row = ins.rows[0];
-    res.json({
-      success: true,
-      event: {
-        id: row.id,
-        type: "work",
-        subject: row.subject,
-        title: row.title,
-        date: normalizeIsoDate(row.checkpoint_date),
-        dateLabel: formatGermanDate(row.checkpoint_date),
-        note: row.note,
-        editable: true
-      }
-    });
-  } catch (err) {
-    console.error("❌ POST /api/student/checkpoint-plan:", err);
-    res.status(500).json({ success: false, message: "Serverfehler" });
-  }
+app.post("/api/student/checkpoint-plan", isStudent, (_req, res) => {
+  res.json({
+    success: false,
+    message: "Termine legt deine Lehrkraft im Levelstatus fest."
+  });
 });
 
-app.delete("/api/student/checkpoint-plan/:id", isStudent, async (req, res) => {
-  try {
-    const studentId = req.session.user.id;
-    const schoolId = req.session.user.school_id;
-    const del = await pool.query(
-      `
-      DELETE FROM student_checkpoints
-      WHERE id = $1 AND user_id = $2 AND school_id = $3
-      RETURNING id
-    `,
-      [req.params.id, studentId, schoolId]
-    );
-    if (!del.rows.length) {
-      return res.json({ success: false, message: "Eintrag nicht gefunden." });
-    }
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ DELETE /api/student/checkpoint-plan:", err);
-    res.status(500).json({ success: false, message: "Serverfehler" });
-  }
+app.delete("/api/student/checkpoint-plan/:id", isStudent, (_req, res) => {
+  res.json({
+    success: false,
+    message: "Termine können nur von der Lehrkraft geändert werden."
+  });
 });
 
 // -------------------------------------------------------
@@ -3601,7 +3562,12 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
           id: upcoming.id,
           name: upcoming.name,
           checkpointDate: upcoming.checkpointDate,
-          checkpointDateLabel: formatGermanDate(upcoming.checkpointDate)
+          checkpointDateLabel: formatGermanDate(upcoming.checkpointDate),
+          checkpointType: normalizeCheckpointType(upcoming.checkpointType),
+          checkpointTypeLabel: resolveCheckpointTypeLabel(
+            upcoming.checkpointType,
+            upcoming.checkpointTypeLabel
+          )
         };
       }
     }
@@ -4139,6 +4105,7 @@ app.get("/api/teacher/levelchecks", isAdmin, async (req, res) => {
       className: classRes.rows[0].name,
       subjects: LOG_SUBJECTS,
       tiers: levelCheckTiersPayload(true),
+      checkpointTypeOptions: CHECKPOINT_TYPE_OPTIONS,
       levelChecks: checks
     });
   } catch (err) {
@@ -4158,6 +4125,14 @@ app.post("/api/teacher/levelchecks", isAdmin, async (req, res) => {
     const classId = Number(req.body.classId);
     const subject = String(req.body.subject || "").trim();
     const name = String(req.body.name || "").trim();
+    const checkpointDate = Object.prototype.hasOwnProperty.call(req.body, "checkpointDate")
+      ? (req.body.checkpointDate === "" || req.body.checkpointDate == null
+          ? null
+          : normalizeIsoDate(req.body.checkpointDate))
+      : null;
+    const checkpointType = normalizeCheckpointType(req.body.checkpointType || "klassenarbeit");
+    const checkpointTypeLabel =
+      checkpointType === "custom" ? normalizeFeedbackText(req.body.checkpointTypeLabel) : null;
 
     if (!classId || !subject || !name) {
       return res.json({
@@ -4168,6 +4143,16 @@ app.post("/api/teacher/levelchecks", isAdmin, async (req, res) => {
 
     if (!LOG_SUBJECTS.includes(subject)) {
       return res.json({ success: false, message: "Ungültiges Fach." });
+    }
+
+    if (req.body.checkpointDate && !checkpointDate) {
+      return res.json({ success: false, message: "Ungültiges Datum." });
+    }
+    if (checkpointType === "custom" && !checkpointTypeLabel) {
+      return res.json({
+        success: false,
+        message: "Bitte eine eigene Bezeichnung für den Checkpoint-Typ eingeben."
+      });
     }
 
     const classRes = await pool.query(
@@ -4189,11 +4174,23 @@ app.post("/api/teacher/levelchecks", isAdmin, async (req, res) => {
 
     const ins = await pool.query(
       `
-      INSERT INTO level_checks (school_id, class_id, subject, name, sort_order)
-      VALUES ($1,$2,$3,$4,$5)
-      RETURNING id, subject, name, sort_order, created_at
+      INSERT INTO level_checks (
+        school_id, class_id, subject, name, sort_order,
+        checkpoint_date, checkpoint_type, checkpoint_type_label
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      RETURNING id, subject, name, sort_order, created_at, checkpoint_date, checkpoint_type, checkpoint_type_label
     `,
-      [schoolId, classId, subject, name.slice(0, 120), orderRes.rows[0].next_order]
+      [
+        schoolId,
+        classId,
+        subject,
+        name.slice(0, 120),
+        orderRes.rows[0].next_order,
+        checkpointDate,
+        checkpointType,
+        checkpointTypeLabel
+      ]
     );
 
     const row = ins.rows[0];
@@ -4204,6 +4201,9 @@ app.post("/api/teacher/levelchecks", isAdmin, async (req, res) => {
         subject: row.subject,
         name: row.name,
         sortOrder: row.sort_order,
+        checkpointDate: normalizeIsoDate(row.checkpoint_date),
+        checkpointType: normalizeCheckpointType(row.checkpoint_type),
+        checkpointTypeLabel: row.checkpoint_type_label,
         goals: [],
         createdAt: row.created_at
       }
@@ -4287,35 +4287,80 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
     const schoolId = req.session.user.school_id;
     const levelCheckId = req.params.id;
     const hasDate = Object.prototype.hasOwnProperty.call(req.body, "checkpointDate");
-    if (!hasDate) {
+    const hasType = Object.prototype.hasOwnProperty.call(req.body, "checkpointType");
+    const hasTypeLabel = Object.prototype.hasOwnProperty.call(req.body, "checkpointTypeLabel");
+
+    if (!hasDate && !hasType && !hasTypeLabel) {
       return res.json({ success: false, message: "Keine Änderung übergeben." });
     }
 
-    const checkpointDate =
-      req.body.checkpointDate === "" || req.body.checkpointDate == null
-        ? null
-        : normalizeIsoDate(req.body.checkpointDate);
-    if (req.body.checkpointDate && !checkpointDate) {
-      return res.json({ success: false, message: "Ungültiges Datum." });
+    const existingRes = await pool.query(
+      `
+      SELECT checkpoint_date, checkpoint_type, checkpoint_type_label
+      FROM level_checks
+      WHERE id = $1 AND school_id = $2
+    `,
+      [levelCheckId, schoolId]
+    );
+    if (!existingRes.rows.length) {
+      return res.json({ success: false, message: "Thema nicht gefunden." });
+    }
+
+    const existing = existingRes.rows[0];
+    let checkpointDate = normalizeIsoDate(existing.checkpoint_date);
+    let checkpointType = normalizeCheckpointType(existing.checkpoint_type);
+    let checkpointTypeLabel = existing.checkpoint_type_label ?? null;
+
+    if (hasDate) {
+      checkpointDate =
+        req.body.checkpointDate === "" || req.body.checkpointDate == null
+          ? null
+          : normalizeIsoDate(req.body.checkpointDate);
+      if (req.body.checkpointDate && !checkpointDate) {
+        return res.json({ success: false, message: "Ungültiges Datum." });
+      }
+    }
+
+    if (hasType) {
+      checkpointType = normalizeCheckpointType(req.body.checkpointType);
+    }
+
+    if (hasTypeLabel || hasType) {
+      checkpointTypeLabel =
+        checkpointType === "custom"
+          ? normalizeFeedbackText(req.body.checkpointTypeLabel)
+          : null;
+    }
+
+    if (checkpointType === "custom" && !checkpointTypeLabel) {
+      return res.json({
+        success: false,
+        message: "Bitte eine eigene Bezeichnung für den Checkpoint-Typ eingeben."
+      });
     }
 
     const upd = await pool.query(
       `
       UPDATE level_checks
-      SET checkpoint_date = $1
-      WHERE id = $2 AND school_id = $3
-      RETURNING id, checkpoint_date
+      SET
+        checkpoint_date = $1,
+        checkpoint_type = $2,
+        checkpoint_type_label = $3
+      WHERE id = $4 AND school_id = $5
+      RETURNING id, checkpoint_date, checkpoint_type, checkpoint_type_label
     `,
-      [checkpointDate, levelCheckId, schoolId]
+      [checkpointDate, checkpointType, checkpointTypeLabel, levelCheckId, schoolId]
     );
-    if (!upd.rows.length) {
-      return res.json({ success: false, message: "Thema nicht gefunden." });
-    }
 
     res.json({
       success: true,
       checkpointDate: normalizeIsoDate(upd.rows[0].checkpoint_date),
-      checkpointDateLabel: formatGermanDate(upd.rows[0].checkpoint_date)
+      checkpointDateLabel: formatGermanDate(upd.rows[0].checkpoint_date),
+      checkpointType: normalizeCheckpointType(upd.rows[0].checkpoint_type),
+      checkpointTypeLabel: resolveCheckpointTypeLabel(
+        upd.rows[0].checkpoint_type,
+        upd.rows[0].checkpoint_type_label
+      )
     });
   } catch (err) {
     console.error("❌ PATCH /api/teacher/levelchecks:", err);

@@ -9,7 +9,6 @@
     selectedSubject: "",
     month: "",
     loading: false,
-    saving: false,
     message: "",
     error: ""
   };
@@ -59,12 +58,19 @@
     return cells;
   }
 
+  function eventChipClass(type) {
+    if (type === "test") return "cp-event-test";
+    if (type === "praesentation") return "cp-event-praesentation";
+    if (type === "custom") return "cp-event-custom";
+    return "cp-event-klassenarbeit";
+  }
+
   function renderEventChip(event) {
-    const cls = event.type === "test" ? "cp-event-test" : "cp-event-work";
-    const typeLabel = event.type === "test" ? "KA" : "Arbeit";
+    const cls = eventChipClass(event.type);
+    const typeLabel = event.typeShort || event.typeLabel || "CP";
     return `
-      <div class="cp-event-chip ${cls}" title="${escapeHtml(event.subject)} – ${escapeHtml(event.title)}">
-        <span class="cp-event-type">${typeLabel}</span>
+      <div class="cp-event-chip ${cls}" title="${escapeHtml(event.subject)} · ${escapeHtml(event.typeLabel || "")} – ${escapeHtml(event.title)}">
+        <span class="cp-event-type">${escapeHtml(typeLabel)}</span>
         <span class="cp-event-title">${escapeHtml(event.title)}</span>
       </div>`;
   }
@@ -74,6 +80,7 @@
     const byDate = state.data?.eventsByDate || {};
     const today = state.data?.today || new Date().toISOString().slice(0, 10);
     const cells = buildMonthGrid(month);
+    const typeOptions = state.data?.checkpointTypeOptions || [];
 
     return `
       <section class="cp-calendar">
@@ -102,8 +109,16 @@
             .join("")}
         </div>
         <div class="cp-legend">
-          <span><i class="cp-legend-dot cp-legend-test"></i> Klassenarbeit</span>
-          <span><i class="cp-legend-dot cp-legend-work"></i> Arbeits-Checkpoint</span>
+          ${
+            typeOptions.length
+              ? typeOptions
+                  .map(
+                    (o) =>
+                      `<span><i class="cp-legend-dot cp-legend-${escapeHtml(o.value)}"></i> ${escapeHtml(o.label)}</span>`
+                  )
+                  .join("")
+              : `<span><i class="cp-legend-dot cp-legend-klassenarbeit"></i> Klassenarbeit</span>`
+          }
         </div>
       </section>`;
   }
@@ -115,6 +130,7 @@
         <section class="cp-upcoming">
           <h3 class="cp-section-title">Was ansteht</h3>
           <p class="cp-empty">Keine anstehenden Termine${state.selectedSubject ? " für dieses Fach" : ""}.</p>
+          <p class="cp-empty cp-empty-hint">Deine Lehrkraft trägt Termine im Levelstatus ein.</p>
         </section>`;
     }
 
@@ -128,57 +144,14 @@
             <li class="cp-upcoming-item cp-upcoming-${escapeHtml(event.type)}">
               <div class="cp-upcoming-main">
                 <span class="cp-upcoming-date">${escapeHtml(event.dateLabel || event.date)}</span>
-                <span class="cp-upcoming-subject">${escapeHtml(event.subject)}</span>
+                <span class="cp-upcoming-subject">${escapeHtml(event.subject)} · ${escapeHtml(event.typeLabel || "")}</span>
                 <strong class="cp-upcoming-title">${escapeHtml(event.title)}</strong>
-                ${event.note ? `<p class="cp-upcoming-note">${escapeHtml(event.note)}</p>` : ""}
               </div>
-              ${
-                event.editable
-                  ? `<button type="button" class="cp-delete-btn" data-event-id="${escapeHtml(event.id)}" title="Entfernen">×</button>`
-                  : `<span class="cp-upcoming-badge">${event.type === "test" ? "Klassenarbeit" : "Arbeit"}</span>`
-              }
+              <span class="cp-upcoming-badge">${escapeHtml(event.typeLabel || "Checkpoint")}</span>
             </li>`
             )
             .join("")}
         </ul>
-      </section>`;
-  }
-
-  function renderAddForm() {
-    const subjects = state.data?.subjects || [];
-    const defaultSubject = state.selectedSubject || subjects[0] || "";
-
-    return `
-      <section class="cp-add">
-        <h3 class="cp-section-title">Arbeits-Checkpoint planen</h3>
-        <form id="cpAddForm" class="cp-add-form">
-          <label>
-            Fach
-            <select name="subject" required>
-              ${subjects
-                .map(
-                  (s) =>
-                    `<option value="${escapeHtml(s)}" ${s === defaultSubject ? "selected" : ""}>${escapeHtml(s)}</option>`
-                )
-                .join("")}
-            </select>
-          </label>
-          <label>
-            Titel
-            <input type="text" name="title" maxlength="120" required placeholder="z. B. Bruchrechnung wiederholen">
-          </label>
-          <label>
-            Datum
-            <input type="date" name="checkpointDate" required>
-          </label>
-          <label>
-            Notiz <span class="cp-optional">(optional)</span>
-            <input type="text" name="note" maxlength="500" placeholder="z. B. Übungsblatt, Levelplan …">
-          </label>
-          <button type="submit" class="btn-primary" ${state.saving ? "disabled" : ""}>
-            ${state.saving ? "Speichern…" : "Checkpoint speichern"}
-          </button>
-        </form>
       </section>`;
   }
 
@@ -218,14 +191,14 @@
     root.innerHTML = `
       <div class="lc-shell cp-shell">
         <p class="lc-intro">
-          <strong>Checkpoint-Plan:</strong> Kalender für Klassenarbeiten und deine Arbeits-Checkpoints.
-          Wähle ein Fach, sieh was ansteht und plane deine nächsten Lern-Schritte.
+          <strong>Checkpoint-Plan:</strong> Termine von deiner Lehrkraft – Klassenarbeiten, Tests, Präsentationen und mehr.
+          Wähle ein Fach, um Kalender und anstehende Checkpoints zu sehen.
         </p>
         ${renderSubjectToolbar()}
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
         <div class="cp-layout">
-          <div class="cp-main">${renderCalendar()}${renderAddForm()}</div>
+          <div class="cp-main">${renderCalendar()}</div>
           <aside class="cp-aside">${renderUpcoming()}</aside>
         </div>
       </div>`;
@@ -249,77 +222,6 @@
       state.month = shiftMonth(state.month || state.data?.month || currentMonth(), 1);
       loadData(initGeneration);
     });
-
-    root.querySelector("#cpAddForm")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      saveCheckpoint(new FormData(e.target));
-    });
-
-    root.querySelectorAll(".cp-delete-btn").forEach((btn) => {
-      btn.addEventListener("click", () => deleteCheckpoint(btn.dataset.eventId));
-    });
-  }
-
-  async function saveCheckpoint(formData) {
-    state.saving = true;
-    state.error = "";
-    state.message = "";
-    render();
-
-    try {
-      const res = await fetch("/api/student/checkpoint-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: formData.get("subject"),
-          title: formData.get("title"),
-          checkpointDate: formData.get("checkpointDate"),
-          note: formData.get("note")
-        })
-      });
-      const data = await res.json();
-      state.saving = false;
-      if (!data.success) {
-        state.error = data.message || "Speichern fehlgeschlagen.";
-        render();
-        return;
-      }
-      state.message = "Arbeits-Checkpoint gespeichert.";
-      if (data.event?.date?.startsWith(state.month || "")) {
-        await loadData(initGeneration);
-      } else {
-        state.month = (data.event?.date || currentMonth()).slice(0, 7);
-        await loadData(initGeneration);
-      }
-    } catch (err) {
-      console.error(err);
-      state.saving = false;
-      state.error = "Netzwerkfehler beim Speichern.";
-      render();
-    }
-  }
-
-  async function deleteCheckpoint(id) {
-    if (!id || !confirm("Diesen Arbeits-Checkpoint wirklich entfernen?")) return;
-    state.error = "";
-    state.message = "";
-    try {
-      const res = await fetch(`/api/student/checkpoint-plan/${encodeURIComponent(id)}`, {
-        method: "DELETE"
-      });
-      const data = await res.json();
-      if (!data.success) {
-        state.error = data.message || "Löschen fehlgeschlagen.";
-        render();
-        return;
-      }
-      state.message = "Checkpoint entfernt.";
-      await loadData(initGeneration);
-    } catch (err) {
-      console.error(err);
-      state.error = "Netzwerkfehler.";
-      render();
-    }
   }
 
   async function loadData(generation = initGeneration) {
@@ -353,7 +255,6 @@
   async function initInternal() {
     const generation = ++initGeneration;
     state.loading = true;
-    state.saving = false;
     state.message = "";
     state.error = "";
     if (!state.month) state.month = currentMonth();
