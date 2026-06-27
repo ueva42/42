@@ -77,7 +77,7 @@
       .map((goal) => {
         const cells = tiers
           .map((tier) => {
-            const active = goal.mark?.tier === tier.id;
+            const active = !!goal.mark?.tiers?.[tier.id];
             const key = `${goal.id}_${tier.id}`;
             const busy = state.saving === key;
             return `
@@ -188,8 +188,9 @@
     root.innerHTML = `
       <div class="lc-shell">
         <p class="lc-intro">
-          Dein <strong>Levelplan</strong>: pro Thema die Unterthemen markieren
-          (Rookie, Operator, Street Legend). Pro Häkchen gibt es XP – einmalig pro Unterthema und Stufe.
+          Dein <strong>Levelplan</strong>: Hake pro Unterthema ab, was du geschafft hast –
+          Rookie, Operator und Street Legend getrennt. Alle drei Häkchen = alles erledigt.
+          Pro Häkchen gibt es einmalig XP.
           Zahlen in der Kopfzeile = dein Stand / Ziel aus der Zielsetzung.
         </p>
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}

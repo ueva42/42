@@ -230,24 +230,21 @@ function computeAchievedGradeFromMarks(totalGoals, markCounts) {
   return null;
 }
 
-function countGoalMarksCumulative(goals) {
+function countGoalMarksByTier(goals) {
   const counts = { rookie: 0, operator: 0, street_legend: 0, unmarked: 0 };
   for (const goal of goals || []) {
-    const tier = goal.mark?.tier;
-    if (tier === "street_legend") {
-      counts.street_legend++;
-      counts.operator++;
-      counts.rookie++;
-    } else if (tier === "operator") {
-      counts.operator++;
-      counts.rookie++;
-    } else if (tier === "rookie") {
-      counts.rookie++;
-    } else {
-      counts.unmarked++;
-    }
+    const tiers = goal.mark?.tiers || {};
+    const hasAny = !!(tiers.rookie || tiers.operator || tiers.street_legend);
+    if (tiers.rookie) counts.rookie++;
+    if (tiers.operator) counts.operator++;
+    if (tiers.street_legend) counts.street_legend++;
+    if (!hasAny) counts.unmarked++;
   }
   return counts;
+}
+
+function countGoalMarksCumulative(goals) {
+  return countGoalMarksByTier(goals);
 }
 
 function expandGradeRulesForDisplay(rules) {
@@ -346,8 +343,12 @@ function buildTargetProgressSummary(tiers, targetGradeKey) {
   return parts.length ? parts.join(" · ") : null;
 }
 
-function countGoalMarksByTier(goals) {
-  return countGoalMarksCumulative(goals);
+function buildGoalMarkFromRows(rows) {
+  const tiers = {};
+  for (const row of rows || []) {
+    tiers[row.tier] = { updatedAt: row.updated_at };
+  }
+  return Object.keys(tiers).length ? { tiers } : null;
 }
 
 async function fetchTargetGradesByCheck(studentId, checkIds) {
@@ -1596,10 +1597,57 @@ async function migrate() {
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       tier TEXT NOT NULL,
       updated_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(goal_id, user_id)
+      UNIQUE(goal_id, user_id, tier)
     )
   `);
   await ensureColumn("level_check_marks", "school_id", "INTEGER");
+
+  await pool.query(`
+    ALTER TABLE level_check_marks
+    DROP CONSTRAINT IF EXISTS level_check_marks_goal_id_user_id_key
+  `).catch(() => {});
+
+  await pool.query(`
+    INSERT INTO level_check_marks (school_id, goal_id, user_id, tier, updated_at)
+    SELECT school_id, goal_id, user_id, 'rookie', updated_at
+    FROM level_check_marks
+    WHERE tier IN ('operator', 'street_legend')
+      AND NOT EXISTS (
+        SELECT 1 FROM level_check_marks m2
+        WHERE m2.goal_id = level_check_marks.goal_id
+          AND m2.user_id = level_check_marks.user_id
+          AND m2.tier = 'rookie'
+      )
+  `).catch(() => {});
+
+  await pool.query(`
+    INSERT INTO level_check_marks (school_id, goal_id, user_id, tier, updated_at)
+    SELECT school_id, goal_id, user_id, 'operator', updated_at
+    FROM level_check_marks
+    WHERE tier = 'street_legend'
+      AND NOT EXISTS (
+        SELECT 1 FROM level_check_marks m2
+        WHERE m2.goal_id = level_check_marks.goal_id
+          AND m2.user_id = level_check_marks.user_id
+          AND m2.tier = 'operator'
+      )
+  `).catch(() => {});
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'level_check_marks'
+          AND constraint_name = 'level_check_marks_goal_user_tier_unique'
+      ) THEN
+        ALTER TABLE level_check_marks
+        ADD CONSTRAINT level_check_marks_goal_user_tier_unique
+        UNIQUE (goal_id, user_id, tier);
+      END IF;
+    END$$;
+  `);
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_level_checks_class
@@ -3165,10 +3213,8 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       [studentId, checkIds]
     );
     for (const row of marksRes.rows) {
-      marksByGoal[row.goal_id] = {
-        tier: row.tier,
-        updatedAt: row.updated_at
-      };
+      if (!marksByGoal[row.goal_id]) marksByGoal[row.goal_id] = [];
+      marksByGoal[row.goal_id].push(row);
     }
   }
 
@@ -3179,7 +3225,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       id: g.id,
       text: g.goal_text,
       sortOrder: g.sort_order,
-      mark: marksByGoal[g.id] || null
+      mark: buildGoalMarkFromRows(marksByGoal[g.id])
     });
   }
 
@@ -3767,11 +3813,11 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
     }
 
     const existing = await pool.query(
-      `SELECT id, tier FROM level_check_marks WHERE goal_id=$1 AND user_id=$2`,
-      [goalId, studentId]
+      `SELECT id FROM level_check_marks WHERE goal_id=$1 AND user_id=$2 AND tier=$3`,
+      [goalId, studentId, tier]
     );
 
-    if (existing.rows.length && existing.rows[0].tier === tier) {
+    if (existing.rows.length) {
       await pool.query(
         `DELETE FROM level_check_marks WHERE id=$1`,
         [existing.rows[0].id]
@@ -3779,23 +3825,15 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
       return res.json({ success: true, tier: null, cleared: true, xpAwarded: 0 });
     }
 
-    let xpAwarded = 0;
-    if (existing.rows.length) {
-      await pool.query(
-        `UPDATE level_check_marks SET tier=$1, updated_at=NOW() WHERE id=$2`,
-        [tier, existing.rows[0].id]
-      );
-    } else {
-      await pool.query(
-        `
-        INSERT INTO level_check_marks (school_id, goal_id, user_id, tier)
-        VALUES ($1,$2,$3,$4)
-      `,
-        [schoolId, goalId, studentId, tier]
-      );
-    }
+    await pool.query(
+      `
+      INSERT INTO level_check_marks (school_id, goal_id, user_id, tier)
+      VALUES ($1,$2,$3,$4)
+    `,
+      [schoolId, goalId, studentId, tier]
+    );
 
-    xpAwarded = await awardLevelplanMarkXPOnce(studentId, schoolId, goalId, tier);
+    const xpAwarded = await awardLevelplanMarkXPOnce(studentId, schoolId, goalId, tier);
 
     res.json({
       success: true,
