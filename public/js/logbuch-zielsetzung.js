@@ -15,7 +15,7 @@
   let initGeneration = 0;
   let loadRequestId = 0;
 
-  async function fetchJson(url, options = {}, retries = 1) {
+  async function fetchJson(url, options = {}, retries = 2) {
     let lastErr = null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -24,7 +24,7 @@
         if (!res.ok) {
           const err = new Error(`HTTP ${res.status}`);
           if (attempt < retries && (res.status === 403 || res.status >= 500)) {
-            await new Promise((r) => setTimeout(r, 350));
+            await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
             continue;
           }
           throw err;
@@ -33,13 +33,17 @@
       } catch (err) {
         lastErr = err;
         if (attempt < retries) {
-          await new Promise((r) => setTimeout(r, 350));
+          await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
           continue;
         }
       }
     }
 
     throw lastErr || new Error("Anfrage fehlgeschlagen");
+  }
+
+  function isZielsetzungPayload(data) {
+    return data && typeof data.hasClass === "boolean" && Array.isArray(data.grouped);
   }
 
   function escapeHtml(str) {
@@ -105,24 +109,27 @@
   }
 
   function renderTierBar(tier, totalGoals) {
-    if (tier.recommended == null) return "";
-
     const current = tier.current ?? 0;
     const recommended = tier.recommended;
+    const hasTarget = recommended != null && totalGoals > 0;
     const pct = totalGoals ? Math.min(100, Math.round((current / totalGoals) * 100)) : 0;
-    const recPct = totalGoals
-      ? Math.min(100, Math.round((recommended / totalGoals) * 100))
-      : null;
-    const statusClass = tier.onTrack ? "zs-tier-ontrack" : "zs-tier-behind";
+    const recPct =
+      hasTarget ? Math.min(100, Math.round((recommended / totalGoals) * 100)) : null;
+    const statusClass = hasTarget
+      ? tier.onTrack
+        ? "zs-tier-ontrack"
+        : "zs-tier-behind"
+      : "zs-tier-info";
+
+    const countLabel = hasTarget
+      ? `${current} / ${recommended} von ${totalGoals}${tier.remaining > 0 ? ` · noch ${tier.remaining}` : " · ✓"}`
+      : `${current} von ${totalGoals}`;
 
     return `
       <div class="zs-tier-row ${statusClass}">
         <div class="zs-tier-head">
           <span class="zs-tier-label">${escapeHtml(tier.label)}</span>
-          <span class="zs-tier-count">
-            ${current} / ${recommended} von ${totalGoals}
-            ${tier.remaining > 0 ? ` · noch ${tier.remaining}` : " · ✓"}
-          </span>
+          <span class="zs-tier-count">${countLabel}</span>
         </div>
         <div class="zs-tier-bar">
           <div class="zs-tier-fill" style="width:${pct}%"></div>
@@ -155,7 +162,7 @@
             ? `<div class="zs-tiers">
                 ${(topic.tiers || []).map((tier) => renderTierBar(tier, topic.totalGoals)).join("")}
               </div>`
-            : `<p class="zs-topic-hint zs-topic-hint-muted">Wähle deine Zielnote – die Balken zeigen, wie viele Häkchen du im Levelplan setzen musst.</p>`
+            : `<p class="zs-topic-hint zs-topic-hint-muted">Wähle deine Zielnote – die Balken zeigen Rookie, Operator und Street Legend.</p>`
         }
 
         ${
@@ -184,6 +191,15 @@
               .join("")}
           </select>
         </label>
+      </div>`;
+  }
+
+  function renderLoadError() {
+    return `
+      <div class="lc-empty">
+        <p>Zielsetzung konnte nicht geladen werden.</p>
+        <p class="lc-empty-hint">Bitte erneut versuchen – manchmal hilft ein kurzer Moment oder Tab-Wechsel.</p>
+        <button type="button" class="btn-primary zs-retry-btn" id="zsRetryBtn">Erneut laden</button>
       </div>`;
   }
 
@@ -228,7 +244,11 @@
     }
 
     if (!state.data) {
-      root.innerHTML = `<div class="logbuch-msg logbuch-msg-error">Zielsetzung konnte nicht geladen werden.</div>`;
+      root.innerHTML = renderLoadError();
+      root.querySelector("#zsRetryBtn")?.addEventListener("click", () => {
+        state.error = "";
+        loadData(initGeneration);
+      });
       return;
     }
 
@@ -236,7 +256,7 @@
       <div class="lc-shell zs-shell">
         <p class="lc-intro">
           <strong>Zielsetzung:</strong> Wähle dein Fach und setze pro Überthema deine Zielnote.
-          Die Balken zeigen, wie viele Rookie-, Operator- und Street-Legend-Häkchen du im Levelplan brauchst.
+          Die Balken zeigen Rookie, Operator und Street Legend – so viele Häkchen wie im Levelplan nötig.
         </p>
         ${renderSubjectToolbar()}
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
@@ -296,19 +316,23 @@
     } catch (err) {
       console.error(err);
       state.saving = null;
-      state.error = "Netzwerkfehler.";
+      state.error = "Netzwerkfehler beim Speichern.";
       render();
     }
   }
 
   async function loadData(generation = initGeneration) {
     const requestId = ++loadRequestId;
+    state.loading = true;
+    if (!state.data) render();
 
     try {
       const data = await fetchJson("/api/student/zielsetzung");
       if (requestId !== loadRequestId || generation !== initGeneration) return;
+      if (!isZielsetzungPayload(data)) throw new Error("Ungültige Zielsetzung-Antwort");
 
       state.data = data;
+      state.error = "";
       const subjects = availableSubjects();
       if (state.selectedSubject && !subjects.includes(state.selectedSubject)) {
         state.selectedSubject = "";
@@ -319,7 +343,8 @@
       console.error(err);
       if (requestId !== loadRequestId || generation !== initGeneration) return;
       state.loading = false;
-      state.data = null;
+      if (!state.data) state.data = null;
+      state.error = state.data ? "Aktualisieren fehlgeschlagen." : "";
       render();
     }
   }
@@ -330,10 +355,12 @@
     state.saving = null;
     state.message = "";
     state.error = "";
-    state.data = null;
+    if (!state.data) state.data = null;
 
     const root = document.getElementById("zielsetzung-screen-root");
-    if (root) root.innerHTML = `<div class="logbuch-loading">Lade Zielsetzung…</div>`;
+    if (root && !state.data) {
+      root.innerHTML = `<div class="logbuch-loading">Lade Zielsetzung…</div>`;
+    }
 
     await loadData(generation);
   }

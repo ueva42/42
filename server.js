@@ -41,9 +41,9 @@ const LEVEL_CHECK_XP = {
 };
 
 const TARGET_GRADE_WHOLE_RULES = {
-  1: { street_legend: 0.8 },
-  2: { operator: 1, street_legend: 0.5 },
-  3: { operator: 0.8 },
+  1: { rookie: 1, operator: 1, street_legend: 0.8 },
+  2: { rookie: 1, operator: 1, street_legend: 0.5 },
+  3: { rookie: 0.8, operator: 0.8 },
   4: { rookie: 0.8 },
   5: { rookie: 0.6 },
   6: { rookie: 0.4 }
@@ -259,14 +259,27 @@ async function fetchTargetGradesByCheck(studentId, checkIds) {
   const targetsByCheck = {};
   if (!checkIds.length) return targetsByCheck;
 
-  const targetsRes = await pool.query(
-    `
-    SELECT level_check_id, target_grade_key, target_grade, achieved_grade_key
-    FROM level_check_targets
-    WHERE user_id = $1 AND level_check_id = ANY($2::uuid[])
-  `,
-    [studentId, checkIds]
-  );
+  let targetsRes;
+  try {
+    targetsRes = await pool.query(
+      `
+      SELECT level_check_id, target_grade_key, target_grade, achieved_grade_key
+      FROM level_check_targets
+      WHERE user_id = $1 AND level_check_id = ANY($2::uuid[])
+    `,
+      [studentId, checkIds]
+    );
+  } catch (err) {
+    console.error("❌ fetchTargetGradesByCheck (full):", err.message);
+    targetsRes = await pool.query(
+      `
+      SELECT level_check_id, target_grade_key, target_grade
+      FROM level_check_targets
+      WHERE user_id = $1 AND level_check_id = ANY($2::uuid[])
+    `,
+      [studentId, checkIds]
+    );
+  }
 
   for (const row of targetsRes.rows) {
     targetsByCheck[row.level_check_id] = {
@@ -3126,9 +3139,35 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
     const checkIds = checks.map((c) => c.id);
     const targetsByCheck = await fetchTargetGradesByCheck(studentId, checkIds);
 
-    const topics = checks.map((check) =>
-      buildZielsetzungTopic(check, targetsByCheck[check.id] ?? null)
-    );
+    const topics = checks.map((check) => {
+      try {
+        return buildZielsetzungTopic(check, targetsByCheck[check.id] ?? null);
+      } catch (err) {
+        console.error("❌ buildZielsetzungTopic:", check.id, err);
+        return {
+          id: check.id,
+          subject: check.subject,
+          name: check.name,
+          totalGoals: check.goals?.length ?? 0,
+          unmarked: check.goals?.length ?? 0,
+          targetGrade: null,
+          targetGradeLabel: "–",
+          achievedGrade: null,
+          achievedGradeLabel: "–",
+          tiers: LEVEL_CHECK_TIERS.map((tier) => ({
+            id: tier,
+            label: LEVEL_CHECK_TIER_LABELS[tier],
+            current: 0,
+            recommended: null,
+            onTrack: null,
+            remaining: null
+          })),
+          recommended: null,
+          onTrack: null,
+          summary: null
+        };
+      }
+    });
     const grouped = groupZielsetzungBySubject(topics);
 
     res.json({
