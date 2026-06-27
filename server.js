@@ -3360,6 +3360,49 @@ function groupLevelChecksBySubject(checks) {
   return grouped;
 }
 
+async function deleteLevelCheckForSchool(levelCheckId, schoolId) {
+  const checkRes = await pool.query(
+    `
+    SELECT lc.id
+    FROM level_checks lc
+    JOIN classes c ON c.id = lc.class_id
+    WHERE lc.id = $1 AND c.school_id = $2
+  `,
+    [levelCheckId, schoolId]
+  );
+  if (!checkRes.rows.length) return false;
+
+  await pool.query("BEGIN");
+  try {
+    await pool.query(
+      "DELETE FROM level_check_targets WHERE level_check_id = $1",
+      [levelCheckId]
+    );
+    await pool.query(
+      "DELETE FROM level_check_proofs WHERE level_check_id = $1",
+      [levelCheckId]
+    );
+    await pool.query(
+      `
+      DELETE FROM level_check_marks m
+      USING level_check_goals g
+      WHERE g.level_check_id = $1 AND m.goal_id = g.id
+    `,
+      [levelCheckId]
+    );
+    await pool.query(
+      "DELETE FROM level_check_goals WHERE level_check_id = $1",
+      [levelCheckId]
+    );
+    await pool.query("DELETE FROM level_checks WHERE id = $1", [levelCheckId]);
+    await pool.query("COMMIT");
+    return true;
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    throw err;
+  }
+}
+
 function buildCheckpointPlanEvents(levelChecks) {
   const events = [];
 
@@ -4268,17 +4311,14 @@ app.post("/api/teacher/levelchecks/:id/goals", isAdmin, async (req, res) => {
 app.delete("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const del = await pool.query(
-      `DELETE FROM level_checks WHERE id=$1 AND school_id=$2 RETURNING id`,
-      [req.params.id, schoolId]
-    );
-    if (!del.rows.length) {
+    const deleted = await deleteLevelCheckForSchool(req.params.id, schoolId);
+    if (!deleted) {
       return res.json({ success: false, message: "Thema nicht gefunden." });
     }
     res.json({ success: true });
   } catch (err) {
     console.error("❌ DELETE levelcheck:", err);
-    res.status(500).json({ success: false, message: "Serverfehler" });
+    res.status(500).json({ success: false, message: "Serverfehler beim Löschen." });
   }
 });
 

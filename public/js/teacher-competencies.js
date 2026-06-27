@@ -157,7 +157,7 @@
       <li class="tc-goal-item">
         <span class="tc-goal-num">${goal.sortOrder}.</span>
         <span class="tc-goal-text">${escapeHtml(goal.text)}</span>
-        <button type="button" class="tc-delete-btn tc-goal-del" data-goal-id="${escapeHtml(goal.id)}">×</button>
+        <button type="button" class="tc-delete-btn tc-goal-del" data-goal-id="${escapeHtml(goal.id)}" aria-label="Unterthema löschen">×</button>
       </li>`;
   }
 
@@ -170,7 +170,7 @@
             <h4 class="tc-levelcheck-name">${escapeHtml(topic.name)}</h4>
             ${renderCheckpointFields(topic, `tcTopic-${topic.id}`)}
           </div>
-          <button type="button" class="tc-delete-btn" data-check-id="${escapeHtml(topic.id)}">Thema löschen</button>
+          <button type="button" class="tc-delete-btn tc-topic-delete-btn" data-check-id="${escapeHtml(topic.id)}">Thema löschen</button>
         </div>
         <ol class="tc-goal-list">
           ${(topic.goals || []).map(renderSubtopicRow).join("")}
@@ -291,12 +291,20 @@
       });
     });
 
-    root.querySelectorAll(".tc-levelcheck-head .tc-delete-btn").forEach((btn) => {
-      btn.addEventListener("click", () => deleteTopic(btn.dataset.checkId));
+    root.querySelectorAll(".tc-topic-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteTopic(btn.getAttribute("data-check-id"));
+      });
     });
 
     root.querySelectorAll(".tc-goal-del").forEach((btn) => {
-      btn.addEventListener("click", () => deleteSubtopic(btn.dataset.goalId));
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteSubtopic(btn.getAttribute("data-goal-id"));
+      });
     });
 
     bindCheckpointTypeToggle(root);
@@ -454,12 +462,18 @@
   async function deleteTopic(checkId) {
     if (!checkId || !confirm("Thema mit allen Unterthemen wirklich löschen?")) return;
     state.error = "";
+    state.message = "";
     try {
       const res = await fetch(`/api/teacher/levelchecks/${encodeURIComponent(checkId)}`, {
         method: "DELETE"
       });
-      const data = await res.json();
-      if (!data.success) {
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (_err) {
+        data = {};
+      }
+      if (!res.ok || !data.success) {
         state.error = data.message || "Löschen fehlgeschlagen.";
         render();
         return;
@@ -468,7 +482,7 @@
       await loadData();
     } catch (err) {
       console.error(err);
-      state.error = "Netzwerkfehler.";
+      state.error = "Netzwerkfehler beim Löschen.";
       render();
     }
   }
