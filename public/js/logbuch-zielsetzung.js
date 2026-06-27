@@ -95,10 +95,22 @@
       : (state.data?.grouped || []).map((g) => g.subject);
   }
 
+  function upcomingTopicMeta() {
+    if (!state.selectedSubject) return null;
+    return state.data?.upcomingBySubject?.[state.selectedSubject] || null;
+  }
+
   function visibleGroups() {
-    const groups = state.data?.grouped || [];
-    if (!state.selectedSubject) return groups;
-    return groups.filter((g) => g.subject === state.selectedSubject);
+    if (!state.selectedSubject) return [];
+    const group = (state.data?.grouped || []).find((g) => g.subject === state.selectedSubject);
+    if (!group) return [];
+
+    const upcomingId = upcomingTopicMeta()?.id;
+    const topics = upcomingId
+      ? (group.topics || []).filter((t) => t.id === upcomingId)
+      : [];
+
+    return [{ subject: group.subject, topics }];
   }
 
   function findTopic(topicId) {
@@ -292,6 +304,21 @@
       </article>`;
   }
 
+  function renderUpcomingBanner() {
+    if (!state.selectedSubject) return "";
+    const upcoming = upcomingTopicMeta();
+    if (!upcoming) {
+      return `<div class="zs-upcoming-banner zs-upcoming-banner-muted">Für ${escapeHtml(state.selectedSubject)} ist noch keine anstehende Klassenarbeit hinterlegt.</div>`;
+    }
+    const datePart = upcoming.checkpointDateLabel
+      ? ` · ${escapeHtml(upcoming.checkpointDateLabel)}`
+      : " · Termin folgt";
+    return `
+      <div class="zs-upcoming-banner">
+        Anstehende Klassenarbeit: <strong>${escapeHtml(upcoming.name)}</strong>${datePart}
+      </div>`;
+  }
+
   function renderSubjectToolbar() {
     const subjects = availableSubjects();
     if (!subjects.length) return "";
@@ -299,9 +326,9 @@
     return `
       <div class="zs-toolbar">
         <label>
-          Fach
-          <select id="zsSubjectSelect" class="zs-subject-select">
-            <option value="">Alle Fächer</option>
+          Fach <span class="zs-required">*</span>
+          <select id="zsSubjectSelect" class="zs-subject-select" required>
+            <option value="" ${!state.selectedSubject ? "selected" : ""}>– Fach wählen –</option>
             ${subjects
               .map(
                 (s) =>
@@ -327,6 +354,14 @@
       return `<div class="lc-empty"><p>Dir ist noch keine Klasse zugeordnet.</p></div>`;
     }
 
+    if (!state.selectedSubject) {
+      return `
+        <div class="lc-empty">
+          <p>Bitte wähle zuerst ein Fach.</p>
+          <p class="lc-empty-hint">Danach erscheint die anstehende Klassenarbeit für deine Zielsetzung.</p>
+        </div>`;
+    }
+
     const groups = visibleGroups();
     if (!state.data?.grouped?.length) {
       return `
@@ -336,15 +371,19 @@
         </div>`;
     }
 
-    if (!groups.length) {
-      return `<div class="lc-empty"><p>Für dieses Fach gibt es noch keine Themen.</p></div>`;
+    const topics = groups[0]?.topics || [];
+    if (!topics.length) {
+      return `
+        <div class="lc-empty">
+          <p>Für ${escapeHtml(state.selectedSubject)} gibt es noch kein Klassenarbeit-Thema.</p>
+          <p class="lc-empty-hint">Deine Lehrkraft legt Themen im Levelstatus an – Termine im Checkpoint-Plan.</p>
+        </div>`;
     }
 
     return groups
       .map(
         (group) => `
         <section class="lc-subject-group">
-          ${state.selectedSubject ? "" : `<h3 class="lc-subject-title">${escapeHtml(group.subject)}</h3>`}
           <div class="zs-topics">
             ${(group.topics || []).map(renderTopicCard).join("")}
           </div>
@@ -374,11 +413,11 @@
     root.innerHTML = `
       <div class="lc-shell zs-shell">
         <p class="lc-intro">
-          <strong>Zielsetzung:</strong> Wähle dein Fach und setze pro Überthema deine Zielnote.
-          Trägst du die erreichte Note ein, erscheinen Grow, Glow und dein Ziel für die nächste Klassenarbeit.
-          Pro ausgefülltem Feld gibt es XP.
+          <strong>Zielsetzung:</strong> Wähle dein Fach – dann erscheint die anstehende Klassenarbeit.
+          Setze deine Zielnote, trage die erreichte Note ein und reflektiere mit Grow, Glow und deinem nächsten Ziel.
         </p>
         ${renderSubjectToolbar()}
+        ${renderUpcomingBanner()}
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
         ${renderGrouped()}

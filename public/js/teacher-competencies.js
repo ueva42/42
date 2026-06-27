@@ -91,12 +91,22 @@
   }
 
   function renderTopic(topic) {
+    const dateValue = topic.checkpointDate || "";
     return `
       <article class="tc-levelcheck-card" data-check-id="${escapeHtml(topic.id)}">
         <div class="tc-levelcheck-head">
           <div>
             <span class="tc-levelcheck-subject">Klassenarbeit</span>
             <h4 class="tc-levelcheck-name">${escapeHtml(topic.name)}</h4>
+            <label class="tc-checkpoint-date-wrap">
+              Termin
+              <input
+                type="date"
+                class="tc-checkpoint-date"
+                data-check-id="${escapeHtml(topic.id)}"
+                value="${escapeHtml(dateValue)}"
+              >
+            </label>
           </div>
           <button type="button" class="tc-delete-btn" data-check-id="${escapeHtml(topic.id)}">Thema löschen</button>
         </div>
@@ -136,7 +146,7 @@
     root.innerHTML = `
       <div class="panel">
         <h2>Levelstatus</h2>
-        <p class="hint">Pro Fach Klassenarbeit-Themen anlegen und darunter Unterthemen pflegen. Schüler:innen markieren im Levelplan Rookie, Operator oder Street Legend – in der Zielsetzung setzen sie ihre Zielnote.</p>
+        <p class="hint">Pro Fach Klassenarbeit-Themen anlegen, Termine setzen und Unterthemen pflegen. Schüler:innen sehen Termine im Checkpoint-Plan und setzen Zielnoten in der Zielsetzung.</p>
 
         <div class="tc-toolbar">
           <label>Klasse:
@@ -203,6 +213,40 @@
     root.querySelectorAll(".tc-goal-del").forEach((btn) => {
       btn.addEventListener("click", () => deleteSubtopic(btn.dataset.goalId));
     });
+
+    root.querySelectorAll(".tc-checkpoint-date").forEach((input) => {
+      input.addEventListener("change", () => saveCheckpointDate(input));
+    });
+  }
+
+  async function saveCheckpointDate(input) {
+    const checkId = input.dataset.checkId;
+    if (!checkId) return;
+    state.saving = true;
+    state.error = "";
+    try {
+      const res = await fetch(`/api/teacher/levelchecks/${encodeURIComponent(checkId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkpointDate: input.value || null })
+      });
+      const data = await res.json();
+      state.saving = false;
+      if (!data.success) {
+        state.error = data.message || "Termin konnte nicht gespeichert werden.";
+        render();
+        return;
+      }
+      state.message = data.checkpointDate
+        ? `Termin gespeichert: ${data.checkpointDateLabel}`
+        : "Termin entfernt.";
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      state.saving = false;
+      state.error = "Netzwerkfehler beim Speichern des Termins.";
+      render();
+    }
   }
 
   async function addTopic() {

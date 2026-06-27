@@ -23,6 +23,11 @@
       subtitle: "Street Target – Zielnote setzen & Level-Fortschritt.",
       phase: null
     },
+    "checkpoint-plan": {
+      title: "Checkpoint-Plan",
+      subtitle: "Kalender für Klassenarbeiten und Arbeits-Checkpoints.",
+      phase: null
+    },
     plan: {
       title: "Planen",
       subtitle: "Forethought – Was will ich in dieser Stunde erreichen?",
@@ -90,6 +95,11 @@
 
     if (section === "zielsetzung" && window.LogbuchZielsetzung) {
       window.LogbuchZielsetzung.init();
+      return;
+    }
+
+    if (section === "checkpoint-plan" && window.LogbuchCheckpointPlan) {
+      window.LogbuchCheckpointPlan.init();
       return;
     }
 

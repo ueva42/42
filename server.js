@@ -309,6 +309,7 @@ function buildTopicTargetProgress(check, targetsRow = null) {
     id: check.id,
     subject: check.subject,
     name: check.name,
+    checkpointDate: normalizeIsoDate(check.checkpointDate),
     totalGoals,
     unmarked: markCounts.unmarked,
     targetGrade: targetKey,
@@ -710,6 +711,48 @@ const LOG_STRATEGIES = [
 function isoDateOrToday(value) {
   if (!value) return new Date().toISOString().slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+function normalizeIsoDate(value) {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const str = String(value).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(str) ? str : null;
+}
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function pickUpcomingLevelCheck(checks, subject = null) {
+  const filtered = (checks || []).filter((c) => !subject || c.subject === subject);
+  if (!filtered.length) return null;
+
+  const today = todayIsoDate();
+  const withDate = filtered
+    .map((c) => ({ ...c, checkpointDate: normalizeIsoDate(c.checkpointDate) }))
+    .filter((c) => c.checkpointDate)
+    .sort((a, b) => a.checkpointDate.localeCompare(b.checkpointDate));
+  const future = withDate.filter((c) => c.checkpointDate >= today);
+  if (future.length) return future[0];
+
+  const undated = filtered.filter((c) => !normalizeIsoDate(c.checkpointDate));
+  if (undated.length) {
+    return undated.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))[0];
+  }
+
+  return withDate[withDate.length - 1] || filtered[0];
+}
+
+function formatGermanDate(isoDate) {
+  const normalized = normalizeIsoDate(isoDate);
+  if (!normalized) return "–";
+  return new Date(`${normalized}T12:00:00`).toLocaleDateString("de-DE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  });
 }
 
 function weekdayFromIsoDate(dateStr) {
@@ -1576,6 +1619,7 @@ async function migrate() {
     )
   `);
   await ensureColumn("level_checks", "school_id", "INTEGER");
+  await ensureColumn("level_checks", "checkpoint_date", "DATE");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS level_check_goals (
@@ -1720,6 +1764,24 @@ async function migrate() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_level_check_targets_user
     ON level_check_targets (user_id, level_check_id)
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_checkpoints (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      subject TEXT NOT NULL,
+      title TEXT NOT NULL,
+      checkpoint_date DATE NOT NULL,
+      note TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_student_checkpoints_user_date
+    ON student_checkpoints (user_id, checkpoint_date)
   `);
 
   await pool.query(`
@@ -3177,7 +3239,7 @@ function levelCheckTierUnlocked(tier, proofsByTier) {
 async function getLevelChecksForClass(classId, schoolId, studentId = null) {
   const checksRes = await pool.query(
     `
-    SELECT id, subject, name, sort_order, created_at
+    SELECT id, subject, name, sort_order, created_at, checkpoint_date
     FROM level_checks
     WHERE class_id=$1 AND school_id=$2
     ORDER BY subject ASC, sort_order ASC, name ASC
@@ -3234,6 +3296,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
     subject: c.subject,
     name: c.name,
     sortOrder: c.sort_order,
+    checkpointDate: normalizeIsoDate(c.checkpoint_date),
     goals: goalsByCheck[c.id] || []
   }));
 }
@@ -3257,6 +3320,191 @@ function groupLevelChecksBySubject(checks) {
   }
   return grouped;
 }
+
+function buildCheckpointPlanEvents(levelChecks, studentCheckpoints) {
+  const events = [];
+
+  for (const check of levelChecks || []) {
+    const date = normalizeIsoDate(check.checkpointDate);
+    if (!date) continue;
+    events.push({
+      id: `test-${check.id}`,
+      type: "test",
+      subject: check.subject,
+      title: check.name,
+      date,
+      dateLabel: formatGermanDate(date),
+      levelCheckId: check.id,
+      note: null,
+      editable: false
+    });
+  }
+
+  for (const row of studentCheckpoints || []) {
+    const date = normalizeIsoDate(row.checkpoint_date);
+    if (!date) continue;
+    events.push({
+      id: row.id,
+      type: "work",
+      subject: row.subject,
+      title: row.title,
+      date,
+      dateLabel: formatGermanDate(date),
+      levelCheckId: null,
+      note: row.note || null,
+      editable: true
+    });
+  }
+
+  events.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
+  return events;
+}
+
+function groupEventsByDate(events) {
+  const byDate = {};
+  for (const event of events || []) {
+    if (!byDate[event.date]) byDate[event.date] = [];
+    byDate[event.date].push(event);
+  }
+  return byDate;
+}
+
+// -------------------------------------------------------
+// STUDENT: Checkpoint-Plan – Kalender & anstehende Termine
+// -------------------------------------------------------
+app.get("/api/student/checkpoint-plan", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const classId = req.session.user.class_id;
+    const subjectFilter = String(req.query.subject || "").trim();
+    const monthParam = String(req.query.month || "").trim();
+
+    if (!classId) {
+      return res.json({
+        hasClass: false,
+        subjects: LOG_SUBJECTS,
+        events: [],
+        upcoming: [],
+        eventsByDate: {},
+        month: monthParam || todayIsoDate().slice(0, 7)
+      });
+    }
+
+    const checks = await getLevelChecksForClass(classId, schoolId, studentId);
+    const workRes = await pool.query(
+      `
+      SELECT id, subject, title, checkpoint_date, note
+      FROM student_checkpoints
+      WHERE user_id = $1 AND school_id = $2
+      ORDER BY checkpoint_date ASC, created_at ASC
+    `,
+      [studentId, schoolId]
+    );
+
+    let events = buildCheckpointPlanEvents(checks, workRes.rows);
+    const subjectsWithTopics = [...new Set(checks.map((c) => c.subject))];
+
+    if (subjectFilter && LOG_SUBJECTS.includes(subjectFilter)) {
+      events = events.filter((e) => e.subject === subjectFilter);
+    }
+
+    const today = todayIsoDate();
+    const upcoming = events.filter((e) => e.date >= today).slice(0, 12);
+
+    const month = /^\d{4}-\d{2}$/.test(monthParam)
+      ? monthParam
+      : today.slice(0, 7);
+    const monthPrefix = `${month}-`;
+    const monthEvents = events.filter((e) => e.date.startsWith(monthPrefix));
+
+    res.json({
+      hasClass: true,
+      subjects: LOG_SUBJECTS,
+      subjectsWithTopics,
+      selectedSubject: subjectFilter || "",
+      month,
+      today,
+      events: monthEvents,
+      upcoming,
+      eventsByDate: groupEventsByDate(monthEvents),
+      allEventsByDate: groupEventsByDate(events)
+    });
+  } catch (err) {
+    console.error("❌ /api/student/checkpoint-plan:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.post("/api/student/checkpoint-plan", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const subject = String(req.body.subject || "").trim();
+    const title = String(req.body.title || "").trim();
+    const checkpointDate = normalizeIsoDate(req.body.checkpointDate);
+    const note = normalizeFeedbackText(req.body.note);
+
+    if (!subject || !LOG_SUBJECTS.includes(subject)) {
+      return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
+    }
+    if (!title) {
+      return res.json({ success: false, message: "Bitte einen Titel eingeben." });
+    }
+    if (!checkpointDate) {
+      return res.json({ success: false, message: "Bitte ein Datum wählen." });
+    }
+
+    const ins = await pool.query(
+      `
+      INSERT INTO student_checkpoints (school_id, user_id, subject, title, checkpoint_date, note)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, subject, title, checkpoint_date, note
+    `,
+      [schoolId, studentId, subject, title.slice(0, 120), checkpointDate, note]
+    );
+
+    const row = ins.rows[0];
+    res.json({
+      success: true,
+      event: {
+        id: row.id,
+        type: "work",
+        subject: row.subject,
+        title: row.title,
+        date: normalizeIsoDate(row.checkpoint_date),
+        dateLabel: formatGermanDate(row.checkpoint_date),
+        note: row.note,
+        editable: true
+      }
+    });
+  } catch (err) {
+    console.error("❌ POST /api/student/checkpoint-plan:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.delete("/api/student/checkpoint-plan/:id", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const del = await pool.query(
+      `
+      DELETE FROM student_checkpoints
+      WHERE id = $1 AND user_id = $2 AND school_id = $3
+      RETURNING id
+    `,
+      [req.params.id, studentId, schoolId]
+    );
+    if (!del.rows.length) {
+      return res.json({ success: false, message: "Eintrag nicht gefunden." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE /api/student/checkpoint-plan:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
 
 // -------------------------------------------------------
 // STUDENT: Levelplan – Matrix (Selbsteinschätzung pro Ziel)
@@ -3345,11 +3593,24 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
       }
     });
     const grouped = groupZielsetzungBySubject(topics);
+    const upcomingBySubject = {};
+    for (const subject of subjectsFromZielsetzungGroups(grouped)) {
+      const upcoming = pickUpcomingLevelCheck(checks, subject);
+      if (upcoming) {
+        upcomingBySubject[subject] = {
+          id: upcoming.id,
+          name: upcoming.name,
+          checkpointDate: upcoming.checkpointDate,
+          checkpointDateLabel: formatGermanDate(upcoming.checkpointDate)
+        };
+      }
+    }
 
     res.json({
       hasClass: true,
       grouped,
       subjects: subjectsFromZielsetzungGroups(grouped),
+      upcomingBySubject,
       gradeOptions: TARGET_GRADE_OPTIONS,
       feedbackOptions: buildZielsetzungFeedbackOptions(),
       xpValues: ZIELSETZUNG_XP
@@ -4017,6 +4278,47 @@ app.delete("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("❌ DELETE levelcheck:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const levelCheckId = req.params.id;
+    const hasDate = Object.prototype.hasOwnProperty.call(req.body, "checkpointDate");
+    if (!hasDate) {
+      return res.json({ success: false, message: "Keine Änderung übergeben." });
+    }
+
+    const checkpointDate =
+      req.body.checkpointDate === "" || req.body.checkpointDate == null
+        ? null
+        : normalizeIsoDate(req.body.checkpointDate);
+    if (req.body.checkpointDate && !checkpointDate) {
+      return res.json({ success: false, message: "Ungültiges Datum." });
+    }
+
+    const upd = await pool.query(
+      `
+      UPDATE level_checks
+      SET checkpoint_date = $1
+      WHERE id = $2 AND school_id = $3
+      RETURNING id, checkpoint_date
+    `,
+      [checkpointDate, levelCheckId, schoolId]
+    );
+    if (!upd.rows.length) {
+      return res.json({ success: false, message: "Thema nicht gefunden." });
+    }
+
+    res.json({
+      success: true,
+      checkpointDate: normalizeIsoDate(upd.rows[0].checkpoint_date),
+      checkpointDateLabel: formatGermanDate(upd.rows[0].checkpoint_date)
+    });
+  } catch (err) {
+    console.error("❌ PATCH /api/teacher/levelchecks:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
@@ -6469,6 +6771,7 @@ const studentSpaPaths = [
   "/student/week",
   "/student/levelplan",
   "/student/zielsetzung",
+  "/student/checkpoint-plan",
   "/student/levelcheck",
   "/student/competencies",
   "/student/status",
