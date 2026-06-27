@@ -58,8 +58,19 @@
       return `<p class="lc-empty-goals">Noch keine Unterthemen in diesem Thema.</p>`;
     }
 
+    const target = levelCheck.target;
+
     const head = tiers
-      .map((t) => `<th class="lc-matrix-tier">${escapeHtml(t.label)}</th>`)
+      .map((t) => {
+        const tierTarget = target?.tiers?.find((x) => x.id === t.id);
+        const req = tierTarget?.recommended;
+        const cur = tierTarget?.current ?? 0;
+        const targetSub =
+          req != null
+            ? `<span class="lc-matrix-target ${tierTarget.onTrack ? "lc-matrix-target-ok" : "lc-matrix-target-need"}">${cur}/${req}</span>`
+            : "";
+        return `<th class="lc-matrix-tier">${escapeHtml(t.label)}${targetSub}</th>`;
+      })
       .join("");
 
     const rows = levelCheck.goals
@@ -113,15 +124,26 @@
   function renderLevelCheck(levelCheck, tiers) {
     const marked = (levelCheck.goals || []).filter((g) => g.mark).length;
     const total = (levelCheck.goals || []).length;
+    const target = levelCheck.target;
+
+    const targetBadge = target?.targetGrade
+      ? `<span class="lc-target-badge">Zielnote ${escapeHtml(String(target.targetGrade))}</span>`
+      : `<span class="lc-target-badge lc-target-badge-empty">Zielnote in Zielsetzung wählen</span>`;
+
+    const targetHint =
+      target?.targetGrade && target.summary
+        ? `<p class="lc-target-hint ${target.onTrack ? "lc-target-hint-ok" : ""}">${escapeHtml(target.summary)}</p>`
+        : "";
 
     return `
       <article class="lc-check-card">
         <div class="lc-check-head">
           <div>
             <span class="lc-check-badge">${escapeHtml(levelCheck.name)}</span>
-            <p class="lc-check-sub">${total} Unterthemen</p>
+            ${targetBadge}
+            <p class="lc-check-sub">${total} Unterthemen · ${marked} markiert</p>
+            ${targetHint}
           </div>
-          <span class="lc-check-progress">${marked}/${total} markiert</span>
         </div>
         ${renderMatrix(levelCheck, tiers)}
       </article>`;
@@ -173,7 +195,7 @@
       <div class="lc-shell">
         <p class="lc-intro">
           Dein <strong>Levelplan</strong>: pro Thema die Unterthemen markieren
-          (Rookie, Operator, Street Legend). Nochmal klicken = Markierung entfernen.
+          (Rookie, Operator, Street Legend). Zahlen in der Kopfzeile = dein Stand / Ziel aus der Zielsetzung.
         </p>
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}

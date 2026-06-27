@@ -1208,7 +1208,69 @@ a { color: inherit; }
   background: #fef3c7;
   transform: translateX(-1px);
 }
+.zs-toolbar { margin: 0 0 16px; }
+.zs-subject-select {
+  margin-left: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #0f172a;
+  color: #f9fafb;
+  font-size: 13px;
+  min-width: 180px;
+}
+.zs-grade-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.zs-computed-grade { margin: 6px 0 0; font-size: 12px; color: #7dd3fc; }
+.zs-analysis {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(2, 6, 23, 0.55);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.zs-analysis-ok { border-color: rgba(74, 222, 128, 0.35); color: #bbf7d0; }
+
 .zs-unmarked { margin: 10px 0 0; font-size: 11px; opacity: 0.55; }
+.zs-topic-hint-ok { color: #86efac; }
+.zs-rules-box {
+  margin: 0 0 14px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.45);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.zs-rules-title { margin: 0 0 8px; font-weight: 600; font-size: 12px; }
+.zs-rules-list { margin: 0 0 8px; padding-left: 18px; }
+.zs-rules-note { margin: 0; opacity: 0.6; font-size: 11px; }
+
+.lc-target-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.2);
+  color: #fdba74;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lc-target-badge-empty { opacity: 0.55; background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
+.lc-target-hint { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: #fca5a5; }
+.lc-target-hint-ok { color: #86efac; }
+.lc-matrix-target {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: normal;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.lc-matrix-target-need { color: #fca5a5; }
+.lc-matrix-target-ok { color: #86efac; }
 
 .comp-copy-msg {
   margin-top: 8px;
@@ -1997,8 +2059,8 @@ h2 {
 <script src="/js/logbuch-reflect.js"></script>
 <script src="/js/logbuch-today.js?v=6"></script>
 <script src="/js/logbuch-week.js"></script>
-<script src="/js/logbuch-levelplan.js?v=3"></script>
-<script src="/js/logbuch-zielsetzung.js?v=1"></script>
+<script src="/js/logbuch-levelplan.js?v=4"></script>
+<script src="/js/logbuch-zielsetzung.js?v=3"></script>
 <script src="/js/logbuch-screens.js"></script>
 
 <script>

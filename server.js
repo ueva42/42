@@ -40,36 +40,348 @@ const LEVEL_CHECK_XP = {
   street_legend: 12
 };
 
-const TARGET_GRADE_TIER_SHARES = {
-  1: { rookie: 1, operator: 0.95, street_legend: 0.85 },
-  2: { rookie: 1, operator: 0.85, street_legend: 0.7 },
-  3: { rookie: 0.9, operator: 0.7, street_legend: 0.5 },
-  4: { rookie: 0.8, operator: 0.55, street_legend: 0.35 },
-  5: { rookie: 0.7, operator: 0.4, street_legend: 0.2 },
-  6: { rookie: 0.6, operator: 0.3, street_legend: 0.1 }
+const TARGET_GRADE_WHOLE_RULES = {
+  1: { street_legend: 0.8 },
+  2: { operator: 1, street_legend: 0.5 },
+  3: { operator: 0.8 },
+  4: { rookie: 0.8 },
+  5: { rookie: 0.6 },
+  6: { rookie: 0.4 }
 };
 
-function recommendedTierCounts(totalGoals, targetGrade) {
-  const total = Math.max(0, Number(totalGoals) || 0);
-  const grade = TARGET_GRADE_TIER_SHARES[targetGrade]
-    ? targetGrade
-    : 3;
-  const shares = TARGET_GRADE_TIER_SHARES[grade];
-  return {
-    rookie: Math.ceil(total * shares.rookie),
-    operator: Math.ceil(total * shares.operator),
-    street_legend: Math.ceil(total * shares.street_legend)
-  };
+const TARGET_GRADE_ORDER = [
+  "1",
+  "1-",
+  "2+",
+  "2",
+  "2-",
+  "3+",
+  "3",
+  "3-",
+  "4+",
+  "4",
+  "4-",
+  "5+",
+  "5",
+  "5-",
+  "6"
+];
+
+const TARGET_GRADE_OPTIONS = TARGET_GRADE_ORDER.map((value) => ({
+  value,
+  label: formatGradeLabel(value)
+}));
+
+function formatGradeLabel(key) {
+  if (!key) return "–";
+  return String(key).replace(/-/g, "−");
 }
 
-function countGoalMarksByTier(goals) {
+function gradeIndex(key) {
+  const k = normalizeTargetGradeKey(key);
+  if (!k) return -1;
+  return TARGET_GRADE_ORDER.indexOf(k);
+}
+
+function compareGradeKeys(a, b) {
+  const ia = gradeIndex(a);
+  const ib = gradeIndex(b);
+  if (ia < 0 || ib < 0) return null;
+  return ia - ib;
+}
+
+function gradeRequirementsMet(totalGoals, markCounts, gradeKey) {
+  const total = Math.max(0, Number(totalGoals) || 0);
+  const key = normalizeTargetGradeKey(gradeKey);
+  if (!total || !key) return false;
+
+  const rules = TARGET_GRADE_RULES[key];
+  for (const tier of LEVEL_CHECK_TIERS) {
+    if (rules[tier] == null) continue;
+    const required = Math.ceil(total * rules[tier]);
+    if ((markCounts[tier] ?? 0) < required) return false;
+  }
+  return true;
+}
+
+function computeAchievedGradeFromMarks(totalGoals, markCounts) {
+  const total = Math.max(0, Number(totalGoals) || 0);
+  if (!total) return null;
+
+  for (const gradeKey of TARGET_GRADE_ORDER) {
+    if (gradeRequirementsMet(total, markCounts, gradeKey)) {
+      return gradeKey;
+    }
+  }
+  return null;
+}
+
+function buildGradeAnalysis({
+  targetGrade,
+  computedGrade,
+  achievedGrade,
+  onTrack,
+  summary,
+  totalGoals,
+  unmarked
+}) {
+  const parts = [];
+
+  if (!totalGoals) {
+    return "Noch keine Unterthemen – deine Lehrkraft legt sie im Levelstatus an.";
+  }
+
+  if (computedGrade) {
+    parts.push(`Levelplan-Stand: etwa Note ${formatGradeLabel(computedGrade)}.`);
+  } else if (unmarked === totalGoals) {
+    parts.push("Levelplan-Stand: noch keine Häkchen gesetzt.");
+  } else {
+    parts.push("Levelplan-Stand: noch unter Note 6 – weiter im Levelplan markieren.");
+  }
+
+  if (achievedGrade) {
+    parts.push(`Deine Note: ${formatGradeLabel(achievedGrade)}.`);
+    const cmpNotePlan = compareGradeKeys(achievedGrade, computedGrade);
+    if (computedGrade && cmpNotePlan != null) {
+      if (cmpNotePlan < 0) {
+        parts.push("Deine Note ist besser als dein Levelplan-Stand – stark!");
+      } else if (cmpNotePlan > 0) {
+        parts.push("Im Levelplan noch Luft nach oben, um deiner Note näher zu kommen.");
+      } else {
+        parts.push("Note und Levelplan passen zusammen.");
+      }
+    }
+  }
+
+  if (targetGrade) {
+    const cmpPlanTarget = computedGrade ? compareGradeKeys(computedGrade, targetGrade) : null;
+    if (onTrack) {
+      parts.push(`Ziel Note ${formatGradeLabel(targetGrade)} im Levelplan erreicht.`);
+    } else if (cmpPlanTarget != null && cmpPlanTarget <= 0) {
+      parts.push(`Du liegst auf Kurs Richtung Ziel Note ${formatGradeLabel(targetGrade)}.`);
+    } else if (summary) {
+      parts.push(`Bis Ziel Note ${formatGradeLabel(targetGrade)}: ${summary}.`);
+    } else {
+      parts.push(`Setze dein Ziel Note ${formatGradeLabel(targetGrade)} im Levelplan um.`);
+    }
+
+    if (achievedGrade) {
+      const cmpNoteTarget = compareGradeKeys(achievedGrade, targetGrade);
+      if (cmpNoteTarget != null) {
+        if (cmpNoteTarget <= 0) {
+          parts.push("Du hast dein Ziel schon erreicht oder übertroffen.");
+        } else {
+          parts.push(`Noch ${cmpNoteTarget > 0 ? "eine bessere" : ""} Note bis zum Ziel.`);
+        }
+      }
+    }
+  }
+
+  return parts.join(" ");
+}
+
+function lerpGradeRules(rulesA, rulesB, t) {
+  const keys = new Set([
+    ...Object.keys(rulesA || {}),
+    ...Object.keys(rulesB || {})
+  ]);
+  const out = {};
+  for (const key of keys) {
+    const a = rulesA?.[key] ?? 0;
+    const b = rulesB?.[key] ?? 0;
+    out[key] = a + (b - a) * t;
+  }
+  return out;
+}
+
+function buildTargetGradeRulesMap() {
+  const map = {};
+  const wholeIndices = TARGET_GRADE_ORDER.map((key, idx) =>
+    /^\d+$/.test(key) ? idx : -1
+  );
+
+  for (let i = 0; i < TARGET_GRADE_ORDER.length; i++) {
+    const key = TARGET_GRADE_ORDER[i];
+    if (/^\d+$/.test(key)) {
+      map[key] = { ...TARGET_GRADE_WHOLE_RULES[Number(key)] };
+      continue;
+    }
+
+    let lowerIdx = i - 1;
+    while (lowerIdx >= 0 && wholeIndices[lowerIdx] < 0) lowerIdx--;
+    let upperIdx = i + 1;
+    while (upperIdx < TARGET_GRADE_ORDER.length && wholeIndices[upperIdx] < 0) upperIdx++;
+
+    if (lowerIdx < 0 || upperIdx >= TARGET_GRADE_ORDER.length) continue;
+
+    const lowerKey = TARGET_GRADE_ORDER[lowerIdx];
+    const upperKey = TARGET_GRADE_ORDER[upperIdx];
+    const t = (i - lowerIdx) / (upperIdx - lowerIdx);
+    map[key] = lerpGradeRules(
+      map[lowerKey] || TARGET_GRADE_WHOLE_RULES[Number(lowerKey)],
+      map[upperKey] || TARGET_GRADE_WHOLE_RULES[Number(upperKey)],
+      t
+    );
+  }
+
+  return map;
+}
+
+const TARGET_GRADE_RULES = buildTargetGradeRulesMap();
+
+function normalizeTargetGradeKey(raw) {
+  if (raw == null || raw === "") return null;
+  const key = String(raw).trim().replace("−", "-");
+  if (TARGET_GRADE_RULES[key]) return key;
+  const asNum = Number(key);
+  if (Number.isInteger(asNum) && asNum >= 1 && asNum <= 6) return String(asNum);
+  return null;
+}
+
+function countGoalMarksCumulative(goals) {
   const counts = { rookie: 0, operator: 0, street_legend: 0, unmarked: 0 };
   for (const goal of goals || []) {
     const tier = goal.mark?.tier;
-    if (tier && counts[tier] !== undefined) counts[tier]++;
-    else counts.unmarked++;
+    if (tier === "street_legend") {
+      counts.street_legend++;
+      counts.operator++;
+      counts.rookie++;
+    } else if (tier === "operator") {
+      counts.operator++;
+      counts.rookie++;
+    } else if (tier === "rookie") {
+      counts.rookie++;
+    } else {
+      counts.unmarked++;
+    }
   }
   return counts;
+}
+
+function recommendedTierCounts(totalGoals, targetGradeKey) {
+  const total = Math.max(0, Number(totalGoals) || 0);
+  const key = normalizeTargetGradeKey(targetGradeKey);
+  if (!key || !total) return null;
+
+  const rules = TARGET_GRADE_RULES[key];
+  const out = {};
+  for (const tier of LEVEL_CHECK_TIERS) {
+    if (rules[tier] != null) {
+      out[tier] = Math.ceil(total * rules[tier]);
+    }
+  }
+  return out;
+}
+
+function buildTopicTargetProgress(check, targetsRow = null) {
+  const totalGoals = check.goals.length;
+  const markCounts = countGoalMarksCumulative(check.goals);
+  const targetKey = normalizeTargetGradeKey(targetsRow?.targetGradeKey);
+  const achievedKey = normalizeTargetGradeKey(targetsRow?.achievedGradeKey);
+  const computedGrade = computeAchievedGradeFromMarks(totalGoals, markCounts);
+  const recommended = targetKey ? recommendedTierCounts(totalGoals, targetKey) : null;
+
+  const tiers = LEVEL_CHECK_TIERS.map((tier) => {
+    const required = recommended?.[tier] ?? null;
+    const current = markCounts[tier];
+    return {
+      id: tier,
+      label: LEVEL_CHECK_TIER_LABELS[tier],
+      current,
+      recommended: required,
+      onTrack: required == null ? null : current >= required,
+      remaining: required == null ? null : Math.max(0, required - current)
+    };
+  });
+
+  const allOnTrack =
+    recommended == null
+      ? null
+      : LEVEL_CHECK_TIERS.every((tier) => {
+          if (recommended[tier] == null) return true;
+          return markCounts[tier] >= recommended[tier];
+        });
+
+  const summary = buildTargetProgressSummary(tiers, targetKey);
+  const analysis = buildGradeAnalysis({
+    targetGrade: targetKey,
+    computedGrade,
+    achievedGrade: achievedKey,
+    onTrack: allOnTrack,
+    summary,
+    totalGoals,
+    unmarked: markCounts.unmarked
+  });
+
+  return {
+    id: check.id,
+    subject: check.subject,
+    name: check.name,
+    totalGoals,
+    unmarked: markCounts.unmarked,
+    targetGrade: targetKey,
+    targetGradeLabel: formatGradeLabel(targetKey),
+    achievedGrade: achievedKey,
+    achievedGradeLabel: formatGradeLabel(achievedKey),
+    computedGrade,
+    computedGradeLabel: formatGradeLabel(computedGrade),
+    tiers,
+    recommended,
+    onTrack: allOnTrack,
+    summary,
+    analysis
+  };
+}
+
+function buildTargetProgressSummary(tiers, targetGradeKey) {
+  if (!targetGradeKey) return null;
+  const parts = tiers
+    .filter((t) => t.recommended != null)
+    .map((t) => {
+      if (t.remaining <= 0) return `${t.label} ✓`;
+      return `noch ${t.remaining}× ${t.label}`;
+    });
+  return parts.length ? parts.join(" · ") : null;
+}
+
+function countGoalMarksByTier(goals) {
+  return countGoalMarksCumulative(goals);
+}
+
+async function fetchTargetGradesByCheck(studentId, checkIds) {
+  const targetsByCheck = {};
+  if (!checkIds.length) return targetsByCheck;
+
+  const targetsRes = await pool.query(
+    `
+    SELECT level_check_id, target_grade_key, target_grade, achieved_grade_key
+    FROM level_check_targets
+    WHERE user_id = $1 AND level_check_id = ANY($2::uuid[])
+  `,
+    [studentId, checkIds]
+  );
+
+  for (const row of targetsRes.rows) {
+    targetsByCheck[row.level_check_id] = {
+      targetGradeKey:
+        normalizeTargetGradeKey(row.target_grade_key) ||
+        normalizeTargetGradeKey(row.target_grade),
+      achievedGradeKey: normalizeTargetGradeKey(row.achieved_grade_key)
+    };
+  }
+
+  return targetsByCheck;
+}
+
+function attachTargetProgressToChecks(checks, targetsByCheck) {
+  return checks.map((check) => ({
+    ...check,
+    target: buildTopicTargetProgress(check, targetsByCheck[check.id] ?? null)
+  }));
+}
+
+function buildZielsetzungTopic(check, targetsRow) {
+  return buildTopicTargetProgress(check, targetsRow);
 }
 
 function groupZielsetzungBySubject(topics) {
@@ -92,30 +404,8 @@ function groupZielsetzungBySubject(topics) {
   return grouped;
 }
 
-function buildZielsetzungTopic(check, targetGrade) {
-  const totalGoals = check.goals.length;
-  const markCounts = countGoalMarksByTier(check.goals);
-  const grade = targetGrade && TARGET_GRADE_TIER_SHARES[targetGrade] ? targetGrade : null;
-  const recommended = grade ? recommendedTierCounts(totalGoals, grade) : null;
-
-  const tiers = LEVEL_CHECK_TIERS.map((tier) => ({
-    id: tier,
-    label: LEVEL_CHECK_TIER_LABELS[tier],
-    current: markCounts[tier],
-    recommended: recommended ? recommended[tier] : null,
-    onTrack: recommended ? markCounts[tier] >= recommended[tier] : null
-  }));
-
-  return {
-    id: check.id,
-    subject: check.subject,
-    name: check.name,
-    totalGoals,
-    unmarked: markCounts.unmarked,
-    targetGrade: grade,
-    tiers,
-    recommended
-  };
+function subjectsFromZielsetzungGroups(grouped) {
+  return (grouped || []).map((g) => g.subject);
 }
 
 const LOG_SUBJECTS = [
@@ -1321,7 +1611,15 @@ async function migrate() {
       UNIQUE(level_check_id, user_id)
     )
   `);
+  await ensureColumn("level_check_targets", "target_grade_key", "TEXT");
+  await ensureColumn("level_check_targets", "achieved_grade_key", "TEXT");
   await ensureColumn("level_check_targets", "school_id", "INTEGER");
+
+  await pool.query(`
+    UPDATE level_check_targets
+    SET target_grade_key = target_grade::text
+    WHERE target_grade_key IS NULL AND target_grade IS NOT NULL
+  `);
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_level_check_targets_user
@@ -2884,11 +3182,15 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
     }
 
     const checks = await getLevelChecksForClass(classId, schoolId, studentId);
+    const checkIds = checks.map((c) => c.id);
+    const targetsByCheck = await fetchTargetGradesByCheck(studentId, checkIds);
+    const checksWithTargets = attachTargetProgressToChecks(checks, targetsByCheck);
 
     res.json({
       hasClass: true,
-      grouped: groupLevelChecksBySubject(checks),
-      tiers: levelCheckTiersPayload()
+      grouped: groupLevelChecksBySubject(checksWithTargets),
+      tiers: levelCheckTiersPayload(),
+      gradeOptions: TARGET_GRADE_OPTIONS
     });
   } catch (err) {
     console.error("❌ /api/student/levelplan:", err);
@@ -2909,36 +3211,32 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
       return res.json({
         hasClass: false,
         grouped: [],
-        gradeOptions: [1, 2, 3, 4, 5, 6]
+        gradeOptions: TARGET_GRADE_OPTIONS
       });
     }
 
     const checks = await getLevelChecksForClass(classId, schoolId, studentId);
     const checkIds = checks.map((c) => c.id);
-
-    const targetsByCheck = {};
-    if (checkIds.length) {
-      const targetsRes = await pool.query(
-        `
-        SELECT level_check_id, target_grade
-        FROM level_check_targets
-        WHERE user_id = $1 AND level_check_id = ANY($2::uuid[])
-      `,
-        [studentId, checkIds]
-      );
-      for (const row of targetsRes.rows) {
-        targetsByCheck[row.level_check_id] = row.target_grade;
-      }
-    }
+    const targetsByCheck = await fetchTargetGradesByCheck(studentId, checkIds);
 
     const topics = checks.map((check) =>
       buildZielsetzungTopic(check, targetsByCheck[check.id] ?? null)
     );
+    const grouped = groupZielsetzungBySubject(topics);
 
     res.json({
       hasClass: true,
-      grouped: groupZielsetzungBySubject(topics),
-      gradeOptions: [1, 2, 3, 4, 5, 6]
+      grouped,
+      subjects: subjectsFromZielsetzungGroups(grouped),
+      gradeOptions: TARGET_GRADE_OPTIONS,
+      gradeRulesHint: {
+        "1": "Street Legend in mindestens 80 % der Unterthemen",
+        "2": "Operator in allen · Street Legend in mindestens 50 %",
+        "3": "Operator in mindestens 80 % der Unterthemen",
+        "4": "Rookie in mindestens 80 % der Unterthemen",
+        "5": "Rookie in mindestens 60 % der Unterthemen",
+        "6": "Rookie in mindestens 40 % der Unterthemen"
+      }
     });
   } catch (err) {
     console.error("❌ /api/student/zielsetzung:", err);
@@ -2952,14 +3250,41 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
     const schoolId = req.session.user.school_id;
     const classId = req.session.user.class_id;
     const levelCheckId = req.body.levelCheckId;
-    const targetGrade = Number(req.body.targetGrade);
+    const hasTarget = Object.prototype.hasOwnProperty.call(req.body, "targetGradeKey")
+      || Object.prototype.hasOwnProperty.call(req.body, "targetGrade");
+    const hasAchieved = Object.prototype.hasOwnProperty.call(req.body, "achievedGradeKey")
+      || Object.prototype.hasOwnProperty.call(req.body, "achievedGrade");
+
+    let targetGradeKey;
+    if (hasTarget) {
+      const raw = req.body.targetGradeKey ?? req.body.targetGrade;
+      targetGradeKey = raw === "" || raw == null ? null : normalizeTargetGradeKey(raw);
+      if (raw !== "" && raw != null && !targetGradeKey) {
+        return res.json({
+          success: false,
+          message: "Bitte eine gültige Zielnote wählen (1 bis 6, ggf. mit +/−)."
+        });
+      }
+    }
+
+    let achievedGradeKey;
+    if (hasAchieved) {
+      const raw = req.body.achievedGradeKey ?? req.body.achievedGrade;
+      achievedGradeKey = raw === "" || raw == null ? null : normalizeTargetGradeKey(raw);
+      if (raw !== "" && raw != null && !achievedGradeKey) {
+        return res.json({
+          success: false,
+          message: "Bitte eine gültige erreichte Note wählen (1 bis 6, ggf. mit +/−)."
+        });
+      }
+    }
 
     if (!classId || !levelCheckId) {
       return res.json({ success: false, message: "Thema fehlt." });
     }
 
-    if (!Number.isInteger(targetGrade) || targetGrade < 1 || targetGrade > 6) {
-      return res.json({ success: false, message: "Zielnote muss zwischen 1 und 6 liegen." });
+    if (!hasTarget && !hasAchieved) {
+      return res.json({ success: false, message: "Keine Note zum Speichern übergeben." });
     }
 
     const checkRes = await pool.query(
@@ -2973,20 +3298,64 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Thema nicht gefunden." });
     }
 
+    const existingRes = await pool.query(
+      `
+      SELECT target_grade_key, target_grade, achieved_grade_key
+      FROM level_check_targets
+      WHERE level_check_id = $1 AND user_id = $2
+    `,
+      [levelCheckId, studentId]
+    );
+
+    const existing = existingRes.rows[0];
+    const finalTarget =
+      hasTarget
+        ? targetGradeKey
+        : normalizeTargetGradeKey(existing?.target_grade_key) ||
+          normalizeTargetGradeKey(existing?.target_grade);
+    const finalAchieved = hasAchieved
+      ? achievedGradeKey
+      : normalizeTargetGradeKey(existing?.achieved_grade_key);
+
+    if (!finalTarget && !finalAchieved) {
+      if (existing) {
+        await pool.query(
+          `DELETE FROM level_check_targets WHERE level_check_id = $1 AND user_id = $2`,
+          [levelCheckId, studentId]
+        );
+      }
+      return res.json({ success: true, targetGrade: null, achievedGrade: null });
+    }
+
+    const wholeGrade =
+      finalTarget && /^\d+$/.test(finalTarget)
+        ? Number(finalTarget)
+        : existing?.target_grade ?? 3;
+
     const upsert = await pool.query(
       `
-      INSERT INTO level_check_targets (school_id, level_check_id, user_id, target_grade)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO level_check_targets (
+        school_id, level_check_id, user_id, target_grade, target_grade_key, achieved_grade_key
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (level_check_id, user_id)
-      DO UPDATE SET target_grade = EXCLUDED.target_grade, updated_at = NOW()
-      RETURNING target_grade
+      DO UPDATE SET
+        target_grade = EXCLUDED.target_grade,
+        target_grade_key = EXCLUDED.target_grade_key,
+        achieved_grade_key = EXCLUDED.achieved_grade_key,
+        updated_at = NOW()
+      RETURNING target_grade_key, target_grade, achieved_grade_key
     `,
-      [schoolId, levelCheckId, studentId, targetGrade]
+      [schoolId, levelCheckId, studentId, wholeGrade, finalTarget, finalAchieved]
     );
 
     res.json({
       success: true,
-      targetGrade: upsert.rows[0].target_grade
+      targetGrade:
+        upsert.rows[0].target_grade_key || (upsert.rows[0].target_grade != null
+          ? String(upsert.rows[0].target_grade)
+          : null),
+      achievedGrade: upsert.rows[0].achieved_grade_key || null
     });
   } catch (err) {
     console.error("❌ POST /api/student/zielsetzung:", err);
