@@ -36,9 +36,12 @@
     data: null,
     loading: false,
     saving: false,
+    deletingId: null,
     message: "",
     error: ""
   };
+
+  let rootClickBound = false;
 
   function escapeHtml(str) {
     return String(str ?? "")
@@ -170,7 +173,7 @@
             <h4 class="tc-levelcheck-name">${escapeHtml(topic.name)}</h4>
             ${renderCheckpointFields(topic, `tcTopic-${topic.id}`)}
           </div>
-          <button type="button" class="tc-delete-btn tc-topic-delete-btn" data-check-id="${escapeHtml(topic.id)}">Thema löschen</button>
+          <button type="button" class="tc-delete-btn tc-topic-delete-btn" data-check-id="${escapeHtml(topic.id)}" ${state.deletingId === String(topic.id) ? "disabled" : ""}>${state.deletingId === String(topic.id) ? "Löschen…" : "Thema löschen"}</button>
         </div>
         <ol class="tc-goal-list">
           ${(topic.goals || []).map(renderSubtopicRow).join("")}
@@ -264,6 +267,60 @@
     });
   }
 
+  function bindRootActions() {
+    const root = document.getElementById("competenciesTabRoot");
+    if (!root || rootClickBound) return;
+    rootClickBound = true;
+
+    root.addEventListener("click", (e) => {
+      const topicBtn = e.target.closest(".tc-topic-delete-btn");
+      if (topicBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteTopic(topicBtn.getAttribute("data-check-id"));
+        return;
+      }
+
+      const goalBtn = e.target.closest(".tc-goal-del");
+      if (goalBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteSubtopic(goalBtn.getAttribute("data-goal-id"));
+      }
+    });
+  }
+
+  async function readJsonResponse(res) {
+    try {
+      return await res.json();
+    } catch (_err) {
+      return {};
+    }
+  }
+
+  function apiErrorMessage(res, data, fallback) {
+    if (res.status === 403) return "Keine Berechtigung.";
+    return data.message || data.error || fallback;
+  }
+
+  async function requestLevelCheckDelete(checkId) {
+    const encodedId = encodeURIComponent(checkId);
+    let res = await fetch(`/api/teacher/levelchecks/${encodedId}`, { method: "DELETE" });
+    if (res.status === 404 || res.status === 405) {
+      res = await fetch(`/api/teacher/levelchecks/${encodedId}/delete`, { method: "POST" });
+    }
+    return res;
+  }
+
+  async function requestLevelCheckGoalDelete(goalId) {
+    const encodedId = encodeURIComponent(goalId);
+    let res = await fetch(`/api/teacher/levelcheck-goals/${encodedId}`, { method: "DELETE" });
+    if (res.status === 404 || res.status === 405) {
+      res = await fetch(`/api/teacher/levelcheck-goals/${encodedId}/delete`, { method: "POST" });
+    }
+    return res;
+  }
+
   function bindHandlers(root) {
     root.querySelector("#tcClassSelect")?.addEventListener("change", (e) => {
       state.classId = Number(e.target.value);
@@ -288,22 +345,6 @@
       form.addEventListener("submit", (e) => {
         e.preventDefault();
         addSubtopic(form);
-      });
-    });
-
-    root.querySelectorAll(".tc-topic-delete-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        deleteTopic(btn.getAttribute("data-check-id"));
-      });
-    });
-
-    root.querySelectorAll(".tc-goal-del").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        deleteSubtopic(btn.getAttribute("data-goal-id"));
       });
     });
 
@@ -460,43 +501,54 @@
   }
 
   async function deleteTopic(checkId) {
-    if (!checkId || !confirm("Thema mit allen Unterthemen wirklich löschen?")) return;
+    if (!checkId || state.deletingId) return;
+    if (!confirm("Thema mit allen Unterthemen wirklich löschen?")) return;
+
+    state.deletingId = String(checkId);
     state.error = "";
     state.message = "";
+    render();
+
     try {
-      const res = await fetch(`/api/teacher/levelchecks/${encodeURIComponent(checkId)}`, {
-        method: "DELETE"
-      });
-      let data = {};
-      try {
-        data = await res.json();
-      } catch (_err) {
-        data = {};
-      }
+      const res = await requestLevelCheckDelete(checkId);
+      const data = await readJsonResponse(res);
+      state.deletingId = null;
+
       if (!res.ok || !data.success) {
-        state.error = data.message || "Löschen fehlgeschlagen.";
+        state.error = apiErrorMessage(res, data, "Löschen fehlgeschlagen.");
         render();
         return;
       }
+
+      if (state.data?.levelChecks) {
+        state.data = {
+          ...state.data,
+          levelChecks: state.data.levelChecks.filter((lc) => String(lc.id) !== String(checkId))
+        };
+      }
       state.message = "Thema gelöscht.";
+      render();
       await loadData();
     } catch (err) {
       console.error(err);
+      state.deletingId = null;
       state.error = "Netzwerkfehler beim Löschen.";
       render();
     }
   }
 
   async function deleteSubtopic(goalId) {
-    if (!goalId || !confirm("Unterthema wirklich löschen?")) return;
+    if (!goalId || state.deletingId) return;
+    if (!confirm("Unterthema wirklich löschen?")) return;
+
     state.error = "";
+    state.message = "";
+
     try {
-      const res = await fetch(`/api/teacher/levelcheck-goals/${encodeURIComponent(goalId)}`, {
-        method: "DELETE"
-      });
-      const data = await res.json();
-      if (!data.success) {
-        state.error = data.message || "Löschen fehlgeschlagen.";
+      const res = await requestLevelCheckGoalDelete(goalId);
+      const data = await readJsonResponse(res);
+      if (!res.ok || !data.success) {
+        state.error = apiErrorMessage(res, data, "Löschen fehlgeschlagen.");
         render();
         return;
       }
@@ -504,7 +556,7 @@
       await loadData();
     } catch (err) {
       console.error(err);
-      state.error = "Netzwerkfehler.";
+      state.error = "Netzwerkfehler beim Löschen.";
       render();
     }
   }
@@ -557,7 +609,8 @@
   async function init() {
     state.message = "";
     state.error = "";
-    state.data = null;
+    state.deletingId = null;
+    bindRootActions();
 
     const root = document.getElementById("competenciesTabRoot");
     if (root) root.innerHTML = `<div class="tc-loading">Lade Levelstatus…</div>`;

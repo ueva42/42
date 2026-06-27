@@ -3273,13 +3273,38 @@ function levelCheckTierUnlocked(tier, proofsByTier) {
   return false;
 }
 
+async function findLevelCheckForSchool(levelCheckId, schoolId, classId = null) {
+  const params = [levelCheckId, schoolId];
+  let classFilter = "";
+  if (classId != null) {
+    params.push(classId);
+    classFilter = " AND lc.class_id = $3";
+  }
+
+  const r = await pool.query(
+    `
+    SELECT lc.id, lc.class_id
+    FROM level_checks lc
+    LEFT JOIN classes c ON c.id = lc.class_id
+    WHERE lc.id = $1
+      AND (lc.school_id = $2 OR c.school_id = $2)
+      ${classFilter}
+    LIMIT 1
+  `,
+    params
+  );
+  return r.rows[0] || null;
+}
+
 async function getLevelChecksForClass(classId, schoolId, studentId = null) {
   const checksRes = await pool.query(
     `
-    SELECT id, subject, name, sort_order, created_at, checkpoint_date, checkpoint_type, checkpoint_type_label
-    FROM level_checks
-    WHERE class_id=$1 AND school_id=$2
-    ORDER BY subject ASC, sort_order ASC, name ASC
+    SELECT lc.id, lc.subject, lc.name, lc.sort_order, lc.created_at,
+           lc.checkpoint_date, lc.checkpoint_type, lc.checkpoint_type_label
+    FROM level_checks lc
+    JOIN classes c ON c.id = lc.class_id AND c.school_id = $2
+    WHERE lc.class_id = $1
+    ORDER BY lc.subject ASC, lc.sort_order ASC, lc.name ASC
   `,
     [classId, schoolId]
   );
@@ -3361,28 +3386,21 @@ function groupLevelChecksBySubject(checks) {
 }
 
 async function deleteLevelCheckForSchool(levelCheckId, schoolId) {
-  const checkRes = await pool.query(
-    `
-    SELECT lc.id
-    FROM level_checks lc
-    JOIN classes c ON c.id = lc.class_id
-    WHERE lc.id = $1 AND c.school_id = $2
-  `,
-    [levelCheckId, schoolId]
-  );
-  if (!checkRes.rows.length) return false;
+  const row = await findLevelCheckForSchool(levelCheckId, schoolId);
+  if (!row) return false;
 
-  await pool.query("BEGIN");
+  const client = await pool.connect();
   try {
-    await pool.query(
+    await client.query("BEGIN");
+    await client.query(
       "DELETE FROM level_check_targets WHERE level_check_id = $1",
       [levelCheckId]
     );
-    await pool.query(
+    await client.query(
       "DELETE FROM level_check_proofs WHERE level_check_id = $1",
       [levelCheckId]
     );
-    await pool.query(
+    await client.query(
       `
       DELETE FROM level_check_marks m
       USING level_check_goals g
@@ -3390,17 +3408,41 @@ async function deleteLevelCheckForSchool(levelCheckId, schoolId) {
     `,
       [levelCheckId]
     );
-    await pool.query(
+    await client.query(
       "DELETE FROM level_check_goals WHERE level_check_id = $1",
       [levelCheckId]
     );
-    await pool.query("DELETE FROM level_checks WHERE id = $1", [levelCheckId]);
-    await pool.query("COMMIT");
-    return true;
+    const del = await client.query(
+      "DELETE FROM level_checks WHERE id = $1 RETURNING id",
+      [levelCheckId]
+    );
+    await client.query("COMMIT");
+    return del.rowCount > 0;
   } catch (err) {
-    await pool.query("ROLLBACK");
+    await client.query("ROLLBACK");
     throw err;
+  } finally {
+    client.release();
   }
+}
+
+async function deleteLevelCheckGoalForSchool(goalId, schoolId) {
+  const del = await pool.query(
+    `
+    DELETE FROM level_check_goals g
+    WHERE g.id = $1
+      AND EXISTS (
+        SELECT 1
+        FROM level_checks lc
+        LEFT JOIN classes c ON c.id = lc.class_id
+        WHERE g.level_check_id = lc.id
+          AND (lc.school_id = $2 OR c.school_id = $2)
+      )
+    RETURNING g.id
+  `,
+    [goalId, schoolId]
+  );
+  return del.rowCount > 0;
 }
 
 function buildCheckpointPlanEvents(levelChecks) {
@@ -4267,11 +4309,8 @@ app.post("/api/teacher/levelchecks/:id/goals", isAdmin, async (req, res) => {
       return res.json({ success: false, message: "Zieltext fehlt." });
     }
 
-    const checkRes = await pool.query(
-      `SELECT id FROM level_checks WHERE id=$1 AND school_id=$2`,
-      [levelCheckId, schoolId]
-    );
-    if (!checkRes.rows.length) {
+    const checkRow = await findLevelCheckForSchool(levelCheckId, schoolId);
+    if (!checkRow) {
       return res.json({ success: false, message: "Thema nicht gefunden." });
     }
 
@@ -4308,19 +4347,25 @@ app.post("/api/teacher/levelchecks/:id/goals", isAdmin, async (req, res) => {
   }
 });
 
-app.delete("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
+async function handleDeleteLevelCheck(req, res) {
   try {
     const schoolId = req.session.user.school_id;
     const deleted = await deleteLevelCheckForSchool(req.params.id, schoolId);
     if (!deleted) {
-      return res.json({ success: false, message: "Thema nicht gefunden." });
+      return res.json({
+        success: false,
+        message: "Thema nicht gefunden oder keine Berechtigung."
+      });
     }
     res.json({ success: true });
   } catch (err) {
     console.error("❌ DELETE levelcheck:", err);
     res.status(500).json({ success: false, message: "Serverfehler beim Löschen." });
   }
-});
+}
+
+app.delete("/api/teacher/levelchecks/:id", isAdmin, handleDeleteLevelCheck);
+app.post("/api/teacher/levelchecks/:id/delete", isAdmin, handleDeleteLevelCheck);
 
 app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
   try {
@@ -4336,9 +4381,10 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
 
     const existingRes = await pool.query(
       `
-      SELECT checkpoint_date, checkpoint_type, checkpoint_type_label
-      FROM level_checks
-      WHERE id = $1 AND school_id = $2
+      SELECT lc.checkpoint_date, lc.checkpoint_type, lc.checkpoint_type_label
+      FROM level_checks lc
+      LEFT JOIN classes c ON c.id = lc.class_id
+      WHERE lc.id = $1 AND (lc.school_id = $2 OR c.school_id = $2)
     `,
       [levelCheckId, schoolId]
     );
@@ -4381,13 +4427,16 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
 
     const upd = await pool.query(
       `
-      UPDATE level_checks
+      UPDATE level_checks lc
       SET
         checkpoint_date = $1,
         checkpoint_type = $2,
         checkpoint_type_label = $3
-      WHERE id = $4 AND school_id = $5
-      RETURNING id, checkpoint_date, checkpoint_type, checkpoint_type_label
+      FROM classes c
+      WHERE lc.id = $4
+        AND c.id = lc.class_id
+        AND (lc.school_id = $5 OR c.school_id = $5)
+      RETURNING lc.id, lc.checkpoint_date, lc.checkpoint_type, lc.checkpoint_type_label
     `,
       [checkpointDate, checkpointType, checkpointTypeLabel, levelCheckId, schoolId]
     );
@@ -4546,17 +4595,23 @@ app.delete("/api/teacher/subject-lesson-goals/:id", isAdmin, async (req, res) =>
 app.delete("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const del = await pool.query(
-      `
-      DELETE FROM level_check_goals g
-      USING level_checks lc
-      WHERE g.id=$1 AND g.level_check_id = lc.id AND lc.school_id=$2
-      RETURNING g.id
-    `,
-      [req.params.id, schoolId]
-    );
-    if (!del.rows.length) {
-      return res.json({ success: false, message: "Ziel nicht gefunden." });
+    const deleted = await deleteLevelCheckGoalForSchool(req.params.id, schoolId);
+    if (!deleted) {
+      return res.json({ success: false, message: "Unterthema nicht gefunden." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE goal:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.post("/api/teacher/levelcheck-goals/:id/delete", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const deleted = await deleteLevelCheckGoalForSchool(req.params.id, schoolId);
+    if (!deleted) {
+      return res.json({ success: false, message: "Unterthema nicht gefunden." });
     }
     res.json({ success: true });
   } catch (err) {
