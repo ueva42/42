@@ -40,6 +40,84 @@ const LEVEL_CHECK_XP = {
   street_legend: 12
 };
 
+const TARGET_GRADE_TIER_SHARES = {
+  1: { rookie: 1, operator: 0.95, street_legend: 0.85 },
+  2: { rookie: 1, operator: 0.85, street_legend: 0.7 },
+  3: { rookie: 0.9, operator: 0.7, street_legend: 0.5 },
+  4: { rookie: 0.8, operator: 0.55, street_legend: 0.35 },
+  5: { rookie: 0.7, operator: 0.4, street_legend: 0.2 },
+  6: { rookie: 0.6, operator: 0.3, street_legend: 0.1 }
+};
+
+function recommendedTierCounts(totalGoals, targetGrade) {
+  const total = Math.max(0, Number(totalGoals) || 0);
+  const grade = TARGET_GRADE_TIER_SHARES[targetGrade]
+    ? targetGrade
+    : 3;
+  const shares = TARGET_GRADE_TIER_SHARES[grade];
+  return {
+    rookie: Math.ceil(total * shares.rookie),
+    operator: Math.ceil(total * shares.operator),
+    street_legend: Math.ceil(total * shares.street_legend)
+  };
+}
+
+function countGoalMarksByTier(goals) {
+  const counts = { rookie: 0, operator: 0, street_legend: 0, unmarked: 0 };
+  for (const goal of goals || []) {
+    const tier = goal.mark?.tier;
+    if (tier && counts[tier] !== undefined) counts[tier]++;
+    else counts.unmarked++;
+  }
+  return counts;
+}
+
+function groupZielsetzungBySubject(topics) {
+  const bySubject = {};
+  for (const topic of topics) {
+    if (!bySubject[topic.subject]) bySubject[topic.subject] = [];
+    bySubject[topic.subject].push(topic);
+  }
+
+  const grouped = [];
+  for (const subject of LOG_SUBJECTS) {
+    if (bySubject[subject]?.length) {
+      grouped.push({ subject, topics: bySubject[subject] });
+      delete bySubject[subject];
+    }
+  }
+  for (const [subject, topicsList] of Object.entries(bySubject)) {
+    grouped.push({ subject, topics: topicsList });
+  }
+  return grouped;
+}
+
+function buildZielsetzungTopic(check, targetGrade) {
+  const totalGoals = check.goals.length;
+  const markCounts = countGoalMarksByTier(check.goals);
+  const grade = targetGrade && TARGET_GRADE_TIER_SHARES[targetGrade] ? targetGrade : null;
+  const recommended = grade ? recommendedTierCounts(totalGoals, grade) : null;
+
+  const tiers = LEVEL_CHECK_TIERS.map((tier) => ({
+    id: tier,
+    label: LEVEL_CHECK_TIER_LABELS[tier],
+    current: markCounts[tier],
+    recommended: recommended ? recommended[tier] : null,
+    onTrack: recommended ? markCounts[tier] >= recommended[tier] : null
+  }));
+
+  return {
+    id: check.id,
+    subject: check.subject,
+    name: check.name,
+    totalGoals,
+    unmarked: markCounts.unmarked,
+    targetGrade: grade,
+    tiers,
+    recommended
+  };
+}
+
 const LOG_SUBJECTS = [
   "Mathe",
   "Deutsch",
@@ -79,6 +157,14 @@ function isTimetableFreeSubject(subject) {
 
 function timetableSubjectsFromRows(rows) {
   return [...new Set(rows.map((t) => t.subject).filter((s) => s && !isTimetableFreeSubject(s)))];
+}
+
+function timetableSubjectForSlot(timetable, timeslot) {
+  if (!timeslot || !Array.isArray(timetable)) return null;
+  const row = timetable.find((t) => t.timeslot === timeslot);
+  const subject = row?.subject;
+  if (!subject || isTimetableFreeSubject(subject)) return null;
+  return subject;
 }
 
 function sortTimetableSlots(slots) {
@@ -331,7 +417,7 @@ const LOG_COMPETENCY_STATUSES = [
 const LOG_COMPETENCY_STATUS_LABELS = {
   offen: "Offen",
   in_arbeit: "In Arbeit",
-  bereit: "Bereit für Levelcheck",
+  bereit: "Bereit für Zielsetzung",
   test_angemeldet: "Test angemeldet",
   bestanden: "Bestanden",
   nacharbeit: "Nacharbeit"
@@ -340,7 +426,7 @@ const LOG_COMPETENCY_STATUS_LABELS = {
 const LOG_NEXT_STEP_LABELS = {
   weiterüben: "Weiterüben",
   hilfe_holen: "Hilfe holen",
-  levelcheck_machen: "Levelcheck machen",
+  levelcheck_machen: "Zielsetzung prüfen",
   test_vorbereiten: "Test vorbereiten",
   neues_thema: "Neues Thema"
 };
@@ -371,7 +457,7 @@ function computeStudentHint(entries, reflections, threeJaStreak) {
       ) {
         hint = { tag: "Gespräch sinnvoll", color: "red" };
       } else if (threeJaStreak) {
-        hint = { tag: "bereit für Levelcheck", color: "green" };
+        hint = { tag: "Zielsetzung prüfen", color: "green" };
       } else {
         hint = { tag: "stabil", color: "blue" };
       }
@@ -384,7 +470,7 @@ function computeStudentHint(entries, reflections, threeJaStreak) {
   }
 
   if (threeJaStreak && best.color === "blue") {
-    best = { tag: "bereit für Levelcheck", color: "green", priority: TEACHER_HINT_PRIORITY.green };
+    best = { tag: "Zielsetzung prüfen", color: "green", priority: TEACHER_HINT_PRIORITY.green };
   }
 
   delete best.priority;
@@ -1225,6 +1311,24 @@ async function migrate() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_check_targets (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER,
+      level_check_id UUID NOT NULL REFERENCES level_checks(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      target_grade INTEGER NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(level_check_id, user_id)
+    )
+  `);
+  await ensureColumn("level_check_targets", "school_id", "INTEGER");
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_level_check_targets_user
+    ON level_check_targets (user_id, level_check_id)
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS subject_lesson_goals (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       school_id INTEGER NOT NULL,
@@ -1892,8 +1996,12 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     }
 
     const timetableSubjects = timetableSubjectsFromRows(timetable);
+    const lockedSubject = timetableSubjectForSlot(timetable, timeslot);
+    const subjectLocked = !!lockedSubject;
     let suggestedSubject = null;
-    if (subjectQuery && LOG_SUBJECTS.includes(subjectQuery)) {
+    if (lockedSubject) {
+      suggestedSubject = lockedSubject;
+    } else if (subjectQuery && LOG_SUBJECTS.includes(subjectQuery)) {
       suggestedSubject = subjectQuery;
     } else if (timetableSubjects.length) {
       suggestedSubject = timetableSubjects[0];
@@ -1901,8 +2009,9 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
 
     const socialUnlock = await getSocialFormUnlock(studentId, schoolId);
     const customLessonGoals = await fetchCustomSubjectLessonGoals(schoolId);
-    const activeSubject =
-      subjectQuery && LOG_SUBJECTS.includes(subjectQuery)
+    const activeSubject = lockedSubject
+      ? lockedSubject
+      : subjectQuery && LOG_SUBJECTS.includes(subjectQuery)
         ? subjectQuery
         : suggestedSubject;
     const lessonGoals = activeSubject
@@ -1920,7 +2029,9 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       existingEntry,
       defaultLessonGoals: LOG_GOALS,
       customLessonGoals,
-      lessonGoals
+      lessonGoals,
+      subjectLocked,
+      lockedSubject
     });
   } catch (err) {
     console.error("❌ /api/student/log/plan-context:", err);
@@ -1951,6 +2062,21 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
       return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
+    }
+
+    if (timeslot) {
+      const { classId } = await getStudentClassContext(studentId);
+      const weekday = weekdayFromIsoDate(date);
+      if (classId && weekday) {
+        const timetable = await fetchTimetableForClassDay(classId, weekday);
+        const expectedSubject = timetableSubjectForSlot(timetable, timeslot);
+        if (expectedSubject && subject !== expectedSubject) {
+          return res.json({
+            success: false,
+            message: "Das Fach ist für diese Stunde fest vorgegeben."
+          });
+        }
+      }
     }
 
     const allowedGoals = await getLessonGoalsForSubject(schoolId, subject);
@@ -2770,14 +2896,10 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
   }
 });
 
-app.get("/api/student/levelchecks", isStudent, (req, res) => {
-  res.redirect(307, "/api/student/levelplan");
-});
-
 // -------------------------------------------------------
-// STUDENT: Levelcheck – Nachweise hochladen (pro Levelcheck)
+// STUDENT: Zielsetzung – Zielnote & Level-Fortschritt pro Thema
 // -------------------------------------------------------
-app.get("/api/student/levelcheck", isStudent, async (req, res) => {
+app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
     const schoolId = req.session.user.school_id;
@@ -2787,65 +2909,103 @@ app.get("/api/student/levelcheck", isStudent, async (req, res) => {
       return res.json({
         hasClass: false,
         grouped: [],
-        tiers: levelCheckTiersPayload(true)
+        gradeOptions: [1, 2, 3, 4, 5, 6]
       });
     }
 
-    const checks = await getLevelChecksForClass(classId, schoolId);
+    const checks = await getLevelChecksForClass(classId, schoolId, studentId);
     const checkIds = checks.map((c) => c.id);
 
-    const proofsByCheck = {};
+    const targetsByCheck = {};
     if (checkIds.length) {
-      const proofsRes = await pool.query(
+      const targetsRes = await pool.query(
         `
-        SELECT level_check_id, tier, file_url, file_name, xp_awarded, created_at
-        FROM level_check_proofs
-        WHERE user_id=$1 AND level_check_id = ANY($2::uuid[])
+        SELECT level_check_id, target_grade
+        FROM level_check_targets
+        WHERE user_id = $1 AND level_check_id = ANY($2::uuid[])
       `,
         [studentId, checkIds]
       );
-      for (const row of proofsRes.rows) {
-        if (!proofsByCheck[row.level_check_id]) proofsByCheck[row.level_check_id] = {};
-        proofsByCheck[row.level_check_id][row.tier] = {
-          fileUrl: publicImageUrl(row.file_url),
-          fileName: row.file_name,
-          xpAwarded: row.xp_awarded,
-          uploadedAt: row.created_at
-        };
+      for (const row of targetsRes.rows) {
+        targetsByCheck[row.level_check_id] = row.target_grade;
       }
     }
 
-    const withProofs = checks.map((c) => {
-      const proofs = proofsByCheck[c.id] || {};
-      const tiers = LEVEL_CHECK_TIERS.map((tier) => ({
-        id: tier,
-        label: LEVEL_CHECK_TIER_LABELS[tier],
-        xp: LEVEL_CHECK_XP[tier],
-        unlocked: levelCheckTierUnlocked(tier, proofs),
-        upload: proofs[tier] || null
-      }));
-      return {
-        id: c.id,
-        subject: c.subject,
-        name: c.name,
-        goalCount: c.goals.length,
-        doneCount: tiers.filter((t) => t.upload).length,
-        totalTiers: LEVEL_CHECK_TIERS.length,
-        tiers
-      };
-    });
+    const topics = checks.map((check) =>
+      buildZielsetzungTopic(check, targetsByCheck[check.id] ?? null)
+    );
 
     res.json({
       hasClass: true,
-      grouped: groupLevelChecksBySubject(withProofs),
-      tiers: levelCheckTiersPayload(true)
+      grouped: groupZielsetzungBySubject(topics),
+      gradeOptions: [1, 2, 3, 4, 5, 6]
     });
   } catch (err) {
-    console.error("❌ /api/student/levelcheck:", err);
+    console.error("❌ /api/student/zielsetzung:", err);
     res.status(500).json({ error: "Serverfehler" });
   }
 });
 
+app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const classId = req.session.user.class_id;
+    const levelCheckId = req.body.levelCheckId;
+    const targetGrade = Number(req.body.targetGrade);
+
+    if (!classId || !levelCheckId) {
+      return res.json({ success: false, message: "Thema fehlt." });
+    }
+
+    if (!Number.isInteger(targetGrade) || targetGrade < 1 || targetGrade > 6) {
+      return res.json({ success: false, message: "Zielnote muss zwischen 1 und 6 liegen." });
+    }
+
+    const checkRes = await pool.query(
+      `
+      SELECT id FROM level_checks
+      WHERE id = $1 AND class_id = $2 AND school_id = $3
+    `,
+      [levelCheckId, classId, schoolId]
+    );
+    if (!checkRes.rows.length) {
+      return res.json({ success: false, message: "Thema nicht gefunden." });
+    }
+
+    const upsert = await pool.query(
+      `
+      INSERT INTO level_check_targets (school_id, level_check_id, user_id, target_grade)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (level_check_id, user_id)
+      DO UPDATE SET target_grade = EXCLUDED.target_grade, updated_at = NOW()
+      RETURNING target_grade
+    `,
+      [schoolId, levelCheckId, studentId, targetGrade]
+    );
+
+    res.json({
+      success: true,
+      targetGrade: upsert.rows[0].target_grade
+    });
+  } catch (err) {
+    console.error("❌ POST /api/student/zielsetzung:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.get("/api/student/levelcheck", isStudent, (req, res) => {
+  res.redirect(307, "/api/student/zielsetzung");
+});
+
+// Legacy upload API (nicht mehr in der Schüler-Oberfläche)
+app.get("/api/student/levelchecks", isStudent, (req, res) => {
+  res.redirect(307, "/api/student/levelplan");
+});
+
+// -------------------------------------------------------
+// STUDENT: Levelcheck – Nachweise hochladen (Legacy, aus UI entfernt)
+// -------------------------------------------------------
 app.post(
   "/api/student/levelcheck-upload",
   isStudent,
@@ -2879,7 +3039,7 @@ app.post(
         [levelCheckId, classId, schoolId]
       );
       if (!checkRes.rows.length) {
-        return res.json({ success: false, message: "Levelcheck nicht gefunden." });
+        return res.json({ success: false, message: "Thema nicht gefunden." });
       }
 
       const existingRes = await pool.query(
@@ -3030,7 +3190,7 @@ app.get("/api/student/competencies", isStudent, (req, res) => {
 });
 
 // -------------------------------------------------------
-// TEACHER: Levelchecks + Raster-Ziele
+// TEACHER: Levelstatus (Themen + Unterthemen)
 // -------------------------------------------------------
 app.get("/api/teacher/levelchecks", isAdmin, async (req, res) => {
   try {
@@ -3079,7 +3239,7 @@ app.post("/api/teacher/levelchecks", isAdmin, async (req, res) => {
     if (!classId || !subject || !name) {
       return res.json({
         success: false,
-        message: "Klasse, Fach und Levelcheck-Name sind Pflicht."
+        message: "Klasse, Fach und Themen-Name sind Pflicht."
       });
     }
 
@@ -3146,7 +3306,7 @@ app.post("/api/teacher/levelchecks/:id/goals", isAdmin, async (req, res) => {
       [levelCheckId, schoolId]
     );
     if (!checkRes.rows.length) {
-      return res.json({ success: false, message: "Levelcheck nicht gefunden." });
+      return res.json({ success: false, message: "Thema nicht gefunden." });
     }
 
     const orderRes = await pool.query(
@@ -3190,7 +3350,7 @@ app.delete("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
       [req.params.id, schoolId]
     );
     if (!del.rows.length) {
-      return res.json({ success: false, message: "Levelcheck nicht gefunden." });
+      return res.json({ success: false, message: "Thema nicht gefunden." });
     }
     res.json({ success: true });
   } catch (err) {
@@ -5625,6 +5785,7 @@ const teacherSpaPaths = [
   "/teacher/week",
   "/teacher/competencies",
   "/teacher/levelchecks",
+  "/teacher/levelstatus",
   "/teacher/lesson-goals"
 ];
 
@@ -5645,6 +5806,7 @@ const studentSpaPaths = [
   "/student/reflect",
   "/student/week",
   "/student/levelplan",
+  "/student/zielsetzung",
   "/student/levelcheck",
   "/student/competencies",
   "/student/status",

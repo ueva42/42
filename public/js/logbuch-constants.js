@@ -82,7 +82,7 @@ window.LOGBUCH = {
   NEXT_STEPS: [
     { id: "weiterüben", label: "Weiterüben" },
     { id: "hilfe_holen", label: "Hilfe holen" },
-    { id: "levelcheck_machen", label: "Levelcheck machen" },
+    { id: "levelcheck_machen", label: "Zielsetzung prüfen" },
     { id: "test_vorbereiten", label: "Test vorbereiten" },
     { id: "neues_thema", label: "Neues Thema" }
   ],
@@ -103,7 +103,7 @@ window.LOGBUCH = {
   COMPETENCY_STATUS: {
     offen: { label: "Offen", class: "status-offen" },
     in_arbeit: { label: "In Arbeit", class: "status-in-arbeit" },
-    bereit: { label: "Bereit für Levelcheck", class: "status-bereit" },
+    bereit: { label: "Bereit für Zielsetzung", class: "status-bereit" },
     test_angemeldet: { label: "Test angemeldet", class: "status-test" },
     bestanden: { label: "Bestanden", class: "status-bestanden" },
     nacharbeit: { label: "Nacharbeit", class: "status-nacharbeit" }

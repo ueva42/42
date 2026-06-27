@@ -601,6 +601,7 @@
     .tc-add-form { margin:16px 0; padding:14px; border-radius:12px; border:1px solid rgba(148,163,184,0.25); background:rgba(15,23,42,0.45); }
     .tc-add-form h3 { margin:0 0 12px; font-size:15px; }
     .tc-add-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; margin-bottom:12px; }
+    .tc-add-grid-single { grid-template-columns: minmax(0, 1fr); }
     .tc-add-grid label { display:flex; flex-direction:column; gap:6px; font-size:12px; }
     .tc-add-grid input, .tc-add-grid select, .tc-status-select { padding:8px 10px; border-radius:8px; border:1px solid rgba(148,163,184,0.35); background:#0f172a; color:#f9fafb; font-size:12px; }
     .tc-table-wrap { overflow-x:auto; margin-top:16px; }
@@ -672,7 +673,7 @@
 
   <div class="nav-item" data-tab="competenciesTab" onclick="showTab('competenciesTab', event)">
     <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
-    <span class="nav-label">Levelchecks</span>
+    <span class="nav-label">Levelstatus</span>
   </div>
 
   <div class="nav-item" data-tab="xpTab" onclick="showTab('xpTab', event)">
@@ -1056,7 +1057,7 @@
 <script src="/js/teacher-timetable.js?v=4"></script>
 <script src="/js/teacher-lesson-goals.js?v=1"></script>
 <script src="/js/teacher-week.js"></script>
-<script src="/js/teacher-competencies.js?v=4"></script>
+<script src="/js/teacher-competencies.js?v=5"></script>
 
 <script>
 const TEACHER_TAB_ROUTES = {
@@ -1064,7 +1065,7 @@ const TEACHER_TAB_ROUTES = {
   teacherWeekTab: "/teacher/week",
   timetableTab: "/teacher/timetable",
   lessonGoalsTab: "/teacher/lesson-goals",
-  competenciesTab: "/teacher/levelchecks",
+  competenciesTab: "/teacher/levelstatus",
   xpTab: "/admin#xp",
   classProgressTab: "/admin#classProgress",
   classTab: "/admin#class",
@@ -1080,6 +1081,7 @@ const ROUTE_TABS = {
   "/teacher/week": "teacherWeekTab",
   "/teacher/timetable": "timetableTab",
   "/teacher/lesson-goals": "lessonGoalsTab",
+  "/teacher/levelstatus": "competenciesTab",
   "/teacher/competencies": "competenciesTab",
   "/teacher/levelchecks": "competenciesTab"
 };

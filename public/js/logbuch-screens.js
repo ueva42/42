@@ -15,12 +15,12 @@
     },
     levelplan: {
       title: "Levelplan",
-      subtitle: "Matrix: pro Ziel deine Stufe markieren.",
+      subtitle: "Matrix: pro Unterthema deine Stufe markieren.",
       phase: null
     },
-    levelcheck: {
-      title: "Levelcheck",
-      subtitle: "Nachweise hochladen: Rookie → Operator → Street Legend.",
+    zielsetzung: {
+      title: "Zielsetzung",
+      subtitle: "Street Target – Zielnote setzen & Level-Fortschritt.",
       phase: null
     },
     plan: {
@@ -88,8 +88,13 @@
       return;
     }
 
-    if (section === "levelcheck" && window.LogbuchLevelcheck) {
-      window.LogbuchLevelcheck.init();
+    if (section === "zielsetzung" && window.LogbuchZielsetzung) {
+      window.LogbuchZielsetzung.init();
+      return;
+    }
+
+    if (section === "levelcheck" && window.LogbuchZielsetzung) {
+      window.LogbuchZielsetzung.init();
       return;
     }
 

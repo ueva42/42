@@ -442,6 +442,16 @@ a { color: inherit; }
   text-transform: uppercase;
   opacity: 0.65;
 }
+.plan-subject-locked {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(8, 47, 73, 0.45);
+  font-size: 15px;
+  font-weight: 500;
+  color: #e0f2fe;
+}
+
 .plan-readonly-row dd {
   margin: 0;
   font-size: 14px;
@@ -984,7 +994,7 @@ a { color: inherit; }
   margin-bottom: 12px;
 }
 .comp-modal-actions { display: flex; flex-direction: column; gap: 8px; }
-/* Levelchecks */
+/* Levelplan & Zielsetzung */
 .lc-shell { display: flex; flex-direction: column; gap: 16px; }
 .lc-intro { margin: 0; font-size: 13px; opacity: 0.75; line-height: 1.5; }
 .lc-subject-title {
@@ -1141,6 +1151,64 @@ a { color: inherit; }
 }
 .lc-empty p { margin: 0 0 8px; }
 .lc-empty-hint { font-size: 12px; opacity: 0.55; }
+
+.zs-topics { display: flex; flex-direction: column; gap: 12px; }
+.zs-topic-card {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.55);
+  padding: 14px;
+}
+.zs-topic-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.zs-topic-title { margin: 0; font-size: 16px; line-height: 1.35; color: #fef3c7; }
+.zs-topic-meta { margin: 4px 0 0; font-size: 12px; opacity: 0.65; }
+.zs-grade-wrap { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.zs-grade-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.65; }
+.zs-grade-select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  background: #0f172a;
+  color: #f9fafb;
+  font-size: 14px;
+  min-width: 72px;
+}
+.zs-topic-hint { margin: 0 0 12px; font-size: 12px; line-height: 1.45; opacity: 0.75; }
+.zs-topic-hint-muted { opacity: 0.55; }
+.zs-tiers { display: flex; flex-direction: column; gap: 10px; }
+.zs-tier-row { padding: 8px 0; }
+.zs-tier-ontrack .zs-tier-count { color: #86efac; }
+.zs-tier-behind .zs-tier-count { color: #fca5a5; }
+.zs-tier-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+.zs-tier-label { font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.zs-tier-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  overflow: visible;
+}
+.zs-tier-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f97316, #facc15);
+}
+.zs-tier-marker {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 14px;
+  background: #fef3c7;
+  transform: translateX(-1px);
+}
+.zs-unmarked { margin: 10px 0 0; font-size: 11px; opacity: 0.55; }
 
 .comp-copy-msg {
   margin-top: 8px;
@@ -1779,8 +1847,8 @@ h2 {
     <div class="menu-icon">P</div><span class="menu-label">Levelplan</span>
   </div>
 
-  <div class="menu-item" data-section="levelcheck" onclick="showSection(event,'levelcheck')">
-    <div class="menu-icon">L</div><span class="menu-label">Levelcheck</span>
+  <div class="menu-item" data-section="zielsetzung" onclick="showSection(event,'zielsetzung')">
+    <div class="menu-icon">Z</div><span class="menu-label">Zielsetzung</span>
   </div>
 
   <div class="menu-item" data-section="status" onclick="showSection(event,'status')">
@@ -1847,9 +1915,9 @@ h2 {
   </div>
 
   <!-- LEVELCHECK -->
-  <div id="levelcheck-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Levelcheck</h2>
-    <div id="levelcheck-screen-root" class="logbuch-root"></div>
+  <div id="zielsetzung-section" class="card section logbuch-screen" style="display:none;">
+    <h2>Zielsetzung</h2>
+    <div id="zielsetzung-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- PLANEN -->
@@ -1924,13 +1992,13 @@ h2 {
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js"></script>
-<script src="/js/logbuch-plan.js?v=3"></script>
+<script src="/js/logbuch-plan.js?v=4"></script>
 <script src="/js/logbuch-check.js"></script>
 <script src="/js/logbuch-reflect.js"></script>
 <script src="/js/logbuch-today.js?v=6"></script>
 <script src="/js/logbuch-week.js"></script>
-<script src="/js/logbuch-levelplan.js?v=2"></script>
-<script src="/js/logbuch-levelcheck.js?v=2"></script>
+<script src="/js/logbuch-levelplan.js?v=3"></script>
+<script src="/js/logbuch-zielsetzung.js?v=1"></script>
 <script src="/js/logbuch-screens.js"></script>
 
 <script>

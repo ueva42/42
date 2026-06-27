@@ -6,7 +6,8 @@
     today: "/student/today",
     week: "/student/week",
     levelplan: "/student/levelplan",
-    levelcheck: "/student/levelcheck",
+    zielsetzung: "/student/zielsetzung",
+    levelcheck: "/student/zielsetzung",
     competencies: "/student/levelplan",
     plan: "/student/plan",
     check: "/student/check",
@@ -18,14 +19,32 @@
     xp: "/student/xp"
   };
 
-  const ROUTE_SECTIONS = Object.fromEntries(
-    Object.entries(SECTION_ROUTES).map(([section, route]) => [route, section])
-  );
+  const ROUTE_SECTIONS = {
+    "/student/today": "today",
+    "/student/week": "week",
+    "/student/levelplan": "levelplan",
+    "/student/zielsetzung": "zielsetzung",
+    "/student/levelcheck": "zielsetzung",
+    "/student/competencies": "levelplan",
+    "/student/plan": "plan",
+    "/student/check": "check",
+    "/student/reflect": "reflect",
+    "/student/status": "status",
+    "/student/missionen": "missionen",
+    "/student/belohnungen": "belohnungen",
+    "/student/charakter": "charakter",
+    "/student/xp": "xp"
+  };
+
+  function normalizeSection(section) {
+    return section === "levelcheck" ? "zielsetzung" : section;
+  }
 
   const SIDEBAR_SECTIONS = new Set([
     "today",
     "week",
     "levelplan",
+    "zielsetzung",
     "levelcheck",
     "status",
     "missionen",
@@ -37,7 +56,8 @@
   const DEFAULT_SECTION = "today";
 
   function routeForSection(section) {
-    return SECTION_ROUTES[section] || SECTION_ROUTES[DEFAULT_SECTION];
+    const key = normalizeSection(section);
+    return SECTION_ROUTES[key] || SECTION_ROUTES[DEFAULT_SECTION];
   }
 
   function sectionFromPath(pathname, search) {
@@ -72,6 +92,7 @@
   }
 
   function showSectionOnly(section) {
+    section = normalizeSection(section);
     document.querySelectorAll(".section").forEach((s) => {
       s.style.display = "none";
     });
@@ -96,6 +117,7 @@
   }
 
   function navigateToSection(section, options = {}) {
+    section = normalizeSection(section);
     const { replace = false, query = null } = options;
     const url = buildUrl(section, query);
     const state = { section, query: query ? query.toString() : "" };

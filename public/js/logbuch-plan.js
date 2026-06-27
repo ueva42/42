@@ -19,6 +19,7 @@
     existingEntry: null,
     defaultLessonGoals: [],
     customLessonGoals: {},
+    subjectLocked: false,
     submitting: false,
     errorMsg: ""
   };
@@ -111,10 +112,23 @@
       <div class="logbuch-form">
         <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${state.timeslot ? ` · ${ui.escapeHtml(state.timeslot)}` : ""}</p>
 
-        ${ui.fieldWrap(
-          ui.fieldLabel("Fach", { required: true }),
-          ui.select("subject", C().SUBJECTS.map((s) => ({ value: s, label: s })), state.subject, { phase: "plan" })
-        )}
+        ${
+          state.subjectLocked
+            ? ui.fieldWrap(
+                ui.fieldLabel("Fach"),
+                `<div class="plan-subject-locked">${ui.escapeHtml(state.subject || "–")}</div>`,
+                "Vom Stundenplan für diese Stunde"
+              )
+            : ui.fieldWrap(
+                ui.fieldLabel("Fach", { required: true }),
+                ui.select(
+                  "subject",
+                  C().SUBJECTS.map((s) => ({ value: s, label: s })),
+                  state.subject,
+                  { phase: "plan" }
+                )
+              )
+        }
 
         ${ui.fieldWrap(
           ui.fieldLabel("Stundenziel", { required: true }),
@@ -294,8 +308,12 @@
       ? data.defaultLessonGoals
       : C().GOALS;
     state.customLessonGoals = data.customLessonGoals || {};
-
-    if (!state.subject && data.suggestedSubject) {
+    if (data.subjectLocked) {
+      state.subjectLocked = true;
+    }
+    if (data.lockedSubject) {
+      state.subject = data.lockedSubject;
+    } else if (!state.subject && data.suggestedSubject) {
       state.subject = data.suggestedSubject;
     }
 
@@ -319,7 +337,7 @@
     state.confidenceBefore = null;
     state.freitext = "";
     state.existingEntry = null;
-    state.entryId = null;
+    state.subjectLocked = !!(q.get("subject") && q.get("timeslot"));
     state.submitting = false;
     state.errorMsg = "";
 

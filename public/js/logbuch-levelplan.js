@@ -55,7 +55,7 @@
 
   function renderMatrix(levelCheck, tiers) {
     if (!levelCheck.goals?.length) {
-      return `<p class="lc-empty-goals">Noch keine Ziele in diesem Levelcheck.</p>`;
+      return `<p class="lc-empty-goals">Noch keine Unterthemen in diesem Thema.</p>`;
     }
 
     const head = tiers
@@ -101,7 +101,7 @@
         <table class="lc-matrix">
           <thead>
             <tr>
-              <th class="lc-matrix-corner">Ziel</th>
+              <th class="lc-matrix-corner">Unterthema</th>
               ${head}
             </tr>
           </thead>
@@ -119,7 +119,7 @@
         <div class="lc-check-head">
           <div>
             <span class="lc-check-badge">${escapeHtml(levelCheck.name)}</span>
-            <p class="lc-check-sub">${total} Ziele im Raster</p>
+            <p class="lc-check-sub">${total} Unterthemen</p>
           </div>
           <span class="lc-check-progress">${marked}/${total} markiert</span>
         </div>
@@ -136,7 +136,7 @@
       return `
         <div class="lc-empty">
           <p>Noch kein Levelplan.</p>
-          <p class="lc-empty-hint">Deine Lehrkraft legt Levelchecks mit Zielen an.</p>
+          <p class="lc-empty-hint">Deine Lehrkraft legt im Levelstatus Themen mit Unterthemen an.</p>
         </div>`;
     }
 
@@ -172,7 +172,7 @@
     root.innerHTML = `
       <div class="lc-shell">
         <p class="lc-intro">
-          Dein <strong>Levelplan</strong>: pro Levelcheck die Raster-Ziele markieren
+          Dein <strong>Levelplan</strong>: pro Thema die Unterthemen markieren
           (Rookie, Operator, Street Legend). Nochmal klicken = Markierung entfernen.
         </p>
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
