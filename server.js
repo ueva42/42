@@ -232,12 +232,25 @@ function countGoalMarksCumulative(goals) {
   return counts;
 }
 
+function expandGradeRulesForDisplay(rules) {
+  if (!rules) return {};
+  const out = { ...rules };
+  // Rookie → Operator → Street Legend: höhere Stufe setzt niedrigere auf 100 % voraus.
+  if (out.street_legend != null) {
+    out.operator = Math.max(out.operator ?? 0, 1);
+    out.rookie = Math.max(out.rookie ?? 0, 1);
+  } else if (out.operator != null) {
+    out.rookie = Math.max(out.rookie ?? 0, 1);
+  }
+  return out;
+}
+
 function recommendedTierCounts(totalGoals, targetGradeKey) {
   const total = Math.max(0, Number(totalGoals) || 0);
   const key = normalizeTargetGradeKey(targetGradeKey);
   if (!key || !total) return null;
 
-  const rules = TARGET_GRADE_RULES[key];
+  const rules = expandGradeRulesForDisplay(TARGET_GRADE_RULES[key]);
   const out = {};
   for (const tier of LEVEL_CHECK_TIERS) {
     if (rules[tier] != null) {
