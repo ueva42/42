@@ -157,6 +157,24 @@ async function awardZielsetzungXPOnce(studentId, schoolId, levelCheckId, fieldKe
   return amount;
 }
 
+async function awardLevelplanMarkXPOnce(studentId, schoolId, goalId, tier) {
+  const amount = LEVEL_CHECK_XP[tier] || 0;
+  if (!amount) return 0;
+  const source = `levelplan_mark:${goalId}:${tier}`;
+  const existing = await pool.query(
+    `
+    SELECT id FROM xp_transactions
+    WHERE student_id = $1 AND source = $2
+    LIMIT 1
+  `,
+    [studentId, source]
+  );
+  if (existing.rows.length) return 0;
+
+  await awardLogbuchXP(studentId, amount, source, schoolId);
+  return amount;
+}
+
 function formatGradeLabel(key) {
   if (!key) return "–";
   return String(key).replace(".", ",");
@@ -3207,7 +3225,7 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
       return res.json({
         hasClass: false,
         grouped: [],
-        tiers: levelCheckTiersPayload()
+        tiers: levelCheckTiersPayload(true)
       });
     }
 
@@ -3219,7 +3237,7 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
     res.json({
       hasClass: true,
       grouped: groupLevelChecksBySubject(checksWithTargets),
-      tiers: levelCheckTiersPayload(),
+      tiers: levelCheckTiersPayload(true),
       gradeOptions: TARGET_GRADE_OPTIONS
     });
   } catch (err) {
@@ -3758,9 +3776,10 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
         `DELETE FROM level_check_marks WHERE id=$1`,
         [existing.rows[0].id]
       );
-      return res.json({ success: true, tier: null, cleared: true });
+      return res.json({ success: true, tier: null, cleared: true, xpAwarded: 0 });
     }
 
+    let xpAwarded = 0;
     if (existing.rows.length) {
       await pool.query(
         `UPDATE level_check_marks SET tier=$1, updated_at=NOW() WHERE id=$2`,
@@ -3776,10 +3795,13 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
       );
     }
 
+    xpAwarded = await awardLevelplanMarkXPOnce(studentId, schoolId, goalId, tier);
+
     res.json({
       success: true,
       tier,
-      tierLabel: LEVEL_CHECK_TIER_LABELS[tier]
+      tierLabel: LEVEL_CHECK_TIER_LABELS[tier],
+      xpAwarded
     });
   } catch (err) {
     console.error("❌ /api/student/levelcheck-mark:", err);
@@ -3817,7 +3839,7 @@ app.get("/api/teacher/levelchecks", isAdmin, async (req, res) => {
       classId,
       className: classRes.rows[0].name,
       subjects: LOG_SUBJECTS,
-      tiers: levelCheckTiersPayload(),
+      tiers: levelCheckTiersPayload(true),
       levelChecks: checks
     });
   } catch (err) {

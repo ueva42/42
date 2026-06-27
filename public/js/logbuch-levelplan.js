@@ -69,7 +69,7 @@
           req != null
             ? `<span class="lc-matrix-target ${tierTarget.onTrack ? "lc-matrix-target-ok" : "lc-matrix-target-need"}">${cur}/${req}</span>`
             : "";
-        return `<th class="lc-matrix-tier">${escapeHtml(t.label)}${targetSub}</th>`;
+        return `<th class="lc-matrix-tier">${escapeHtml(t.label)}${t.xp ? `<span class="lc-matrix-tier-xp">+${t.xp} XP</span>` : ""}${targetSub}</th>`;
       })
       .join("");
 
@@ -100,7 +100,7 @@
           <tr>
             <th class="lc-matrix-goal" scope="row">
               <span class="lc-matrix-goal-num">${goal.sortOrder}.</span>
-              ${escapeHtml(goal.text)}
+              <span class="lc-matrix-goal-text">${escapeHtml(goal.text)}</span>
             </th>
             ${cells}
           </tr>`;
@@ -189,7 +189,8 @@
       <div class="lc-shell">
         <p class="lc-intro">
           Dein <strong>Levelplan</strong>: pro Thema die Unterthemen markieren
-          (Rookie, Operator, Street Legend). Zahlen in der Kopfzeile = dein Stand / Ziel aus der Zielsetzung.
+          (Rookie, Operator, Street Legend). Pro Häkchen gibt es XP – einmalig pro Unterthema und Stufe.
+          Zahlen in der Kopfzeile = dein Stand / Ziel aus der Zielsetzung.
         </p>
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
@@ -224,6 +225,15 @@
         state.error = data.message || "Speichern fehlgeschlagen.";
         render();
         return;
+      }
+
+      if (data.cleared) {
+        state.message = "Markierung entfernt.";
+      } else if (data.xpAwarded > 0) {
+        state.message = `${data.tierLabel} markiert – +${data.xpAwarded} XP!`;
+        if (typeof window.loadMe === "function") await window.loadMe();
+      } else if (data.tierLabel) {
+        state.message = `${data.tierLabel} markiert.`;
       }
 
       await loadData(initGeneration);

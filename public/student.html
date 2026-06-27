@@ -1061,20 +1061,34 @@ a { color: inherit; }
 .lc-matrix th, .lc-matrix td {
   border: 1px solid rgba(148, 163, 184, 0.2);
   padding: 8px;
-  text-align: center;
   vertical-align: middle;
+}
+.lc-matrix-cell,
+.lc-matrix-tier {
+  text-align: center;
 }
 .lc-matrix-corner, .lc-matrix-goal {
   text-align: left;
+  vertical-align: top;
   background: rgba(2, 6, 23, 0.6);
 }
-.lc-matrix-goal { font-weight: normal; line-height: 1.35; min-width: 140px; }
-.lc-matrix-goal-num { opacity: 0.55; margin-right: 4px; }
+.lc-matrix-goal { font-weight: normal; line-height: 1.35; min-width: 140px; max-width: 280px; }
+.lc-matrix-goal-num { opacity: 0.55; margin-right: 4px; flex-shrink: 0; }
+.lc-matrix-goal-text { display: block; text-align: left; }
 .lc-matrix-tier {
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   background: rgba(2, 6, 23, 0.45);
+}
+.lc-matrix-tier-xp {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #fde68a;
+  font-weight: normal;
 }
 .lc-matrix-btn {
   width: 36px;
@@ -2105,7 +2119,7 @@ h2 {
 <script src="/js/logbuch-reflect.js"></script>
 <script src="/js/logbuch-today.js?v=6"></script>
 <script src="/js/logbuch-week.js"></script>
-<script src="/js/logbuch-levelplan.js?v=5"></script>
+<script src="/js/logbuch-levelplan.js?v=6"></script>
 <script src="/js/logbuch-zielsetzung.js?v=6"></script>
 <script src="/js/logbuch-screens.js"></script>
 
