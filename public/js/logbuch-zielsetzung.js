@@ -1,7 +1,9 @@
 /**
- * SRL-Logbuch – Zielsetzung (Zielnote & Fortschritts-Balken).
+ * SRL-Logbuch – Zielsetzung (Zielnote, Reflexion Grow/Glow/Ziel, XP).
  */
 (function () {
+  const CUSTOM_OPTION = "__custom__";
+
   const state = {
     data: null,
     selectedSubject: "",
@@ -71,6 +73,22 @@
     }));
   }
 
+  function feedbackOptions(field) {
+    const fromApi = state.data?.feedbackOptions?.[field];
+    if (Array.isArray(fromApi) && fromApi.length) {
+      return fromApi.map((item) =>
+        typeof item === "object"
+          ? item
+          : { value: String(item), label: String(item) }
+      );
+    }
+    return [];
+  }
+
+  function xpValue(field) {
+    return state.data?.xpValues?.[field] ?? null;
+  }
+
   function availableSubjects() {
     return state.data?.subjects?.length
       ? state.data.subjects
@@ -83,14 +101,43 @@
     return groups.filter((g) => g.subject === state.selectedSubject);
   }
 
+  function findTopic(topicId) {
+    for (const group of state.data?.grouped || []) {
+      const topic = (group.topics || []).find((t) => t.id === topicId);
+      if (topic) return topic;
+    }
+    return null;
+  }
+
+  function resolveFeedbackSelectValue(value, options) {
+    const text = String(value ?? "").trim();
+    if (!text) return "";
+    const preset = options.find((o) => o.value === text);
+    return preset ? text : CUSTOM_OPTION;
+  }
+
+  function renderXpHint(fieldKey, topic) {
+    const awarded = topic?.xpAwarded?.[fieldKey];
+    const amount = xpValue(fieldKey);
+    if (awarded) {
+      return `<span class="zs-xp-badge zs-xp-done">+${amount ?? "?"} XP ✓</span>`;
+    }
+    if (amount) {
+      return `<span class="zs-xp-badge">+${amount} XP</span>`;
+    }
+    return "";
+  }
+
   function renderGradeSelect(topicId, field, selected, saving) {
     const cls = field === "target" ? "zs-grade-select" : "zs-achieved-select";
     const label = field === "target" ? "Zielnote" : "Erreichte Note";
     const dataField = field === "target" ? "targetGradeKey" : "achievedGradeKey";
+    const xpField = field === "target" ? "targetGrade" : "achievedGrade";
+    const topic = findTopic(topicId);
 
     return `
       <label class="zs-grade-wrap">
-        <span class="zs-grade-label">${label}</span>
+        <span class="zs-grade-label">${label} ${renderXpHint(xpField, topic)}</span>
         <select
           class="${cls}"
           data-topic-id="${escapeHtml(topicId)}"
@@ -106,6 +153,76 @@
             .join("")}
         </select>
       </label>`;
+  }
+
+  function renderFeedbackField(topic, fieldKey, label, hint) {
+    const options = feedbackOptions(fieldKey);
+    const value = topic[fieldKey] || "";
+    const selectValue = resolveFeedbackSelectValue(value, options);
+    const isCustom = selectValue === CUSTOM_OPTION;
+    const saving = state.saving === `${topic.id}_${fieldKey}`;
+    const xpField =
+      fieldKey === "nextGoal" ? "nextGoal" : fieldKey;
+
+    return `
+      <div class="zs-feedback-field" data-feedback-field="${escapeHtml(fieldKey)}">
+        <label class="zs-feedback-label">
+          <span>${escapeHtml(label)} ${renderXpHint(xpField, topic)}</span>
+          ${hint ? `<span class="zs-feedback-hint">${escapeHtml(hint)}</span>` : ""}
+        </label>
+        <select
+          class="zs-feedback-select"
+          data-topic-id="${escapeHtml(topic.id)}"
+          data-field="${escapeHtml(fieldKey)}"
+          ${saving ? "disabled" : ""}
+        >
+          <option value="">– wählen –</option>
+          ${options
+            .map(
+              (o) =>
+                `<option value="${escapeHtml(o.value)}" ${selectValue === o.value ? "selected" : ""}>${escapeHtml(o.label)}</option>`
+            )
+            .join("")}
+          <option value="${CUSTOM_OPTION}" ${isCustom ? "selected" : ""}>Eigene Antwort…</option>
+        </select>
+        <input
+          type="text"
+          class="zs-feedback-custom ${isCustom ? "" : "zs-feedback-custom-hidden"}"
+          data-topic-id="${escapeHtml(topic.id)}"
+          data-field="${escapeHtml(fieldKey)}"
+          maxlength="500"
+          placeholder="Eigene Antwort eingeben…"
+          value="${isCustom ? escapeHtml(value) : ""}"
+          ${saving || !isCustom ? "disabled" : ""}
+        />
+      </div>`;
+  }
+
+  function renderFeedbackSection(topic) {
+    if (!topic.achievedGrade) return "";
+
+    return `
+      <div class="zs-feedback">
+        <h5 class="zs-feedback-title">Reflexion nach der Klassenarbeit</h5>
+        ${renderFeedbackField(
+          topic,
+          "grow",
+          "Grow",
+          "Worin willst du besser werden?"
+        )}
+        ${renderFeedbackField(
+          topic,
+          "glow",
+          "Glow",
+          "Was hast du gut gemacht und willst beibehalten?"
+        )}
+        ${renderFeedbackField(
+          topic,
+          "nextGoal",
+          "Mein Ziel für die nächste Klassenarbeit",
+          "Worauf konzentrierst du dich als Nächstes?"
+        )}
+      </div>`;
   }
 
   function renderTierBar(tier, totalGoals) {
@@ -164,6 +281,8 @@
               </div>`
             : `<p class="zs-topic-hint zs-topic-hint-muted">Wähle deine Zielnote – die Balken zeigen Rookie, Operator und Street Legend.</p>`
         }
+
+        ${renderFeedbackSection(topic)}
 
         ${
           topic.unmarked
@@ -256,7 +375,8 @@
       <div class="lc-shell zs-shell">
         <p class="lc-intro">
           <strong>Zielsetzung:</strong> Wähle dein Fach und setze pro Überthema deine Zielnote.
-          Die Balken zeigen Rookie, Operator und Street Legend – so viele Häkchen wie im Levelplan nötig.
+          Trägst du die erreichte Note ein, erscheinen Grow, Glow und dein Ziel für die nächste Klassenarbeit.
+          Pro ausgefülltem Feld gibt es XP.
         </p>
         ${renderSubjectToolbar()}
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
@@ -276,20 +396,95 @@
 
     root.querySelectorAll(".zs-grade-select, .zs-achieved-select").forEach((sel) => {
       sel.addEventListener("change", () => {
-        saveGrades(sel.dataset.topicId, sel.dataset.field, sel.value);
+        saveField(sel.dataset.topicId, sel.dataset.field, sel.value);
+      });
+    });
+
+    root.querySelectorAll(".zs-feedback-select").forEach((sel) => {
+      sel.addEventListener("change", () => {
+        const fieldWrap = sel.closest(".zs-feedback-field");
+        const customInput = fieldWrap?.querySelector(".zs-feedback-custom");
+        const isCustom = sel.value === CUSTOM_OPTION;
+
+        if (customInput) {
+          customInput.classList.toggle("zs-feedback-custom-hidden", !isCustom);
+          customInput.disabled = !isCustom;
+          if (!isCustom) customInput.value = "";
+        }
+
+        if (isCustom) {
+          customInput?.focus();
+          return;
+        }
+
+        saveField(sel.dataset.topicId, mapFeedbackField(sel.dataset.field), sel.value);
+      });
+    });
+
+    root.querySelectorAll(".zs-feedback-custom").forEach((input) => {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          input.blur();
+        }
+      });
+      input.addEventListener("blur", () => {
+        if (input.disabled || input.classList.contains("zs-feedback-custom-hidden")) return;
+        saveField(input.dataset.topicId, mapFeedbackField(input.dataset.field), input.value.trim());
       });
     });
   }
 
-  async function saveGrades(topicId, field, value) {
-    state.saving = topicId;
+  function mapFeedbackField(field) {
+    if (field === "grow") return "growText";
+    if (field === "glow") return "glowText";
+    if (field === "nextGoal") return "nextGoalText";
+    return field;
+  }
+
+  function feedbackFieldLabel(apiField) {
+    if (apiField === "targetGradeKey") return "Zielnote";
+    if (apiField === "achievedGradeKey") return "Erreichte Note";
+    if (apiField === "growText") return "Grow";
+    if (apiField === "glowText") return "Glow";
+    if (apiField === "nextGoalText") return "Ziel für nächste Klassenarbeit";
+    return "Eintrag";
+  }
+
+  function buildXpMessage(xpDetails) {
+    if (!Array.isArray(xpDetails) || !xpDetails.length) return "";
+    const parts = xpDetails.map((item) => {
+      const label =
+        item.field === "targetGrade"
+          ? "Zielnote"
+          : item.field === "achievedGrade"
+            ? "Erreichte Note"
+            : item.field === "grow"
+              ? "Grow"
+              : item.field === "glow"
+                ? "Glow"
+                : item.field === "nextGoal"
+                  ? "Ziel"
+                  : "Feld";
+      return `${label} +${item.amount} XP`;
+    });
+    return ` · ${parts.join(", ")}`;
+  }
+
+  async function saveField(topicId, field, value) {
+    state.saving = field.startsWith("grow") || field.startsWith("glow") || field.startsWith("nextGoal")
+      ? `${topicId}_${field.replace("Text", "")}`
+      : topicId;
     state.error = "";
     state.message = "";
     render();
 
     const body = { levelCheckId: topicId };
-    if (field === "targetGradeKey") body.targetGradeKey = value;
-    if (field === "achievedGradeKey") body.achievedGradeKey = value;
+    if (field === "targetGradeKey" || field === "achievedGradeKey") {
+      body[field] = value;
+    } else {
+      body[field] = value;
+    }
 
     try {
       const res = await fetch("/api/student/zielsetzung", {
@@ -306,12 +501,20 @@
         return;
       }
 
-      state.message =
-        field === "achievedGradeKey"
-          ? value
-            ? `Erreichte Note ${formatGradeLabel(value)} gespeichert.`
-            : "Erreichte Note entfernt."
-          : `Zielnote ${formatGradeLabel(value)} gespeichert.`;
+      const label = feedbackFieldLabel(field);
+      const xpMsg = buildXpMessage(data.xpDetails);
+      if (value === "" || value == null) {
+        state.message = `${label} entfernt.`;
+      } else if (field === "targetGradeKey" || field === "achievedGradeKey") {
+        state.message = `${label} ${formatGradeLabel(value)} gespeichert${xpMsg}.`;
+      } else {
+        state.message = `${label} gespeichert${xpMsg}.`;
+      }
+
+      if (data.xpAwarded > 0 && typeof window.loadMe === "function") {
+        await window.loadMe();
+      }
+
       await loadData(initGeneration);
     } catch (err) {
       console.error(err);

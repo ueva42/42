@@ -28,6 +28,41 @@ const LOGBUCH_XP = {
   weekReflection: 10
 };
 
+const ZIELSETZUNG_XP = {
+  targetGrade: 5,
+  achievedGrade: 5,
+  grow: 4,
+  glow: 4,
+  nextGoal: 5
+};
+
+const ZIELSETZUNG_FEEDBACK_OPTIONS = {
+  grow: [
+    "Mehr im Levelplan üben",
+    "Operator-Stufe bei schwachen Themen anstreben",
+    "Street Legend gezielt ausbauen",
+    "Aufgaben genauer lesen",
+    "Regelmäßiger wiederholen",
+    "Bei Unsicherheit nachfragen"
+  ],
+  glow: [
+    "Konsequent im Levelplan gearbeitet",
+    "Gute Vorbereitung gezeigt",
+    "Am Ball geblieben",
+    "Strategien angewendet",
+    "Zielnote erreicht oder übertroffen",
+    "Stärken beibehalten"
+  ],
+  nextGoal: [
+    "Zielnote verbessern",
+    "Operator in allen Themen",
+    "Street Legend ausbauen",
+    "Schwachstellen gezielt trainieren",
+    "Regelmäßiger üben",
+    "Nächste Stufe im Levelplan anstreben"
+  ]
+};
+
 const LEVEL_CHECK_TIERS = ["rookie", "operator", "street_legend"];
 const LEVEL_CHECK_TIER_LABELS = {
   rookie: "Rookie",
@@ -73,6 +108,54 @@ const LEGACY_TARGET_GRADE_MAP = {
   "5+": "4.5",
   "5-": "5.5"
 };
+
+function normalizeFeedbackText(raw) {
+  if (raw == null) return null;
+  const text = String(raw).trim().replace(/\s+/g, " ");
+  if (!text) return null;
+  return text.slice(0, 500);
+}
+
+function buildZielsetzungFeedbackOptions() {
+  const gradeGoals = TARGET_GRADE_ORDER.slice(0, 8).map((value) => ({
+    value: `Zielnote ${formatGradeLabel(value)} anstreben`,
+    label: `Zielnote ${formatGradeLabel(value)} anstreben`
+  }));
+  const presetNext = ZIELSETZUNG_FEEDBACK_OPTIONS.nextGoal.map((text) => ({
+    value: text,
+    label: text
+  }));
+  const seen = new Set();
+  const nextGoal = [];
+  for (const item of [...gradeGoals, ...presetNext]) {
+    if (seen.has(item.value)) continue;
+    seen.add(item.value);
+    nextGoal.push(item);
+  }
+
+  return {
+    grow: ZIELSETZUNG_FEEDBACK_OPTIONS.grow.map((text) => ({ value: text, label: text })),
+    glow: ZIELSETZUNG_FEEDBACK_OPTIONS.glow.map((text) => ({ value: text, label: text })),
+    nextGoal
+  };
+}
+
+async function awardZielsetzungXPOnce(studentId, schoolId, levelCheckId, fieldKey, amount) {
+  if (!amount) return 0;
+  const source = `zielsetzung_${fieldKey}:${levelCheckId}`;
+  const existing = await pool.query(
+    `
+    SELECT id FROM xp_transactions
+    WHERE student_id = $1 AND source = $2
+    LIMIT 1
+  `,
+    [studentId, source]
+  );
+  if (existing.rows.length) return 0;
+
+  await awardLogbuchXP(studentId, amount, source, schoolId);
+  return amount;
+}
 
 function formatGradeLabel(key) {
   if (!key) return "–";
@@ -204,6 +287,16 @@ function buildTopicTargetProgress(check, targetsRow = null) {
     targetGradeLabel: formatGradeLabel(targetKey),
     achievedGrade: achievedKey,
     achievedGradeLabel: formatGradeLabel(achievedKey),
+    grow: targetsRow?.growText ?? null,
+    glow: targetsRow?.glowText ?? null,
+    nextGoal: targetsRow?.nextGoalText ?? null,
+    xpAwarded: {
+      targetGrade: !!targetsRow?.xpTargetAwarded,
+      achievedGrade: !!targetsRow?.xpAchievedAwarded,
+      grow: !!targetsRow?.xpGrowAwarded,
+      glow: !!targetsRow?.xpGlowAwarded,
+      nextGoal: !!targetsRow?.xpNextGoalAwarded
+    },
     tiers,
     recommended,
     onTrack: allOnTrack,
@@ -234,7 +327,19 @@ async function fetchTargetGradesByCheck(studentId, checkIds) {
   try {
     targetsRes = await pool.query(
       `
-      SELECT level_check_id, target_grade_key, target_grade, achieved_grade_key
+      SELECT
+        level_check_id,
+        target_grade_key,
+        target_grade,
+        achieved_grade_key,
+        grow_text,
+        glow_text,
+        next_goal_text,
+        xp_target_awarded,
+        xp_achieved_awarded,
+        xp_grow_awarded,
+        xp_glow_awarded,
+        xp_next_goal_awarded
       FROM level_check_targets
       WHERE user_id = $1 AND level_check_id = ANY($2::uuid[])
     `,
@@ -244,7 +349,7 @@ async function fetchTargetGradesByCheck(studentId, checkIds) {
     console.error("❌ fetchTargetGradesByCheck (full):", err.message);
     targetsRes = await pool.query(
       `
-      SELECT level_check_id, target_grade_key, target_grade
+      SELECT level_check_id, target_grade_key, target_grade, achieved_grade_key
       FROM level_check_targets
       WHERE user_id = $1 AND level_check_id = ANY($2::uuid[])
     `,
@@ -257,7 +362,15 @@ async function fetchTargetGradesByCheck(studentId, checkIds) {
       targetGradeKey:
         normalizeTargetGradeKey(row.target_grade_key) ||
         normalizeTargetGradeKey(row.target_grade),
-      achievedGradeKey: normalizeTargetGradeKey(row.achieved_grade_key)
+      achievedGradeKey: normalizeTargetGradeKey(row.achieved_grade_key),
+      growText: row.grow_text ?? null,
+      glowText: row.glow_text ?? null,
+      nextGoalText: row.next_goal_text ?? null,
+      xpTargetAwarded: !!row.xp_target_awarded,
+      xpAchievedAwarded: !!row.xp_achieved_awarded,
+      xpGrowAwarded: !!row.xp_grow_awarded,
+      xpGlowAwarded: !!row.xp_glow_awarded,
+      xpNextGoalAwarded: !!row.xp_next_goal_awarded
     };
   }
 
@@ -1505,6 +1618,19 @@ async function migrate() {
   await ensureColumn("level_check_targets", "target_grade_key", "TEXT");
   await ensureColumn("level_check_targets", "achieved_grade_key", "TEXT");
   await ensureColumn("level_check_targets", "school_id", "INTEGER");
+  await ensureColumn("level_check_targets", "grow_text", "TEXT");
+  await ensureColumn("level_check_targets", "glow_text", "TEXT");
+  await ensureColumn("level_check_targets", "next_goal_text", "TEXT");
+  await ensureColumn("level_check_targets", "xp_target_awarded", "BOOLEAN DEFAULT FALSE");
+  await ensureColumn("level_check_targets", "xp_achieved_awarded", "BOOLEAN DEFAULT FALSE");
+  await ensureColumn("level_check_targets", "xp_grow_awarded", "BOOLEAN DEFAULT FALSE");
+  await ensureColumn("level_check_targets", "xp_glow_awarded", "BOOLEAN DEFAULT FALSE");
+  await ensureColumn("level_check_targets", "xp_next_goal_awarded", "BOOLEAN DEFAULT FALSE");
+
+  await pool.query(`
+    ALTER TABLE level_check_targets
+    ALTER COLUMN target_grade DROP NOT NULL
+  `).catch(() => {});
 
   await pool.query(`
     UPDATE level_check_targets
@@ -3102,7 +3228,9 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
       return res.json({
         hasClass: false,
         grouped: [],
-        gradeOptions: TARGET_GRADE_OPTIONS
+        gradeOptions: TARGET_GRADE_OPTIONS,
+        feedbackOptions: buildZielsetzungFeedbackOptions(),
+        xpValues: ZIELSETZUNG_XP
       });
     }
 
@@ -3145,7 +3273,9 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
       hasClass: true,
       grouped,
       subjects: subjectsFromZielsetzungGroups(grouped),
-      gradeOptions: TARGET_GRADE_OPTIONS
+      gradeOptions: TARGET_GRADE_OPTIONS,
+      feedbackOptions: buildZielsetzungFeedbackOptions(),
+      xpValues: ZIELSETZUNG_XP
     });
   } catch (err) {
     console.error("❌ /api/student/zielsetzung:", err);
@@ -3163,6 +3293,12 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       || Object.prototype.hasOwnProperty.call(req.body, "targetGrade");
     const hasAchieved = Object.prototype.hasOwnProperty.call(req.body, "achievedGradeKey")
       || Object.prototype.hasOwnProperty.call(req.body, "achievedGrade");
+    const hasGrow = Object.prototype.hasOwnProperty.call(req.body, "growText")
+      || Object.prototype.hasOwnProperty.call(req.body, "grow");
+    const hasGlow = Object.prototype.hasOwnProperty.call(req.body, "glowText")
+      || Object.prototype.hasOwnProperty.call(req.body, "glow");
+    const hasNextGoal = Object.prototype.hasOwnProperty.call(req.body, "nextGoalText")
+      || Object.prototype.hasOwnProperty.call(req.body, "nextGoal");
 
     let targetGradeKey;
     if (hasTarget) {
@@ -3188,12 +3324,27 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       }
     }
 
+    let growText;
+    if (hasGrow) {
+      growText = normalizeFeedbackText(req.body.growText ?? req.body.grow);
+    }
+
+    let glowText;
+    if (hasGlow) {
+      glowText = normalizeFeedbackText(req.body.glowText ?? req.body.glow);
+    }
+
+    let nextGoalText;
+    if (hasNextGoal) {
+      nextGoalText = normalizeFeedbackText(req.body.nextGoalText ?? req.body.nextGoal);
+    }
+
     if (!classId || !levelCheckId) {
       return res.json({ success: false, message: "Thema fehlt." });
     }
 
-    if (!hasTarget && !hasAchieved) {
-      return res.json({ success: false, message: "Keine Note zum Speichern übergeben." });
+    if (!hasTarget && !hasAchieved && !hasGrow && !hasGlow && !hasNextGoal) {
+      return res.json({ success: false, message: "Keine Daten zum Speichern übergeben." });
     }
 
     const checkRes = await pool.query(
@@ -3209,7 +3360,18 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
 
     const existingRes = await pool.query(
       `
-      SELECT target_grade_key, target_grade, achieved_grade_key
+      SELECT
+        target_grade_key,
+        target_grade,
+        achieved_grade_key,
+        grow_text,
+        glow_text,
+        next_goal_text,
+        xp_target_awarded,
+        xp_achieved_awarded,
+        xp_grow_awarded,
+        xp_glow_awarded,
+        xp_next_goal_awarded
       FROM level_check_targets
       WHERE level_check_id = $1 AND user_id = $2
     `,
@@ -3225,36 +3387,181 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
     const finalAchieved = hasAchieved
       ? achievedGradeKey
       : normalizeTargetGradeKey(existing?.achieved_grade_key);
+    const finalGrow = hasGrow ? growText : (existing?.grow_text ?? null);
+    const finalGlow = hasGlow ? glowText : (existing?.glow_text ?? null);
+    const finalNextGoal = hasNextGoal ? nextGoalText : (existing?.next_goal_text ?? null);
 
-    if (!finalTarget && !finalAchieved) {
+    const hasAnyData =
+      finalTarget ||
+      finalAchieved ||
+      finalGrow ||
+      finalGlow ||
+      finalNextGoal;
+
+    if (!hasAnyData) {
       if (existing) {
         await pool.query(
           `DELETE FROM level_check_targets WHERE level_check_id = $1 AND user_id = $2`,
           [levelCheckId, studentId]
         );
       }
-      return res.json({ success: true, targetGrade: null, achievedGrade: null });
+      return res.json({
+        success: true,
+        targetGrade: null,
+        achievedGrade: null,
+        grow: null,
+        glow: null,
+        nextGoal: null,
+        xpAwarded: 0,
+        xpDetails: []
+      });
     }
 
     const wholeGrade = finalTarget
       ? Math.min(6, Math.max(1, Math.round(parseFloat(finalTarget))))
-      : existing?.target_grade ?? 3;
+      : (existing?.target_grade ?? null);
+
+    let xpTargetAwarded = !!existing?.xp_target_awarded;
+    let xpAchievedAwarded = !!existing?.xp_achieved_awarded;
+    let xpGrowAwarded = !!existing?.xp_grow_awarded;
+    let xpGlowAwarded = !!existing?.xp_glow_awarded;
+    let xpNextGoalAwarded = !!existing?.xp_next_goal_awarded;
+
+    const xpDetails = [];
+    let xpAwardedTotal = 0;
+
+    if (finalTarget && !xpTargetAwarded) {
+      const amount = await awardZielsetzungXPOnce(
+        studentId,
+        schoolId,
+        levelCheckId,
+        "target",
+        ZIELSETZUNG_XP.targetGrade
+      );
+      if (amount) {
+        xpTargetAwarded = true;
+        xpAwardedTotal += amount;
+        xpDetails.push({ field: "targetGrade", amount });
+      }
+    }
+
+    if (finalAchieved && !xpAchievedAwarded) {
+      const amount = await awardZielsetzungXPOnce(
+        studentId,
+        schoolId,
+        levelCheckId,
+        "achieved",
+        ZIELSETZUNG_XP.achievedGrade
+      );
+      if (amount) {
+        xpAchievedAwarded = true;
+        xpAwardedTotal += amount;
+        xpDetails.push({ field: "achievedGrade", amount });
+      }
+    }
+
+    if (finalAchieved && finalGrow && !xpGrowAwarded) {
+      const amount = await awardZielsetzungXPOnce(
+        studentId,
+        schoolId,
+        levelCheckId,
+        "grow",
+        ZIELSETZUNG_XP.grow
+      );
+      if (amount) {
+        xpGrowAwarded = true;
+        xpAwardedTotal += amount;
+        xpDetails.push({ field: "grow", amount });
+      }
+    }
+
+    if (finalAchieved && finalGlow && !xpGlowAwarded) {
+      const amount = await awardZielsetzungXPOnce(
+        studentId,
+        schoolId,
+        levelCheckId,
+        "glow",
+        ZIELSETZUNG_XP.glow
+      );
+      if (amount) {
+        xpGlowAwarded = true;
+        xpAwardedTotal += amount;
+        xpDetails.push({ field: "glow", amount });
+      }
+    }
+
+    if (finalAchieved && finalNextGoal && !xpNextGoalAwarded) {
+      const amount = await awardZielsetzungXPOnce(
+        studentId,
+        schoolId,
+        levelCheckId,
+        "nextGoal",
+        ZIELSETZUNG_XP.nextGoal
+      );
+      if (amount) {
+        xpNextGoalAwarded = true;
+        xpAwardedTotal += amount;
+        xpDetails.push({ field: "nextGoal", amount });
+      }
+    }
 
     const upsert = await pool.query(
       `
       INSERT INTO level_check_targets (
-        school_id, level_check_id, user_id, target_grade, target_grade_key, achieved_grade_key
+        school_id,
+        level_check_id,
+        user_id,
+        target_grade,
+        target_grade_key,
+        achieved_grade_key,
+        grow_text,
+        glow_text,
+        next_goal_text,
+        xp_target_awarded,
+        xp_achieved_awarded,
+        xp_grow_awarded,
+        xp_glow_awarded,
+        xp_next_goal_awarded
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       ON CONFLICT (level_check_id, user_id)
       DO UPDATE SET
         target_grade = EXCLUDED.target_grade,
         target_grade_key = EXCLUDED.target_grade_key,
         achieved_grade_key = EXCLUDED.achieved_grade_key,
+        grow_text = EXCLUDED.grow_text,
+        glow_text = EXCLUDED.glow_text,
+        next_goal_text = EXCLUDED.next_goal_text,
+        xp_target_awarded = EXCLUDED.xp_target_awarded,
+        xp_achieved_awarded = EXCLUDED.xp_achieved_awarded,
+        xp_grow_awarded = EXCLUDED.xp_grow_awarded,
+        xp_glow_awarded = EXCLUDED.xp_glow_awarded,
+        xp_next_goal_awarded = EXCLUDED.xp_next_goal_awarded,
         updated_at = NOW()
-      RETURNING target_grade_key, target_grade, achieved_grade_key
+      RETURNING
+        target_grade_key,
+        target_grade,
+        achieved_grade_key,
+        grow_text,
+        glow_text,
+        next_goal_text
     `,
-      [schoolId, levelCheckId, studentId, wholeGrade, finalTarget, finalAchieved]
+      [
+        schoolId,
+        levelCheckId,
+        studentId,
+        wholeGrade,
+        finalTarget,
+        finalAchieved,
+        finalGrow,
+        finalGlow,
+        finalNextGoal,
+        xpTargetAwarded,
+        xpAchievedAwarded,
+        xpGrowAwarded,
+        xpGlowAwarded,
+        xpNextGoalAwarded
+      ]
     );
 
     res.json({
@@ -3263,7 +3570,12 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
         upsert.rows[0].target_grade_key || (upsert.rows[0].target_grade != null
           ? String(upsert.rows[0].target_grade)
           : null),
-      achievedGrade: upsert.rows[0].achieved_grade_key || null
+      achievedGrade: upsert.rows[0].achieved_grade_key || null,
+      grow: upsert.rows[0].grow_text || null,
+      glow: upsert.rows[0].glow_text || null,
+      nextGoal: upsert.rows[0].next_goal_text || null,
+      xpAwarded: xpAwardedTotal,
+      xpDetails
     });
   } catch (err) {
     console.error("❌ POST /api/student/zielsetzung:", err);

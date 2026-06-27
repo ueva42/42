@@ -1236,6 +1236,50 @@ a { color: inherit; }
 
 .zs-unmarked { margin: 10px 0 0; font-size: 11px; opacity: 0.55; }
 .zs-topic-hint-ok { color: #86efac; }
+.zs-feedback {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.zs-feedback-title {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fde68a;
+}
+.zs-feedback-field { display: flex; flex-direction: column; gap: 6px; }
+.zs-feedback-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.zs-feedback-hint { font-size: 11px; font-weight: 400; opacity: 0.65; }
+.zs-feedback-select,
+.zs-feedback-custom {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #0f172a;
+  color: #f9fafb;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.zs-feedback-custom-hidden { display: none; }
+.zs-xp-badge {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fde68a;
+  letter-spacing: 0.04em;
+}
+.zs-xp-done { color: #86efac; }
 .zs-rules-box {
   margin: 0 0 14px;
   padding: 12px;
@@ -2062,7 +2106,7 @@ h2 {
 <script src="/js/logbuch-today.js?v=6"></script>
 <script src="/js/logbuch-week.js"></script>
 <script src="/js/logbuch-levelplan.js?v=5"></script>
-<script src="/js/logbuch-zielsetzung.js?v=5"></script>
+<script src="/js/logbuch-zielsetzung.js?v=6"></script>
 <script src="/js/logbuch-screens.js"></script>
 
 <script>
