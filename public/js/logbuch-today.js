@@ -312,6 +312,9 @@
     const q = new URLSearchParams(location.search);
     const date = q.get("date") || state.date || todayIso();
     state.data = null;
+    if (typeof window.refreshTodayStatus === "function") {
+      window.refreshTodayStatus();
+    }
     loadDay(date);
   }
 

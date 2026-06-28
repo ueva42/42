@@ -655,6 +655,28 @@ a { color: inherit; }
   opacity: 0.7;
 }
 .today-shell { display: flex; flex-direction: column; gap: 12px; }
+.today-status-panel {
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.45);
+}
+.today-status-user {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.today-status-level { margin: 4px 0 14px; }
+.today-status-subtitle {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-family: "Orbitron", system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.today-status-class { font-size: 13px; }
 .today-nav {
   display: flex;
   align-items: center;
@@ -2176,10 +2198,6 @@ h2 {
     <div class="menu-icon">K</div><span class="menu-label">Checkpoint-Plan</span>
   </div>
 
-  <div class="menu-item" data-section="status" onclick="showSection(event,'status')">
-    <div class="menu-icon">S</div><span class="menu-label">Status</span>
-  </div>
-
   <div class="menu-item" data-section="missionen" onclick="showSection(event,'missionen')">
     <div class="menu-icon">M</div><span class="menu-label">Missionen</span>
   </div>
@@ -2224,6 +2242,12 @@ h2 {
   <!-- MEIN TAG -->
   <div id="today-section" class="card section logbuch-screen" style="display:none;">
     <h2>Mein Tag</h2>
+    <div id="today-status-panel" class="today-status-panel">
+      <div id="userCard" class="today-status-user"></div>
+      <div id="levelBar" class="today-status-level"></div>
+      <h3 class="today-status-subtitle">Klassen-Belohnung</h3>
+      <div id="classChallenge" class="today-status-class"></div>
+    </div>
     <div id="today-screen-root" class="logbuch-root"></div>
   </div>
 
@@ -2267,16 +2291,6 @@ h2 {
   <div id="reflect-section" class="card section logbuch-screen logbuch-phase-reflect" style="display:none;">
     <h2>Tagesabschluss</h2>
     <div id="reflect-screen-root" class="logbuch-root"></div>
-  </div>
-
-  <!-- STATUS -->
-  <div id="status-section" class="card section" style="display:none;">
-    <h2>Status</h2>
-    <div id="userCard"></div>
-    <div id="levelBar" style="margin-top:10px;margin-bottom:25px;"></div>
-
-    <h2 style="font-size:20px;margin-top:0;">Klassen-Belohnung</h2>
-    <div id="classChallenge"></div>
   </div>
 
   <!-- CHARAKTER -->
@@ -2326,7 +2340,7 @@ h2 {
 <script src="/js/logbuch-plan.js?v=4"></script>
 <script src="/js/logbuch-check.js"></script>
 <script src="/js/logbuch-reflect.js"></script>
-<script src="/js/logbuch-today.js?v=6"></script>
+<script src="/js/logbuch-today.js?v=7"></script>
 <script src="/js/logbuch-week.js"></script>
 <script src="/js/logbuch-levelplan.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=8"></script>
@@ -2558,7 +2572,7 @@ window.loadMe = async function loadMe() {
   const u = data.user;
 
   document.getElementById("userCard").innerHTML = `
-    <div style="font-size:14px;line-height:1.6;">
+    <div>
       <b>Name:</b> ${u.name}<br>
       <b>XP:</b> ${u.xp}<br>
       <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp})
@@ -3104,6 +3118,8 @@ window.refreshStatusSection = () => {
   loadMe();
   loadClassProgress();
 };
+
+window.refreshTodayStatus = window.refreshStatusSection;
 
 loadMe();
 loadMissions();

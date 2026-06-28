@@ -13,7 +13,6 @@
     plan: "/student/plan",
     check: "/student/check",
     reflect: "/student/reflect",
-    status: "/student/status",
     missionen: "/student/missionen",
     belohnungen: "/student/belohnungen",
     charakter: "/student/charakter",
@@ -31,7 +30,7 @@
     "/student/plan": "plan",
     "/student/check": "check",
     "/student/reflect": "reflect",
-    "/student/status": "status",
+    "/student/status": "today",
     "/student/missionen": "missionen",
     "/student/belohnungen": "belohnungen",
     "/student/charakter": "charakter",
@@ -49,7 +48,6 @@
     "zielsetzung",
     "checkpoint-plan",
     "levelcheck",
-    "status",
     "missionen",
     "belohnungen",
     "charakter",
@@ -114,8 +112,8 @@
       document.body.classList.remove("menu-open");
     }
 
-    if (section === "status" && typeof window.refreshStatusSection === "function") {
-      window.refreshStatusSection();
+    if (section === "today" && typeof window.refreshTodayStatus === "function") {
+      window.refreshTodayStatus();
     }
   }
 
@@ -138,10 +136,13 @@
 
   function initFromPath() {
     const { section, query } = sectionFromPath(location.pathname, location.search);
+    const normalizedPath = location.pathname.replace(/\/+$/, "") || "/student/today";
+    const url = buildUrl(section, query);
+
     history.replaceState(
       { section, query: query.toString() },
       "",
-      buildUrl(section, query)
+      normalizedPath === "/student/status" ? "/student/today" + (query.toString() ? `?${query}` : "") : url
     );
     showSectionOnly(section);
   }
