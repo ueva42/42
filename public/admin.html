@@ -386,6 +386,18 @@
     }
 
     /* Klassen-Fortschritt / Votingbar */
+    .cp-action-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin: 12px 0;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.55);
+    }
+    .cp-action-bar .hint { margin: 0; flex: 1 1 220px; }
     .progress-outer {
       width: 100%;
       max-width: 420px;
@@ -812,16 +824,15 @@
         <h2>Klassen-Fortschritt & Voting</h2>
         <div class="hint">
           Ablauf: 1) Voting-Runde starten &nbsp;→&nbsp; 2) Belohnungen hinzufügen &nbsp;→&nbsp;
-          3) <b>Voting stoppen</b> – die Belohnung mit den meisten Stimmen wird festgelegt &nbsp;→&nbsp;
-          4) Schüler:innen sehen die gewählte Belohnung + XP-Leiste in „Mein Tag“.
+          3) <b>Voting stoppen</b> (Mehrheit gewinnt) &nbsp;oder&nbsp; <b>Voting abbrechen</b> (ohne Ergebnis, verschwindet bei Schüler:innen).
         </div>
       </div>
 
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
           <h3 style="margin:0;">Aktuelle Voting-Runde</h3>
-          <button type="button" id="classRoundDeleteBtn" class="delete" onclick="deleteClassRewardRound()" style="display:none;">
-            Aktuelles Klassen-Voting löschen
+          <button type="button" id="classRoundDeleteBtn" class="delete" onclick="abortClassRewardRound()" style="display:none;">
+            Voting abbrechen
           </button>
         </div>
         <div style="margin-bottom:8px;margin-top:10px;">
@@ -829,8 +840,8 @@
           <select id="progressClassSelect" onchange="loadAdminClassProgress()"></select>
         </div>
 
+        <div id="classProgressActions"></div>
         <div id="classProgressInfo" class="hint">–</div>
-        <div id="classProgressActions" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;"></div>
 
         <div style="margin-top:12px;">
           <h3>Neue Voting-Runde starten</h3>
@@ -1791,6 +1802,11 @@ function renderClassProgressInfo(data) {
   if (!data.round) {
     currentRoundId = null;
     if (deleteBtn) deleteBtn.style.display = "none";
+    const actions = document.getElementById("classProgressActions");
+    if (actions) {
+      actions.className = "";
+      actions.innerHTML = "";
+    }
     info.innerHTML = `
       <div style="font-size:13px;line-height:1.6;">
         <b>Gesamt-XP der Klasse:</b> ${totalXp}<br>
@@ -1807,9 +1823,11 @@ function renderClassProgressInfo(data) {
   const target = round.target_xp || 0;
   const current = totalXp;
   const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
-  const phase = round.phase || round.status || "voting";
+  const status = round.status || "voting";
+  const phaseLabel = round.phase || status;
 
   const options = data.options || [];
+  renderClassProgressActions(status, round, options.length);
 
   const optionsHtml = options.length === 0
     ? `<div class="hint" style="margin-top:6px;">Für diese Runde sind noch <b>keine Belohnungs-Optionen</b> hinterlegt. Wähle unten welche aus.</div>`
@@ -1851,7 +1869,7 @@ function renderClassProgressInfo(data) {
     active: "#4ade80",
     completed: "#94a3b8"
   };
-  const phaseColor = phaseColors[phase] || "#facc15";
+  const phaseColor = phaseColors[status] || "#facc15";
 
   const targetInfo = target > 0
     ? `Ziel: ${target} XP &nbsp; | &nbsp; aktuell: ${current} XP`
@@ -1860,7 +1878,7 @@ function renderClassProgressInfo(data) {
   info.innerHTML = `
     <div style="font-size:13px;line-height:1.6;">
       <div style="display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid ${phaseColor};color:${phaseColor};font-size:11px;font-weight:600;margin-bottom:8px;">
-        ${round.phase || phase}
+        ${phaseLabel}
       </div>
       <br>
       <b>Gesamt-XP der Klasse:</b> ${totalXp}<br>
@@ -1876,31 +1894,54 @@ function renderClassProgressInfo(data) {
       ${optionsHtml}
     </div>
   `;
+}
 
+function renderClassProgressActions(status, round, optionCount) {
+  const actions = document.getElementById("classProgressActions");
   if (!actions) return;
+  actions.className = "cp-action-bar";
 
-  if (phase === "voting" && options.length > 0 && !round.fixed_option_id) {
+  const abortBtn = `<button type="button" class="delete" onclick="abortClassRewardRound()">Voting abbrechen</button>`;
+
+  if (status === "voting" && !round.fixed_option_id) {
     actions.innerHTML = `
-      <button class="action" onclick="stopClassRewardRound()">Voting stoppen</button>
-      <span class="hint">Stoppen wertet die Stimmen aus – Schüler:innen sehen danach die gewählte Belohnung.</span>
-      <button class="delete" onclick="deleteClassRewardRound()">Voting-Runde löschen</button>
+      <button type="button" class="action" onclick="stopClassRewardRound()">Voting stoppen</button>
+      ${abortBtn}
+      <span class="hint">Stoppen = Mehrheit gewinnt, Schüler:innen sehen Ergebnis + XP-Leiste. Abbrechen = Voting entfällt komplett.</span>
     `;
-  } else if (phase === "voting_closed") {
+    return;
+  }
+
+  if (status === "voting_closed") {
     actions.innerHTML = `
-      <span class="hint">Voting ohne Ergebnis beendet – bitte Gewinner festlegen oder Stimmen auswerten.</span>
-      <button class="action" onclick="finalizeClassRewardRound()">Stimmen auswerten (Mehrheit)</button>
-      <button class="delete" onclick="deleteClassRewardRound()">Voting-Runde löschen</button>
+      <button type="button" class="action" onclick="finalizeClassRewardRound()">Stimmen auswerten (Mehrheit)</button>
+      ${abortBtn}
+      <span class="hint">Noch kein Ergebnis – auswerten oder abbrechen.</span>
     `;
-  } else if (phase === "active") {
+    return;
+  }
+
+  if (status === "active") {
     actions.innerHTML = `
-      <button class="action" onclick="completeClassRewardRound()">Challenge abschließen</button>
-      <span class="hint">Schüler:innen sehen nur die gewählte Belohnung und die XP-Leiste.</span>
-      <button class="delete" onclick="deleteClassRewardRound()">Voting-Runde löschen</button>
+      <button type="button" class="action" onclick="completeClassRewardRound()">Challenge abschließen</button>
+      ${abortBtn}
+      <span class="hint">Schüler:innen sehen die gewählte Belohnung und XP-Fortschritt.</span>
     `;
-  } else if (phase === "completed") {
+    return;
+  }
+
+  if (status === "completed") {
     actions.innerHTML = `
-      <button class="delete" onclick="deleteClassRewardRound()">Voting-Runde löschen</button>
+      ${abortBtn}
+      <span class="hint">Abgeschlossene Runde entfernen, um eine neue zu starten.</span>
     `;
+    return;
+  }
+
+  if (optionCount > 0 || round.id) {
+    actions.innerHTML = abortBtn;
+  } else {
+    actions.innerHTML = "";
   }
 }
 
@@ -2058,9 +2099,9 @@ async function completeClassRewardRound() {
   await loadAdminClassProgress();
 }
 
-async function deleteClassRewardRound() {
+async function abortClassRewardRound() {
   if (!currentRoundId) return;
-  if (!confirm("Aktuelles Klassen-Voting wirklich löschen? Schüler:innen sehen die Belohnung danach nicht mehr.")) return;
+  if (!confirm("Voting wirklich abbrechen? Es gibt kein Ergebnis – Schüler:innen sehen die Klassen-Belohnung nicht mehr.")) return;
 
   const encodedId = encodeURIComponent(currentRoundId);
   let res = await fetch(`/api/admin/class-reward-round/${encodedId}`, {
@@ -2069,6 +2110,12 @@ async function deleteClassRewardRound() {
   });
   if (res.status === 404 || res.status === 405) {
     res = await fetch(`/api/admin/class-reward-round/${encodedId}/delete`, {
+      method: "POST",
+      credentials: "same-origin"
+    });
+  }
+  if (res.status === 404 || res.status === 405) {
+    res = await fetch(`/api/admin/class-reward-round/${encodedId}/abort`, {
       method: "POST",
       credentials: "same-origin"
     });
@@ -2082,14 +2129,16 @@ async function deleteClassRewardRound() {
   }
 
   if (!res.ok || !data.success) {
-    alert(data.message || "Löschen fehlgeschlagen.");
+    alert(data.message || "Abbrechen fehlgeschlagen.");
     return;
   }
 
   currentRoundId = null;
-  alert("Klassen-Voting gelöscht.");
+  alert("Voting abgebrochen.");
   await loadAdminClassProgress();
 }
+
+const deleteClassRewardRound = abortClassRewardRound;
 
 // Belohnung aus Pool in aktuelle Runde aufnehmen
 async function addRewardOptionToRound() {

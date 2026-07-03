@@ -6141,6 +6141,7 @@ async function handleDeleteClassRewardRound(req, res) {
 
 app.delete("/api/admin/class-reward-round/:id", isAdmin, handleDeleteClassRewardRound);
 app.post("/api/admin/class-reward-round/:id/delete", isAdmin, handleDeleteClassRewardRound);
+app.post("/api/admin/class-reward-round/:id/abort", isAdmin, handleDeleteClassRewardRound);
 
 // -------------------------------------------------------
 // ADMIN – Klassen
