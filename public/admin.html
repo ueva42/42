@@ -812,7 +812,7 @@
         <h2>Klassen-Fortschritt & Voting</h2>
         <div class="hint">
           Ablauf: 1) Voting-Runde starten &nbsp;→&nbsp; 2) Belohnungen hinzufügen &nbsp;→&nbsp;
-          3) <b>Voting abschließen (Mehrheit)</b> oder Gewinner festlegen &nbsp;→&nbsp;
+          3) <b>Voting stoppen</b> – die Belohnung mit den meisten Stimmen wird festgelegt &nbsp;→&nbsp;
           4) Schüler:innen sehen die gewählte Belohnung + XP-Leiste in „Mein Tag“.
         </div>
       </div>
@@ -1873,14 +1873,14 @@ function renderClassProgressInfo(data) {
 
   if (phase === "voting" && options.length > 0 && !round.fixed_option_id) {
     actions.innerHTML = `
-      <button class="action" onclick="finalizeClassRewardRound()">Voting abschließen (Mehrheit)</button>
-      <button class="delete" onclick="stopClassRewardRound()">Voting stoppen</button>
+      <button class="action" onclick="stopClassRewardRound()">Voting stoppen</button>
+      <span class="hint">Stoppen wertet die Stimmen aus – Schüler:innen sehen danach die gewählte Belohnung.</span>
       <button class="delete" onclick="deleteClassRewardRound()">Voting-Runde löschen</button>
     `;
   } else if (phase === "voting_closed") {
     actions.innerHTML = `
-      <span class="hint">Voting gestoppt – bitte Gewinner festlegen oder Mehrheit wählen.</span>
-      <button class="action" onclick="finalizeClassRewardRound()">Mehrheit als Gewinner</button>
+      <span class="hint">Voting ohne Ergebnis beendet – bitte Gewinner festlegen oder Stimmen auswerten.</span>
+      <button class="action" onclick="finalizeClassRewardRound()">Stimmen auswerten (Mehrheit)</button>
       <button class="delete" onclick="deleteClassRewardRound()">Voting-Runde löschen</button>
     `;
   } else if (phase === "active") {
@@ -1994,13 +1994,14 @@ async function startClassRewardRound() {
   await loadAdminClassProgress();
 }
 
-// Voting stoppen
+// Voting stoppen → Mehrheit auswerten, Ergebnis für Schüler:innen freischalten
 async function stopClassRewardRound() {
   if (!currentRoundId) return;
-  if (!confirm("Voting wirklich stoppen? Schüler:innen können dann nicht mehr abstimmen.")) return;
+  if (!confirm("Voting stoppen? Die Belohnung mit den meisten Stimmen wird festgelegt – Schüler:innen sehen danach das Ergebnis mit XP-Leiste.")) return;
 
   const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}/stop`, {
-    method: "POST"
+    method: "POST",
+    credentials: "same-origin"
   });
   const data = await res.json();
   if (!data.success) {
@@ -2008,23 +2009,27 @@ async function stopClassRewardRound() {
     return;
   }
 
+  const label = data.optionName ? `„${data.optionName}"` : "Gewinner";
+  alert(`${label} festgelegt (${data.votes || 0} Stimme${data.votes === 1 ? "" : "n"}).`);
   await loadAdminClassProgress();
 }
 
 async function finalizeClassRewardRound() {
   if (!currentRoundId) return;
-  if (!confirm("Voting per Mehrheit abschließen und Gewinner festlegen?")) return;
+  if (!confirm("Stimmen auswerten und Gewinner per Mehrheit festlegen?")) return;
 
   const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}/finalize`, {
-    method: "POST"
+    method: "POST",
+    credentials: "same-origin"
   });
   const data = await res.json();
   if (!data.success) {
-    alert(data.message || "Abschließen fehlgeschlagen.");
+    alert(data.message || "Auswertung fehlgeschlagen.");
     return;
   }
 
-  alert(`Gewinner festgelegt (${data.votes || 0} Stimmen).`);
+  const label = data.optionName ? `„${data.optionName}"` : "Gewinner";
+  alert(`${label} festgelegt (${data.votes || 0} Stimme${data.votes === 1 ? "" : "n"}).`);
   await loadAdminClassProgress();
 }
 

@@ -5424,9 +5424,14 @@ async function finalizeClassRewardRoundByVotes(roundId, schoolId) {
   if (Number(winner.votes) <= 0) {
     return {
       success: false,
-      message: "Noch keine Stimmen abgegeben – Gewinner manuell festlegen."
+      message: "Noch keine Stimmen abgegeben – bitte Gewinner manuell festlegen."
     };
   }
+
+  const nameRes = await pool.query(
+    "SELECT name FROM class_reward_options WHERE id = $1",
+    [winner.id]
+  );
 
   await pool.query(
     `
@@ -5437,7 +5442,12 @@ async function finalizeClassRewardRoundByVotes(roundId, schoolId) {
     [winner.id, roundId, schoolId]
   );
 
-  return { success: true, optionId: winner.id, votes: Number(winner.votes) };
+  return {
+    success: true,
+    optionId: winner.id,
+    votes: Number(winner.votes),
+    optionName: nameRes.rows[0]?.name || null
+  };
 }
 
 app.get("/api/student/classProgress", isStudent, async (req, res) => {
@@ -6000,17 +6010,20 @@ app.post("/api/admin/class-reward-option", isAdmin, async (req, res) => {
   res.json({ success: true, optionId: ins.rows[0].id });
 });
 
-// Voting stoppen
+// Voting stoppen → Mehrheit auswerten, Gewinner festlegen, Challenge starten
 app.post("/api/admin/class-reward-round/:id/stop", isAdmin, async (req, res) => {
-  const schoolId = req.session.user.school_id;
-  const id = Number(req.params.id);
-
-  await pool.query(
-    "UPDATE class_reward_rounds SET is_active=FALSE WHERE id=$1 AND school_id=$2",
-    [id, schoolId]
-  );
-
-  res.json({ success: true });
+  try {
+    const schoolId = req.session.user.school_id;
+    const id = Number(req.params.id);
+    const result = await finalizeClassRewardRoundByVotes(id, schoolId);
+    if (!result.success) {
+      return res.json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("❌ class-reward-round stop:", err);
+    res.status(500).json({ success: false, message: "Serverfehler beim Stoppen." });
+  }
 });
 
 // Gewinner fixieren → Challenge startet (XP sammeln)
