@@ -5373,19 +5373,29 @@ function findClassRewardWinningOption(options, fixedOptionId) {
 }
 
 async function deleteClassRewardRoundForSchool(roundId, schoolId) {
-  const roundRes = await pool.query(
-    "SELECT id FROM class_reward_rounds WHERE id = $1 AND school_id = $2",
-    [roundId, schoolId]
-  );
-  if (!roundRes.rows.length) return false;
+  const client = await pool.connect();
+  try {
+    const checkRes = await client.query(
+      "SELECT id FROM class_reward_rounds WHERE id = $1 AND school_id = $2",
+      [roundId, schoolId]
+    );
+    if (!checkRes.rows.length) return false;
 
-  await pool.query("DELETE FROM class_reward_votes WHERE round_id = $1", [roundId]);
-  await pool.query("DELETE FROM class_reward_options WHERE round_id = $1", [roundId]);
-  await pool.query("DELETE FROM class_reward_rounds WHERE id = $1 AND school_id = $2", [
-    roundId,
-    schoolId
-  ]);
-  return true;
+    await client.query("BEGIN");
+    await client.query("DELETE FROM class_reward_votes WHERE round_id = $1", [roundId]);
+    await client.query("DELETE FROM class_reward_options WHERE round_id = $1", [roundId]);
+    await client.query("DELETE FROM class_reward_rounds WHERE id = $1 AND school_id = $2", [
+      roundId,
+      schoolId
+    ]);
+    await client.query("COMMIT");
+    return true;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function finalizeClassRewardRoundByVotes(roundId, schoolId) {
@@ -6114,7 +6124,7 @@ app.post("/api/admin/class-reward-round/:id/complete", isAdmin, async (req, res)
 });
 
 // Voting-Runde komplett löschen
-app.delete("/api/admin/class-reward-round/:id", isAdmin, async (req, res) => {
+async function handleDeleteClassRewardRound(req, res) {
   try {
     const schoolId = req.session.user.school_id;
     const id = Number(req.params.id);
@@ -6127,7 +6137,10 @@ app.delete("/api/admin/class-reward-round/:id", isAdmin, async (req, res) => {
     console.error("❌ DELETE class-reward-round:", err);
     res.status(500).json({ success: false, message: "Serverfehler beim Löschen." });
   }
-});
+}
+
+app.delete("/api/admin/class-reward-round/:id", isAdmin, handleDeleteClassRewardRound);
+app.post("/api/admin/class-reward-round/:id/delete", isAdmin, handleDeleteClassRewardRound);
 
 // -------------------------------------------------------
 // ADMIN – Klassen

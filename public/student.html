@@ -2245,8 +2245,10 @@ h2 {
     <div id="today-status-panel" class="today-status-panel">
       <div id="userCard" class="today-status-user"></div>
       <div id="levelBar" class="today-status-level"></div>
-      <h3 class="today-status-subtitle">Klassen-Belohnung</h3>
-      <div id="classChallenge" class="today-status-class"></div>
+      <div id="classChallengeSection" class="today-class-challenge-section" hidden>
+        <h3 class="today-status-subtitle">Klassen-Belohnung</h3>
+        <div id="classChallenge" class="today-status-class"></div>
+      </div>
     </div>
     <div id="today-screen-root" class="logbuch-root"></div>
   </div>
@@ -2947,15 +2949,16 @@ function renderClassRewardProgressBar(totalXp, xpGoal) {
 
 async function loadClassProgress() {
   const box = document.getElementById("classChallenge");
+  const section = document.getElementById("classChallengeSection");
   if (!box) return;
-  box.innerHTML = "<i>Lädt Klassen-Challenge …</i>";
 
   try {
     const r = await fetch("/api/student/classProgress", { credentials: "same-origin" });
     const data = await r.json();
 
     if (!data.success) {
-      box.innerHTML = `<i>${data.message || "Keine Challenge-Daten verfügbar."}</i>`;
+      if (section) section.hidden = true;
+      box.innerHTML = "";
       return;
     }
 
@@ -2966,15 +2969,13 @@ async function loadClassProgress() {
     const myVote  = data.myVote;
 
     if (!round || !options.length) {
-      box.innerHTML = `
-        <div style="font-size:13px;">
-          <b>Klasse ${cls.name}</b><br>
-          Aktuelle Klassen-XP: <b>${cls.total_xp}</b><br><br>
-          <i>Für deine Klasse läuft gerade keine Challenge.</i>
-        </div>
-      `;
+      if (section) section.hidden = true;
+      box.innerHTML = "";
       return;
     }
+
+    if (section) section.hidden = false;
+    box.innerHTML = "<i>Lädt Klassen-Challenge …</i>";
 
     let statusText = "";
     if (round.status === "voting") statusText = "Voting läuft – stimme für eure nächste Klassen-Belohnung ab!";
@@ -3103,7 +3104,8 @@ async function loadClassProgress() {
 
   } catch (err) {
     console.error(err);
-    box.innerHTML = "<i>Fehler beim Laden der Klassen-Challenge.</i>";
+    if (section) section.hidden = true;
+    box.innerHTML = "";
   }
 }
 

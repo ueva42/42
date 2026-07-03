@@ -818,8 +818,13 @@
       </div>
 
       <div class="panel">
-        <h3>Aktuelle Voting-Runde</h3>
-        <div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <h3 style="margin:0;">Aktuelle Voting-Runde</h3>
+          <button type="button" id="classRoundDeleteBtn" class="delete" onclick="deleteClassRewardRound()" style="display:none;">
+            Aktuelles Klassen-Voting löschen
+          </button>
+        </div>
+        <div style="margin-bottom:8px;margin-top:10px;">
           <label>Klasse:</label>
           <select id="progressClassSelect" onchange="loadAdminClassProgress()"></select>
         </div>
@@ -1776,6 +1781,7 @@ async function loadAdminClassProgress() {
 function renderClassProgressInfo(data) {
   const info = document.getElementById("classProgressInfo");
   const actions = document.getElementById("classProgressActions");
+  const deleteBtn = document.getElementById("classRoundDeleteBtn");
   if (!info) return;
   if (actions) actions.innerHTML = "";
 
@@ -1784,6 +1790,7 @@ function renderClassProgressInfo(data) {
   // Wenn keine Voting-Runde existiert
   if (!data.round) {
     currentRoundId = null;
+    if (deleteBtn) deleteBtn.style.display = "none";
     info.innerHTML = `
       <div style="font-size:13px;line-height:1.6;">
         <b>Gesamt-XP der Klasse:</b> ${totalXp}<br>
@@ -1795,6 +1802,7 @@ function renderClassProgressInfo(data) {
 
   const round = data.round;
   currentRoundId = round.id;
+  if (deleteBtn) deleteBtn.style.display = "inline-block";
 
   const target = round.target_xp || 0;
   const current = totalXp;
@@ -2052,19 +2060,34 @@ async function completeClassRewardRound() {
 
 async function deleteClassRewardRound() {
   if (!currentRoundId) return;
-  if (!confirm("Diese Voting-Runde wirklich löschen? Alle Stimmen und Optionen dieser Runde werden entfernt.")) return;
+  if (!confirm("Aktuelles Klassen-Voting wirklich löschen? Schüler:innen sehen die Belohnung danach nicht mehr.")) return;
 
-  const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}`, {
+  const encodedId = encodeURIComponent(currentRoundId);
+  let res = await fetch(`/api/admin/class-reward-round/${encodedId}`, {
     method: "DELETE",
     credentials: "same-origin"
   });
-  const data = await res.json();
-  if (!data.success) {
+  if (res.status === 404 || res.status === 405) {
+    res = await fetch(`/api/admin/class-reward-round/${encodedId}/delete`, {
+      method: "POST",
+      credentials: "same-origin"
+    });
+  }
+
+  let data = {};
+  try {
+    data = await res.json();
+  } catch (_err) {
+    data = {};
+  }
+
+  if (!res.ok || !data.success) {
     alert(data.message || "Löschen fehlgeschlagen.");
     return;
   }
 
   currentRoundId = null;
+  alert("Klassen-Voting gelöscht.");
   await loadAdminClassProgress();
 }
 
