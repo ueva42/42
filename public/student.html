@@ -2336,11 +2336,11 @@ h2 {
 <script src="/js/logbuch-constants.js?v=2"></script>
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/student-router.js"></script>
+<script src="/js/student-router.js?v=2"></script>
 <script src="/js/logbuch-plan.js?v=4"></script>
 <script src="/js/logbuch-check.js"></script>
 <script src="/js/logbuch-reflect.js"></script>
-<script src="/js/logbuch-today.js?v=7"></script>
+<script src="/js/logbuch-today.js?v=8"></script>
 <script src="/js/logbuch-week.js"></script>
 <script src="/js/logbuch-levelplan.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=8"></script>
@@ -2563,7 +2563,7 @@ initNotifUI();
 let xpPerMission = {};
 
 window.loadMe = async function loadMe() {
-  const r = await fetch("/api/student/me");
+  const r = await fetch("/api/student/me", { credentials: "same-origin" });
   if (r.status === 401 || r.status === 403) {
     window.location.href = "/login";
     return;
@@ -2949,6 +2949,7 @@ async function loadClassProgress() {
 
     let statusText = "";
     if (round.status === "voting") statusText = "Voting läuft – stimme für eure nächste Klassen-Belohnung ab!";
+    else if (round.status === "voting_closed") statusText = "Voting beendet – die Lehrkraft legt die Belohnung fest.";
     else if (round.status === "active") statusText = "Aktive Klassen-Belohnung – eure XP arbeiten auf dieses Ziel hin.";
     else if (round.status === "completed") statusText = "Letzte Klassen-Challenge ist abgeschlossen.";
 
@@ -3097,6 +3098,7 @@ async function voteClassReward(roundId, optionId) {
   const r = await fetch("/api/student/classVote", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
+    credentials: "same-origin",
     body: JSON.stringify({ roundId, optionId })
   });
 
@@ -3126,9 +3128,25 @@ loadMissions();
 loadRewards();
 loadClassProgress();
 
-if (window.StudentRouter) {
-  window.StudentRouter.initFromPath();
+async function bootStudentApp() {
+  try {
+    const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
+    if (!sessionRes.ok) {
+      window.location.href = "/login";
+      return;
+    }
+    if (window.StudentRouter) {
+      window.StudentRouter.initFromPath();
+    }
+  } catch (err) {
+    console.error(err);
+    if (window.StudentRouter) {
+      window.StudentRouter.initFromPath();
+    }
+  }
 }
+
+bootStudentApp();
 </script>
 
 </body>

@@ -825,15 +825,16 @@
         </div>
 
         <div id="classProgressInfo" class="hint">–</div>
+        <div id="classProgressActions" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;"></div>
 
         <div style="margin-top:12px;">
           <h3>Neue Voting-Runde starten</h3>
           <input id="classRoundTitle" placeholder="Titel (z.B. 'Belohnung bis Pfingsten')" />
           <input id="classRoundTargetXp" type="number" placeholder="Ziel-XP für die Runde" />
           <button class="action" onclick="startClassRewardRound()">Voting-Runde starten</button>
-          <button class="delete" onclick="stopClassRewardRound()">Voting stoppen</button>
           <div class="hint">
             Beim Start wird eine neue Runde für die gewählte Klasse angelegt. Alte Runden derselben Klasse werden automatisch geschlossen.
+            Zum Abschließen: „Voting abschließen (Mehrheit)“ oder Gewinner manuell festlegen.
           </div>
         </div>
       </div>
@@ -1768,7 +1769,9 @@ async function loadAdminClassProgress() {
 
 function renderClassProgressInfo(data) {
   const info = document.getElementById("classProgressInfo");
+  const actions = document.getElementById("classProgressActions");
   if (!info) return;
+  if (actions) actions.innerHTML = "";
 
   const totalXp = data.total_xp ?? 0;
 
@@ -1790,6 +1793,7 @@ function renderClassProgressInfo(data) {
   const target = round.target_xp || 0;
   const current = totalXp;
   const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+  const phase = round.phase || round.status || "voting";
 
   const options = data.options || [];
 
@@ -1816,8 +1820,8 @@ function renderClassProgressInfo(data) {
                 <td>${o.votes}</td>
                 <td>${o.is_selected ? "✅" : ""}</td>
                 <td>
-                  <button class="action" onclick="fixClassRewardOption(${o.id})">
-                    Als Gewinner fixieren
+                  <button class="action" onclick="fixClassRewardOption(${o.id})" ${round.fixed_option_id ? "disabled" : ""}>
+                    Als Gewinner festlegen
                   </button>
                 </td>
               </tr>
@@ -1827,11 +1831,13 @@ function renderClassProgressInfo(data) {
       </div>
     `;
 
-  const statusText = round.fixed_option_id
-    ? `<span style="color:#4ade80;"><b>Gewinner ist festgelegt.</b></span>`
-    : round.is_active
-      ? `<span style="color:#facc15;"><b>Voting läuft noch.</b></span>`
-      : `<span style="color:#f97316;"><b>Voting gestoppt, aber kein Gewinner fixiert.</b></span>`;
+  const phaseColors = {
+    voting: "#facc15",
+    voting_closed: "#f97316",
+    active: "#4ade80",
+    completed: "#94a3b8"
+  };
+  const phaseColor = phaseColors[phase] || "#facc15";
 
   const targetInfo = target > 0
     ? `Ziel: ${target} XP &nbsp; | &nbsp; aktuell: ${current} XP`
@@ -1839,6 +1845,10 @@ function renderClassProgressInfo(data) {
 
   info.innerHTML = `
     <div style="font-size:13px;line-height:1.6;">
+      <div style="display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid ${phaseColor};color:${phaseColor};font-size:11px;font-weight:600;margin-bottom:8px;">
+        ${round.phase || phase}
+      </div>
+      <br>
       <b>Gesamt-XP der Klasse:</b> ${totalXp}<br>
       <b>Voting-Runde:</b> ${round.title || "ohne Titel"}<br>
       ${targetInfo}
@@ -1846,15 +1856,31 @@ function renderClassProgressInfo(data) {
         <div class="progress-inner" style="width:${pct}%"></div>
       </div>
       <div class="hint" style="margin-top:4px;">
-        Fortschritt: ${pct}% – sobald das Ziel erreicht ist, ist die aktuell gewählte Belohnung freigeschaltet.
+        Fortschritt: ${pct}% – Schüler:innen sehen nach dem Festlegen der Belohnung die XP-Leiste in „Mein Tag“.
       </div>
-      <div style="margin-top:6px;">
-        ${statusText}
-        ${round.hasReachedTarget ? `<br><span style="color:#4ade80;">Die Klasse hat die Ziel-XP erreicht.</span>` : ""}
-      </div>
+      ${round.hasReachedTarget ? `<div style="margin-top:6px;color:#4ade80;">Die Klasse hat die Ziel-XP erreicht.</div>` : ""}
       ${optionsHtml}
     </div>
   `;
+
+  if (!actions) return;
+
+  if (phase === "voting" && options.length > 0 && !round.fixed_option_id) {
+  actions.innerHTML = `
+      <button class="action" onclick="finalizeClassRewardRound()">Voting abschließen (Mehrheit)</button>
+      <button class="delete" onclick="stopClassRewardRound()">Voting stoppen</button>
+    `;
+  } else if (phase === "voting_closed") {
+    actions.innerHTML = `
+      <span class="hint">Voting gestoppt – bitte Gewinner manuell festlegen oder Mehrheit wählen.</span>
+      <button class="action" onclick="finalizeClassRewardRound()">Mehrheit als Gewinner</button>
+    `;
+  } else if (phase === "active") {
+    actions.innerHTML = `
+      <button class="action" onclick="completeClassRewardRound()">Challenge abschließen</button>
+      <span class="hint">Schüler:innen sehen die gewählte Belohnung und die XP-Leiste.</span>
+    `;
+  }
 }
 
 async function uploadClassRewardImage() {
@@ -1933,13 +1959,21 @@ async function startClassRewardRound() {
   const classId = document.getElementById("progressClassSelect").value;
   const title = document.getElementById("classRoundTitle").value.trim();
   const targetXp = Number(document.getElementById("classRoundTargetXp").value);
-  if (!classId || !targetXp) return;
+  if (!classId || !targetXp) {
+    alert("Bitte Klasse, Titel und Ziel-XP angeben.");
+    return;
+  }
 
-  await fetch("/api/admin/class-reward-round", {
+  const res = await fetch("/api/admin/class-reward-round", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ classId, title, targetXp })
   });
+  const data = await res.json();
+  if (!data.success) {
+    alert(data.message || "Runde konnte nicht gestartet werden.");
+    return;
+  }
 
   document.getElementById("classRoundTitle").value = "";
   document.getElementById("classRoundTargetXp").value = "";
@@ -1950,10 +1984,49 @@ async function startClassRewardRound() {
 // Voting stoppen
 async function stopClassRewardRound() {
   if (!currentRoundId) return;
+  if (!confirm("Voting wirklich stoppen? Schüler:innen können dann nicht mehr abstimmen.")) return;
 
-  await fetch(`/api/admin/class-reward-round/${currentRoundId}/stop`, {
+  const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}/stop`, {
     method: "POST"
   });
+  const data = await res.json();
+  if (!data.success) {
+    alert(data.message || "Stoppen fehlgeschlagen.");
+    return;
+  }
+
+  await loadAdminClassProgress();
+}
+
+async function finalizeClassRewardRound() {
+  if (!currentRoundId) return;
+  if (!confirm("Voting per Mehrheit abschließen und Gewinner festlegen?")) return;
+
+  const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}/finalize`, {
+    method: "POST"
+  });
+  const data = await res.json();
+  if (!data.success) {
+    alert(data.message || "Abschließen fehlgeschlagen.");
+    return;
+  }
+
+  alert(`Gewinner festgelegt (${data.votes || 0} Stimmen).`);
+  await loadAdminClassProgress();
+}
+
+async function completeClassRewardRound() {
+  if (!currentRoundId) return;
+  if (!confirm("Challenge abschließen? Die Runde wird als beendet markiert.")) return;
+
+  const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}/complete`, {
+    method: "POST"
+  });
+  const data = await res.json();
+  if (!data.success) {
+    alert(data.message || "Abschließen fehlgeschlagen.");
+    return;
+  }
 
   await loadAdminClassProgress();
 }
@@ -1971,7 +2044,7 @@ async function addRewardOptionToRound() {
   const reward = classRewardsCache.find(r => String(r.id) === String(rewardId));
   if (!reward) return;
 
-  await fetch("/api/admin/class-reward-option", {
+  const res = await fetch("/api/admin/class-reward-option", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({
@@ -1981,6 +2054,11 @@ async function addRewardOptionToRound() {
       imageUrl: reward.image_url || null
     })
   });
+  const data = await res.json();
+  if (!data.success) {
+    alert(data.message || "Option konnte nicht hinzugefügt werden.");
+    return;
+  }
 
   await loadAdminClassProgress();
 }
@@ -1988,12 +2066,18 @@ async function addRewardOptionToRound() {
 // Option als Gewinner fixieren
 async function fixClassRewardOption(optionId) {
   if (!currentRoundId || !optionId) return;
+  if (!confirm("Diese Belohnung als Gewinner festlegen? Schüler:innen sehen danach die XP-Leiste.")) return;
 
-  await fetch(`/api/admin/class-reward-round/${currentRoundId}/fix`, {
+  const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}/fix`, {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ optionId })
   });
+  const data = await res.json();
+  if (!data.success) {
+    alert(data.message || "Speichern fehlgeschlagen.");
+    return;
+  }
 
   await loadAdminClassProgress();
 }

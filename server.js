@@ -5,6 +5,7 @@
 
 import express from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import path from "path";
 import { fileURLToPath } from "url";
 import bodyParser from "body-parser";
@@ -982,17 +983,33 @@ app.set("trust proxy", 1);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl:
+    process.env.DATABASE_URL &&
+    !process.env.DATABASE_URL.includes("localhost")
+      ? { rejectUnauthorized: false }
+      : undefined
+});
+
 const isProduction =
   process.env.NODE_ENV === "production" || !!process.env.RAILWAY_ENVIRONMENT;
 
+const PgSession = connectPgSimple(session);
 app.use(
   session({
-    secret: "super-temp-secret",
+    store: new PgSession({
+      pool,
+      tableName: "user_sessions",
+      createTableIfMissing: true
+    }),
+    secret: process.env.SESSION_SECRET || "super-temp-secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: isProduction,
       sameSite: "lax",
+      httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 14
     }
   })
@@ -1017,15 +1034,6 @@ app.get("/", (_req, res) => {
 // -------------------------------------------------------
 // DB + R2 Storage
 // -------------------------------------------------------
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl:
-    process.env.DATABASE_URL &&
-    !process.env.DATABASE_URL.includes("localhost")
-      ? { rejectUnauthorized: false }
-      : undefined
-});
-
 const r2 = new S3Client({
   region: "auto",
   endpoint: process.env.R2_ENDPOINT,
@@ -1461,6 +1469,11 @@ async function migrate() {
   await ensureColumn("class_reward_votes", "student_id", "INTEGER");
   await ensureColumn("class_reward_votes", "option_id", "INTEGER");
   await ensureColumn("class_reward_votes", "reward_id", "INTEGER");
+
+  await pool.query(`
+    ALTER TABLE class_reward_votes
+    ALTER COLUMN reward_id DROP NOT NULL
+  `).catch(() => {});
 
 
   // UNIQUE: eine Stimme pro Schüler pro Runde
@@ -2181,6 +2194,18 @@ app.post("/api/login", async (req, res) => {
 
 app.post("/api/logout", (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
+});
+
+app.get("/api/auth/session", (req, res) => {
+  const user = req.session?.user;
+  if (!user) {
+    return res.status(401).json({ authenticated: false });
+  }
+  res.json({
+    authenticated: true,
+    role: user.role,
+    id: user.id
+  });
 });
 // -------------------------------------------------------
 // ADMIN – eigenes Passwort ändern
@@ -2941,10 +2966,18 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       (slot) => slot.subject && !isTimetableFreeSubject(slot.subject)
     );
 
+    const seenSubjects = new Set();
+    const uniqueTimetableSlots = [];
+    for (const slot of activeTimetable) {
+      if (seenSubjects.has(slot.subject)) continue;
+      seenSubjects.add(slot.subject);
+      uniqueTimetableSlots.push(slot);
+    }
+
     const blocks = [];
     const usedEntryIds = new Set();
 
-    for (const slot of activeTimetable) {
+    for (const slot of uniqueTimetableSlots) {
       const entry = findEntryForSlot(slot);
       if (entry) usedEntryIds.add(entry.id);
       blocks.push({ slot, entry });
@@ -2977,7 +3010,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       isPast: date < todayIso,
       hasClass: !!classId,
       className,
-      timetable: activeTimetable,
+      timetable: uniqueTimetableSlots,
       timetableSubjects,
       entries,
       blocks,
@@ -5311,6 +5344,76 @@ app.post("/api/student/redeemReward", isStudent, async (req, res) => {
 //  -> /api/student/classProgress
 //  -> /api/student/classVote
 // -------------------------------------------------------
+function deriveClassRewardRoundStatus(roundRow) {
+  if (roundRow.fixed_option_id) {
+    return roundRow.is_active ? "active" : "completed";
+  }
+  if (!roundRow.is_active) {
+    return "voting_closed";
+  }
+  return "voting";
+}
+
+function adminClassRewardPhaseLabel(roundRow) {
+  const status = deriveClassRewardRoundStatus(roundRow);
+  if (status === "voting") return "Voting läuft";
+  if (status === "voting_closed") return "Voting beendet – Gewinner fehlt";
+  if (status === "active") return "Belohnung aktiv – XP sammeln";
+  return "Challenge abgeschlossen";
+}
+
+async function finalizeClassRewardRoundByVotes(roundId, schoolId) {
+  const roundRes = await pool.query(
+    `
+    SELECT id, fixed_option_id
+    FROM class_reward_rounds
+    WHERE id = $1 AND school_id = $2
+    LIMIT 1
+  `,
+    [roundId, schoolId]
+  );
+  if (!roundRes.rows.length) {
+    return { success: false, message: "Runde nicht gefunden." };
+  }
+  if (roundRes.rows[0].fixed_option_id) {
+    return { success: false, message: "Gewinner ist bereits festgelegt." };
+  }
+
+  const votesRes = await pool.query(
+    `
+    SELECT o.id, COUNT(v.id)::int AS votes
+    FROM class_reward_options o
+    LEFT JOIN class_reward_votes v ON v.option_id = o.id
+    WHERE o.round_id = $1
+    GROUP BY o.id
+    ORDER BY COUNT(v.id) DESC, o.id ASC
+  `,
+    [roundId]
+  );
+  if (!votesRes.rows.length) {
+    return { success: false, message: "Keine Belohnungs-Optionen in dieser Runde." };
+  }
+
+  const winner = votesRes.rows[0];
+  if (Number(winner.votes) <= 0) {
+    return {
+      success: false,
+      message: "Noch keine Stimmen abgegeben – Gewinner manuell festlegen."
+    };
+  }
+
+  await pool.query(
+    `
+    UPDATE class_reward_rounds
+    SET fixed_option_id = $1, is_active = TRUE
+    WHERE id = $2 AND school_id = $3
+  `,
+    [winner.id, roundId, schoolId]
+  );
+
+  return { success: true, optionId: winner.id, votes: Number(winner.votes) };
+}
+
 app.get("/api/student/classProgress", isStudent, async (req, res) => {
   try {
     const user = req.session.user;
@@ -5364,14 +5467,7 @@ app.get("/api/student/classProgress", isStudent, async (req, res) => {
     }
 
     const roundRow = roundRes.rows[0];
-
-    // Status ableiten
-    let status = "voting";
-    if (roundRow.fixed_option_id && roundRow.is_active) {
-      status = "active";
-    } else if (roundRow.fixed_option_id && !roundRow.is_active) {
-      status = "completed";
-    }
+    const status = deriveClassRewardRoundStatus(roundRow);
 
     const round = {
       id: roundRow.id,
@@ -5490,8 +5586,13 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Runde nicht gefunden." });
     }
 
-    // Voting abgeschlossen?
-    if (r.rows[0].fixed_option_id) {
+    const roundRow = r.rows[0];
+
+    if (roundRow.fixed_option_id) {
+      return res.json({ success: false, message: "Voting ist beendet." });
+    }
+
+    if (!roundRow.is_active) {
       return res.json({ success: false, message: "Voting ist beendet." });
     }
 
@@ -5613,6 +5714,7 @@ app.get("/api/admin/class-progress", isAdmin, async (req, res) => {
   );
 
   const hasReachedTarget = totalXP >= round.target_xp;
+  const phase = adminClassRewardPhaseLabel(round);
 
   res.json({
     success: true,
@@ -5624,7 +5726,9 @@ app.get("/api/admin/class-progress", isAdmin, async (req, res) => {
       target_xp: round.target_xp,
       is_active: round.is_active,
       fixed_option_id: round.fixed_option_id,
-      hasReachedTarget
+      hasReachedTarget,
+      phase,
+      status: deriveClassRewardRoundStatus(round)
     },
     options: optRes.rows.map(o => ({
       id: o.id,
@@ -5870,7 +5974,7 @@ app.post("/api/admin/class-reward-round/:id/stop", isAdmin, async (req, res) => 
   res.json({ success: true });
 });
 
-// Gewinner fixieren
+// Gewinner fixieren → Challenge startet (XP sammeln)
 app.post("/api/admin/class-reward-round/:id/fix", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
   const id = Number(req.params.id);
@@ -5881,13 +5985,80 @@ app.post("/api/admin/class-reward-round/:id/fix", isAdmin, async (req, res) => {
     return res.json({ success: false, message: "roundId/optionId fehlt" });
   }
 
-  await pool.query(`
-    UPDATE class_reward_rounds
-    SET fixed_option_id=$1, is_active=FALSE
-    WHERE id=$2 AND school_id=$3
-  `, [oId, id, schoolId]);
+  try {
+    const opt = await pool.query(
+      `
+      SELECT o.id
+      FROM class_reward_options o
+      INNER JOIN class_reward_rounds r ON r.id = o.round_id
+      WHERE o.id = $1 AND o.round_id = $2 AND r.school_id = $3
+    `,
+      [oId, id, schoolId]
+    );
+    if (!opt.rows.length) {
+      return res.json({ success: false, message: "Option gehört nicht zu dieser Runde." });
+    }
 
-  res.json({ success: true });
+    await pool.query(
+      `
+      UPDATE class_reward_rounds
+      SET fixed_option_id = $1, is_active = TRUE
+      WHERE id = $2 AND school_id = $3
+    `,
+      [oId, id, schoolId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ class-reward-round fix:", err);
+    res.status(500).json({ success: false, message: "Serverfehler beim Speichern." });
+  }
+});
+
+// Voting per Mehrheit abschließen
+app.post("/api/admin/class-reward-round/:id/finalize", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const roundId = Number(req.params.id);
+    const result = await finalizeClassRewardRoundByVotes(roundId, schoolId);
+    if (!result.success) {
+      return res.json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("❌ class-reward-round finalize:", err);
+    res.status(500).json({ success: false, message: "Serverfehler beim Abschließen." });
+  }
+});
+
+// Aktive Challenge beenden (Ziel erreicht / manuell)
+app.post("/api/admin/class-reward-round/:id/complete", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const id = Number(req.params.id);
+
+    const upd = await pool.query(
+      `
+      UPDATE class_reward_rounds
+      SET is_active = FALSE
+      WHERE id = $1 AND school_id = $2 AND fixed_option_id IS NOT NULL
+      RETURNING id
+    `,
+      [id, schoolId]
+    );
+
+    if (!upd.rows.length) {
+      return res.json({
+        success: false,
+        message: "Runde nicht gefunden oder noch kein Gewinner festgelegt."
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ class-reward-round complete:", err);
+    res.status(500).json({ success: false, message: "Serverfehler beim Abschließen." });
+  }
 });
 
 // -------------------------------------------------------
