@@ -20,7 +20,7 @@
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const res = await fetch(url, options);
+        const res = await fetch(url, { credentials: "same-origin", ...options });
         if (!res.ok) {
           const err = new Error(`HTTP ${res.status}`);
           if (attempt < retries && (res.status === 403 || res.status >= 500)) {

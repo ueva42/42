@@ -5362,6 +5362,32 @@ function adminClassRewardPhaseLabel(roundRow) {
   return "Challenge abgeschlossen";
 }
 
+function findClassRewardWinningOption(options, fixedOptionId) {
+  if (fixedOptionId == null || !Array.isArray(options)) return null;
+  const fixed = Number(fixedOptionId);
+  return (
+    options.find((o) => Number(o.id) === fixed) ||
+    options.find((o) => Number(o.reward_id) === fixed) ||
+    null
+  );
+}
+
+async function deleteClassRewardRoundForSchool(roundId, schoolId) {
+  const roundRes = await pool.query(
+    "SELECT id FROM class_reward_rounds WHERE id = $1 AND school_id = $2",
+    [roundId, schoolId]
+  );
+  if (!roundRes.rows.length) return false;
+
+  await pool.query("DELETE FROM class_reward_votes WHERE round_id = $1", [roundId]);
+  await pool.query("DELETE FROM class_reward_options WHERE round_id = $1", [roundId]);
+  await pool.query("DELETE FROM class_reward_rounds WHERE id = $1 AND school_id = $2", [
+    roundId,
+    schoolId
+  ]);
+  return true;
+}
+
 async function finalizeClassRewardRoundByVotes(roundId, schoolId) {
   const roundRes = await pool.query(
     `
@@ -5658,39 +5684,44 @@ app.post("/api/student/classVote", isStudent, async (req, res) => {
 // ADMIN – Klassenfortschritt & Voting
 // -------------------------------------------------------
 app.get("/api/admin/class-progress", isAdmin, async (req, res) => {
-  const schoolId = req.session.user.school_id;
-  const classId = Number(req.query.classId);
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.query.classId);
 
-  if (!classId) {
-    return res.json({ success: false, message: "classId fehlt" });
-  }
+    if (!classId) {
+      return res.json({ success: false, message: "classId fehlt" });
+    }
 
-  const totalXP = await getClassTotalXP(classId, schoolId);
+    const totalXP = await getClassTotalXP(classId, schoolId);
 
-  const roundRes = await pool.query(`
+    const roundRes = await pool.query(
+      `
     SELECT *
     FROM class_reward_rounds
     WHERE class_id=$1 AND school_id=$2
     ORDER BY created_at DESC
     LIMIT 1
-  `, [classId, schoolId]);
+  `,
+      [classId, schoolId]
+    );
 
-  if (!roundRes.rows.length) {
-    return res.json({
-      success: true,
-      classId,
-      total_xp: totalXP,
-      round: null,
-      options: []
-    });
-  }
+    if (!roundRes.rows.length) {
+      return res.json({
+        success: true,
+        classId,
+        total_xp: totalXP,
+        round: null,
+        options: []
+      });
+    }
 
-  const round = roundRes.rows[0];
+    const round = roundRes.rows[0];
 
-  const optRes = await pool.query(
-    `
+    const optRes = await pool.query(
+      `
     SELECT
       o.id,
+      o.reward_id,
       o.name,
       COALESCE(
         NULLIF(TRIM(o.image_url), ''),
@@ -5707,37 +5738,45 @@ app.get("/api/admin/class-progress", isAdmin, async (req, res) => {
       AND cr_by_name.name = o.name
     LEFT JOIN class_reward_votes v ON v.option_id = o.id
     WHERE o.round_id=$1
-    GROUP BY o.id, o.name, o.image_url, cr_direct.image_url, cr_by_name.image_url
+    GROUP BY o.id, o.reward_id, o.name, o.image_url, cr_direct.image_url, cr_by_name.image_url
     ORDER BY o.id ASC
     `,
-    [round.id]
-  );
+      [round.id]
+    );
 
-  const hasReachedTarget = totalXP >= round.target_xp;
-  const phase = adminClassRewardPhaseLabel(round);
+    const hasReachedTarget = totalXP >= round.target_xp;
+    const phase = adminClassRewardPhaseLabel(round);
 
-  res.json({
-    success: true,
-    classId,
-    total_xp: totalXP,
-    round: {
-      id: round.id,
-      title: round.title,
-      target_xp: round.target_xp,
-      is_active: round.is_active,
-      fixed_option_id: round.fixed_option_id,
-      hasReachedTarget,
-      phase,
-      status: deriveClassRewardRoundStatus(round)
-    },
-    options: optRes.rows.map(o => ({
-      id: o.id,
-      name: o.name,
-      image_url: publicImageUrl(o.image_url),
-      votes: Number(o.votes),
-      is_selected: round.fixed_option_id === o.id
-    }))
-  });
+    res.json({
+      success: true,
+      classId,
+      total_xp: totalXP,
+      round: {
+        id: round.id,
+        title: round.title,
+        target_xp: round.target_xp,
+        is_active: round.is_active,
+        fixed_option_id: round.fixed_option_id,
+        hasReachedTarget,
+        phase,
+        status: deriveClassRewardRoundStatus(round)
+      },
+      options: optRes.rows.map((o) => ({
+        id: o.id,
+        reward_id: o.reward_id,
+        name: o.name,
+        image_url: publicImageUrl(o.image_url),
+        votes: Number(o.votes),
+        is_selected:
+          round.fixed_option_id != null &&
+          (Number(round.fixed_option_id) === Number(o.id) ||
+            Number(round.fixed_option_id) === Number(o.reward_id))
+      }))
+    });
+  } catch (err) {
+    console.error("❌ /api/admin/class-progress:", err);
+    res.status(500).json({ success: false, message: "Serverfehler beim Laden." });
+  }
 });
 
 // Neue Voting-Runde starten
@@ -6058,6 +6097,22 @@ app.post("/api/admin/class-reward-round/:id/complete", isAdmin, async (req, res)
   } catch (err) {
     console.error("❌ class-reward-round complete:", err);
     res.status(500).json({ success: false, message: "Serverfehler beim Abschließen." });
+  }
+});
+
+// Voting-Runde komplett löschen
+app.delete("/api/admin/class-reward-round/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const id = Number(req.params.id);
+    const deleted = await deleteClassRewardRoundForSchool(id, schoolId);
+    if (!deleted) {
+      return res.json({ success: false, message: "Runde nicht gefunden." });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE class-reward-round:", err);
+    res.status(500).json({ success: false, message: "Serverfehler beim Löschen." });
   }
 });
 

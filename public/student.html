@@ -2916,13 +2916,42 @@ function classRewardImageHtml(url, name) {
     onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'class-reward-no-img',textContent:'Kein Bild'}))">`;
 }
 
+function sameClassRewardId(a, b) {
+  return a != null && b != null && String(a) === String(b);
+}
+
+function findWinningClassRewardOption(options, selectedId) {
+  if (selectedId == null) return null;
+  return (
+    options.find((o) => sameClassRewardId(o.id, selectedId)) ||
+    options.find((o) => sameClassRewardId(o.reward_id, selectedId)) ||
+    null
+  );
+}
+
+function renderClassRewardProgressBar(totalXp, xpGoal) {
+  const pct = xpGoal > 0 ? Math.min(100, Math.round((totalXp / xpGoal) * 100)) : 0;
+  return `
+    <div style="margin-top:10px;">
+      <div style="font-size:12px;margin-bottom:4px;">
+        Ziel: <b>${xpGoal} XP</b> – Aktuell: <b>${totalXp} XP</b>
+      </div>
+      <div style="width:100%;height:14px;border-radius:999px;background:#020617;border:1px solid rgba(148,163,184,0.7);overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#22c55e,#facc15,#f97316,#fb923c);"></div>
+      </div>
+      <div style="margin-top:4px;font-size:11px;opacity:0.85;">
+        Fortschritt zum Klassenziel: <b>${pct}%</b>
+      </div>
+    </div>`;
+}
+
 async function loadClassProgress() {
   const box = document.getElementById("classChallenge");
   if (!box) return;
   box.innerHTML = "<i>Lädt Klassen-Challenge …</i>";
 
   try {
-    const r = await fetch("/api/student/classProgress");
+    const r = await fetch("/api/student/classProgress", { credentials: "same-origin" });
     const data = await r.json();
 
     if (!data.success) {
@@ -2934,7 +2963,7 @@ async function loadClassProgress() {
     const round   = data.round;
     const options = data.options || [];
     const votes   = data.votes   || [];
-    const myVote  = data.myVote; // OPTION_ID
+    const myVote  = data.myVote;
 
     if (!round || !options.length) {
       box.innerHTML = `
@@ -2950,83 +2979,77 @@ async function loadClassProgress() {
     let statusText = "";
     if (round.status === "voting") statusText = "Voting läuft – stimme für eure nächste Klassen-Belohnung ab!";
     else if (round.status === "voting_closed") statusText = "Voting beendet – die Lehrkraft legt die Belohnung fest.";
-    else if (round.status === "active") statusText = "Aktive Klassen-Belohnung – eure XP arbeiten auf dieses Ziel hin.";
+    else if (round.status === "active") statusText = "Eure Klassen-Belohnung – sammelt gemeinsam XP!";
     else if (round.status === "completed") statusText = "Letzte Klassen-Challenge ist abgeschlossen.";
 
-    const selectedOptionId = round.selected_option_id; // OPTION_ID
-    const xpNeededRound    = round.xp_required || 0;
-
+    const selectedOptionId = round.selected_option_id;
+    const xpNeededRound = round.xp_required || 0;
     const voteMap = {};
-    if (Array.isArray(votes)) votes.forEach(v => { voteMap[v.option_id] = v.votes; });
+    if (Array.isArray(votes)) votes.forEach((v) => { voteMap[v.option_id] = v.votes; });
 
-    let winnerOption = null;
-    if (selectedOptionId && (round.status === "active" || round.status === "completed")) {
-      winnerOption = options.find(o => o.id === selectedOptionId) || null;
-    }
+    const winnerOption =
+      round.status === "active" || round.status === "completed"
+        ? findWinningClassRewardOption(options, selectedOptionId)
+        : null;
 
-    let headerHtml = `
+    const headerHtml = `
       <div style="font-size:13px;margin-bottom:10px;">
         <b>Klasse:</b> ${cls.name}<br>
         <b>Klassen-XP gesamt:</b> ${cls.total_xp}<br>
         <span style="opacity:0.8;">${statusText}</span>
-      </div>
-    `;
+      </div>`;
 
     if (winnerOption) {
       const xpGoal = winnerOption.xp_required || xpNeededRound || 0;
-      if (xpGoal > 0) {
-        const pct = Math.min(100, Math.round((cls.total_xp / xpGoal) * 100));
-        headerHtml += `
-          <div style="
-            margin-bottom:12px;
-            padding:10px 12px;
-            border-radius:16px;
-            background:radial-gradient(circle at top left,#022c22 0,#020617 60%);
-            border:1px solid rgba(16,185,129,0.7);
-            box-shadow:0 0 18px rgba(16,185,129,0.5);
-            font-size:12px;
-          ">
-            <div style="opacity:0.9;">Gewonnene Klassen-Belohnung:</div>
-            <div style="font-size:14px;font-weight:600;margin-top:2px;">${winnerOption.name}</div>
-            <div style="margin-top:4px;">
-              Ziel: <b>${xpGoal} XP</b> – Aktuell: <b>${cls.total_xp} XP</b>
-            </div>
-            <div style="margin-top:6px;">
-              <div style="width:100%;height:10px;border-radius:999px;background:#020617;border:1px solid rgba(148,163,184,0.7);overflow:hidden;">
-                <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#22c55e,#facc15,#f97316,#fb923c);"></div>
-              </div>
-              <div style="margin-top:2px;font-size:11px;opacity:0.8;">
-                Fortschritt zum Klassenziel: <b>${pct}%</b>
-              </div>
+      box.innerHTML = `
+        ${headerHtml}
+        <div style="
+          padding:14px;
+          border-radius:16px;
+          background:radial-gradient(circle at top left,#022c22 0,#020617 60%);
+          border:1px solid rgba(16,185,129,0.7);
+          box-shadow:0 0 18px rgba(16,185,129,0.35);
+          font-size:13px;
+        ">
+          <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.8;">Gewählte Klassen-Belohnung</div>
+          <div style="margin-top:10px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+            <div style="flex:0 0 auto;">${classRewardImageHtml(winnerOption.image_url, winnerOption.name)}</div>
+            <div style="flex:1;min-width:180px;">
+              <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${winnerOption.name}</div>
+              ${renderClassRewardProgressBar(cls.total_xp, xpGoal)}
             </div>
           </div>
-        `;
-      }
+        </div>`;
+      return;
+    }
+
+    if (round.status === "voting_closed") {
+      box.innerHTML = `
+        ${headerHtml}
+        <p style="font-size:12px;opacity:0.8;margin:0 0 10px;">Die Lehrkraft wertet die Stimmen aus.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;">
+          ${options.map((opt) => `
+            <div style="width:180px;padding:10px;border-radius:12px;border:1px solid rgba(148,163,184,0.35);font-size:12px;">
+              <div style="font-weight:600;">${opt.name}</div>
+              <div style="margin-top:4px;opacity:0.85;">Stimmen: <b>${voteMap[opt.id] || 0}</b></div>
+            </div>`).join("")}
+        </div>`;
+      return;
     }
 
     let cardsHtml = headerHtml;
+    if (myVote != null) {
+      const myChoice = options.find((o) => sameClassRewardId(o.id, myVote));
+      if (myChoice) {
+        cardsHtml += `<p style="font-size:12px;color:#bbf7d0;margin:0 0 10px;">Du hast für <b>${myChoice.name}</b> gestimmt. Die Lehrkraft schließt das Voting ab.</p>`;
+      }
+    }
+
     cardsHtml += `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">`;
 
     options.forEach(opt => {
       const votesFor = voteMap[opt.id] || 0;
-      const isMy     = (myVote != null && myVote === opt.id);
-      const isActive =
-        selectedOptionId === opt.id &&
-        (round.status === "active" || round.status === "completed");
-
-      let progressBar = "";
-      const xpNeeded = opt.xp_required || xpNeededRound || 0;
-      if (isActive && xpNeeded > 0) {
-        const pct = Math.min(100, Math.round((cls.total_xp / xpNeeded) * 100));
-        progressBar = `
-          <div style="margin-top:6px;">
-            <div style="font-size:11px;">Fortschritt zum Klassenziel: <b>${pct}%</b></div>
-            <div style="width:100%;height:10px;border-radius:999px;background:#020617;border:1px solid rgba(148,163,184,0.7);overflow:hidden;">
-              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#22c55e,#facc15,#f97316,#fb923c);"></div>
-            </div>
-          </div>
-        `;
-      }
+      const isMy     = (myVote != null && sameClassRewardId(myVote, opt.id));
 
       let voteBtn = "";
       if (round.status === "voting") {
@@ -3050,11 +3073,6 @@ async function loadClassProgress() {
           Deine Wahl
         </div>` : "";
 
-      const badgeActive = isActive ? `
-        <div style="margin-top:4px;font-size:10px;padding:2px 8px;border-radius:999px;border:1px solid #facc15;background:rgba(250,204,21,0.15);color:#fef9c3;display:inline-block;">
-          Aktive Belohnung
-        </div>` : "";
-
       cardsHtml += `
         <div style="
           width:230px;
@@ -3068,15 +3086,13 @@ async function loadClassProgress() {
           ${classRewardImageHtml(opt.image_url, opt.name)}
 
           <div style="font-weight:600;margin-bottom:2px;">${opt.name}</div>
-          <div style="font-size:12px;">Benötigte XP: <b>${xpNeeded}</b></div>
+          <div style="font-size:12px;">Benötigte XP: <b>${opt.xp_required || xpNeededRound || 0}</b></div>
           <div style="font-size:11px;margin-top:2px;opacity:0.85;">Stimmen: <b>${votesFor}</b></div>
 
-          ${progressBar}
           ${voteBtn}
 
           <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
             ${badgeMy}
-            ${badgeActive}
           </div>
         </div>
       `;

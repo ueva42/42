@@ -811,9 +811,9 @@
       <div class="panel">
         <h2>Klassen-Fortschritt & Voting</h2>
         <div class="hint">
-          Du gibst für eine Klasse mehrere <b>Klassenbelohnungen</b> frei. Die Klasse stimmt in der Schüleransicht ab,
-          welche Belohnung sie möchte. Während die Klasse arbeitet, werden <b>XP gesammelt</b>; bei Erreichen der Ziel-XP
-          ist die gewählte Belohnung freigeschaltet.
+          Ablauf: 1) Voting-Runde starten &nbsp;→&nbsp; 2) Belohnungen hinzufügen &nbsp;→&nbsp;
+          3) <b>Voting abschließen (Mehrheit)</b> oder Gewinner festlegen &nbsp;→&nbsp;
+          4) Schüler:innen sehen die gewählte Belohnung + XP-Leiste in „Mein Tag“.
         </div>
       </div>
 
@@ -1061,7 +1061,7 @@
 </div>
 
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/teacher-dashboard.js?v=2"></script>
+<script src="/js/teacher-dashboard.js?v=3"></script>
 <script src="/js/teacher-timetable.js?v=4"></script>
 <script src="/js/teacher-lesson-goals.js?v=1"></script>
 <script src="/js/teacher-week.js"></script>
@@ -1758,8 +1758,14 @@ async function loadAdminClassProgress() {
   }
 
   try {
-    const r = await fetch(`/api/admin/class-progress?classId=${classId}`);
+    const r = await fetch(`/api/admin/class-progress?classId=${classId}`, {
+      credentials: "same-origin"
+    });
     const data = await r.json();
+    if (!r.ok || data.success === false) {
+      if (info) info.textContent = data.message || "Fehler beim Laden des Klassenfortschritts.";
+      return;
+    }
     renderClassProgressInfo(data);
   } catch (err) {
     console.error("Fehler beim Laden des Klassenfortschritts", err);
@@ -1866,19 +1872,26 @@ function renderClassProgressInfo(data) {
   if (!actions) return;
 
   if (phase === "voting" && options.length > 0 && !round.fixed_option_id) {
-  actions.innerHTML = `
+    actions.innerHTML = `
       <button class="action" onclick="finalizeClassRewardRound()">Voting abschließen (Mehrheit)</button>
       <button class="delete" onclick="stopClassRewardRound()">Voting stoppen</button>
+      <button class="delete" onclick="deleteClassRewardRound()">Voting-Runde löschen</button>
     `;
   } else if (phase === "voting_closed") {
     actions.innerHTML = `
-      <span class="hint">Voting gestoppt – bitte Gewinner manuell festlegen oder Mehrheit wählen.</span>
+      <span class="hint">Voting gestoppt – bitte Gewinner festlegen oder Mehrheit wählen.</span>
       <button class="action" onclick="finalizeClassRewardRound()">Mehrheit als Gewinner</button>
+      <button class="delete" onclick="deleteClassRewardRound()">Voting-Runde löschen</button>
     `;
   } else if (phase === "active") {
     actions.innerHTML = `
       <button class="action" onclick="completeClassRewardRound()">Challenge abschließen</button>
-      <span class="hint">Schüler:innen sehen die gewählte Belohnung und die XP-Leiste.</span>
+      <span class="hint">Schüler:innen sehen nur die gewählte Belohnung und die XP-Leiste.</span>
+      <button class="delete" onclick="deleteClassRewardRound()">Voting-Runde löschen</button>
+    `;
+  } else if (phase === "completed") {
+    actions.innerHTML = `
+      <button class="delete" onclick="deleteClassRewardRound()">Voting-Runde löschen</button>
     `;
   }
 }
@@ -2020,7 +2033,8 @@ async function completeClassRewardRound() {
   if (!confirm("Challenge abschließen? Die Runde wird als beendet markiert.")) return;
 
   const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}/complete`, {
-    method: "POST"
+    method: "POST",
+    credentials: "same-origin"
   });
   const data = await res.json();
   if (!data.success) {
@@ -2028,6 +2042,24 @@ async function completeClassRewardRound() {
     return;
   }
 
+  await loadAdminClassProgress();
+}
+
+async function deleteClassRewardRound() {
+  if (!currentRoundId) return;
+  if (!confirm("Diese Voting-Runde wirklich löschen? Alle Stimmen und Optionen dieser Runde werden entfernt.")) return;
+
+  const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}`, {
+    method: "DELETE",
+    credentials: "same-origin"
+  });
+  const data = await res.json();
+  if (!data.success) {
+    alert(data.message || "Löschen fehlgeschlagen.");
+    return;
+  }
+
+  currentRoundId = null;
   await loadAdminClassProgress();
 }
 
