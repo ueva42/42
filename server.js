@@ -2160,17 +2160,31 @@ app.post("/api/login", async (req, res) => {
   const user = r.rows[0];
   if (user.password !== password) return res.json({ success: false });
 
-  req.session.user = {
-    id: user.id,
-    role: user.role,
-    class_id: user.class_id,
-    school_id: user.school_id
-  };
+  req.session.regenerate((regErr) => {
+    if (regErr) {
+      console.error("❌ session regenerate:", regErr);
+      return res.status(500).json({ success: false });
+    }
 
-  res.json({
-    success: true,
-    role: user.role,
-    firstLogin: user.role === "student" ? !!user.first_login : false
+    req.session.user = {
+      id: user.id,
+      role: user.role,
+      class_id: user.class_id,
+      school_id: user.school_id
+    };
+
+    req.session.save((saveErr) => {
+      if (saveErr) {
+        console.error("❌ session save:", saveErr);
+        return res.status(500).json({ success: false });
+      }
+
+      res.json({
+        success: true,
+        role: user.role,
+        firstLogin: user.role === "student" ? !!user.first_login : false
+      });
+    });
   });
 });
 

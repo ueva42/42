@@ -2335,6 +2335,7 @@ h2 {
   </div>
 </div>
 
+<script src="/js/auth-fetch.js?v=1"></script>
 <script src="/js/logbuch-constants.js?v=2"></script>
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
@@ -3141,11 +3142,6 @@ window.refreshStatusSection = () => {
 
 window.refreshTodayStatus = window.refreshStatusSection;
 
-loadMe();
-loadMissions();
-loadRewards();
-loadClassProgress();
-
 async function bootStudentApp() {
   try {
     const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
@@ -3153,14 +3149,18 @@ async function bootStudentApp() {
       window.location.href = "/login";
       return;
     }
+
     if (window.StudentRouter) {
       window.StudentRouter.initFromPath();
     }
+
+    await loadMe();
+    loadMissions();
+    loadRewards();
+    loadClassProgress();
   } catch (err) {
     console.error(err);
-    if (window.StudentRouter) {
-      window.StudentRouter.initFromPath();
-    }
+    window.location.href = "/login";
   }
 }
 

@@ -1076,6 +1076,7 @@
   </div>
 </div>
 
+<script src="/js/auth-fetch.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=3"></script>
 <script src="/js/teacher-timetable.js?v=4"></script>
@@ -2249,7 +2250,26 @@ async function fixClassRewardOption(optionId) {
   await loadAdminClassProgress();
 }
 
-initAdminRoute();
+async function bootAdminApp() {
+  try {
+    const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
+    if (!sessionRes.ok) {
+      window.location.href = "/login";
+      return;
+    }
+    const data = await sessionRes.json();
+    if (data.role !== "admin") {
+      window.location.href = "/login";
+      return;
+    }
+    initAdminRoute();
+  } catch (err) {
+    console.error(err);
+    window.location.href = "/login";
+  }
+}
+
+bootAdminApp();
 </script>
 
 </body>
