@@ -1017,7 +1017,7 @@ a { color: inherit; }
 }
 .comp-modal-actions { display: flex; flex-direction: column; gap: 8px; }
 /* Levelplan & Zielsetzung */
-.lc-shell { display: flex; flex-direction: column; gap: 16px; }
+.lc-shell { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .lc-intro { margin: 0; font-size: 13px; opacity: 0.75; line-height: 1.5; }
 .lc-subject-title {
   margin: 0 0 10px;
@@ -1026,7 +1026,7 @@ a { color: inherit; }
   text-transform: uppercase;
   color: #f97316;
 }
-.lc-subject-group { margin-bottom: 12px; }
+.lc-subject-group { margin-bottom: 12px; width: 100%; }
 .lc-topics { display: flex; flex-direction: column; gap: 12px; }
 .lc-topic-card {
   border-radius: 14px;
@@ -1050,12 +1050,14 @@ a { color: inherit; }
   color: #fdba74;
   white-space: nowrap;
 }
-.lc-checks { display: flex; flex-direction: column; gap: 14px; }
+.lc-checks { display: flex; flex-direction: column; gap: 14px; width: 100%; }
 .lc-check-card {
   border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.25);
   background: rgba(15, 23, 42, 0.55);
   padding: 14px;
+  width: 100%;
+  box-sizing: border-box;
 }
 .lc-check-head {
   display: flex;
@@ -1073,10 +1075,10 @@ a { color: inherit; }
   color: #fdba74;
   white-space: nowrap;
 }
-.lc-matrix-wrap { overflow-x: auto; }
+.lc-matrix-wrap { overflow-x: auto; width: 100%; }
 .lc-matrix {
   width: 100%;
-  min-width: 420px;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 12px;
 }
@@ -1088,15 +1090,17 @@ a { color: inherit; }
 .lc-matrix-cell,
 .lc-matrix-tier {
   text-align: center;
+  width: 18%;
 }
 .lc-matrix-corner, .lc-matrix-goal {
   text-align: left;
   vertical-align: top;
   background: rgba(2, 6, 23, 0.6);
+  width: 46%;
 }
-.lc-matrix-goal { font-weight: normal; line-height: 1.35; min-width: 140px; max-width: 280px; }
+.lc-matrix-goal { font-weight: normal; line-height: 1.35; min-width: 0; max-width: none; }
 .lc-matrix-goal-num { opacity: 0.55; margin-right: 4px; flex-shrink: 0; }
-.lc-matrix-goal-text { display: block; text-align: left; }
+.lc-matrix-goal-text { display: block; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
 .lc-matrix-tier {
   font-size: 10px;
   letter-spacing: 0.08em;
