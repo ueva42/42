@@ -100,17 +100,41 @@
     return state.data?.upcomingBySubject?.[state.selectedSubject] || null;
   }
 
+  function parseGradeValue(key) {
+    if (key == null || key === "") return null;
+    const n = Number(String(key).replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function isTargetGradeMet(topic) {
+    const target = parseGradeValue(topic?.targetGrade);
+    const achieved = parseGradeValue(topic?.achievedGrade);
+    if (target == null || achieved == null) return null;
+    return achieved <= target;
+  }
+
+  function splitTopicsForSubject(group) {
+    const topics = group?.topics || [];
+    const upcomingId = upcomingTopicMeta()?.id;
+    const upcoming = upcomingId
+      ? topics.find((t) => t.id === upcomingId) || null
+      : null;
+    const past = topics
+      .filter((t) => !upcoming || t.id !== upcoming.id)
+      .sort((a, b) => {
+        const da = a.checkpointDate || "";
+        const db = b.checkpointDate || "";
+        if (da !== db) return db.localeCompare(da);
+        return (b.sortOrder ?? 0) - (a.sortOrder ?? 0);
+      });
+    return { upcoming, past };
+  }
+
   function visibleGroups() {
     if (!state.selectedSubject) return [];
     const group = (state.data?.grouped || []).find((g) => g.subject === state.selectedSubject);
     if (!group) return [];
-
-    const upcomingId = upcomingTopicMeta()?.id;
-    const topics = upcomingId
-      ? (group.topics || []).filter((t) => t.id === upcomingId)
-      : [];
-
-    return [{ subject: group.subject, topics }];
+    return [group];
   }
 
   function findTopic(topicId) {
@@ -267,6 +291,65 @@
       </div>`;
   }
 
+  function renderArchivedFeedback(topic) {
+    const rows = [
+      ["Grow", topic.grow, "Worin wolltest du besser werden?"],
+      ["Glow", topic.glow, "Was hast du gut gemacht?"],
+      ["Ziel für nächste Klassenarbeit", topic.nextGoal, "Dein Fokus für das nächste Mal"]
+    ].filter(([, value]) => String(value ?? "").trim());
+
+    if (!rows.length) return "";
+
+    return `
+      <div class="zs-feedback zs-feedback-archived">
+        <h5 class="zs-feedback-title">Reflexion</h5>
+        ${rows
+          .map(
+            ([label, value, hint]) => `
+          <div class="zs-archived-reflection">
+            <div class="zs-archived-reflection-label">${escapeHtml(label)}</div>
+            ${hint ? `<div class="zs-archived-reflection-hint">${escapeHtml(hint)}</div>` : ""}
+            <div class="zs-archived-reflection-text">${escapeHtml(value)}</div>
+          </div>`
+          )
+          .join("")}
+      </div>`;
+  }
+
+  function renderGoalResultBadge(topic) {
+    const met = isTargetGradeMet(topic);
+    if (met === null) return "";
+    return met
+      ? `<span class="zs-goal-badge zs-goal-badge-met">Ziel erreicht ✓</span>`
+      : `<span class="zs-goal-badge zs-goal-badge-missed">Ziel verfehlt</span>`;
+  }
+
+  function renderArchivedTopicCard(topic) {
+    const datePart = topic.checkpointDateLabel
+      ? escapeHtml(topic.checkpointDateLabel)
+      : "ohne Termin";
+    const typePart = topic.checkpointTypeLabel
+      ? `${escapeHtml(topic.checkpointTypeLabel)} · `
+      : "";
+
+    return `
+      <article class="zs-topic-card zs-topic-card-archived" data-topic-id="${escapeHtml(topic.id)}">
+        <div class="zs-topic-head">
+          <div>
+            <span class="zs-archived-badge">Vergangen</span>
+            <h4 class="zs-topic-title">${escapeHtml(topic.name)}</h4>
+            <p class="zs-topic-meta">${typePart}${datePart} · ${topic.totalGoals} Unterthemen</p>
+          </div>
+          <div class="zs-archived-grades">
+            <div><span class="zs-archived-grade-label">Zielnote</span> ${escapeHtml(topic.targetGradeLabel || "–")}</div>
+            <div><span class="zs-archived-grade-label">Erreicht</span> ${escapeHtml(topic.achievedGradeLabel || "–")}</div>
+            ${renderGoalResultBadge(topic)}
+          </div>
+        </div>
+        ${renderArchivedFeedback(topic)}
+      </article>`;
+  }
+
   function renderTopicCard(topic) {
     const saving = state.saving === topic.id;
     const targetSelected = topic.targetGrade != null ? String(topic.targetGrade) : "";
@@ -361,7 +444,7 @@
       return `
         <div class="lc-empty">
           <p>Bitte wähle zuerst ein Fach.</p>
-          <p class="lc-empty-hint">Danach erscheint die anstehende Klassenarbeit für deine Zielsetzung.</p>
+          <p class="lc-empty-hint">Danach siehst du die anstehende Klassenarbeit und darunter vergangene Arbeiten.</p>
         </div>`;
     }
 
@@ -374,8 +457,8 @@
         </div>`;
     }
 
-    const topics = groups[0]?.topics || [];
-    if (!topics.length) {
+    const group = groups[0];
+    if (!group) {
       return `
         <div class="lc-empty">
           <p>Für ${escapeHtml(state.selectedSubject)} gibt es noch kein Klassenarbeit-Thema.</p>
@@ -383,16 +466,32 @@
         </div>`;
     }
 
-    return groups
-      .map(
-        (group) => `
-        <section class="lc-subject-group">
+    const { upcoming, past } = splitTopicsForSubject(group);
+    if (!upcoming && !past.length) {
+      return `
+        <div class="lc-empty">
+          <p>Für ${escapeHtml(state.selectedSubject)} gibt es noch kein Klassenarbeit-Thema.</p>
+          <p class="lc-empty-hint">Deine Lehrkraft legt Themen im Levelstatus an – Termine im Checkpoint-Plan.</p>
+        </div>`;
+    }
+
+    const upcomingHtml = upcoming
+      ? `<section class="zs-section zs-section-upcoming">
+          <h3 class="zs-section-title">Anstehende Klassenarbeit</h3>
+          ${renderTopicCard(upcoming)}
+        </section>`
+      : "";
+
+    const pastHtml = past.length
+      ? `<section class="zs-section zs-section-past">
+          <h3 class="zs-section-title">Vergangene Arbeiten</h3>
           <div class="zs-topics">
-            ${(group.topics || []).map(renderTopicCard).join("")}
+            ${past.map(renderArchivedTopicCard).join("")}
           </div>
         </section>`
-      )
-      .join("");
+      : "";
+
+    return `${upcomingHtml}${pastHtml}`;
   }
 
   function render() {
@@ -416,8 +515,9 @@
     root.innerHTML = `
       <div class="lc-shell zs-shell">
         <p class="lc-intro">
-          <strong>Zielsetzung:</strong> Wähle dein Fach – dann erscheint die anstehende Klassenarbeit.
-          Setze deine Zielnote, trage die erreichte Note ein und reflektiere mit Grow, Glow und deinem nächsten Ziel.
+          <strong>Zielsetzung:</strong> Wähle dein Fach – oben siehst du die anstehende Klassenarbeit,
+          darunter bleiben vergangene Arbeiten mit Grow, Glow und Zielnote stehen.
+          So kannst du nachvollziehen, was du erreicht hast und woran du als Nächstes arbeitest.
         </p>
         ${renderSubjectToolbar()}
         ${renderUpcomingBanner()}

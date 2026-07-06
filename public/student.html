@@ -1344,6 +1344,87 @@ a { color: inherit; }
   background: rgba(15, 23, 42, 0.45);
   opacity: 0.85;
 }
+.zs-section { margin-bottom: 20px; }
+.zs-section-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fdba74;
+  opacity: 0.9;
+}
+.zs-section-past .zs-section-title { color: #94a3b8; }
+.zs-topic-card-archived {
+  opacity: 0.92;
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.42);
+}
+.zs-archived-badge {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+.zs-archived-grades {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 12px;
+  text-align: right;
+}
+.zs-archived-grade-label {
+  opacity: 0.65;
+  margin-right: 4px;
+}
+.zs-goal-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.zs-goal-badge-met {
+  color: #86efac;
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  background: rgba(34, 197, 94, 0.12);
+}
+.zs-goal-badge-missed {
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+}
+.zs-feedback-archived { margin-top: 12px; }
+.zs-archived-reflection {
+  padding: 10px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+.zs-archived-reflection:first-of-type { border-top: none; padding-top: 0; }
+.zs-archived-reflection-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fde68a;
+}
+.zs-archived-reflection-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.55;
+}
+.zs-archived-reflection-text {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
 
 .cp-shell .cp-toolbar { margin: 0 0 16px; }
 .cp-subject-select {
@@ -2359,7 +2440,7 @@ h2 {
 <script src="/js/logbuch-today.js?v=8"></script>
 <script src="/js/logbuch-week.js"></script>
 <script src="/js/logbuch-levelplan.js?v=9"></script>
-<script src="/js/logbuch-zielsetzung.js?v=8"></script>
+<script src="/js/logbuch-zielsetzung.js?v=9"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=2"></script>
 <script src="/js/logbuch-screens.js"></script>
 

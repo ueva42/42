@@ -328,6 +328,12 @@ function buildTopicTargetProgress(check, targetsRow = null) {
     subject: check.subject,
     name: check.name,
     checkpointDate: normalizeIsoDate(check.checkpointDate),
+    checkpointDateLabel: formatGermanDate(check.checkpointDate),
+    checkpointTypeLabel: resolveCheckpointTypeLabel(
+      check.checkpointType,
+      check.checkpointTypeLabel
+    ),
+    sortOrder: check.sortOrder ?? 0,
     totalGoals,
     unmarked: markCounts.unmarked,
     targetGrade: targetKey,
