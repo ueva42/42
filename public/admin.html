@@ -550,6 +550,17 @@
     .td-slot-subject { display:block; font-family:"Orbitron",system-ui; font-size:12px; margin:4px 0; }
     .td-slot-time { display:block; font-size:10px; opacity:0.55; }
     .td-timetable-empty, .td-empty, .td-loading, .td-error { font-size:13px; opacity:0.7; }
+    .td-retry-btn {
+      display: block;
+      margin-top: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      background: rgba(15, 23, 42, 0.8);
+      color: #e5e7eb;
+      cursor: pointer;
+      font-size: 12px;
+    }
     .td-table-wrap { overflow-x:auto; margin-top:8px; }
     .td-table { width:100%; border-collapse:collapse; font-size:13px; min-width:760px; }
     .td-table th, .td-table td { border-bottom:1px solid rgba(148,163,184,0.2); padding:10px 8px; text-align:left; vertical-align:top; }
@@ -1076,9 +1087,9 @@
   </div>
 </div>
 
-<script src="/js/auth-fetch.js?v=1"></script>
+<script src="/js/auth-fetch.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/teacher-dashboard.js?v=3"></script>
+<script src="/js/teacher-dashboard.js?v=4"></script>
 <script src="/js/teacher-timetable.js?v=4"></script>
 <script src="/js/teacher-lesson-goals.js?v=1"></script>
 <script src="/js/teacher-week.js"></script>
@@ -2250,15 +2261,47 @@ async function fixClassRewardOption(optionId) {
   await loadAdminClassProgress();
 }
 
+async function ensureAdminSessionReady() {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const sessionRes = await fetch("/api/auth/session", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      if (!sessionRes.ok) {
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        continue;
+      }
+
+      const data = await sessionRes.json();
+      if (data.role !== "admin") return false;
+      if (data.ready === false) {
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        continue;
+      }
+
+      const warm = await fetch("/api/class", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      if (!warm.ok) {
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        continue;
+      }
+      const classes = await warm.json();
+      if (Array.isArray(classes)) return true;
+    } catch (err) {
+      console.error("ensureAdminSessionReady", err);
+    }
+    await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+  }
+  return false;
+}
+
 async function bootAdminApp() {
   try {
-    const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
-    if (!sessionRes.ok) {
-      window.location.href = "/login";
-      return;
-    }
-    const data = await sessionRes.json();
-    if (data.role !== "admin") {
+    const ready = await ensureAdminSessionReady();
+    if (!ready) {
       window.location.href = "/login";
       return;
     }

@@ -1,4 +1,4 @@
-const CACHE_VERSION = "sol-logbuch-v2";
+const CACHE_VERSION = "sol-logbuch-v3";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -63,7 +63,25 @@ function staleWhileRevalidate(request, cacheName, maxItems = 80) {
   });
 }
 
+function isPrivateAppPath(pathname) {
+  return (
+    pathname.startsWith("/teacher/") ||
+    pathname.startsWith("/student/") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/superadmin")
+  );
+}
+
+function networkOnlyPage(request) {
+  return fetch(request);
+}
+
 function networkFirstPage(request) {
+  const pathname = new URL(request.url).pathname;
+  if (isPrivateAppPath(pathname)) {
+    return networkOnlyPage(request);
+  }
+
   return fetch(request)
     .then((response) => {
       if (response && response.ok) {
@@ -106,6 +124,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
+    const pathname = url.pathname;
+    if (isPrivateAppPath(pathname)) {
+      event.respondWith(networkOnlyPage(request));
+      return;
+    }
     event.respondWith(networkFirstPage(request));
     return;
   }

@@ -15,7 +15,7 @@
   let initGeneration = 0;
   let loadRequestId = 0;
 
-  async function fetchJson(url, options = {}, retries = 1) {
+  async function fetchJson(url, options = {}, retries = 3) {
     let lastErr = null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -347,28 +347,45 @@
     const root = document.getElementById("dashboardTabRoot");
     if (root) root.innerHTML = `<div class="td-loading">Lade Klassenübersicht…</div>`;
 
-    try {
-      const classes = await fetchJson("/api/class");
-      if (generation !== initGeneration) return;
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const classes = await fetchJson("/api/class");
+        if (generation !== initGeneration) return;
 
-      if (!Array.isArray(classes) || !classes.length) {
-        state.loading = false;
-        if (root) {
-          root.innerHTML = `<div class="td-empty">Bitte zuerst eine Klasse anlegen.</div>`;
+        if (!Array.isArray(classes) || !classes.length) {
+          state.loading = false;
+          if (root) {
+            root.innerHTML = `<div class="td-empty">Bitte zuerst eine Klasse anlegen.</div>`;
+          }
+          return;
         }
-        return;
-      }
 
-      window.__tdClasses = classes;
-      state.classId = state.classId || classes[0].id;
-      await loadDashboard(null, generation);
-    } catch (err) {
-      console.error(err);
-      if (generation !== initGeneration) return;
-      state.loading = false;
-      state.data = null;
-      if (root) root.innerHTML = `<div class="td-error">Fehler beim Laden.</div>`;
+        window.__tdClasses = classes;
+        state.classId = state.classId || classes[0].id;
+        await loadDashboard(null, generation);
+        return;
+      } catch (err) {
+        lastErr = err;
+        console.error(err);
+        if (generation !== initGeneration) return;
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 450 * (attempt + 1)));
+        }
+      }
     }
+
+    state.loading = false;
+    state.data = null;
+    if (root) {
+      root.innerHTML = `
+        <div class="td-error">
+          Fehler beim Laden.
+          <button type="button" class="td-retry-btn" id="tdRetryBtn">Erneut laden</button>
+        </div>`;
+      root.querySelector("#tdRetryBtn")?.addEventListener("click", () => init());
+    }
+    if (lastErr) console.error(lastErr);
   }
 
   function init() {

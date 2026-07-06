@@ -6,7 +6,7 @@
   window.__authFetchInstalled = true;
 
   const nativeFetch = window.fetch.bind(window);
-  const RETRY_MS = [250, 600];
+  const RETRY_MS = [200, 500, 1000, 2000];
 
   function resolvePath(input) {
     const raw =
@@ -28,7 +28,11 @@
       return nativeFetch(input, init);
     }
 
-    const mergedInit = { credentials: "same-origin", ...init };
+    const mergedInit = {
+      credentials: "same-origin",
+      cache: "no-store",
+      ...init
+    };
 
     for (let attempt = 0; attempt <= RETRY_MS.length; attempt++) {
       const res = await nativeFetch(input, mergedInit);

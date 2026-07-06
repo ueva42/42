@@ -993,9 +993,53 @@ app.use(
       sameSite: "lax",
       httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 14
-    }
+    },
+    rolling: true
   })
 );
+
+async function refreshSessionUserFromDb(req) {
+  const user = req.session?.user;
+  if (!user?.id) return null;
+
+  const r = await pool.query(
+    `
+    SELECT id, role, class_id, school_id
+    FROM users
+    WHERE id = $1
+    LIMIT 1
+  `,
+    [user.id]
+  );
+  if (!r.rows.length) return null;
+
+  const row = r.rows[0];
+  req.session.user = {
+    id: row.id,
+    role: row.role,
+    class_id: row.class_id,
+    school_id: row.school_id
+  };
+  return req.session.user;
+}
+
+function saveSession(req) {
+  return new Promise((resolve, reject) => {
+    req.session.save((err) => (err ? reject(err) : resolve()));
+  });
+}
+
+app.use(async (req, _res, next) => {
+  try {
+    const user = req.session?.user;
+    if (user?.id && (user.school_id == null || !user.role)) {
+      await refreshSessionUserFromDb(req);
+    }
+  } catch (err) {
+    console.error("❌ refreshSessionUser middleware:", err);
+  }
+  next();
+});
 
 // Static-Files
 app.use(
@@ -2192,16 +2236,28 @@ app.post("/api/logout", (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
 });
 
-app.get("/api/auth/session", (req, res) => {
-  const user = req.session?.user;
-  if (!user) {
-    return res.status(401).json({ authenticated: false });
+app.get("/api/auth/session", async (req, res) => {
+  try {
+    const user = req.session?.user;
+    if (!user?.id) {
+      return res.status(401).json({ authenticated: false });
+    }
+
+    await refreshSessionUserFromDb(req);
+    await saveSession(req);
+
+    const current = req.session.user;
+    res.json({
+      authenticated: true,
+      role: current.role,
+      id: current.id,
+      schoolId: current.school_id ?? null,
+      ready: current.role === "admin" ? current.school_id != null : true
+    });
+  } catch (err) {
+    console.error("❌ /api/auth/session:", err);
+    res.status(500).json({ authenticated: false });
   }
-  res.json({
-    authenticated: true,
-    role: user.role,
-    id: user.id
-  });
 });
 // -------------------------------------------------------
 // ADMIN – eigenes Passwort ändern
