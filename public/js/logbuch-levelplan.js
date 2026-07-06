@@ -190,7 +190,6 @@
         <p class="lc-intro">
           Dein <strong>Levelplan</strong>: Hake pro Unterthema ab, was du geschafft hast –
           Rookie, Operator und Street Legend getrennt. Alle drei Häkchen = alles erledigt.
-          Pro Häkchen gibt es einmalig XP.
           Zahlen in der Kopfzeile = dein Stand / Ziel aus der Zielsetzung.
         </p>
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
@@ -230,9 +229,6 @@
 
       if (data.cleared) {
         state.message = "Markierung entfernt.";
-      } else if (data.xpAwarded > 0) {
-        state.message = `${data.tierLabel} markiert – +${data.xpAwarded} XP!`;
-        if (typeof window.loadMe === "function") await window.loadMe();
       } else if (data.tierLabel) {
         state.message = `${data.tierLabel} markiert.`;
       }

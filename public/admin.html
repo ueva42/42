@@ -1741,10 +1741,11 @@ async function changeAdminPassword() {
 let uploadedClassRewardImageUrl = null;
 let classRewardsCache = [];
 let currentRoundId = null;
+let currentRoundStatus = null;
 
 async function loadClassProgressInit() {
   // Klassen laden
-  const r = await fetch("/api/class");
+  const r = await fetch("/api/class", { credentials: "same-origin" });
   const classes = await r.json();
 
   const sel = document.getElementById("progressClassSelect");
@@ -1798,9 +1799,29 @@ function renderClassProgressInfo(data) {
 
   const totalXp = data.total_xp ?? 0;
 
+  // Abgeschlossene Runde: keine aktive Voting-Runde, aber löschbar
+  if (data.round && data.round.status === "completed") {
+    currentRoundId = data.round.id;
+    currentRoundStatus = "completed";
+    if (deleteBtn) {
+      deleteBtn.style.display = "inline-block";
+      deleteBtn.textContent = "Challenge löschen";
+    }
+    renderClassProgressActions("completed", data.round, (data.options || []).length);
+    info.innerHTML = `
+      <div style="font-size:13px;line-height:1.6;">
+        <b>Gesamt-XP der Klasse:</b> ${totalXp}<br>
+        <span style="opacity:0.85;">Es ist momentan <b>keine Voting-Runde</b> aktiv. Die letzte Challenge („${data.round.title || "ohne Titel"}") ist abgeschlossen.</span><br>
+        <span class="hint" style="display:block;margin-top:6px;">Du kannst unten eine neue Voting-Runde starten oder die abgeschlossene Runde löschen.</span>
+      </div>
+    `;
+    return;
+  }
+
   // Wenn keine Voting-Runde existiert
   if (!data.round) {
     currentRoundId = null;
+    currentRoundStatus = null;
     if (deleteBtn) deleteBtn.style.display = "none";
     const actions = document.getElementById("classProgressActions");
     if (actions) {
@@ -1818,13 +1839,18 @@ function renderClassProgressInfo(data) {
 
   const round = data.round;
   currentRoundId = round.id;
-  if (deleteBtn) deleteBtn.style.display = "inline-block";
+  const status = round.status || "voting";
+  currentRoundStatus = status;
+  if (deleteBtn) {
+    deleteBtn.style.display = "inline-block";
+    deleteBtn.textContent =
+      status === "active" || status === "completed" ? "Challenge löschen" : "Voting abbrechen";
+  }
+  const phaseLabel = round.phase || status;
 
   const target = round.target_xp || 0;
   const current = totalXp;
   const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
-  const status = round.status || "voting";
-  const phaseLabel = round.phase || status;
 
   const options = data.options || [];
   renderClassProgressActions(status, round, options.length);
@@ -1901,7 +1927,11 @@ function renderClassProgressActions(status, round, optionCount) {
   if (!actions) return;
   actions.className = "cp-action-bar";
 
-  const abortBtn = `<button type="button" class="delete" onclick="abortClassRewardRound()">Voting abbrechen</button>`;
+  const abortLabel =
+    status === "active" || status === "completed"
+      ? "Challenge löschen"
+      : "Voting abbrechen";
+  const abortBtn = `<button type="button" class="delete" onclick="abortClassRewardRound()">${abortLabel}</button>`;
 
   if (status === "voting" && !round.fixed_option_id) {
     actions.innerHTML = `
@@ -1923,9 +1953,9 @@ function renderClassProgressActions(status, round, optionCount) {
 
   if (status === "active") {
     actions.innerHTML = `
-      <button type="button" class="action" onclick="completeClassRewardRound()">Challenge abschließen</button>
+      <button type="button" class="action" onclick="completeClassRewardRound()">Challenge stoppen</button>
       ${abortBtn}
-      <span class="hint">Schüler:innen sehen die gewählte Belohnung und XP-Fortschritt.</span>
+      <span class="hint">Stoppen = Challenge endet, verschwindet bei Schüler:innen. Löschen = Runde komplett entfernen.</span>
     `;
     return;
   }
@@ -2029,11 +2059,24 @@ async function startClassRewardRound() {
   const res = await fetch("/api/admin/class-reward-round", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
+    credentials: "same-origin",
     body: JSON.stringify({ classId, title, targetXp })
   });
-  const data = await res.json();
-  if (!data.success) {
-    alert(data.message || "Runde konnte nicht gestartet werden.");
+
+  let data = {};
+  try {
+    data = await res.json();
+  } catch (_err) {
+    data = {};
+  }
+
+  if (res.status === 403) {
+    alert("Sitzung abgelaufen – bitte neu einloggen.");
+    return;
+  }
+
+  if (!res.ok || !data.success) {
+    alert(data.message || data.error || "Runde konnte nicht gestartet werden.");
     return;
   }
 
@@ -2083,8 +2126,11 @@ async function finalizeClassRewardRound() {
 }
 
 async function completeClassRewardRound() {
-  if (!currentRoundId) return;
-  if (!confirm("Challenge abschließen? Die Runde wird als beendet markiert.")) return;
+  if (!currentRoundId) {
+    alert("Keine Runde ausgewählt.");
+    return;
+  }
+  if (!confirm("Challenge stoppen? Sie verschwindet bei Schüler:innen in „Mein Tag“.")) return;
 
   const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}/complete`, {
     method: "POST",
@@ -2092,31 +2138,41 @@ async function completeClassRewardRound() {
   });
   const data = await res.json();
   if (!data.success) {
-    alert(data.message || "Abschließen fehlgeschlagen.");
+    alert(data.message || "Stoppen fehlgeschlagen.");
     return;
   }
 
+  alert("Challenge gestoppt.");
   await loadAdminClassProgress();
 }
 
 async function abortClassRewardRound() {
-  if (!currentRoundId) return;
-  if (!confirm("Voting wirklich abbrechen? Es gibt kein Ergebnis – Schüler:innen sehen die Klassen-Belohnung nicht mehr.")) return;
+  if (!currentRoundId) {
+    alert("Keine Runde ausgewählt.");
+    return;
+  }
+
+  const isActiveChallenge =
+    currentRoundStatus === "active" || currentRoundStatus === "completed";
+  const msg = isActiveChallenge
+    ? "Challenge wirklich löschen? Schüler:innen sehen sie danach nicht mehr."
+    : "Voting wirklich abbrechen? Es gibt kein Ergebnis – Schüler:innen sehen die Klassen-Belohnung nicht mehr.";
+  if (!confirm(msg)) return;
 
   const encodedId = encodeURIComponent(currentRoundId);
-  let res = await fetch(`/api/admin/class-reward-round/${encodedId}`, {
-    method: "DELETE",
+  let res = await fetch(`/api/admin/class-reward-round/${encodedId}/abort`, {
+    method: "POST",
     credentials: "same-origin"
   });
-  if (res.status === 404 || res.status === 405) {
+  if (!res.ok) {
     res = await fetch(`/api/admin/class-reward-round/${encodedId}/delete`, {
       method: "POST",
       credentials: "same-origin"
     });
   }
-  if (res.status === 404 || res.status === 405) {
-    res = await fetch(`/api/admin/class-reward-round/${encodedId}/abort`, {
-      method: "POST",
+  if (!res.ok) {
+    res = await fetch(`/api/admin/class-reward-round/${encodedId}`, {
+      method: "DELETE",
       credentials: "same-origin"
     });
   }
@@ -2129,12 +2185,13 @@ async function abortClassRewardRound() {
   }
 
   if (!res.ok || !data.success) {
-    alert(data.message || "Abbrechen fehlgeschlagen.");
+    alert(data.message || "Löschen fehlgeschlagen.");
     return;
   }
 
   currentRoundId = null;
-  alert("Voting abgebrochen.");
+  currentRoundStatus = null;
+  alert(isActiveChallenge ? "Challenge gelöscht." : "Voting abgebrochen.");
   await loadAdminClassProgress();
 }
 
@@ -2180,6 +2237,7 @@ async function fixClassRewardOption(optionId) {
   const res = await fetch(`/api/admin/class-reward-round/${currentRoundId}/fix`, {
     method: "POST",
     headers: {"Content-Type":"application/json"},
+    credentials: "same-origin",
     body: JSON.stringify({ optionId })
   });
   const data = await res.json();
