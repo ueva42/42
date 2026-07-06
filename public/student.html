@@ -393,6 +393,8 @@ a { color: inherit; }
 ============================================ */
 .logbuch-root {
   margin-top: 8px;
+  width: 100%;
+  min-width: 0;
 }
 
 /* Formular – Dropdowns im Card-Stil, 2 Spalten ab Tablet */
@@ -1075,28 +1077,35 @@ a { color: inherit; }
   color: #fdba74;
   white-space: nowrap;
 }
-.lc-matrix-wrap { overflow-x: auto; width: 100%; }
+.lc-matrix-wrap {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  max-width: 100%;
+}
 .lc-matrix {
   width: 100%;
+  min-width: 100%;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 12px;
 }
+.lc-matrix col.lc-matrix-col-goal { width: 46%; }
+.lc-matrix col.lc-matrix-col-tier { width: 18%; }
 .lc-matrix th, .lc-matrix td {
   border: 1px solid rgba(148, 163, 184, 0.2);
   padding: 8px;
   vertical-align: middle;
+  overflow: hidden;
 }
 .lc-matrix-cell,
 .lc-matrix-tier {
   text-align: center;
-  width: 18%;
 }
 .lc-matrix-corner, .lc-matrix-goal {
   text-align: left;
   vertical-align: top;
   background: rgba(2, 6, 23, 0.6);
-  width: 46%;
 }
 .lc-matrix-goal { font-weight: normal; line-height: 1.35; min-width: 0; max-width: none; }
 .lc-matrix-goal-num { opacity: 0.55; margin-right: 4px; flex-shrink: 0; }
@@ -2349,7 +2358,7 @@ h2 {
 <script src="/js/logbuch-reflect.js"></script>
 <script src="/js/logbuch-today.js?v=8"></script>
 <script src="/js/logbuch-week.js"></script>
-<script src="/js/logbuch-levelplan.js?v=8"></script>
+<script src="/js/logbuch-levelplan.js?v=9"></script>
 <script src="/js/logbuch-zielsetzung.js?v=8"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=2"></script>
 <script src="/js/logbuch-screens.js"></script>

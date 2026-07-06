@@ -110,6 +110,12 @@
     return `
       <div class="lc-matrix-wrap">
         <table class="lc-matrix">
+          <colgroup>
+            <col class="lc-matrix-col-goal" />
+            <col class="lc-matrix-col-tier" />
+            <col class="lc-matrix-col-tier" />
+            <col class="lc-matrix-col-tier" />
+          </colgroup>
           <thead>
             <tr>
               <th class="lc-matrix-corner">Unterthema</th>
