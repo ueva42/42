@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Stundenziele pro Fach (Tagesziel / Plan).
+ * Lehrkraft – Wie-Ziele pro Fach (Tagesziel / Plan).
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -68,7 +68,7 @@
     if (!defaults.length) return "";
     return `
       <div class="slg-defaults">
-        <p class="tc-hint">Noch keine eigenen Ziele – Schüler:innen sehen die Standardliste:</p>
+        <p class="tc-hint">Noch keine eigenen Wie-Ziele – Schüler:innen sehen die Standardliste:</p>
         <ul class="slg-default-list">
           ${defaults.map((g) => `<li>${escapeHtml(g)}</li>`).join("")}
         </ul>
@@ -86,7 +86,7 @@
       <ol class="tc-goal-list">
         ${goals.map(renderGoalRow).join("")}
       </ol>
-      <p class="tc-hint">Schüler:innen sehen beim Tagesziel setzen nur diese Ziele für ${escapeHtml(state.subject)}.</p>`;
+      <p class="tc-hint">Schüler:innen sehen beim Tagesziel setzen nur diese Wie-Ziele für ${escapeHtml(state.subject)}.</p>`;
   }
 
   function render() {
@@ -94,19 +94,19 @@
     if (!root) return;
 
     if (state.loading && !state.data) {
-      root.innerHTML = `<div class="tc-loading">Lade Stundenziele…</div>`;
+      root.innerHTML = `<div class="tc-loading">Lade Wie-Ziele…</div>`;
       return;
     }
 
     if (!state.data) {
-      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Stundenziele konnten nicht geladen werden.")}</div>`;
+      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Wie-Ziele konnten nicht geladen werden.")}</div>`;
       return;
     }
 
     root.innerHTML = `
       <div class="panel">
-        <h2>Stundenziele pro Fach</h2>
-        <p class="hint">Lege pro Fach eigene Stundenziele an. Beim Tagesziel setzen sehen Schüler:innen nur die Ziele des gewählten Fachs. Ohne eigene Ziele gelten die Standardziele.</p>
+        <h2>Wie-Ziele pro Fach</h2>
+        <p class="hint">Lege pro Fach eigene Wie-Ziele an (Wie arbeite ich daran?). Beim Tagesziel setzen sehen Schüler:innen nur die Ziele des gewählten Fachs. Ohne eigene Ziele gelten die Standardziele.</p>
 
         <div class="tc-toolbar">
           <label>Fach:
@@ -129,7 +129,7 @@
 
         <form class="tc-goal-add-form slg-add-form" id="slgAddGoalForm">
           <input type="text" class="tc-goal-input" id="slgGoalInput" maxlength="300"
-            placeholder="Neues Stundenziel für ${escapeHtml(state.subject)}" required>
+            placeholder="Neues Wie-Ziel für ${escapeHtml(state.subject)}" required>
           <button type="submit" class="action" id="slgAddGoalBtn" ${state.saving ? "disabled" : ""}>
             ${state.saving ? "Speichern…" : "Ziel hinzufügen"}
           </button>
@@ -218,7 +218,7 @@
         return;
       }
 
-      state.message = "Stundenziel hinzugefügt.";
+      state.message = "Wie-Ziel hinzugefügt.";
       await loadData();
     } catch (err) {
       console.error(err);
@@ -230,7 +230,7 @@
 
   async function seedDefaults() {
     if (!state.subject) return;
-    if (!confirm(`Standardziele für ${state.subject} übernehmen?`)) return;
+    if (!confirm(`Standard-Wie-Ziele für ${state.subject} übernehmen?`)) return;
 
     state.saving = true;
     state.error = "";
@@ -263,7 +263,7 @@
   }
 
   async function deleteGoal(goalId) {
-    if (!confirm("Dieses Stundenziel wirklich löschen?")) return;
+    if (!confirm("Dieses Wie-Ziel wirklich löschen?")) return;
 
     try {
       const res = await fetch(
@@ -278,7 +278,7 @@
         return;
       }
 
-      state.message = "Stundenziel gelöscht.";
+      state.message = "Wie-Ziel gelöscht.";
       state.error = "";
       await loadData();
     } catch (err) {

@@ -685,7 +685,7 @@ function lessonGoalsForSubject(customGoalsBySubject, subject) {
   if (Array.isArray(custom) && custom.length) {
     return custom.map((g) => g.text);
   }
-  return LOG_GOALS;
+  return LOG_HOW_GOALS;
 }
 
 async function getLessonGoalsForSubject(schoolId, subject) {
@@ -693,7 +693,7 @@ async function getLessonGoalsForSubject(schoolId, subject) {
   if (custom.length) {
     return custom.map((g) => g.text);
   }
-  return LOG_GOALS;
+  return LOG_HOW_GOALS;
 }
 
 function isAllowedLessonGoal(goal, allowedGoals) {
@@ -860,8 +860,10 @@ function buildPlanSentence(whatGoalText, howGoalText) {
   return `Heute übe ich ${what}, indem ich ${how}.`;
 }
 
-function isAllowedHowGoal(goal) {
-  return !!goal && LOG_HOW_GOALS.includes(goal);
+function isAllowedHowGoal(goal, allowedGoals) {
+  if (!goal) return false;
+  if (Array.isArray(allowedGoals) && allowedGoals.includes(goal)) return true;
+  return LOG_HOW_GOALS.includes(goal);
 }
 
 function pickUpcomingLevelCheck(checks, subject = null) {
@@ -2711,6 +2713,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     }
 
     const socialUnlock = await getSocialFormUnlock(studentId, schoolId);
+    const customLessonGoals = await fetchCustomSubjectLessonGoals(schoolId);
     const activeSubject = lockedSubject
       ? lockedSubject
       : subjectQuery && LOG_SUBJECTS.includes(subjectQuery)
@@ -2726,6 +2729,10 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       whatGoalOptions = picked.options;
     }
 
+    const howGoals = activeSubject
+      ? lessonGoalsForSubject(customLessonGoals, activeSubject)
+      : LOG_HOW_GOALS;
+
     res.json({
       date,
       weekday,
@@ -2736,7 +2743,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       socialUnlock,
       existingEntry,
       hasClass: !!classId,
-      howGoals: LOG_HOW_GOALS,
+      howGoals,
       nextCheckpoint: nextCheckpoint
         ? {
             id: nextCheckpoint.id,
@@ -2807,14 +2814,16 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     }
 
     const normalizedHowGoal = String(howGoalText || goal || "").trim();
-    if (!isAllowedHowGoal(normalizedHowGoal)) {
+    const { classId, schoolId: classSchoolId } = await getStudentClassContext(studentId);
+    const effectiveSchoolId = classSchoolId || schoolId;
+    const allowedHowGoals = await getLessonGoalsForSubject(effectiveSchoolId, subject);
+    if (!isAllowedHowGoal(normalizedHowGoal, allowedHowGoals)) {
       return res.json({
         success: false,
         message: "Bitte ein gültiges Wie-Ziel wählen."
       });
     }
 
-    const { classId, schoolId: classSchoolId } = await getStudentClassContext(studentId);
     let validWhatGoalOptions = [];
     let nextCheckpoint = null;
     if (classId) {
@@ -4783,7 +4792,7 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// TEACHER: Stundenziele pro Fach
+// TEACHER: Wie-Ziele pro Fach
 // -------------------------------------------------------
 app.get("/api/teacher/subject-lesson-goals", isAdmin, async (req, res) => {
   try {
@@ -4792,7 +4801,7 @@ app.get("/api/teacher/subject-lesson-goals", isAdmin, async (req, res) => {
 
     res.json({
       subjects: LOG_SUBJECTS,
-      defaultGoals: LOG_GOALS,
+      defaultGoals: LOG_HOW_GOALS,
       goalsBySubject
     });
   } catch (err) {
@@ -4870,14 +4879,14 @@ app.post("/api/teacher/subject-lesson-goals/seed-defaults", isAdmin, async (req,
     }
 
     const goals = [];
-    for (let i = 0; i < LOG_GOALS.length; i++) {
+    for (let i = 0; i < LOG_HOW_GOALS.length; i++) {
       const ins = await pool.query(
         `
         INSERT INTO subject_lesson_goals (school_id, subject, goal_text, sort_order)
         VALUES ($1, $2, $3, $4)
         RETURNING id, goal_text, sort_order
       `,
-        [schoolId, subject, LOG_GOALS[i], i + 1]
+        [schoolId, subject, LOG_HOW_GOALS[i], i + 1]
       );
       const row = ins.rows[0];
       goals.push({
