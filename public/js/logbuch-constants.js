@@ -23,14 +23,16 @@ window.LOGBUCH = {
     "Religion/Ethik"
   ],
   GOALS: [
-    "Neues Thema verstehen",
-    "Verfahren erklären können",
-    "Einfache Aufgaben lösen",
-    "Aufgaben selbständig lösen",
-    "Schwierigere Aufgaben lösen",
-    "Fehler verbessern",
-    "Thema wiederholen",
-    "Test/Levelcheck vorbereiten"
+    "Ich starte mit Rookie-Aufgaben.",
+    "Ich löse erst Aufgaben mit Hilfe und danach alleine.",
+    "Ich bearbeite Operator-Aufgaben und bleibe dran.",
+    "Ich versuche eine Street-Legend-Aufgabe.",
+    "Ich vergleiche meinen Rechenweg mit der Musterlösung.",
+    "Ich suche gezielt meine Fehler.",
+    "Ich erkläre am Ende eine Aufgabe jemandem.",
+    "Ich arbeite ein Lernvideo durch und schreibe das Wichtigste heraus.",
+    "Ich wiederhole ein Thema gezielt.",
+    "Ich bereite mich auf den nächsten Levelcheck vor."
   ],
   WORK_GOALS: [
     "Konzentriert arbeiten",

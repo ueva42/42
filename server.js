@@ -113,9 +113,12 @@ const LEGACY_TARGET_GRADE_MAP = {
 const CHECKPOINT_TYPES = {
   klassenarbeit: "Klassenarbeit",
   test: "Test",
+  levelcheck: "Levelcheck",
   praesentation: "Präsentation",
   custom: "Eigene Angabe"
 };
+
+const PLAN_CHECKPOINT_TYPES = new Set(["klassenarbeit", "test", "levelcheck"]);
 
 const CHECKPOINT_TYPE_OPTIONS = Object.entries(CHECKPOINT_TYPES).map(([value, label]) => ({
   value,
@@ -584,7 +587,9 @@ async function fetchTimetableForClassDay(classId, weekday) {
 
 const PLAN_ENTRY_FIELDS = `
   id, subject, goal, timeslot, work_goals, social_form,
-  strategy, confidence_before, freitext, created_at
+  strategy, confidence_before, freitext, created_at,
+  checkpoint_id, checkpoint_title,
+  what_goal_id, what_goal_text, how_goal_text, details_text
 `;
 
 async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId }) {
@@ -623,16 +628,19 @@ async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId })
   return flexible.rows[0] || null;
 }
 
-const LOG_GOALS = [
-  "Neues Thema verstehen",
-  "Verfahren erklären können",
-  "Einfache Aufgaben lösen",
-  "Aufgaben selbständig lösen",
-  "Schwierigere Aufgaben lösen",
-  "Fehler verbessern",
-  "Thema wiederholen",
-  "Test/Levelcheck vorbereiten"
+const LOG_HOW_GOALS = [
+  "Ich starte mit Rookie-Aufgaben.",
+  "Ich löse erst Aufgaben mit Hilfe und danach alleine.",
+  "Ich bearbeite Operator-Aufgaben und bleibe dran.",
+  "Ich versuche eine Street-Legend-Aufgabe.",
+  "Ich vergleiche meinen Rechenweg mit der Musterlösung.",
+  "Ich suche gezielt meine Fehler.",
+  "Ich erkläre am Ende eine Aufgabe jemandem.",
+  "Ich arbeite ein Lernvideo durch und schreibe das Wichtigste heraus.",
+  "Ich wiederhole ein Thema gezielt.",
+  "Ich bereite mich auf den nächsten Levelcheck vor."
 ];
+const LOG_GOALS = LOG_HOW_GOALS;
 
 async function fetchCustomSubjectLessonGoals(schoolId, subject = null) {
   const params = [schoolId];
@@ -732,20 +740,128 @@ const LOG_STRATEGIES = [
   "Lösungsweg erklären"
 ];
 
+function localIsoDate(value) {
+  const d = value instanceof Date ? value : value ? new Date(value) : new Date();
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function isoDateOrToday(value) {
-  if (!value) return new Date().toISOString().slice(0, 10);
+  if (!value) return localIsoDate(new Date());
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 
 function normalizeIsoDate(value) {
   if (value == null || value === "") return null;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) return localIsoDate(value);
   const str = String(value).slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(str) ? str : null;
 }
 
 function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+  return localIsoDate(new Date());
+}
+
+function isPlanCheckpointType(typeKey, typeLabel = null) {
+  const key = normalizeCheckpointType(typeKey);
+  if (PLAN_CHECKPOINT_TYPES.has(key)) return true;
+  if (key !== "custom") return false;
+  const label = String(typeLabel || "").trim().toLowerCase();
+  return (
+    label.includes("levelcheck") ||
+    label.includes("klassenarbeit") ||
+    label === "ka" ||
+    label.includes("test")
+  );
+}
+
+function pickUpcomingPlanCheckpoint(checks, subject = null) {
+  const filtered = (checks || []).filter(
+    (c) =>
+      (!subject || c.subject === subject) &&
+      isPlanCheckpointType(c.checkpointType, c.checkpointTypeLabel)
+  );
+  if (!filtered.length) return null;
+
+  const today = todayIsoDate();
+  const future = filtered
+    .map((c) => ({ ...c, checkpointDate: normalizeIsoDate(c.checkpointDate) }))
+    .filter((c) => c.checkpointDate && c.checkpointDate >= today)
+    .sort((a, b) => a.checkpointDate.localeCompare(b.checkpointDate));
+
+  return future[0] || null;
+}
+
+function collectSubjectSubtopics(levelChecks, subject) {
+  const checks = (levelChecks || []).filter((c) => c.subject === subject);
+  const seen = new Set();
+  const rows = [];
+  for (const check of checks) {
+    for (const goal of check.goals || []) {
+      const id = String(goal.id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      rows.push({
+        id,
+        text: goal.text,
+        levelCheckId: check.id,
+        levelCheckName: check.name
+      });
+    }
+  }
+  return rows;
+}
+
+function collectWhatGoalsForPlan(levelChecks, subject) {
+  const checks = (levelChecks || []).filter((c) => c.subject === subject);
+  const upcoming = pickUpcomingPlanCheckpoint(checks, subject);
+  const allSubjectGoals = collectSubjectSubtopics(levelChecks, subject);
+
+  if (!upcoming) {
+    return { checkpoint: null, options: allSubjectGoals };
+  }
+
+  const linked = Array.isArray(upcoming.linkedSubtopicIds)
+    ? upcoming.linkedSubtopicIds.map((id) => String(id))
+    : [];
+  const optionMap = new Map(allSubjectGoals.map((g) => [String(g.id), g]));
+  let options = [];
+
+  if (linked.length) {
+    options = linked.map((id) => optionMap.get(id)).filter(Boolean);
+  } else if ((upcoming.goals || []).length) {
+    options = upcoming.goals.map((g) => ({
+      id: String(g.id),
+      text: g.text,
+      levelCheckId: upcoming.id,
+      levelCheckName: upcoming.name
+    }));
+  } else {
+    options = allSubjectGoals;
+  }
+
+  return { checkpoint: upcoming, options };
+}
+
+function howGoalForSentence(howGoalText) {
+  let text = String(howGoalText || "").trim();
+  if (text.toLowerCase().startsWith("ich ")) text = text.slice(4);
+  if (text.endsWith(".")) text = text.slice(0, -1);
+  return text.trim();
+}
+
+function buildPlanSentence(whatGoalText, howGoalText) {
+  const what = String(whatGoalText || "").trim();
+  const how = howGoalForSentence(howGoalText);
+  if (!what || !how) return null;
+  return `Heute übe ich ${what}, indem ich ${how}.`;
+}
+
+function isAllowedHowGoal(goal) {
+  return !!goal && LOG_HOW_GOALS.includes(goal);
 }
 
 function pickUpcomingLevelCheck(checks, subject = null) {
@@ -1569,6 +1685,12 @@ async function migrate() {
     )
   `);
   await ensureColumn("log_entries", "school_id", "INTEGER");
+  await ensureColumn("log_entries", "checkpoint_id", "UUID");
+  await ensureColumn("log_entries", "checkpoint_title", "TEXT");
+  await ensureColumn("log_entries", "what_goal_id", "UUID");
+  await ensureColumn("log_entries", "what_goal_text", "TEXT");
+  await ensureColumn("log_entries", "how_goal_text", "TEXT");
+  await ensureColumn("log_entries", "details_text", "TEXT");
 
   // LogCheck – Zwischen-Check (Performance)
   await pool.query(`
@@ -1702,6 +1824,7 @@ async function migrate() {
   await ensureColumn("level_checks", "checkpoint_date", "DATE");
   await ensureColumn("level_checks", "checkpoint_type", "TEXT DEFAULT 'klassenarbeit'");
   await ensureColumn("level_checks", "checkpoint_type_label", "TEXT");
+  await ensureColumn("level_checks", "linked_subtopic_ids", "JSONB DEFAULT '[]'::jsonb");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS level_check_goals (
@@ -2588,15 +2711,20 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     }
 
     const socialUnlock = await getSocialFormUnlock(studentId, schoolId);
-    const customLessonGoals = await fetchCustomSubjectLessonGoals(schoolId);
     const activeSubject = lockedSubject
       ? lockedSubject
       : subjectQuery && LOG_SUBJECTS.includes(subjectQuery)
         ? subjectQuery
         : suggestedSubject;
-    const lessonGoals = activeSubject
-      ? lessonGoalsForSubject(customLessonGoals, activeSubject)
-      : LOG_GOALS;
+
+    let nextCheckpoint = null;
+    let whatGoalOptions = [];
+    if (classId && activeSubject) {
+      const checks = await getLevelChecksForClass(classId, schoolId, studentId);
+      const picked = collectWhatGoalsForPlan(checks, activeSubject);
+      nextCheckpoint = picked.checkpoint;
+      whatGoalOptions = picked.options;
+    }
 
     res.json({
       date,
@@ -2607,9 +2735,22 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       suggestedSubject,
       socialUnlock,
       existingEntry,
-      defaultLessonGoals: LOG_GOALS,
-      customLessonGoals,
-      lessonGoals,
+      hasClass: !!classId,
+      howGoals: LOG_HOW_GOALS,
+      nextCheckpoint: nextCheckpoint
+        ? {
+            id: nextCheckpoint.id,
+            title: nextCheckpoint.name,
+            date: normalizeIsoDate(nextCheckpoint.checkpointDate),
+            dateLabel: formatGermanDate(nextCheckpoint.checkpointDate),
+            type: normalizeCheckpointType(nextCheckpoint.checkpointType),
+            typeLabel: resolveCheckpointTypeLabel(
+              nextCheckpoint.checkpointType,
+              nextCheckpoint.checkpointTypeLabel
+            )
+          }
+        : null,
+      whatGoalOptions,
       subjectLocked,
       lockedSubject
     });
@@ -2633,6 +2774,12 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       timeslot = null,
       subject,
       goal,
+      checkpointId = null,
+      checkpointTitle = null,
+      whatGoalId = null,
+      whatGoalText = null,
+      howGoalText = null,
+      detailsText = null,
       workGoals = [],
       socialForm = null,
       strategy = null,
@@ -2659,9 +2806,48 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       }
     }
 
-    const allowedGoals = await getLessonGoalsForSubject(schoolId, subject);
-    if (!isAllowedLessonGoal(goal, allowedGoals)) {
-      return res.json({ success: false, message: "Bitte ein gültiges Stundenziel wählen." });
+    const normalizedHowGoal = String(howGoalText || goal || "").trim();
+    if (!isAllowedHowGoal(normalizedHowGoal)) {
+      return res.json({
+        success: false,
+        message: "Bitte ein gültiges Wie-Ziel wählen."
+      });
+    }
+
+    const { classId, schoolId: classSchoolId } = await getStudentClassContext(studentId);
+    let validWhatGoalOptions = [];
+    let nextCheckpoint = null;
+    if (classId) {
+      const checks = await getLevelChecksForClass(classId, classSchoolId, studentId);
+      const picked = collectWhatGoalsForPlan(checks, subject);
+      validWhatGoalOptions = picked.options;
+      nextCheckpoint = picked.checkpoint;
+    }
+
+    const whatById = new Map(validWhatGoalOptions.map((g) => [String(g.id), g]));
+    const cleanWhatGoalId =
+      typeof whatGoalId === "string" || typeof whatGoalId === "number"
+        ? String(whatGoalId)
+        : null;
+    const cleanWhatGoalTextInput =
+      typeof whatGoalText === "string" ? whatGoalText.trim().slice(0, 300) : "";
+    let finalWhatGoalText = "";
+    let finalWhatGoalId = null;
+
+    if (cleanWhatGoalId && whatById.has(cleanWhatGoalId)) {
+      finalWhatGoalId = cleanWhatGoalId;
+      finalWhatGoalText = whatById.get(cleanWhatGoalId).text;
+    } else if (!validWhatGoalOptions.length && cleanWhatGoalTextInput) {
+      finalWhatGoalText = cleanWhatGoalTextInput;
+    }
+
+    if (!finalWhatGoalText) {
+      return res.json({
+        success: false,
+        message: validWhatGoalOptions.length
+          ? "Bitte ein Was-Ziel aus den Kompetenzen wählen."
+          : "Für dieses Fach wurden keine passenden Unterthemen gefunden. Bitte eigenes Was-Ziel eintragen."
+      });
     }
 
     const cleanWorkGoals = Array.isArray(workGoals)
@@ -2706,9 +2892,18 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       });
     }
 
-    const cleanFreitext =
-      typeof freitext === "string" && freitext.trim()
-        ? freitext.trim().slice(0, 100)
+    const cleanDetailsText =
+      typeof detailsText === "string" && detailsText.trim()
+        ? detailsText.trim().slice(0, 100)
+        : typeof freitext === "string" && freitext.trim()
+          ? freitext.trim().slice(0, 100)
+          : null;
+
+    const finalCheckpointId = nextCheckpoint?.id || null;
+    const finalCheckpointTitle = nextCheckpoint
+      ? `${resolveCheckpointTypeLabel(nextCheckpoint.checkpointType, nextCheckpoint.checkpointTypeLabel)}: ${nextCheckpoint.name}`
+      : typeof checkpointTitle === "string" && checkpointTitle.trim()
+        ? checkpointTitle.trim().slice(0, 200)
         : null;
 
     const existing = await findPlanLogEntry(studentId, {
@@ -2730,9 +2925,11 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       `
       INSERT INTO log_entries (
         user_id, school_id, date, timeslot, subject, goal,
-        work_goals, social_form, strategy, confidence_before, freitext
+        work_goals, social_form, strategy, confidence_before, freitext,
+        checkpoint_id, checkpoint_title, what_goal_id, what_goal_text,
+        how_goal_text, details_text
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
       RETURNING id, created_at
     `,
       [
@@ -2741,12 +2938,18 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         date,
         timeslot || null,
         subject,
-        goal,
+        normalizedHowGoal,
         JSON.stringify(cleanWorkGoals),
         socialForm || null,
         strategy || null,
         confidence,
-        cleanFreitext
+        cleanDetailsText,
+        finalCheckpointId,
+        finalCheckpointTitle,
+        finalWhatGoalId,
+        finalWhatGoalText,
+        normalizedHowGoal,
+        cleanDetailsText
       ]
     );
 
@@ -2972,6 +3175,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       SELECT
         le.id, le.date, le.timeslot, le.subject, le.goal,
         le.confidence_before, le.created_at,
+        le.checkpoint_title, le.what_goal_text, le.how_goal_text, le.details_text,
         lc.id AS check_id,
         lr.id AS reflection_id,
         lr.goal_achieved, lr.how_worked, lr.next_step,
@@ -2985,26 +3189,39 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       [studentId, date]
     );
 
-    const entries = entriesRes.rows.map((row) => ({
-      id: row.id,
-      date: row.date,
-      timeslot: row.timeslot,
-      subject: row.subject,
-      goal: row.goal,
-      confidence_before: row.confidence_before,
-      created_at: row.created_at,
-      hasCheck: !!row.check_id,
-      hasReflection: !!row.reflection_id,
-      reflection: row.reflection_id
-        ? {
-            goal_achieved: row.goal_achieved,
-            how_worked: row.how_worked,
-            next_step: row.next_step,
-            confidence_after: row.confidence_after,
-            learned_today: row.learned_today
-          }
-        : null
-    }));
+    const entries = entriesRes.rows.map((row) => {
+      const whatGoal = row.what_goal_text || null;
+      const howGoal = row.how_goal_text || row.goal || null;
+      const details = row.details_text || null;
+      const planSentence =
+        buildPlanSentence(whatGoal, howGoal) || (row.goal ? String(row.goal) : null);
+
+      return {
+        id: row.id,
+        date: row.date,
+        timeslot: row.timeslot,
+        subject: row.subject,
+        goal: row.goal,
+        what_goal_text: whatGoal,
+        how_goal_text: howGoal,
+        details_text: details,
+        checkpoint_title: row.checkpoint_title,
+        plan_sentence: planSentence,
+        confidence_before: row.confidence_before,
+        created_at: row.created_at,
+        hasCheck: !!row.check_id,
+        hasReflection: !!row.reflection_id,
+        reflection: row.reflection_id
+          ? {
+              goal_achieved: row.goal_achieved,
+              how_worked: row.how_worked,
+              next_step: row.next_step,
+              confidence_after: row.confidence_after,
+              learned_today: row.learned_today
+            }
+          : null
+      };
+    });
 
     const findEntryForSlot = (slot) => {
       const exact = entries.find(
@@ -3392,16 +3609,26 @@ async function findLevelCheckForSchool(levelCheckId, schoolId, classId = null) {
 }
 
 async function getLevelChecksForClass(classId, schoolId, studentId = null) {
+  if (!classId) return [];
+
+  const params = [classId];
+  let schoolFilter = "";
+  if (schoolId != null) {
+    params.push(schoolId);
+    schoolFilter = " AND (lc.school_id = $2 OR c.school_id = $2)";
+  }
+
   const checksRes = await pool.query(
     `
     SELECT lc.id, lc.subject, lc.name, lc.sort_order, lc.created_at,
-           lc.checkpoint_date, lc.checkpoint_type, lc.checkpoint_type_label
+           lc.checkpoint_date, lc.checkpoint_type, lc.checkpoint_type_label,
+           lc.linked_subtopic_ids
     FROM level_checks lc
-    JOIN classes c ON c.id = lc.class_id AND c.school_id = $2
-    WHERE lc.class_id = $1
+    LEFT JOIN classes c ON c.id = lc.class_id
+    WHERE lc.class_id = $1${schoolFilter}
     ORDER BY lc.subject ASC, lc.sort_order ASC, lc.name ASC
   `,
-    [classId, schoolId]
+    params
   );
 
   if (!checksRes.rows.length) {
@@ -3456,6 +3683,9 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
     checkpointDate: normalizeIsoDate(c.checkpoint_date),
     checkpointType: normalizeCheckpointType(c.checkpoint_type),
     checkpointTypeLabel: c.checkpoint_type_label ?? null,
+    linkedSubtopicIds: Array.isArray(c.linked_subtopic_ids)
+      ? c.linked_subtopic_ids.map((id) => String(id))
+      : [],
     goals: goalsByCheck[c.id] || []
   }));
 }

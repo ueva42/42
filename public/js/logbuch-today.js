@@ -158,13 +158,21 @@
 
     const actions = !readOnly ? `${viewPlanBtn}${renderActionSelect(entry)}` : viewPlanBtn;
 
+    const titleText = entry.plan_sentence || entry.goal;
+    const detailText = entry.details_text ? `Konkret: ${entry.details_text}` : "";
+    const checkpointHint = entry.checkpoint_title
+      ? `<p class="today-block-muted">${ui.escapeHtml(entry.checkpoint_title)}</p>`
+      : "";
+
     return `
       <div class="today-block today-block-done">
         <div class="today-block-head">
           <span class="today-block-subject">${ui.escapeHtml(entry.subject)}</span>
           ${entry.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
         </div>
-        <p class="today-block-goal">${ui.escapeHtml(entry.goal)}</p>
+        <p class="today-block-goal">${ui.escapeHtml(titleText)}</p>
+        ${detailText ? `<p class="today-block-muted">${ui.escapeHtml(detailText)}</p>` : ""}
+        ${checkpointHint}
         ${summary}
         ${actions}
       </div>`;

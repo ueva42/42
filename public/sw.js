@@ -1,4 +1,4 @@
-const CACHE_VERSION = "sol-logbuch-v3";
+const CACHE_VERSION = "sol-logbuch-v4";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -44,6 +44,20 @@ function trimCache(cacheName, maxItems) {
     await cache.delete(keys[0]);
     return trimCache(cacheName, maxItems);
   });
+}
+
+function networkFirstAsset(request, cacheName, maxItems = 80) {
+  return fetch(request)
+    .then((response) => {
+      if (response && response.ok) {
+        caches.open(cacheName).then((cache) => {
+          cache.put(request, response.clone());
+          trimCache(cacheName, maxItems);
+        });
+      }
+      return response;
+    })
+    .catch(() => caches.match(request));
 }
 
 function staleWhileRevalidate(request, cacheName, maxItems = 80) {
@@ -141,6 +155,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (destination === "style" || destination === "script") {
+    if (url.pathname.startsWith("/js/")) {
+      event.respondWith(networkFirstAsset(request, ASSET_CACHE, 80));
+      return;
+    }
     event.respondWith(staleWhileRevalidate(request, ASSET_CACHE, 80));
     return;
   }

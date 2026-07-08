@@ -1,44 +1,50 @@
 /**
- * SRL-Logbuch – PLANEN-Screen (Forethought).
+ * SRL-Logbuch – PLANEN-Screen (Forethought, Stebner Was/Wie).
  */
 (function () {
   const C = () => window.LOGBUCH;
   const UI = () => window.LogbuchUI;
+  const HOW_GOAL_OPTIONS = [
+    "Ich starte mit Rookie-Aufgaben.",
+    "Ich löse erst Aufgaben mit Hilfe und danach alleine.",
+    "Ich bearbeite Operator-Aufgaben und bleibe dran.",
+    "Ich versuche eine Street-Legend-Aufgabe.",
+    "Ich vergleiche meinen Rechenweg mit der Musterlösung.",
+    "Ich suche gezielt meine Fehler.",
+    "Ich erkläre am Ende eine Aufgabe jemandem.",
+    "Ich arbeite ein Lernvideo durch und schreibe das Wichtigste heraus.",
+    "Ich wiederhole ein Thema gezielt.",
+    "Ich bereite mich auf den nächsten Levelcheck vor."
+  ];
 
   const state = {
     date: null,
     timeslot: null,
     subject: null,
-    goal: null,
+    whatGoalId: null,
+    whatGoalText: "",
+    howGoalText: null,
     workGoals: [],
     socialForm: null,
-    strategy: null,
     confidenceBefore: null,
-    freitext: "",
+    detailsText: "",
     socialUnlock: { gruppe: false, frei: false },
     existingEntry: null,
-    defaultLessonGoals: [],
-    customLessonGoals: {},
+    whatGoalOptions: [],
+    howGoals: HOW_GOAL_OPTIONS,
+    nextCheckpoint: null,
+    hasClass: true,
     subjectLocked: false,
     submitting: false,
     errorMsg: ""
   };
 
-  function lessonGoalsForSubject(subject) {
-    if (!subject) {
-      return state.defaultLessonGoals.length ? state.defaultLessonGoals : C().GOALS;
-    }
-
-    const custom = state.customLessonGoals?.[subject];
-    if (Array.isArray(custom) && custom.length) {
-      return custom.map((g) => g.text);
-    }
-
-    return state.defaultLessonGoals.length ? state.defaultLessonGoals : C().GOALS;
-  }
-
   function todayIso() {
-    return new Date().toISOString().slice(0, 10);
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   }
 
   function socialFormOptions() {
@@ -56,20 +62,71 @@
     return C().SOCIAL_FORMS.find((s) => s.id === id)?.label || id || "–";
   }
 
+  function howGoalForSentence(howGoalText) {
+    let text = String(howGoalText || "").trim();
+    if (text.toLowerCase().startsWith("ich ")) text = text.slice(4);
+    if (text.endsWith(".")) text = text.slice(0, -1);
+    return text.trim();
+  }
+
+  function planningSentenceFromParts(whatGoalText, howGoalText) {
+    const what = String(whatGoalText || "").trim();
+    const how = howGoalForSentence(howGoalText);
+    if (!what || !how) return what || howGoalText || "–";
+    return `Heute übe ich ${what}, indem ich ${how}.`;
+  }
+
+  function planningSentence() {
+    if (!state.whatGoalText || !state.howGoalText) return "";
+    const how = howGoalForSentence(state.howGoalText);
+    return `Heute übe ich ${state.whatGoalText}, indem ich ${how}.`;
+  }
+
+  function planningDetailsLine() {
+    if (!state.detailsText || !state.detailsText.trim()) return "";
+    return `Konkret: ${state.detailsText.trim()}`;
+  }
+
+  function updatePlanningPreview(root) {
+    const box = root.querySelector("#planSummaryBox");
+    if (!box) return;
+    const sentence = planningSentence();
+    const details = planningDetailsLine();
+    if (!sentence) {
+      box.hidden = true;
+      box.innerHTML = "";
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = `${UI().escapeHtml(sentence)}${
+      details ? `<br>${UI().escapeHtml(details)}` : ""
+    }`;
+  }
+
   function renderExistingEntry(ui, dateLabel) {
     const e = state.existingEntry;
     const workGoals = Array.isArray(e.work_goals) ? e.work_goals : [];
+    const whatGoal = e.what_goal_text || "–";
+    const howGoal = e.how_goal_text || e.goal || "–";
+    const details = e.details_text || e.freitext || "–";
+    const sentence =
+      e.what_goal_text && (e.how_goal_text || e.goal)
+        ? planningSentenceFromParts(e.what_goal_text, e.how_goal_text || e.goal)
+        : e.goal || "–";
+
     const rows = [
       ["Fach", e.subject],
-      ["Stundenziel", e.goal],
+      ["Nächster Checkpoint", e.checkpoint_title || "Kein kommender Checkpoint gefunden."],
+      ["Was-Ziel", whatGoal],
+      ["Wie-Ziel", howGoal],
+      ["Planungssatz", sentence],
       ["Arbeitsziele", workGoals.length ? workGoals.join(", ") : "–"],
       ["Sozialform", e.social_form ? labelForSocialForm(e.social_form) : "–"],
-      ["Lernstrategie", e.strategy || "–"],
       [
         "Selbstwirksamkeit vorher",
         e.confidence_before != null ? String(e.confidence_before) : "–"
       ],
-      ["Was genau?", e.freitext || "–"]
+      ["Was genau?", details]
     ];
 
     return `
@@ -108,6 +165,15 @@
       return;
     }
 
+    const checkpoint = state.nextCheckpoint;
+    const checkpointText = checkpoint
+      ? `${checkpoint.typeLabel || "Checkpoint"}: ${checkpoint.title}${
+          checkpoint.date ? ` am ${checkpoint.dateLabel}` : ""
+        }`
+      : "Kein kommender Checkpoint gefunden.";
+    const summarySentence = planningSentence();
+    const summaryDetails = planningDetailsLine();
+
     root.innerHTML = `
       <div class="logbuch-form">
         <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${state.timeslot ? ` · ${ui.escapeHtml(state.timeslot)}` : ""}</p>
@@ -131,13 +197,52 @@
         }
 
         ${ui.fieldWrap(
-          ui.fieldLabel("Stundenziel", { required: true }),
+          ui.fieldLabel("Nächster Checkpoint"),
+          `<div class="plan-subject-locked">${ui.escapeHtml(checkpointText)}</div>${
+            !state.hasClass
+              ? `<div class="logbuch-msg logbuch-msg-info" style="margin-top:8px">Dir ist noch keine Klasse zugeordnet – Termine aus dem Levelplan können so nicht geladen werden.</div>`
+              : ""
+          }`
+        )}
+
+        ${ui.fieldWrap(
+          ui.fieldLabel("Was will ich heute können?", { required: true }),
+          state.whatGoalOptions.length
+            ? ui.select(
+                "whatGoalId",
+                state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
+                state.whatGoalId,
+                { phase: "plan", placeholder: "Kompetenzziel wählen…" }
+              )
+            : `<div class="logbuch-msg logbuch-msg-info">Für dieses Fach wurden noch keine Kompetenzziele angelegt.</div>
+               <input type="text" class="logbuch-input" id="planWhatGoalText" maxlength="300"
+                 placeholder="Eigenes Was-Ziel eintragen" value="${ui.escapeHtml(state.whatGoalText)}">`
+        )}
+
+        ${ui.fieldWrap(
+          ui.fieldLabel("Wie arbeite ich daran?", { required: true }),
           ui.select(
-            "goal",
-            lessonGoalsForSubject(state.subject).map((g) => ({ value: g, label: g })),
-            state.goal,
-            { phase: "plan" }
+            "howGoalText",
+            state.howGoals.map((g) => ({ value: g, label: g })),
+            state.howGoalText,
+            { phase: "plan", placeholder: "Wie-Ziel wählen…" }
           )
+        )}
+
+        <div class="logbuch-msg logbuch-msg-info" id="planSummaryBox" ${summarySentence ? "" : "hidden"}>
+          ${summarySentence
+            ? `${ui.escapeHtml(summarySentence)}${summaryDetails ? `<br>${ui.escapeHtml(summaryDetails)}` : ""}`
+            : ""}
+        </div>
+
+        ${ui.fieldWrap(
+          ui.fieldLabel("Was genau?", { optional: true }),
+          `<input type="text" class="logbuch-input" id="planDetailsText" maxlength="100"
+            placeholder="z. B. Rookie 1–4, danach Operator 1–2"
+            value="${ui.escapeHtml(state.detailsText)}">
+           <div class="logbuch-char-count"><span id="planDetailsCount">${state.detailsText.length}</span>/100</div>`,
+          "",
+          { wide: true }
         )}
 
         ${ui.fieldWrap(
@@ -158,29 +263,16 @@
         )}
 
         ${ui.fieldWrap(
-          ui.fieldLabel("Lernstrategie", { optional: true }),
-          ui.selectOptgroups("strategy", C().STRATEGIES, state.strategy, { phase: "plan" }),
-          "",
-          { wide: true }
-        )}
-
-        ${ui.fieldWrap(
           ui.fieldLabel("Selbstwirksamkeit vorher", { optional: true }),
           ui.select(
             "confidenceBefore",
-            [1, 2, 3, 4, 5].map((n) => ({ value: String(n), label: `${n} – ${n <= 2 ? "unsicher" : n >= 4 ? "sicher" : "mittel"}` })),
+            [1, 2, 3, 4, 5].map((n) => ({
+              value: String(n),
+              label: `${n} – ${n <= 2 ? "unsicher" : n >= 4 ? "sicher" : "mittel"}`
+            })),
             state.confidenceBefore != null ? String(state.confidenceBefore) : null,
             { phase: "plan" }
           )
-        )}
-
-        ${ui.fieldWrap(
-          ui.fieldLabel("Was genau?", { optional: true }),
-          `<input type="text" class="logbuch-input" id="planFreitext" maxlength="100"
-            placeholder="Kurz beschreiben…" value="${ui.escapeHtml(state.freitext)}">
-           <div class="logbuch-char-count"><span id="planFreitextCount">${state.freitext.length}</span>/100</div>`,
-          "",
-          { wide: true }
         )}
 
         ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
@@ -204,21 +296,38 @@
   }
 
   function bindHandlers(root) {
-    UI().bindSelects(root, state, (field) => {
+    UI().bindSelects(root, state, async (field) => {
       if (field === "subject") {
-        const goals = lessonGoalsForSubject(state.subject);
-        if (state.goal && !goals.includes(state.goal)) {
-          state.goal = null;
-        }
+        state.whatGoalId = null;
+        state.whatGoalText = "";
+        state.howGoalText = null;
+        await loadContext();
         render();
+        return;
+      }
+      if (field === "whatGoalId") {
+        const picked = state.whatGoalOptions.find((g) => String(g.id) === String(state.whatGoalId));
+        state.whatGoalText = picked?.text || "";
+        updatePlanningPreview(root);
+        return;
+      }
+      if (field === "howGoalText") {
+        updatePlanningPreview(root);
       }
     });
 
-    const freitext = root.querySelector("#planFreitext");
-    freitext?.addEventListener("input", () => {
-      state.freitext = freitext.value.slice(0, 100);
-      const count = root.querySelector("#planFreitextCount");
-      if (count) count.textContent = String(state.freitext.length);
+    const whatGoalTextInput = root.querySelector("#planWhatGoalText");
+    whatGoalTextInput?.addEventListener("input", () => {
+      state.whatGoalText = whatGoalTextInput.value.slice(0, 300);
+      updatePlanningPreview(root);
+    });
+
+    const details = root.querySelector("#planDetailsText");
+    details?.addEventListener("input", () => {
+      state.detailsText = details.value.slice(0, 100);
+      const count = root.querySelector("#planDetailsCount");
+      if (count) count.textContent = String(state.detailsText.length);
+      updatePlanningPreview(root);
     });
 
     root.querySelector("#planSubmitBtn")?.addEventListener("click", submitPlan);
@@ -233,8 +342,13 @@
       render();
       return;
     }
-    if (!state.goal) {
-      state.errorMsg = "Bitte wähle ein Stundenziel.";
+    if (!state.whatGoalText || !state.whatGoalText.trim()) {
+      state.errorMsg = "Bitte wähle ein Was-Ziel.";
+      render();
+      return;
+    }
+    if (!state.howGoalText) {
+      state.errorMsg = "Bitte wähle ein Wie-Ziel.";
       render();
       return;
     }
@@ -255,13 +369,20 @@
           date: state.date,
           timeslot: state.timeslot || null,
           subject: state.subject,
-          goal: state.goal,
+          checkpointId: state.nextCheckpoint?.id || null,
+          checkpointTitle: state.nextCheckpoint
+            ? `${state.nextCheckpoint.typeLabel || "Checkpoint"}: ${state.nextCheckpoint.title}`
+            : null,
+          whatGoalId: state.whatGoalId || null,
+          whatGoalText: state.whatGoalText.trim(),
+          howGoalText: state.howGoalText,
+          goal: state.howGoalText,
+          detailsText: state.detailsText.trim() || null,
           workGoals: state.workGoals,
           socialForm: state.socialForm,
-          strategy: state.strategy,
           confidenceBefore:
             state.confidenceBefore != null ? Number(state.confidenceBefore) : null,
-          freitext: state.freitext.trim() || null
+          freitext: state.detailsText.trim() || null
         })
       });
 
@@ -271,7 +392,7 @@
         state.submitting = false;
         if (data.readOnly && data.entryId) {
           state.entryId = data.entryId;
-          await loadContext(new URLSearchParams({ date: state.date, entryId: data.entryId }));
+          await loadContext();
           render();
           return;
         }
@@ -293,33 +414,42 @@
     }
   }
 
-  async function loadContext(query) {
+  async function loadContext() {
     const params = new URLSearchParams({ date: state.date });
     if (state.entryId) params.set("entryId", state.entryId);
     if (state.timeslot) params.set("timeslot", state.timeslot);
     if (state.subject) params.set("subject", state.subject);
 
     const res = await fetch(`/api/student/log/plan-context?${params}`);
+    if (!res.ok) {
+      throw new Error(`Plan-Kontext konnte nicht geladen werden (${res.status})`);
+    }
     const data = await res.json();
 
     state.socialUnlock = data.socialUnlock || { gruppe: false, frei: false };
     state.existingEntry = data.existingEntry || null;
-    state.defaultLessonGoals = Array.isArray(data.defaultLessonGoals)
-      ? data.defaultLessonGoals
-      : C().GOALS;
-    state.customLessonGoals = data.customLessonGoals || {};
-    if (data.subjectLocked) {
-      state.subjectLocked = true;
-    }
+    state.hasClass = data.hasClass !== false;
+    state.howGoals = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
+    state.whatGoalOptions = Array.isArray(data.whatGoalOptions) ? data.whatGoalOptions : [];
+    state.nextCheckpoint = data.nextCheckpoint || null;
+    state.subjectLocked = !!data.subjectLocked;
+
     if (data.lockedSubject) {
       state.subject = data.lockedSubject;
     } else if (!state.subject && data.suggestedSubject) {
       state.subject = data.suggestedSubject;
     }
 
-    const goals = lessonGoalsForSubject(state.subject);
-    if (state.goal && !goals.includes(state.goal)) {
-      state.goal = null;
+    if (state.howGoalText && !state.howGoals.includes(state.howGoalText)) {
+      state.howGoalText = null;
+    }
+    if (state.whatGoalId) {
+      const picked = state.whatGoalOptions.find((g) => String(g.id) === String(state.whatGoalId));
+      if (picked) {
+        state.whatGoalText = picked.text;
+      } else {
+        state.whatGoalId = null;
+      }
     }
   }
 
@@ -330,14 +460,18 @@
     state.entryId = q.get("entryId") || null;
     state.timeslot = q.get("timeslot") || null;
     state.subject = q.get("subject") || null;
-    state.goal = null;
+    state.whatGoalId = null;
+    state.whatGoalText = "";
+    state.howGoalText = null;
     state.workGoals = [];
     state.socialForm = null;
-    state.strategy = null;
     state.confidenceBefore = null;
-    state.freitext = "";
+    state.detailsText = "";
+    state.whatGoalOptions = [];
+    state.nextCheckpoint = null;
     state.existingEntry = null;
-    state.subjectLocked = !!(q.get("subject") && q.get("timeslot"));
+    state.hasClass = true;
+    state.subjectLocked = false;
     state.submitting = false;
     state.errorMsg = "";
 
@@ -347,7 +481,7 @@
     }
 
     try {
-      await loadContext(q);
+      await loadContext();
       render();
     } catch (err) {
       console.error(err);
