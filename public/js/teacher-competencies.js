@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Levelstatus (Checkpoint: Fach → Thema → Termin + Was-Ziele).
+ * Lehrkraft – Levelstatus (Checkpoint-Karten + Was-Ziele aus allen Themen).
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -76,11 +76,24 @@
     }
   }
 
-  function checkpointTypeOptions(selected) {
-    return CHECKPOINT_TYPES.map(
-      (o) =>
-        `<option value="${escapeHtml(o.value)}" ${o.value === selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`
-    ).join("");
+  function allGoalsInSubject() {
+    const items = [];
+    for (const topic of topicsForSubject()) {
+      for (const goal of topic.goals || []) {
+        items.push({
+          id: String(goal.id),
+          text: goal.text,
+          themaId: String(topic.id),
+          themaName: topic.name
+        });
+      }
+    }
+    return items;
+  }
+
+  function typeLabelForTopic(topic) {
+    const type = topic.checkpointType === "test" ? "test" : "klassenarbeit";
+    return CHECKPOINT_TYPES.find((o) => o.value === type)?.label || "Klassenarbeit";
   }
 
   function linkedIdsForTopic(topic) {
@@ -91,56 +104,79 @@
     return (topic?.goals || []).map((g) => String(g.id));
   }
 
-  function renderWasGoalPicker(topic) {
-    const goals = topic.goals || [];
-    if (!goals.length) {
-      return `<p class="tc-empty">Für dieses Thema gibt es noch keine Was-Ziele. Bitte zuerst im Reiter „Levelplan importieren“ anlegen.</p>`;
-    }
+  function checkpointTypeOptions(selected) {
+    const type = selected === "test" ? "test" : "klassenarbeit";
+    return CHECKPOINT_TYPES.map(
+      (o) =>
+        `<option value="${escapeHtml(o.value)}" ${o.value === type ? "selected" : ""}>${escapeHtml(o.label)}</option>`
+    ).join("");
+  }
 
-    const linked = new Set(linkedIdsForTopic(topic));
-
-    const items = goals
-      .map(
-        (goal) => `
-      <label class="tc-was-goal-item">
-        <input
-          type="checkbox"
-          class="tc-was-goal-check"
-          value="${escapeHtml(goal.id)}"
-          ${linked.has(String(goal.id)) ? "checked" : ""}
-        >
-        <span>${escapeHtml(goal.text)}</span>
-      </label>`
-      )
-      .join("");
-
+  function renderCheckpointFields(topic) {
+    const type = topic.checkpointType === "test" ? "test" : "klassenarbeit";
     return `
-      <div class="tc-was-goals-block">
-        <h4>Was-Ziele für diesen Checkpoint</h4>
-        <p class="tc-hint">Wähle die Unterthemen, die zu dieser Klassenarbeit bzw. diesem Test gehören.</p>
-        <div class="tc-was-goal-list">${items}</div>
+      <div class="tc-checkpoint-row">
+        <label>
+          Termin
+          <input type="date" class="tc-checkpoint-date" data-check-id="${escapeHtml(topic.id)}" value="${escapeHtml(topic.checkpointDate || "")}">
+        </label>
+        <label>
+          Art
+          <select class="tc-checkpoint-type" data-check-id="${escapeHtml(topic.id)}">
+            ${checkpointTypeOptions(type)}
+          </select>
+        </label>
       </div>`;
   }
 
-  function renderTopicEditor(topic) {
-    const type = topic.checkpointType === "test" ? "test" : "klassenarbeit";
+  function renderLinkedGoalsSelect(topic) {
+    const allGoals = allGoalsInSubject();
+    if (!allGoals.length) {
+      return `<p class="tc-goal-empty">Noch keine Was-Ziele importiert.</p>`;
+    }
+
+    const linked = new Set(linkedIdsForTopic(topic));
+    const byThema = {};
+    for (const goal of allGoals) {
+      if (!byThema[goal.themaName]) byThema[goal.themaName] = [];
+      byThema[goal.themaName].push(goal);
+    }
+
+    const options = Object.entries(byThema)
+      .map(([themaName, goals]) => {
+        const opts = goals
+          .map(
+            (g) =>
+              `<option value="${escapeHtml(g.id)}" ${linked.has(g.id) ? "selected" : ""}>${escapeHtml(g.text)}</option>`
+          )
+          .join("");
+        return `<optgroup label="${escapeHtml(themaName)}">${opts}</optgroup>`;
+      })
+      .join("");
 
     return `
+      <div class="tc-linked-block">
+        <label class="tc-linked-label">
+          Was-Ziele für diesen Checkpoint
+          <span class="tc-hint">Mehrfachauswahl – auch Unterthemen aus anderen Themen möglich (Strg/Cmd + Klick).</span>
+          <select multiple class="tc-linked-select" data-check-id="${escapeHtml(topic.id)}" size="${Math.min(10, Math.max(4, allGoals.length))}">
+            ${options}
+          </select>
+        </label>
+      </div>`;
+  }
+
+  function renderTopicCard(topic) {
+    return `
       <article class="tc-levelcheck-card" data-check-id="${escapeHtml(topic.id)}">
-        <h3 class="tc-levelcheck-name">${escapeHtml(topic.name)}</h3>
-        <div class="tc-checkpoint-row">
-          <label>
-            Termin
-            <input type="date" class="tc-checkpoint-date" data-check-id="${escapeHtml(topic.id)}" value="${escapeHtml(topic.checkpointDate || "")}">
-          </label>
-          <label>
-            Art
-            <select class="tc-checkpoint-type" data-check-id="${escapeHtml(topic.id)}">
-              ${checkpointTypeOptions(type)}
-            </select>
-          </label>
+        <div class="tc-levelcheck-head">
+          <div>
+            <span class="tc-levelcheck-subject">${escapeHtml(typeLabelForTopic(topic))}</span>
+            <h4 class="tc-levelcheck-name">${escapeHtml(topic.name)}</h4>
+            ${renderCheckpointFields(topic)}
+          </div>
         </div>
-        ${renderWasGoalPicker(topic)}
+        ${renderLinkedGoalsSelect(topic)}
       </article>`;
   }
 
@@ -179,20 +215,17 @@
     let body = "";
     if (!topics.length) {
       body = `
-        <div class="tc-empty">
-          <p>Für ${escapeHtml(state.subject)} wurden noch keine Themen importiert.</p>
-          <p class="hint">Lege zuerst Was-Ziele unter „Levelplan importieren“ an und prüfe sie unter „Was-Ziele“.</p>
-        </div>`;
+        <p class="tc-empty">Für ${escapeHtml(state.subject)} noch keine Themen. Bitte zuerst unter „Levelplan importieren“ anlegen.</p>`;
     } else if (topic) {
-      body = renderTopicEditor(topic);
+      body = `<div class="tc-levelcheck-list">${renderTopicCard(topic)}</div>`;
     }
 
     root.innerHTML = `
       <div class="panel">
         <h2>Levelstatus</h2>
         <p class="hint">
-          Pro Fach und Thema: Termin und Art (Klassenarbeit oder Test) festlegen und die passenden Was-Ziele auswählen.
-          Rookie, Operator und Street Legend pflegst du im importierten Levelplan.
+          Pro Thema Termin und Art (Klassenarbeit oder Test) festlegen und die zugehörigen Was-Ziele wählen –
+          z. B. für einen Test nur „Richtig zählen“, für eine Klassenarbeit mehrere Unterthemen auch aus anderen Themen.
         </p>
 
         <div class="tc-toolbar">
@@ -259,11 +292,8 @@
       saveTopicMeta(e.target.dataset.checkId);
     });
 
-    root.querySelectorAll(".tc-was-goal-check").forEach((input) => {
-      input.addEventListener("change", () => {
-        const card = input.closest(".tc-levelcheck-card");
-        saveTopicMeta(card?.dataset?.checkId);
-      });
+    root.querySelector(".tc-linked-select")?.addEventListener("change", (e) => {
+      saveTopicMeta(e.target.dataset.checkId);
     });
   }
 
@@ -273,9 +303,10 @@
 
     const dateEl = card.querySelector(".tc-checkpoint-date");
     const typeEl = card.querySelector(".tc-checkpoint-type");
-    const linkedSubtopicIds = [...card.querySelectorAll(".tc-was-goal-check:checked")].map(
-      (el) => el.value
-    );
+    const linkedEl = card.querySelector(".tc-linked-select");
+    const linkedSubtopicIds = linkedEl
+      ? [...linkedEl.selectedOptions].map((opt) => opt.value)
+      : [];
 
     return {
       checkpointDate: dateEl?.value || null,
@@ -306,8 +337,8 @@
         return;
       }
       state.message = data.checkpointDate
-        ? `${data.checkpointTypeLabel} gespeichert · ${data.checkpointDateLabel}`
-        : `${data.checkpointTypeLabel} gespeichert`;
+        ? `${data.checkpointTypeLabel} gespeichert · ${data.checkpointDateLabel} · ${payload.linkedSubtopicIds.length} Was-Ziel(e)`
+        : `${data.checkpointTypeLabel} gespeichert · ${payload.linkedSubtopicIds.length} Was-Ziel(e)`;
       await loadData();
     } catch (err) {
       console.error(err);

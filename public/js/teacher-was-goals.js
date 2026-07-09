@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Was-Ziele (importierter Levelplan einsehen).
+ * Lehrkraft – Was-Ziele (importierter Levelplan einsehen & löschen).
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -26,8 +26,11 @@
   const state = {
     classId: null,
     subject: null,
+    themaId: null,
     data: null,
     loading: false,
+    deletingId: null,
+    message: "",
     error: ""
   };
 
@@ -52,49 +55,72 @@
     return (state.data?.levelChecks || []).filter((lc) => lc.subject === state.subject);
   }
 
-  function renderTable() {
+  function selectedTopic() {
+    if (!state.themaId) return null;
+    return topicsForSubject().find((t) => sameId(t.id, state.themaId)) || null;
+  }
+
+  function ensureThemaSelection() {
     const topics = topicsForSubject();
     if (!topics.length) {
+      state.themaId = null;
+      return;
+    }
+    if (!state.themaId || !topics.some((t) => sameId(t.id, state.themaId))) {
+      state.themaId = topics[0].id;
+    }
+  }
+
+  function renderTable() {
+    const topic = selectedTopic();
+    if (!topicsForSubject().length) {
       return `
         <div class="tc-empty">
           <p>Für ${escapeHtml(state.subject)} wurde noch kein Levelplan importiert.</p>
-          <p class="hint">Nutze den Reiter „Levelplan importieren“, um Was-Ziele anzulegen.</p>
+          <p class="hint">Nutze den Reiter „Levelplan importieren“.</p>
         </div>`;
     }
 
-    const rows = [];
-    for (const topic of topics) {
-      for (const goal of topic.goals || []) {
-        rows.push(`
-          <tr>
-            <td>${escapeHtml(topic.name)}</td>
-            <td>${escapeHtml(goal.text)}</td>
-            <td>${escapeHtml(goal.rookieGoalText || "–")}</td>
-            <td>${escapeHtml(goal.operatorGoalText || "–")}</td>
-            <td>${escapeHtml(goal.streetLegendGoalText || "–")}</td>
-          </tr>`);
-      }
+    if (!topic) {
+      return `<div class="tc-empty"><p>Bitte ein Thema wählen.</p></div>`;
     }
 
-    if (!rows.length) {
-      return `<div class="tc-empty"><p>Für dieses Fach gibt es Themen, aber noch keine Unterthemen.</p></div>`;
+    const goals = topic.goals || [];
+    if (!goals.length) {
+      return `<div class="tc-empty"><p>Für „${escapeHtml(topic.name)}“ gibt es noch keine Unterthemen.</p></div>`;
     }
+
+    const rows = goals
+      .map(
+        (goal) => `
+      <tr>
+        <td>${escapeHtml(goal.text)}</td>
+        <td>${escapeHtml(goal.rookieGoalText || "–")}</td>
+        <td>${escapeHtml(goal.operatorGoalText || "–")}</td>
+        <td>${escapeHtml(goal.streetLegendGoalText || "–")}</td>
+        <td>
+          <button type="button" class="tc-delete-btn wg-goal-del" data-goal-id="${escapeHtml(goal.id)}" ${state.deletingId === String(goal.id) ? "disabled" : ""} title="Was-Ziel löschen">×</button>
+        </td>
+      </tr>`
+      )
+      .join("");
 
     return `
       <div class="lpi-preview-wrap">
-        <p class="hint">${topics.length} Thema/Themen · ${rows.length} Unterthemen</p>
+        <h3>${escapeHtml(topic.name)}</h3>
+        <p class="hint">${goals.length} Unterthemen in diesem Thema</p>
         <div class="lpi-table-scroll">
           <table class="lpi-table">
             <thead>
               <tr>
-                <th>Thema</th>
                 <th>Unterthema (Was-Ziel)</th>
                 <th>Rookie</th>
                 <th>Operator</th>
                 <th>Street Legend</th>
+                <th></th>
               </tr>
             </thead>
-            <tbody>${rows.join("")}</tbody>
+            <tbody>${rows}</tbody>
           </table>
         </div>
       </div>`;
@@ -114,11 +140,20 @@
       return;
     }
 
-    const subjects = subjectsList();
-    const subjectOptions = subjects
+    ensureThemaSelection();
+    const topics = topicsForSubject();
+
+    const subjectOptions = subjectsList()
       .map(
         (s) =>
           `<option value="${escapeHtml(s)}" ${s === state.subject ? "selected" : ""}>${escapeHtml(s)}</option>`
+      )
+      .join("");
+
+    const themaOptions = topics
+      .map(
+        (t) =>
+          `<option value="${escapeHtml(t.id)}" ${sameId(t.id, state.themaId) ? "selected" : ""}>${escapeHtml(t.name)}</option>`
       )
       .join("");
 
@@ -126,8 +161,7 @@
       <div class="panel">
         <h2>Was-Ziele</h2>
         <p class="hint">
-          Hier siehst du den importierten Levelplan pro Klasse und Fach.
-          Die Unterthemen nutzen Schüler:innen später beim Tagesziel („Was will ich heute können?“).
+          Importierten Levelplan pro Thema einsehen. Einzelne Was-Ziele kannst du mit × löschen.
         </p>
 
         <div class="tc-toolbar">
@@ -137,7 +171,13 @@
           <label>Fach:
             <select id="wgSubjectSelect">${subjectOptions}</select>
           </label>
+          <label>Thema:
+            <select id="wgThemaSelect" ${topics.length ? "" : "disabled"}>${themaOptions}</select>
+          </label>
         </div>
+
+        ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
+        ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
 
         ${renderTable()}
       </div>`;
@@ -160,13 +200,59 @@
   function bindHandlers(root) {
     root.querySelector("#wgClassSelect")?.addEventListener("change", (e) => {
       state.classId = Number(e.target.value);
+      state.message = "";
+      state.error = "";
       loadData();
     });
 
     root.querySelector("#wgSubjectSelect")?.addEventListener("change", (e) => {
       state.subject = e.target.value;
+      state.themaId = null;
+      state.message = "";
+      state.error = "";
       render();
     });
+
+    root.querySelector("#wgThemaSelect")?.addEventListener("change", (e) => {
+      state.themaId = e.target.value;
+      render();
+    });
+
+    root.querySelectorAll(".wg-goal-del").forEach((btn) => {
+      btn.addEventListener("click", () => deleteGoal(btn.dataset.goalId));
+    });
+  }
+
+  async function deleteGoal(goalId) {
+    if (!goalId || !confirm("Dieses Was-Ziel wirklich löschen?")) return;
+
+    state.deletingId = String(goalId);
+    state.error = "";
+    render();
+
+    try {
+      const encodedId = encodeURIComponent(goalId);
+      let res = await fetch(`/api/teacher/levelcheck-goals/${encodedId}`, { method: "DELETE" });
+      if (res.status === 404 || res.status === 405) {
+        res = await fetch(`/api/teacher/levelcheck-goals/${encodedId}/delete`, { method: "POST" });
+      }
+      const data = await res.json();
+      state.deletingId = null;
+
+      if (!res.ok || !data.success) {
+        state.error = data.message || data.error || "Löschen fehlgeschlagen.";
+        render();
+        return;
+      }
+
+      state.message = "Was-Ziel gelöscht.";
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      state.deletingId = null;
+      state.error = "Netzwerkfehler beim Löschen.";
+      render();
+    }
   }
 
   async function loadClasses() {
@@ -215,6 +301,7 @@
   }
 
   async function init() {
+    state.message = "";
     state.error = "";
     const root = document.getElementById("wasGoalsTabRoot");
     if (root) root.innerHTML = `<div class="tc-loading">Lade Was-Ziele…</div>`;
