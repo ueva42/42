@@ -292,7 +292,8 @@
         return;
       }
 
-      state.message = "Was-Ziel gelöscht.";
+      state.message = "Was-Ziel gelöscht." + (data.topicRemoved ? " Leeres Thema wurde entfernt." : "");
+      if (data.topicRemoved) state.themaId = null;
       await loadData();
     } catch (err) {
       console.error(err);

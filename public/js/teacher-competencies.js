@@ -177,6 +177,12 @@
           <p class="tc-hint">Markiere die Unterthemen aus „${escapeHtml(topic.name)}“, die abgefragt werden.</p>
           <div class="tc-was-goal-list">${goalChecks}</div>
         </div>
+
+        <div class="tc-save-row">
+          <button type="button" class="action" id="tcSaveCheckpointBtn" ${state.saving ? "disabled" : ""}>
+            ${state.saving ? "Speichern…" : `${escapeHtml(typeLabelFor(type, topic.checkpointTypeLabel))} speichern`}
+          </button>
+        </div>
       </article>`;
   }
 
@@ -205,7 +211,7 @@
       <div class="panel">
         <h2>Levelstatus</h2>
         <p class="hint">
-          Termin und Art festlegen, Thema wählen, dann die Was-Ziele markieren, die in Klassenarbeit oder Test vorkommen.
+          Termin und Art festlegen, Thema wählen, Was-Ziele markieren – dann mit dem Button speichern.
         </p>
 
         <div class="tc-toolbar">
@@ -268,30 +274,38 @@
     const card = root.querySelector(".tc-levelcheck-card");
     if (!card) return;
 
-    card.querySelector(".tc-card-thema-select")?.addEventListener("change", async (e) => {
-      await saveTopicMeta(card.dataset.checkId);
+    card.querySelector(".tc-card-thema-select")?.addEventListener("change", (e) => {
       state.themaId = e.target.value;
       state.message = "";
       state.error = "";
       render();
     });
 
-    card.querySelector(".tc-checkpoint-date")?.addEventListener("change", () => {
-      saveTopicMeta(card.dataset.checkId);
-    });
-
     card.querySelector(".tc-checkpoint-type")?.addEventListener("change", (e) => {
       toggleCustomField(card, e.target.value === "custom");
-      saveTopicMeta(card.dataset.checkId);
+      updateSaveButtonLabel(card);
     });
 
-    card.querySelector(".tc-checkpoint-type-custom")?.addEventListener("blur", () => {
-      saveTopicMeta(card.dataset.checkId);
+    card.querySelector(".tc-checkpoint-type-custom")?.addEventListener("input", () => {
+      updateSaveButtonLabel(card);
     });
 
-    card.querySelectorAll(".tc-was-goal-check").forEach((input) => {
-      input.addEventListener("change", () => saveTopicMeta(card.dataset.checkId));
+    card.querySelector("#tcSaveCheckpointBtn")?.addEventListener("click", () => {
+      saveTopicMeta(card.dataset.checkId);
     });
+  }
+
+  function updateSaveButtonLabel(card) {
+    const btn = card?.querySelector("#tcSaveCheckpointBtn");
+    const typeEl = card?.querySelector(".tc-checkpoint-type");
+    const customEl = card?.querySelector(".tc-checkpoint-type-custom");
+    if (!btn || !typeEl) return;
+    const type = typeEl.value || "klassenarbeit";
+    const label = typeLabelFor(
+      type,
+      type === "custom" ? customEl?.value?.trim() || "Eigene Bezeichnung" : null
+    );
+    btn.textContent = `${label} speichern`;
   }
 
   function readTopicPayload(checkId) {

@@ -3866,11 +3866,57 @@ async function deleteLevelCheckGoalForSchool(goalId, schoolId) {
         WHERE g.level_check_id = lc.id
           AND (lc.school_id = $2 OR c.school_id = $2)
       )
-    RETURNING g.id
+    RETURNING g.id, g.level_check_id
   `,
     [goalId, schoolId]
   );
+  if (!del.rowCount) return { deleted: false, levelCheckId: null };
+
+  const levelCheckId = del.rows[0].level_check_id;
+  const topicRemoved = await cleanupEmptyLevelCheckIfNeeded(levelCheckId);
+  return { deleted: true, topicRemoved };
+}
+
+async function cleanupEmptyLevelCheckIfNeeded(levelCheckId) {
+  if (!levelCheckId) return false;
+  const del = await pool.query(
+    `
+    DELETE FROM level_checks lc
+    WHERE lc.id = $1
+      AND NOT EXISTS (
+        SELECT 1
+        FROM level_check_goals g
+        WHERE g.level_check_id = lc.id
+          AND COALESCE(g.active, true) = true
+      )
+    RETURNING lc.id
+  `,
+    [levelCheckId]
+  );
   return del.rowCount > 0;
+}
+
+async function deleteEmptyLevelChecksForClass(classId, schoolId) {
+  const del = await pool.query(
+    `
+    DELETE FROM level_checks lc
+    WHERE lc.class_id = $1
+      AND (
+        lc.school_id = $2
+        OR EXISTS (SELECT 1 FROM classes c WHERE c.id = lc.class_id AND c.school_id = $2)
+        OR lc.school_id IS NULL
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM level_check_goals g
+        WHERE g.level_check_id = lc.id
+          AND COALESCE(g.active, true) = true
+      )
+    RETURNING lc.id
+  `,
+    [classId, schoolId]
+  );
+  return del.rowCount;
 }
 
 function buildCheckpointPlanEvents(levelChecks) {
@@ -5249,7 +5295,9 @@ async function importLevelplanRows(classId, schoolId, rows) {
     created++;
   }
 
-  return { created, updated, skipped };
+  const removedEmptyTopics = await deleteEmptyLevelChecksForClass(classId, schoolId);
+
+  return { created, updated, skipped, removedEmptyTopics };
 }
 
 // -------------------------------------------------------
@@ -5453,11 +5501,11 @@ app.delete("/api/teacher/subject-lesson-goals/:id", isAdmin, async (req, res) =>
 app.delete("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const deleted = await deleteLevelCheckGoalForSchool(req.params.id, schoolId);
-    if (!deleted) {
+    const result = await deleteLevelCheckGoalForSchool(req.params.id, schoolId);
+    if (!result.deleted) {
       return res.json({ success: false, message: "Unterthema nicht gefunden." });
     }
-    res.json({ success: true });
+    res.json({ success: true, topicRemoved: !!result.topicRemoved });
   } catch (err) {
     console.error("❌ DELETE goal:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
@@ -5467,11 +5515,11 @@ app.delete("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
 app.post("/api/teacher/levelcheck-goals/:id/delete", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const deleted = await deleteLevelCheckGoalForSchool(req.params.id, schoolId);
-    if (!deleted) {
+    const result = await deleteLevelCheckGoalForSchool(req.params.id, schoolId);
+    if (!result.deleted) {
       return res.json({ success: false, message: "Unterthema nicht gefunden." });
     }
-    res.json({ success: true });
+    res.json({ success: true, topicRemoved: !!result.topicRemoved });
   } catch (err) {
     console.error("❌ DELETE goal:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
