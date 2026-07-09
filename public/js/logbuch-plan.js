@@ -4,6 +4,7 @@
 (function () {
   const C = () => window.LOGBUCH;
   const UI = () => window.LogbuchUI;
+  const TUTORIAL_FLAG = "hasSeenGoalTutorial";
   const HOW_GOAL_OPTIONS = [
     "Ich starte mit Rookie-Aufgaben.",
     "Ich löse erst Aufgaben mit Hilfe und danach alleine.",
@@ -35,6 +36,8 @@
     nextCheckpoint: null,
     hasClass: true,
     subjectLocked: false,
+    tutorialOpen: false,
+    tutorialStep: 0,
     submitting: false,
     errorMsg: ""
   };
@@ -45,6 +48,107 @@
     const m = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
+  }
+
+  function tutorialStorageKey() {
+    const userId = window.__currentStudentId || "anonymous";
+    return `${TUTORIAL_FLAG}:${userId}`;
+  }
+
+  function hasSeenTutorial() {
+    try {
+      return localStorage.getItem(tutorialStorageKey()) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function markTutorialSeen() {
+    try {
+      localStorage.setItem(tutorialStorageKey(), "1");
+    } catch {}
+  }
+
+  function tutorialSteps() {
+    return [
+      {
+        title: "Warum ein Tagesziel?",
+        text: "Mit Tagesziel lernst du gezielter. Du kannst am Ende besser prüfen, ob du wirklich Fortschritt gemacht hast.",
+        tip: "Ohne Ziel: Aufgaben abhaken. Mit Ziel: gezielt besser werden."
+      },
+      {
+        title: "Was-Ziel",
+        text: "Das Was-Ziel ist dein fachliches Ziel. Es kommt aus dem Levelplan für den nächsten Checkpoint.",
+        tip: "Nicht: „Ich mache Mathe.“ Besser: „Ich kann mit Gegenereignissen arbeiten.“"
+      },
+      {
+        title: "Wie-Ziel",
+        text: "Das Wie-Ziel ist dein Arbeitsweg. Hier wählst du, wie du dein Ziel erreichen willst.",
+        tip: "Beispiel: „Ich löse erst Aufgaben mit Hilfe und danach alleine.“"
+      },
+      {
+        title: "Was genau?",
+        text: "Mach dein Ziel konkret: Welche Aufgaben, welches Material, welches Level?",
+        tip: "Beispiel: „Rookie 1-3, danach Operator 1.“"
+      },
+      {
+        title: "So sieht ein gutes Tagesziel aus",
+        text: "Was-Ziel + Wie-Ziel + Konkret-Plan ergeben zusammen deinen Planungssatz.",
+        tip: "Dann kannst du im Check und im Tagesabschluss klar prüfen: Ziel erreicht?"
+      }
+    ];
+  }
+
+  function openTutorial(step = 0) {
+    state.tutorialStep = Math.max(0, Math.min(step, tutorialSteps().length - 1));
+    state.tutorialOpen = true;
+    render();
+  }
+
+  function closeTutorial(markSeen = false) {
+    state.tutorialOpen = false;
+    state.tutorialStep = 0;
+    if (markSeen) markTutorialSeen();
+    render();
+  }
+
+  function nextTutorialStep() {
+    const steps = tutorialSteps();
+    if (state.tutorialStep >= steps.length - 1) {
+      closeTutorial(true);
+      return;
+    }
+    state.tutorialStep += 1;
+    render();
+  }
+
+  function renderTutorialLauncher(ui) {
+    return `
+      <div class="logbuch-field" style="margin-top:4px">
+        <button type="button" class="logbuch-btn-ghost" id="planTutorialOpenBtn">Einweisung nochmal ansehen</button>
+      </div>`;
+  }
+
+  function renderTutorialModal(ui) {
+    if (!state.tutorialOpen) return "";
+    const steps = tutorialSteps();
+    const step = steps[state.tutorialStep];
+    const isLast = state.tutorialStep === steps.length - 1;
+    const stepLabel = `${state.tutorialStep + 1} / ${steps.length}`;
+
+    return `
+      <div style="position:fixed; inset:0; background:rgba(2,6,23,0.78); z-index:1400; display:flex; align-items:center; justify-content:center; padding:16px;">
+        <div style="width:min(640px,96vw); border:1px solid rgba(148,163,184,0.35); border-radius:14px; background:rgba(12,23,45,0.98); padding:18px;">
+          <p class="logbuch-meta" style="margin-bottom:8px">Tagesziel-Tutorial · Schritt ${ui.escapeHtml(stepLabel)}</p>
+          <h3 style="margin:0 0 10px; font-size:22px;">${ui.escapeHtml(step.title)}</h3>
+          <p style="margin:0 0 10px; opacity:0.96; line-height:1.45;">${ui.escapeHtml(step.text)}</p>
+          <p class="logbuch-hint" style="margin:0 0 16px;">${ui.escapeHtml(step.tip)}</p>
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <button type="button" class="logbuch-btn-ghost" id="planTutorialCloseBtn">Später</button>
+            <button type="button" class="btn-primary" id="planTutorialNextBtn">${isLast ? "Verstanden, Ziel setzen" : "Weiter"}</button>
+          </div>
+        </div>
+      </div>`;
   }
 
   function socialFormOptions() {
@@ -132,6 +236,7 @@
     return `
       <div class="logbuch-form logbuch-form-readonly">
         <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${e.timeslot ? ` · ${ui.escapeHtml(e.timeslot)}` : ""}</p>
+        ${renderTutorialLauncher(ui)}
         <div class="logbuch-msg logbuch-msg-info">Dein Tagesziel (nur Ansicht – nicht änderbar)</div>
         <dl class="plan-readonly-list">
           ${rows
@@ -145,7 +250,8 @@
             .join("")}
         </dl>
         ${ui.btnGhost("Zurück zu Mein Tag", "planBackBtn")}
-      </div>`;
+      </div>
+      ${renderTutorialModal(ui)}`;
   }
 
   function render() {
@@ -177,6 +283,7 @@
     root.innerHTML = `
       <div class="logbuch-form">
         <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${state.timeslot ? ` · ${ui.escapeHtml(state.timeslot)}` : ""}</p>
+        ${renderTutorialLauncher(ui)}
 
         ${
           state.subjectLocked
@@ -217,6 +324,8 @@
             : `<div class="logbuch-msg logbuch-msg-info">Für dieses Fach wurden noch keine Kompetenzziele angelegt.</div>
                <input type="text" class="logbuch-input" id="planWhatGoalText" maxlength="300"
                  placeholder="Eigenes Was-Ziel eintragen" value="${ui.escapeHtml(state.whatGoalText)}">`
+        ,
+          "Das ist dein fachliches Ziel. Es kommt aus dem Levelplan für den nächsten Checkpoint."
         )}
 
         ${ui.fieldWrap(
@@ -227,6 +336,8 @@
             state.howGoalText,
             { phase: "plan", placeholder: "Wie-Ziel wählen…" }
           )
+        ,
+          "Das ist dein Arbeitsweg. Hier wählst du, wie du dein Ziel erreichen willst."
         )}
 
         <div class="logbuch-msg logbuch-msg-info" id="planSummaryBox" ${summarySentence ? "" : "hidden"}>
@@ -241,7 +352,7 @@
             placeholder="z. B. Rookie 1–4, danach Operator 1–2"
             value="${ui.escapeHtml(state.detailsText)}">
            <div class="logbuch-char-count"><span id="planDetailsCount">${state.detailsText.length}</span>/100</div>`,
-          "",
+          "Mach dein Ziel konkret: Welche Aufgaben, welches Material, welches Level?",
           { wide: true }
         )}
 
@@ -284,12 +395,22 @@
           "logbuch-submit-full"
         )}
         ${ui.btnGhost("Abbrechen", "planBackBtn")}
-      </div>`;
+      </div>
+      ${renderTutorialModal(ui)}`;
 
     bindHandlers(root);
   }
 
   function bindStaticHandlers(root) {
+    root.querySelector("#planTutorialOpenBtn")?.addEventListener("click", () => {
+      openTutorial(0);
+    });
+    root.querySelector("#planTutorialNextBtn")?.addEventListener("click", () => {
+      nextTutorialStep();
+    });
+    root.querySelector("#planTutorialCloseBtn")?.addEventListener("click", () => {
+      closeTutorial(false);
+    });
     root.querySelector("#planBackBtn")?.addEventListener("click", () => {
       window.StudentRouter?.navigateToSection("today");
     });
@@ -331,6 +452,15 @@
     });
 
     root.querySelector("#planSubmitBtn")?.addEventListener("click", submitPlan);
+    root.querySelector("#planTutorialOpenBtn")?.addEventListener("click", () => {
+      openTutorial(0);
+    });
+    root.querySelector("#planTutorialNextBtn")?.addEventListener("click", () => {
+      nextTutorialStep();
+    });
+    root.querySelector("#planTutorialCloseBtn")?.addEventListener("click", () => {
+      closeTutorial(false);
+    });
     root.querySelector("#planBackBtn")?.addEventListener("click", () => {
       window.StudentRouter?.navigateToSection("today");
     });
@@ -472,6 +602,8 @@
     state.existingEntry = null;
     state.hasClass = true;
     state.subjectLocked = false;
+    state.tutorialStep = 0;
+    state.tutorialOpen = !hasSeenTutorial();
     state.submitting = false;
     state.errorMsg = "";
 

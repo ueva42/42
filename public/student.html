@@ -2434,7 +2434,7 @@ h2 {
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=2"></script>
-<script src="/js/logbuch-plan.js?v=7"></script>
+<script src="/js/logbuch-plan.js?v=8"></script>
 <script src="/js/logbuch-check.js"></script>
 <script src="/js/logbuch-reflect.js"></script>
 <script src="/js/logbuch-today.js?v=9"></script>
@@ -2667,6 +2667,7 @@ window.loadMe = async function loadMe() {
   }
   const data = await r.json();
   const u = data.user;
+  window.__currentStudentId = u?.id || null;
 
   document.getElementById("userCard").innerHTML = `
     <div>
