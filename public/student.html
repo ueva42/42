@@ -1021,6 +1021,51 @@ a { color: inherit; }
 /* Levelplan & Zielsetzung */
 .lc-shell { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .lc-intro { margin: 0; font-size: 13px; opacity: 0.75; line-height: 1.5; }
+.lp-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.lp-filter { display: flex; flex-direction: column; gap: 6px; font-size: 12px; opacity: 0.85; }
+.lp-filter select {
+  border-radius: 10px;
+  border: 1px solid rgba(148,163,184,0.35);
+  background: rgba(15,23,42,0.65);
+  color: #f8fafc;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.lp-subtopic-list { display: flex; flex-direction: column; gap: 12px; }
+.lp-subtopic-card {
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.25);
+  background: rgba(15,23,42,0.55);
+  padding: 14px;
+}
+.lp-subtopic-title { margin: 0 0 12px; font-size: 15px; line-height: 1.35; }
+.lp-tier-list { display: flex; flex-direction: column; gap: 10px; }
+.lp-tier-row {
+  display: grid;
+  grid-template-columns: 88px 1fr 120px;
+  gap: 10px;
+  align-items: start;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148,163,184,0.15);
+}
+.lp-tier-row:first-child { border-top: none; padding-top: 0; }
+.lp-tier-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #f97316; }
+.lp-tier-text { font-size: 13px; line-height: 1.45; opacity: 0.92; }
+.lp-tier-status {
+  border-radius: 8px;
+  border: 1px solid rgba(148,163,184,0.35);
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .lp-tier-row { grid-template-columns: 1fr; gap: 6px; }
+}
 .lc-subject-title {
   margin: 0 0 10px;
   font-size: 14px;
@@ -2285,7 +2330,7 @@ h2 {
   </div>
 
   <div class="menu-item" data-section="levelplan" onclick="showSection(event,'levelplan')">
-    <div class="menu-icon">P</div><span class="menu-label">Levelplan</span>
+    <div class="menu-icon">P</div><span class="menu-label">Levelstatus</span>
   </div>
 
   <div class="menu-item" data-section="checkpoint-plan" onclick="showSection(event,'checkpoint-plan')">
@@ -2361,7 +2406,7 @@ h2 {
 
   <!-- LEVELPLAN -->
   <div id="levelplan-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Levelplan</h2>
+    <h2>Levelstatus</h2>
     <div id="levelplan-screen-root" class="logbuch-root"></div>
   </div>
 
@@ -2439,7 +2484,7 @@ h2 {
 <script src="/js/logbuch-reflect.js"></script>
 <script src="/js/logbuch-today.js?v=9"></script>
 <script src="/js/logbuch-week.js"></script>
-<script src="/js/logbuch-levelplan.js?v=9"></script>
+<script src="/js/logbuch-levelplan.js?v=10"></script>
 <script src="/js/logbuch-zielsetzung.js?v=9"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=2"></script>
 <script src="/js/logbuch-screens.js"></script>

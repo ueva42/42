@@ -1,9 +1,23 @@
 /**
- * SRL-Logbuch – Levelplan (Matrix pro Levelcheck).
+ * SRL-Logbuch – Levelplan / Levelstatus (importierte Kompetenzraster).
  */
 (function () {
+  const TIER_META = [
+    { id: "rookie", label: "Rookie", textKey: "rookieGoalText" },
+    { id: "operator", label: "Operator", textKey: "operatorGoalText" },
+    { id: "street_legend", label: "Street Legend", textKey: "streetLegendGoalText" }
+  ];
+
+  const DEFAULT_STATUS_OPTIONS = [
+    { id: "offen", label: "offen" },
+    { id: "in_arbeit", label: "in Arbeit" },
+    { id: "sicher", label: "sicher" }
+  ];
+
   const state = {
     data: null,
+    selectedSubject: null,
+    selectedThemaId: null,
     loading: false,
     saving: null,
     message: "",
@@ -53,128 +67,152 @@
       .replace(/"/g, "&quot;");
   }
 
-  function renderMatrix(levelCheck, tiers) {
-    if (!levelCheck.goals?.length) {
-      return `<p class="lc-empty-goals">Noch keine Unterthemen in diesem Thema.</p>`;
-    }
-
-    const target = levelCheck.target;
-
-    const head = tiers
-      .map((t) => {
-        const tierTarget = target?.tiers?.find((x) => x.id === t.id);
-        const req = tierTarget?.recommended;
-        const cur = tierTarget?.current ?? 0;
-        const targetSub =
-          req != null
-            ? `<span class="lc-matrix-target ${tierTarget.onTrack ? "lc-matrix-target-ok" : "lc-matrix-target-need"}">${cur}/${req}</span>`
-            : "";
-        return `<th class="lc-matrix-tier">${escapeHtml(t.label)}${t.xp ? `<span class="lc-matrix-tier-xp">+${t.xp} XP</span>` : ""}${targetSub}</th>`;
-      })
-      .join("");
-
-    const rows = levelCheck.goals
-      .map((goal) => {
-        const cells = tiers
-          .map((tier) => {
-            const active = !!goal.mark?.tiers?.[tier.id];
-            const key = `${goal.id}_${tier.id}`;
-            const busy = state.saving === key;
-            return `
-              <td class="lc-matrix-cell">
-                <button
-                  type="button"
-                  class="lc-matrix-btn ${active ? "lc-matrix-btn-active" : ""}"
-                  data-goal-id="${escapeHtml(goal.id)}"
-                  data-tier="${escapeHtml(tier.id)}"
-                  aria-label="${escapeHtml(goal.text)} – ${escapeHtml(tier.label)}"
-                  ${busy ? "disabled" : ""}
-                >
-                  ${active ? "✓" : ""}
-                </button>
-              </td>`;
-          })
-          .join("");
-
-        return `
-          <tr>
-            <th class="lc-matrix-goal" scope="row">
-              <span class="lc-matrix-goal-num">${goal.sortOrder}.</span>
-              <span class="lc-matrix-goal-text">${escapeHtml(goal.text)}</span>
-            </th>
-            ${cells}
-          </tr>`;
-      })
-      .join("");
-
-    return `
-      <div class="lc-matrix-wrap">
-        <table class="lc-matrix">
-          <colgroup>
-            <col class="lc-matrix-col-goal" />
-            <col class="lc-matrix-col-tier" />
-            <col class="lc-matrix-col-tier" />
-            <col class="lc-matrix-col-tier" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th class="lc-matrix-corner">Unterthema</th>
-              ${head}
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+  function statusOptions() {
+    return Array.isArray(state.data?.statusOptions) && state.data.statusOptions.length
+      ? state.data.statusOptions
+      : DEFAULT_STATUS_OPTIONS;
   }
 
-  function renderLevelCheck(levelCheck, tiers) {
-    const marked = (levelCheck.goals || []).filter((g) => g.mark).length;
-    const total = (levelCheck.goals || []).length;
-    const target = levelCheck.target;
+  function subjectsWithData() {
+    return (state.data?.grouped || []).filter((g) =>
+      (g.levelChecks || []).some((lc) => (lc.goals || []).length)
+    );
+  }
 
-    const targetBadge = target?.targetGrade
-      ? `<span class="lc-target-badge">Zielnote ${escapeHtml(target.targetGradeLabel || String(target.targetGrade).replace(".", ","))}</span>`
-      : `<span class="lc-target-badge lc-target-badge-empty">Zielnote in Zielsetzung wählen</span>`;
+  function levelChecksForSubject(subject) {
+    const group = (state.data?.grouped || []).find((g) => g.subject === subject);
+    return (group?.levelChecks || []).filter((lc) => (lc.goals || []).length);
+  }
+
+  function selectedThema() {
+    if (!state.selectedThemaId) return null;
+    const checks = levelChecksForSubject(state.selectedSubject);
+    return checks.find((lc) => String(lc.id) === String(state.selectedThemaId)) || null;
+  }
+
+  function tierGoalText(goal, tier) {
+    const meta = TIER_META.find((t) => t.id === tier.id);
+    const text = meta ? goal[meta.textKey] : null;
+    return text && String(text).trim() ? String(text).trim() : "–";
+  }
+
+  function tierStatus(goal, tierId) {
+    const entry = goal.mark?.tiers?.[tierId];
+    if (!entry) return "offen";
+    if (typeof entry === "object" && entry.status) return entry.status;
+    return "sicher";
+  }
+
+  function ensureSelection() {
+    const subjects = subjectsWithData();
+    if (!subjects.length) {
+      state.selectedSubject = null;
+      state.selectedThemaId = null;
+      return;
+    }
+
+    if (!state.selectedSubject || !subjects.some((g) => g.subject === state.selectedSubject)) {
+      state.selectedSubject = subjects[0].subject;
+    }
+
+    const themen = levelChecksForSubject(state.selectedSubject);
+    if (!themen.length) {
+      state.selectedThemaId = null;
+      return;
+    }
+
+    if (!state.selectedThemaId || !themen.some((t) => String(t.id) === String(state.selectedThemaId))) {
+      state.selectedThemaId = themen[0].id;
+    }
+  }
+
+  function renderSubtopicCard(goal) {
+    const rows = TIER_META.map((tier) => {
+      const key = `${goal.id}_${tier.id}`;
+      const busy = state.saving === key;
+      const currentStatus = tierStatus(goal, tier.id);
+      const options = statusOptions()
+        .map(
+          (opt) =>
+            `<option value="${escapeHtml(opt.id)}" ${opt.id === currentStatus ? "selected" : ""}>${escapeHtml(opt.label)}</option>`
+        )
+        .join("");
+
+      return `
+        <div class="lp-tier-row">
+          <div class="lp-tier-label">${escapeHtml(tier.label)}</div>
+          <div class="lp-tier-text">${escapeHtml(tierGoalText(goal, tier))}</div>
+          <select
+            class="lp-tier-status"
+            data-goal-id="${escapeHtml(goal.id)}"
+            data-tier="${escapeHtml(tier.id)}"
+            aria-label="Status ${escapeHtml(tier.label)} – ${escapeHtml(goal.text)}"
+            ${busy ? "disabled" : ""}
+          >${options}</select>
+        </div>`;
+    }).join("");
 
     return `
-      <article class="lc-check-card">
-        <div class="lc-check-head">
-          <div>
-            <span class="lc-check-badge">${escapeHtml(levelCheck.name)}</span>
-            ${targetBadge}
-            <p class="lc-check-sub">${total} Unterthemen · ${marked} markiert</p>
-          </div>
-        </div>
-        ${renderMatrix(levelCheck, tiers)}
+      <article class="lp-subtopic-card">
+        <h4 class="lp-subtopic-title">${escapeHtml(goal.text)}</h4>
+        <div class="lp-tier-list">${rows}</div>
       </article>`;
   }
 
-  function renderGrouped() {
+  function renderContent() {
     if (!state.data?.hasClass) {
       return `<div class="lc-empty"><p>Dir ist noch keine Klasse zugeordnet.</p></div>`;
     }
 
-    if (!state.data?.grouped?.length) {
+    const subjects = subjectsWithData();
+    if (!subjects.length) {
       return `
         <div class="lc-empty">
-          <p>Noch kein Levelplan.</p>
-          <p class="lc-empty-hint">Deine Lehrkraft legt im Levelstatus Themen mit Unterthemen an.</p>
+          <p>Für deine Klasse wurde noch kein Levelplan importiert.</p>
+          <p class="lc-empty-hint">Deine Lehrkraft legt den Plan im Admin-Bereich unter „Levelplan importieren“ an.</p>
         </div>`;
     }
 
-    const tiers = state.data.tiers || [];
+    ensureSelection();
 
-    return state.data.grouped
+    const themen = levelChecksForSubject(state.selectedSubject);
+    const thema = selectedThema();
+
+    const subjectOptions = subjects
       .map(
-        (group) => `
-        <section class="lc-subject-group">
-          <h3 class="lc-subject-title">${escapeHtml(group.subject)}</h3>
-          <div class="lc-checks">
-            ${group.levelChecks.map((lc) => renderLevelCheck(lc, tiers)).join("")}
-          </div>
-        </section>`
+        (g) =>
+          `<option value="${escapeHtml(g.subject)}" ${g.subject === state.selectedSubject ? "selected" : ""}>${escapeHtml(g.subject)}</option>`
       )
       .join("");
+
+    const themaOptions = themen
+      .map(
+        (t) =>
+          `<option value="${escapeHtml(t.id)}" ${String(t.id) === String(state.selectedThemaId) ? "selected" : ""}>${escapeHtml(t.name)}</option>`
+      )
+      .join("");
+
+    let body = "";
+    if (!thema) {
+      body = `<div class="lc-empty"><p>Für dieses Fach wurden noch keine Themen gefunden.</p></div>`;
+    } else if (!thema.goals?.length) {
+      body = `<div class="lc-empty"><p>Für dieses Thema wurden noch keine Unterthemen gefunden.</p></div>`;
+    } else {
+      body = `<div class="lp-subtopic-list">${thema.goals.map(renderSubtopicCard).join("")}</div>`;
+    }
+
+    return `
+      <div class="lp-filters">
+        <label class="lp-filter">
+          <span>Fach</span>
+          <select id="lpSubjectSelect">${subjectOptions}</select>
+        </label>
+        <label class="lp-filter">
+          <span>Thema</span>
+          <select id="lpThemaSelect" ${themen.length ? "" : "disabled"}>${themaOptions}</select>
+        </label>
+      </div>
+      ${body}`;
   }
 
   function render() {
@@ -194,25 +232,43 @@
     root.innerHTML = `
       <div class="lc-shell">
         <p class="lc-intro">
-          Dein <strong>Levelplan</strong>: Hake pro Unterthema ab, was du geschafft hast –
-          Rookie, Operator und Street Legend getrennt. Alle drei Häkchen = alles erledigt.
-          Zahlen in der Kopfzeile = dein Stand / Ziel aus der Zielsetzung.
+          Dein <strong>Levelplan</strong>: Wähle Fach und Thema, dann siehst du die Unterthemen
+          mit Rookie-, Operator- und Street-Legend-Zielen aus dem importierten Kompetenzraster.
+          Setze pro Level deinen Status: offen, in Arbeit oder sicher.
         </p>
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
-        ${renderGrouped()}
+        ${renderContent()}
       </div>`;
 
     bindHandlers(root);
   }
 
   function bindHandlers(root) {
-    root.querySelectorAll(".lc-matrix-btn").forEach((btn) => {
-      btn.addEventListener("click", () => setMark(btn.dataset.goalId, btn.dataset.tier));
+    root.querySelector("#lpSubjectSelect")?.addEventListener("change", (e) => {
+      state.selectedSubject = e.target.value;
+      state.selectedThemaId = null;
+      state.message = "";
+      state.error = "";
+      ensureSelection();
+      render();
+    });
+
+    root.querySelector("#lpThemaSelect")?.addEventListener("change", (e) => {
+      state.selectedThemaId = e.target.value;
+      state.message = "";
+      state.error = "";
+      render();
+    });
+
+    root.querySelectorAll(".lp-tier-status").forEach((select) => {
+      select.addEventListener("change", () =>
+        setStatus(select.dataset.goalId, select.dataset.tier, select.value)
+      );
     });
   }
 
-  async function setMark(goalId, tier) {
+  async function setStatus(goalId, tier, status) {
     state.saving = `${goalId}_${tier}`;
     state.error = "";
     state.message = "";
@@ -222,7 +278,7 @@
       const res = await fetch("/api/student/levelcheck-mark", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goalId, tier })
+        body: JSON.stringify({ goalId, tier, status })
       });
       const data = await res.json();
       state.saving = null;
@@ -233,11 +289,9 @@
         return;
       }
 
-      if (data.cleared) {
-        state.message = "Markierung entfernt.";
-      } else if (data.tierLabel) {
-        state.message = `${data.tierLabel} markiert.`;
-      }
+      state.message = data.statusLabel
+        ? `Status gespeichert: ${data.statusLabel}.`
+        : "Status gespeichert.";
 
       await loadData(initGeneration);
     } catch (err) {
@@ -258,6 +312,7 @@
 
       state.data = data;
       state.loading = false;
+      ensureSelection();
       render();
     } catch (err) {
       console.error(err);
@@ -274,7 +329,6 @@
     state.saving = null;
     state.message = "";
     state.error = "";
-    state.data = null;
 
     const root = document.getElementById("levelplan-screen-root");
     if (root) root.innerHTML = `<div class="logbuch-loading">Lade Levelplan…</div>`;

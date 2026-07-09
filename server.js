@@ -70,6 +70,12 @@ const LEVEL_CHECK_TIER_LABELS = {
   operator: "Operator",
   street_legend: "Street Legend"
 };
+const LEVEL_STATUS_VALUES = ["offen", "in_arbeit", "sicher"];
+const LEVEL_STATUS_LABELS = {
+  offen: "offen",
+  in_arbeit: "in Arbeit",
+  sicher: "sicher"
+};
 const LEVEL_CHECK_XP = {
   rookie: 5,
   operator: 8,
@@ -251,14 +257,45 @@ function computeAchievedGradeFromMarks(totalGoals, markCounts) {
   return null;
 }
 
+function normalizeLevelStatus(raw) {
+  const key = String(raw || "offen")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+  if (key === "in_arbeit" || key === "inarbeit") return "in_arbeit";
+  if (key === "sicher") return "sicher";
+  return "offen";
+}
+
+function levelStatusIsMarked(status) {
+  return normalizeLevelStatus(status) === "sicher";
+}
+
+function tierMarkEntry(row) {
+  if (!row) return null;
+  const status = row.status != null ? normalizeLevelStatus(row.status) : "sicher";
+  return { status, updatedAt: row.updated_at };
+}
+
+function tierEntryIsMarked(entry) {
+  if (!entry) return false;
+  if (typeof entry === "object" && entry.status != null) {
+    return levelStatusIsMarked(entry.status);
+  }
+  return !!entry;
+}
+
 function countGoalMarksByTier(goals) {
   const counts = { rookie: 0, operator: 0, street_legend: 0, unmarked: 0 };
   for (const goal of goals || []) {
     const tiers = goal.mark?.tiers || {};
-    const hasAny = !!(tiers.rookie || tiers.operator || tiers.street_legend);
-    if (tiers.rookie) counts.rookie++;
-    if (tiers.operator) counts.operator++;
-    if (tiers.street_legend) counts.street_legend++;
+    const hasAny =
+      tierEntryIsMarked(tiers.rookie) ||
+      tierEntryIsMarked(tiers.operator) ||
+      tierEntryIsMarked(tiers.street_legend);
+    if (tierEntryIsMarked(tiers.rookie)) counts.rookie++;
+    if (tierEntryIsMarked(tiers.operator)) counts.operator++;
+    if (tierEntryIsMarked(tiers.street_legend)) counts.street_legend++;
     if (!hasAny) counts.unmarked++;
   }
   return counts;
@@ -374,7 +411,7 @@ function buildTargetProgressSummary(tiers, targetGradeKey) {
 function buildGoalMarkFromRows(rows) {
   const tiers = {};
   for (const row of rows || []) {
-    tiers[row.tier] = { updatedAt: row.updated_at };
+    tiers[row.tier] = tierMarkEntry(row);
   }
   return Object.keys(tiers).length ? { tiers } : null;
 }
@@ -1896,6 +1933,7 @@ async function migrate() {
     )
   `);
   await ensureColumn("level_check_marks", "school_id", "INTEGER");
+  await ensureColumn("level_check_marks", "status", "TEXT DEFAULT 'sicher'");
 
   await pool.query(`
     ALTER TABLE level_check_marks
@@ -3692,9 +3730,18 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
 
   const goalsRes = await pool.query(
     `
-    SELECT id, level_check_id, goal_text, sort_order
+    SELECT
+      id,
+      level_check_id,
+      goal_text,
+      sort_order,
+      rookie_goal_text,
+      operator_goal_text,
+      street_legend_goal_text,
+      active
     FROM level_check_goals
     WHERE level_check_id = ANY($1::uuid[])
+      AND COALESCE(active, true) = true
     ORDER BY sort_order ASC, created_at ASC
   `,
     [checkIds]
@@ -3704,7 +3751,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
   if (studentId) {
     const marksRes = await pool.query(
       `
-      SELECT m.goal_id, m.tier, m.updated_at
+      SELECT m.goal_id, m.tier, m.status, m.updated_at
       FROM level_check_marks m
       JOIN level_check_goals g ON g.id = m.goal_id
       WHERE m.user_id=$1 AND g.level_check_id = ANY($2::uuid[])
@@ -3724,6 +3771,9 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       id: g.id,
       text: g.goal_text,
       sortOrder: g.sort_order,
+      rookieGoalText: g.rookie_goal_text || null,
+      operatorGoalText: g.operator_goal_text || null,
+      streetLegendGoalText: g.street_legend_goal_text || null,
       mark: buildGoalMarkFromRows(marksByGoal[g.id])
     });
   }
@@ -3956,7 +4006,11 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
       hasClass: true,
       grouped: groupLevelChecksBySubject(checksWithTargets),
       tiers: levelCheckTiersPayload(false),
-      gradeOptions: TARGET_GRADE_OPTIONS
+      gradeOptions: TARGET_GRADE_OPTIONS,
+      statusOptions: LEVEL_STATUS_VALUES.map((id) => ({
+        id,
+        label: LEVEL_STATUS_LABELS[id]
+      }))
     });
   } catch (err) {
     console.error("❌ /api/student/levelplan:", err);
@@ -4478,6 +4532,8 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
     const classId = req.session.user.class_id;
     const goalId = req.body.goalId;
     const tier = req.body.tier;
+    const hasStatus = Object.prototype.hasOwnProperty.call(req.body, "status");
+    const status = hasStatus ? normalizeLevelStatus(req.body.status) : null;
 
     if (!classId) {
       return res.json({ success: false, message: "Keine Klasse zugeordnet." });
@@ -4488,18 +4544,60 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
     if (!LEVEL_CHECK_TIERS.includes(tier)) {
       return res.json({ success: false, message: "Ungültige Stufe." });
     }
+    if (hasStatus && !LEVEL_STATUS_VALUES.includes(status)) {
+      return res.json({ success: false, message: "Ungültiger Status." });
+    }
 
     const goalRes = await pool.query(
       `
       SELECT g.id
       FROM level_check_goals g
       JOIN level_checks lc ON lc.id = g.level_check_id
-      WHERE g.id=$1 AND lc.class_id=$2 AND lc.school_id=$3
+      LEFT JOIN classes c ON c.id = lc.class_id
+      WHERE g.id=$1
+        AND lc.class_id=$2
+        AND (lc.school_id = $3 OR c.school_id = $3 OR lc.school_id IS NULL)
     `,
       [goalId, classId, schoolId]
     );
     if (!goalRes.rows.length) {
       return res.json({ success: false, message: "Ziel nicht gefunden." });
+    }
+
+    if (hasStatus) {
+      if (status === "offen") {
+        await pool.query(
+          `DELETE FROM level_check_marks WHERE goal_id=$1 AND user_id=$2 AND tier=$3`,
+          [goalId, studentId, tier]
+        );
+        return res.json({
+          success: true,
+          tier,
+          status: "offen",
+          statusLabel: LEVEL_STATUS_LABELS.offen,
+          cleared: true,
+          xpAwarded: 0
+        });
+      }
+
+      await pool.query(
+        `
+        INSERT INTO level_check_marks (school_id, goal_id, user_id, tier, status, updated_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (goal_id, user_id, tier)
+        DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
+      `,
+        [schoolId, goalId, studentId, tier, status]
+      );
+
+      return res.json({
+        success: true,
+        tier,
+        tierLabel: LEVEL_CHECK_TIER_LABELS[tier],
+        status,
+        statusLabel: LEVEL_STATUS_LABELS[status],
+        xpAwarded: 0
+      });
     }
 
     const existing = await pool.query(
@@ -4508,28 +4606,25 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
     );
 
     if (existing.rows.length) {
-      await pool.query(
-        `DELETE FROM level_check_marks WHERE id=$1`,
-        [existing.rows[0].id]
-      );
+      await pool.query(`DELETE FROM level_check_marks WHERE id=$1`, [existing.rows[0].id]);
       return res.json({ success: true, tier: null, cleared: true, xpAwarded: 0 });
     }
 
     await pool.query(
       `
-      INSERT INTO level_check_marks (school_id, goal_id, user_id, tier)
-      VALUES ($1,$2,$3,$4)
+      INSERT INTO level_check_marks (school_id, goal_id, user_id, tier, status)
+      VALUES ($1,$2,$3,$4,'sicher')
     `,
       [schoolId, goalId, studentId, tier]
     );
-
-    const xpAwarded = 0;
 
     res.json({
       success: true,
       tier,
       tierLabel: LEVEL_CHECK_TIER_LABELS[tier],
-      xpAwarded
+      status: "sicher",
+      statusLabel: LEVEL_STATUS_LABELS.sicher,
+      xpAwarded: 0
     });
   } catch (err) {
     console.error("❌ /api/student/levelcheck-mark:", err);
