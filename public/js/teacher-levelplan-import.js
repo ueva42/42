@@ -87,9 +87,10 @@
       <div class="panel lpi-panel">
         <h2>Levelplan importieren</h2>
         <p class="hint">
-          Füge hier deinen Levelplan per Copy &amp; Paste ein. Format:
-          <code>Fach:</code>, <code>Thema:</code>, <code>Unterthema:</code>,
-          <code>Rookie:</code>, <code>Operator:</code>, <code>Street Legend:</code>.
+          Füge hier deinen Levelplan per Copy &amp; Paste ein. Pro Eintrag brauchst du
+          <strong>Fach</strong>, <strong>Thema</strong>, <strong>Unterthema</strong> und die drei Level
+          (<strong>Rookie</strong>, <strong>Operator</strong>, <strong>Street Legend</strong>).
+          Doppelpunkt ist optional; Leveltexte dürfen auch in der nächsten Zeile stehen.
         </p>
 
         <div class="lpi-toolbar">
@@ -109,13 +110,16 @@
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
 
         <label class="lpi-label" for="lpiTextInput">Levelplan-Text</label>
-        <textarea id="lpiTextInput" class="lpi-textarea" rows="16" placeholder="Fach: Mathe
-Thema: Wahrscheinlichkeit
+        <textarea id="lpiTextInput" class="lpi-textarea" rows="16" placeholder="Fach Mathe
+Thema Wahrscheinlichkeit
 
-Unterthema: Gegenereignis
-Rookie: Ich erkenne das passende Gegenereignis.
-Operator: Ich kann mit Gegenereignissen Wahrscheinlichkeiten berechnen.
-Street Legend: Ich kann Gegenereignisse bei schwierigen Aufgaben gezielt nutzen.">${escapeHtml(state.text)}</textarea>
+Richtig zählen
+Rookie
+Ich schreibe alle Möglichkeiten geordnet auf und zähle sie richtig ab.
+Operator
+Ich bestimme die Anzahl der Möglichkeiten mit Tabelle oder Baumdiagramm.
+Street Legend
+Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.text)}</textarea>
 
         <div class="lpi-actions">
           <button type="button" class="action" id="lpiPreviewBtn" ${state.loading ? "disabled" : ""}>

@@ -4797,67 +4797,143 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
 });
 
 function parseLevelplanImportText(raw) {
-  const lines = String(raw || "").split(/\r?\n/);
+  const lines = String(raw || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const isNumberOnly = (line) => /^\d+\.?$/.test(line);
+  const isTierKeyword = (line) => /^(Rookie|Operator|Street[\s-]?Legend)[:\s]*$/i.test(line);
+  const nextMeaningful = (fromIndex) => {
+    for (let i = fromIndex; i < lines.length; i++) {
+      if (!isNumberOnly(lines[i])) return lines[i];
+    }
+    return null;
+  };
+
   let currentFach = "";
   let currentThema = "";
   let current = null;
+  let pendingTier = null;
   const rows = [];
 
   const pushCurrent = () => {
     if (!current) return;
     rows.push({ ...current });
     current = null;
+    pendingTier = null;
   };
 
-  for (let line of lines) {
-    line = line.trim();
-    if (!line) continue;
+  const startUnterthema = (name) => {
+    pushCurrent();
+    current = {
+      fach: currentFach,
+      thema: currentThema,
+      unterthema: name,
+      rookieZiel: "",
+      operatorZiel: "",
+      streetLegendZiel: ""
+    };
+    pendingTier = null;
+  };
 
-    const fachMatch = line.match(/^Fach:\s*(.+)$/i);
-    if (fachMatch) {
-      pushCurrent();
-      currentFach = fachMatch[1].trim();
+  const setTierText = (tier, text) => {
+    if (!current) return;
+    if (tier === "rookie") current.rookieZiel = text;
+    if (tier === "operator") current.operatorZiel = text;
+    if (tier === "legend") current.streetLegendZiel = text;
+    pendingTier = null;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isNumberOnly(line)) continue;
+
+    if (pendingTier) {
+      setTierText(pendingTier, line);
       continue;
     }
 
-    const themaMatch = line.match(/^Thema:\s*(.+)$/i);
+    const fachMatch = line.match(/^Fach[:\s]+(.+)$/i);
+    if (fachMatch) {
+      pushCurrent();
+      currentFach = fachMatch[1].trim();
+      currentThema = "";
+      continue;
+    }
+
+    const themaMatch = line.match(/^Thema[:\s]+(.+)$/i);
     if (themaMatch) {
       pushCurrent();
       currentThema = themaMatch[1].trim();
       continue;
     }
 
-    const unterMatch = line.match(/^Unterthema:\s*(.+)$/i);
+    const unterMatch = line.match(/^Unterthema[:\s]+(.+)$/i);
     if (unterMatch) {
-      pushCurrent();
-      current = {
-        fach: currentFach,
-        thema: currentThema,
-        unterthema: unterMatch[1].trim(),
-        rookieZiel: "",
-        operatorZiel: "",
-        streetLegendZiel: ""
-      };
+      startUnterthema(unterMatch[1].trim());
       continue;
     }
 
-    if (!current) continue;
-
-    const rookieMatch = line.match(/^Rookie:\s*(.+)$/i);
+    const rookieMatch = line.match(/^Rookie[:\s]+(.+)$/i);
     if (rookieMatch) {
-      current.rookieZiel = rookieMatch[1].trim();
+      if (!current) startUnterthema("Unbenannt");
+      setTierText("rookie", rookieMatch[1].trim());
+      continue;
+    }
+    if (/^Rookie[:\s]*$/i.test(line)) {
+      if (!current) startUnterthema("Unbenannt");
+      pendingTier = "rookie";
       continue;
     }
 
-    const operatorMatch = line.match(/^Operator:\s*(.+)$/i);
+    const operatorMatch = line.match(/^Operator[:\s]+(.+)$/i);
     if (operatorMatch) {
-      current.operatorZiel = operatorMatch[1].trim();
+      if (!current) startUnterthema("Unbenannt");
+      setTierText("operator", operatorMatch[1].trim());
+      continue;
+    }
+    if (/^Operator[:\s]*$/i.test(line)) {
+      if (!current) startUnterthema("Unbenannt");
+      pendingTier = "operator";
       continue;
     }
 
-    const legendMatch = line.match(/^Street[\s-]?Legend:\s*(.+)$/i);
+    const legendMatch = line.match(/^Street[\s-]?Legend[:\s]+(.+)$/i);
     if (legendMatch) {
-      current.streetLegendZiel = legendMatch[1].trim();
+      if (!current) startUnterthema("Unbenannt");
+      setTierText("legend", legendMatch[1].trim());
+      continue;
+    }
+    if (/^Street[\s-]?Legend[:\s]*$/i.test(line)) {
+      if (!current) startUnterthema("Unbenannt");
+      pendingTier = "legend";
+      continue;
+    }
+
+    const bareBlock = [];
+    for (let j = i; j < lines.length; j++) {
+      if (isNumberOnly(lines[j])) continue;
+      if (isTierKeyword(lines[j])) break;
+      if (/^(Fach|Thema|Unterthema)\b/i.test(lines[j])) break;
+      bareBlock.push(lines[j]);
+    }
+
+    if (bareBlock.length && isTierKeyword(nextMeaningful(i + bareBlock.length))) {
+      if (bareBlock.length === 1) {
+        startUnterthema(bareBlock[0]);
+      } else {
+        if (!currentThema) currentThema = bareBlock[0];
+        startUnterthema(bareBlock[1]);
+      }
+      i += bareBlock.length - 1;
+      continue;
+    }
+
+    if (!currentThema) {
+      currentThema = line;
+    } else {
+      startUnterthema(line);
     }
   }
 
