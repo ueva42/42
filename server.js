@@ -1839,6 +1839,11 @@ async function migrate() {
     )
   `);
   await ensureColumn("level_check_goals", "school_id", "INTEGER");
+  await ensureColumn("level_check_goals", "rookie_goal_text", "TEXT");
+  await ensureColumn("level_check_goals", "operator_goal_text", "TEXT");
+  await ensureColumn("level_check_goals", "street_legend_goal_text", "TEXT");
+  await ensureColumn("level_check_goals", "active", "BOOLEAN DEFAULT true");
+  await ensureColumn("level_check_goals", "updated_at", "TIMESTAMP DEFAULT NOW()");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS level_check_marks (
@@ -4787,6 +4792,291 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ PATCH /api/teacher/levelchecks:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+function parseLevelplanImportText(raw) {
+  const lines = String(raw || "").split(/\r?\n/);
+  let currentFach = "";
+  let currentThema = "";
+  let current = null;
+  const rows = [];
+
+  const pushCurrent = () => {
+    if (!current) return;
+    rows.push({ ...current });
+    current = null;
+  };
+
+  for (let line of lines) {
+    line = line.trim();
+    if (!line) continue;
+
+    const fachMatch = line.match(/^Fach:\s*(.+)$/i);
+    if (fachMatch) {
+      pushCurrent();
+      currentFach = fachMatch[1].trim();
+      continue;
+    }
+
+    const themaMatch = line.match(/^Thema:\s*(.+)$/i);
+    if (themaMatch) {
+      pushCurrent();
+      currentThema = themaMatch[1].trim();
+      continue;
+    }
+
+    const unterMatch = line.match(/^Unterthema:\s*(.+)$/i);
+    if (unterMatch) {
+      pushCurrent();
+      current = {
+        fach: currentFach,
+        thema: currentThema,
+        unterthema: unterMatch[1].trim(),
+        rookieZiel: "",
+        operatorZiel: "",
+        streetLegendZiel: ""
+      };
+      continue;
+    }
+
+    if (!current) continue;
+
+    const rookieMatch = line.match(/^Rookie:\s*(.+)$/i);
+    if (rookieMatch) {
+      current.rookieZiel = rookieMatch[1].trim();
+      continue;
+    }
+
+    const operatorMatch = line.match(/^Operator:\s*(.+)$/i);
+    if (operatorMatch) {
+      current.operatorZiel = operatorMatch[1].trim();
+      continue;
+    }
+
+    const legendMatch = line.match(/^Street[\s-]?Legend:\s*(.+)$/i);
+    if (legendMatch) {
+      current.streetLegendZiel = legendMatch[1].trim();
+    }
+  }
+
+  pushCurrent();
+
+  return rows.map((row) => {
+    const missing = [];
+    if (!row.fach) missing.push("fach");
+    if (!row.thema) missing.push("thema");
+    if (!row.unterthema) missing.push("unterthema");
+    if (!row.rookieZiel) missing.push("rookie");
+    if (!row.operatorZiel) missing.push("operator");
+    if (!row.streetLegendZiel) missing.push("streetLegend");
+
+    let status = "OK";
+    if (missing.length) status = "Unvollständig";
+    else if (row.fach && !LOG_SUBJECTS.includes(row.fach)) status = "Unbekanntes Fach";
+
+    return { ...row, status, missing };
+  });
+}
+
+async function findLevelCheckGoalForImport(classId, schoolId, fach, thema, unterthema) {
+  const r = await pool.query(
+    `
+    SELECT g.id, g.level_check_id
+    FROM level_check_goals g
+    JOIN level_checks lc ON lc.id = g.level_check_id
+    WHERE lc.class_id = $1
+      AND (lc.school_id = $2 OR lc.school_id IS NULL)
+      AND lower(trim(lc.subject)) = lower(trim($3))
+      AND lower(trim(lc.name)) = lower(trim($4))
+      AND lower(trim(g.goal_text)) = lower(trim($5))
+    LIMIT 1
+  `,
+    [classId, schoolId, fach, thema, unterthema]
+  );
+  return r.rows[0] || null;
+}
+
+async function findOrCreateLevelCheckTopic(classId, schoolId, fach, thema) {
+  const existing = await pool.query(
+    `
+    SELECT id
+    FROM level_checks
+    WHERE class_id = $1
+      AND (school_id = $2 OR school_id IS NULL)
+      AND lower(trim(subject)) = lower(trim($3))
+      AND lower(trim(name)) = lower(trim($4))
+    LIMIT 1
+  `,
+    [classId, schoolId, fach, thema]
+  );
+
+  if (existing.rows.length) {
+    return existing.rows[0].id;
+  }
+
+  const orderRes = await pool.query(
+    `
+    SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order
+    FROM level_checks
+    WHERE class_id = $1 AND subject = $2
+  `,
+    [classId, fach]
+  );
+
+  const ins = await pool.query(
+    `
+    INSERT INTO level_checks (school_id, class_id, subject, name, sort_order)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id
+  `,
+    [schoolId, classId, fach, thema.slice(0, 120), orderRes.rows[0].next_order]
+  );
+
+  return ins.rows[0].id;
+}
+
+async function importLevelplanRows(classId, schoolId, rows) {
+  let created = 0;
+  let updated = 0;
+  const skipped = [];
+
+  for (const row of rows) {
+    if (row.status !== "OK") {
+      skipped.push(row);
+      continue;
+    }
+
+    const levelCheckId = await findOrCreateLevelCheckTopic(
+      classId,
+      schoolId,
+      row.fach,
+      row.thema
+    );
+
+    const existingGoal = await findLevelCheckGoalForImport(
+      classId,
+      schoolId,
+      row.fach,
+      row.thema,
+      row.unterthema
+    );
+
+    if (existingGoal) {
+      await pool.query(
+        `
+        UPDATE level_check_goals
+        SET rookie_goal_text = $1,
+            operator_goal_text = $2,
+            street_legend_goal_text = $3,
+            active = true,
+            updated_at = NOW()
+        WHERE id = $4
+      `,
+        [
+          row.rookieZiel.slice(0, 500),
+          row.operatorZiel.slice(0, 500),
+          row.streetLegendZiel.slice(0, 500),
+          existingGoal.id
+        ]
+      );
+      updated++;
+      continue;
+    }
+
+    const orderRes = await pool.query(
+      `
+      SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order
+      FROM level_check_goals
+      WHERE level_check_id = $1
+    `,
+      [levelCheckId]
+    );
+
+    await pool.query(
+      `
+      INSERT INTO level_check_goals (
+        school_id, level_check_id, goal_text, sort_order,
+        rookie_goal_text, operator_goal_text, street_legend_goal_text, active, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW())
+    `,
+      [
+        schoolId,
+        levelCheckId,
+        row.unterthema.slice(0, 300),
+        orderRes.rows[0].next_order,
+        row.rookieZiel.slice(0, 500),
+        row.operatorZiel.slice(0, 500),
+        row.streetLegendZiel.slice(0, 500)
+      ]
+    );
+    created++;
+  }
+
+  return { created, updated, skipped };
+}
+
+// -------------------------------------------------------
+// TEACHER: Levelplan importieren
+// -------------------------------------------------------
+app.post("/api/teacher/levelplan-import/preview", isAdmin, async (req, res) => {
+  try {
+    const text = String(req.body.text || "");
+    if (!text.trim()) {
+      return res.json({ success: false, message: "Bitte Levelplan-Text einfügen." });
+    }
+
+    const rows = parseLevelplanImportText(text);
+    res.json({
+      success: true,
+      rows,
+      summary: {
+        total: rows.length,
+        ok: rows.filter((r) => r.status === "OK").length,
+        incomplete: rows.filter((r) => r.status === "Unvollständig").length,
+        invalidSubject: rows.filter((r) => r.status === "Unbekanntes Fach").length
+      }
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/levelplan-import/preview:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.body.classId);
+    const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+
+    if (!classId) {
+      return res.json({ success: false, message: "Bitte eine Klasse wählen." });
+    }
+
+    const classRes = await pool.query(
+      "SELECT id FROM classes WHERE id = $1 AND school_id = $2",
+      [classId, schoolId]
+    );
+    if (!classRes.rows.length) {
+      return res.json({ success: false, message: "Klasse nicht gefunden." });
+    }
+
+    if (!rows.length) {
+      return res.json({ success: false, message: "Keine Daten zum Importieren." });
+    }
+
+    const result = await importLevelplanRows(classId, schoolId, rows);
+    res.json({
+      success: true,
+      ...result,
+      message: `${result.created} neu angelegt, ${result.updated} aktualisiert${
+        result.skipped.length ? `, ${result.skipped.length} übersprungen` : ""
+      }.`
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/levelplan-import/confirm:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
