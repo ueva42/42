@@ -1,5 +1,5 @@
 /**
- * SRL-Logbuch – PLANEN-Screen (Forethought, Stebner Was/Wie).
+ * SRL-Logbuch – PLANEN-Screen (Tagesziel aus Levelplan + Nachweis).
  */
 (function () {
   const C = () => window.LOGBUCH;
@@ -7,14 +7,20 @@
   const HOW_GOAL_OPTIONS = [
     "Ich starte mit Rookie-Aufgaben.",
     "Ich löse erst Aufgaben mit Hilfe und danach alleine.",
-    "Ich bearbeite Operator-Aufgaben und bleibe dran.",
+    "Ich bearbeite Operator-Aufgaben.",
     "Ich versuche eine Street-Legend-Aufgabe.",
     "Ich vergleiche meinen Rechenweg mit der Musterlösung.",
     "Ich suche gezielt meine Fehler.",
+    "Ich schreibe meinen Rechenweg sauber auf.",
     "Ich erkläre am Ende eine Aufgabe jemandem.",
-    "Ich arbeite ein Lernvideo durch und schreibe das Wichtigste heraus.",
-    "Ich wiederhole ein Thema gezielt.",
-    "Ich bereite mich auf den nächsten Levelcheck vor."
+    "Ich schaue ein Lernvideo und notiere drei wichtige Punkte.",
+    "Ich wiederhole ein unsicheres Unterthema."
+  ];
+
+  const LEVEL_OPTIONS = [
+    { value: "rookie", label: "Rookie" },
+    { value: "operator", label: "Operator" },
+    { value: "street_legend", label: "Street Legend" }
   ];
 
   const state = {
@@ -23,6 +29,8 @@
     subject: null,
     whatGoalId: null,
     whatGoalText: "",
+    selectedLevel: null,
+    levelGoalText: "",
     howGoalText: null,
     workGoals: [],
     socialForm: null,
@@ -32,7 +40,9 @@
     existingEntry: null,
     whatGoalOptions: [],
     howGoals: HOW_GOAL_OPTIONS,
+    levelOptions: LEVEL_OPTIONS,
     nextCheckpoint: null,
+    goalSource: "none",
     hasClass: true,
     subjectLocked: false,
     submitting: false,
@@ -62,77 +72,90 @@
     return C().SOCIAL_FORMS.find((s) => s.id === id)?.label || id || "–";
   }
 
-  function howGoalForSentence(howGoalText) {
-    let text = String(howGoalText || "").trim();
-    if (text.toLowerCase().startsWith("ich ")) text = text.slice(4);
-    if (text.endsWith(".")) text = text.slice(0, -1);
-    return text.trim();
+  function levelLabel(value) {
+    return state.levelOptions.find((o) => o.value === value)?.label || value || "–";
   }
 
-  function planningSentenceFromParts(whatGoalText, howGoalText) {
-    const what = String(whatGoalText || "").trim();
-    const how = howGoalForSentence(howGoalText);
-    if (!what || !how) return what || howGoalText || "–";
-    return `Heute übe ich ${what}, indem ich ${how}.`;
+  function pickedWhatGoal() {
+    return state.whatGoalOptions.find((g) => String(g.id) === String(state.whatGoalId)) || null;
   }
 
-  function planningSentence() {
-    if (!state.whatGoalText || !state.howGoalText) return "";
-    const how = howGoalForSentence(state.howGoalText);
-    return `Heute übe ich ${state.whatGoalText}, indem ich ${how}.`;
+  function levelGoalTextFor(goal, level) {
+    if (!goal || !level) return "";
+    if (level === "rookie") return String(goal.rookieGoalText || "").trim();
+    if (level === "operator") return String(goal.operatorGoalText || "").trim();
+    if (level === "street_legend") return String(goal.streetLegendGoalText || "").trim();
+    return "";
   }
 
-  function planningDetailsLine() {
-    if (!state.detailsText || !state.detailsText.trim()) return "";
-    return `Konkret: ${state.detailsText.trim()}`;
+  function syncLevelGoalText() {
+    const goal = pickedWhatGoal();
+    state.whatGoalText = goal?.text || "";
+    state.levelGoalText = levelGoalTextFor(goal, state.selectedLevel);
   }
 
-  function updatePlanningPreview(root) {
-    const box = root.querySelector("#planSummaryBox");
-    if (!box) return;
-    const sentence = planningSentence();
-    const details = planningDetailsLine();
-    if (!sentence) {
-      box.hidden = true;
-      box.innerHTML = "";
-      return;
+  function dailyGoalBlockHtml(ui, entry) {
+    const levelGoal = entry?.level_goal_text || state.levelGoalText;
+    const howGoal = entry?.how_goal_text || entry?.goal || state.howGoalText;
+    const details = entry?.details_text || state.detailsText;
+    if (!levelGoal || !howGoal) return "";
+
+    return `
+      <div class="plan-daily-goal">
+        <p class="plan-daily-goal-title">Dein Tagesziel</p>
+        <div class="plan-daily-goal-card">
+          <p><strong>Heute arbeite ich an diesem Ziel:</strong><br>${ui.escapeHtml(levelGoal)}</p>
+          <p><strong>Mein Weg:</strong><br>${ui.escapeHtml(howGoal)}</p>
+          ${
+            details && String(details).trim()
+              ? `<p><strong>Konkret:</strong><br>${ui.escapeHtml(String(details).trim())}</p>`
+              : ""
+          }
+        </div>
+      </div>`;
+  }
+
+  function whatGoalMessage(ui) {
+    if (state.whatGoalOptions.length) return "";
+    if (state.goalSource === "checkpoint_empty") {
+      return ui.msg("Für diesen Nachweis wurden noch keine Ziele hinterlegt.");
     }
-    box.hidden = false;
-    box.innerHTML = `${UI().escapeHtml(sentence)}${
-      details ? `<br>${UI().escapeHtml(details)}` : ""
-    }`;
+    if (state.goalSource === "levelplan_fallback") {
+      return ui.msg(
+        "Kein kommender Nachweis gefunden. Wähle ein Ziel aus dem Levelplan."
+      );
+    }
+    if (!state.hasClass) {
+      return ui.msg("Dir ist noch keine Klasse zugeordnet.");
+    }
+    return ui.msg("Für dieses Fach wurden noch keine Ziele aus dem Levelplan importiert.");
   }
 
   function renderExistingEntry(ui, dateLabel) {
     const e = state.existingEntry;
     const workGoals = Array.isArray(e.work_goals) ? e.work_goals : [];
-    const whatGoal = e.what_goal_text || "–";
-    const howGoal = e.how_goal_text || e.goal || "–";
-    const details = e.details_text || e.freitext || "–";
-    const sentence =
-      e.what_goal_text && (e.how_goal_text || e.goal)
-        ? planningSentenceFromParts(e.what_goal_text, e.how_goal_text || e.goal)
-        : e.goal || "–";
 
     const rows = [
       ["Fach", e.subject],
-      ["Nächster Checkpoint", e.checkpoint_title || "Kein kommender Checkpoint gefunden."],
-      ["Was-Ziel", whatGoal],
-      ["Wie-Ziel", howGoal],
-      ["Planungssatz", sentence],
+      ["Nächster Nachweis", e.checkpoint_title || "Kein kommender Nachweis gefunden."],
+      ["Was-Ziel", e.what_goal_text || "–"],
+      ["Level", e.selected_level ? levelLabel(e.selected_level) : "–"],
+      ["Fachliches Ziel", e.level_goal_text || "–"],
+      ["Wie-Ziel", e.how_goal_text || e.goal || "–"],
       ["Arbeitsziele", workGoals.length ? workGoals.join(", ") : "–"],
       ["Sozialform", e.social_form ? labelForSocialForm(e.social_form) : "–"],
       [
         "Selbstwirksamkeit vorher",
         e.confidence_before != null ? String(e.confidence_before) : "–"
       ],
-      ["Was genau?", details]
+      ["Was genau?", e.details_text || e.freitext || "–"]
     ];
 
     return `
       <div class="logbuch-form logbuch-form-readonly">
         <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${e.timeslot ? ` · ${ui.escapeHtml(e.timeslot)}` : ""}</p>
         <div class="logbuch-msg logbuch-msg-info">Dein Tagesziel (nur Ansicht – nicht änderbar)</div>
+        ${dailyGoalBlockHtml(ui, e)}
         <dl class="plan-readonly-list">
           ${rows
             .map(
@@ -167,12 +190,12 @@
 
     const checkpoint = state.nextCheckpoint;
     const checkpointText = checkpoint
-      ? `${checkpoint.typeLabel || "Checkpoint"}: ${checkpoint.title}${
+      ? `${checkpoint.typeLabel || "Nachweis"}: ${checkpoint.title}${
           checkpoint.date ? ` am ${checkpoint.dateLabel}` : ""
         }`
-      : "Kein kommender Checkpoint gefunden.";
-    const summarySentence = planningSentence();
-    const summaryDetails = planningDetailsLine();
+      : "Kein kommender Nachweis gefunden.";
+    const levelMeaning = state.levelGoalText;
+    const previewReady = !!(state.levelGoalText && state.howGoalText);
 
     root.innerHTML = `
       <div class="logbuch-form">
@@ -197,53 +220,82 @@
         }
 
         ${ui.fieldWrap(
-          ui.fieldLabel("Nächster Checkpoint"),
+          ui.fieldLabel("Nächster Nachweis"),
           `<div class="plan-subject-locked">${ui.escapeHtml(checkpointText)}</div>${
-            !state.hasClass
-              ? `<div class="logbuch-msg logbuch-msg-info" style="margin-top:8px">Dir ist noch keine Klasse zugeordnet – Termine aus dem Levelplan können so nicht geladen werden.</div>`
+            state.goalSource === "levelplan_fallback"
+              ? `<div class="logbuch-msg logbuch-msg-info" style="margin-top:8px">Kein kommender Nachweis – du kannst ein Ziel aus dem Levelplan wählen.</div>`
               : ""
           }`
         )}
 
         ${ui.fieldWrap(
-          ui.fieldLabel("Was will ich heute können?", { required: true }),
+          ui.fieldLabel("Was willst du heute können?", { required: true }),
           state.whatGoalOptions.length
             ? ui.select(
                 "whatGoalId",
                 state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
                 state.whatGoalId,
-                { phase: "plan", placeholder: "Kompetenzziel wählen…" }
+                { phase: "plan", placeholder: "Unterthema wählen…" }
               )
-            : `<div class="logbuch-msg logbuch-msg-info">Für dieses Fach wurden noch keine Kompetenzziele angelegt.</div>
-               <input type="text" class="logbuch-input" id="planWhatGoalText" maxlength="300"
-                 placeholder="Eigenes Was-Ziel eintragen" value="${ui.escapeHtml(state.whatGoalText)}">`
+            : whatGoalMessage(ui)
         )}
 
-        ${ui.fieldWrap(
-          ui.fieldLabel("Wie arbeite ich daran?", { required: true }),
-          ui.select(
-            "howGoalText",
-            state.howGoals.map((g) => ({ value: g, label: g })),
-            state.howGoalText,
-            { phase: "plan", placeholder: "Wie-Ziel wählen…" }
-          )
-        )}
+        ${
+          state.whatGoalId
+            ? ui.fieldWrap(
+                ui.fieldLabel("Auf welchem Level arbeitest du daran?", { required: true }),
+                ui.select(
+                  "selectedLevel",
+                  state.levelOptions.map((o) => ({ value: o.value, label: o.label })),
+                  state.selectedLevel,
+                  { phase: "plan", placeholder: "Level wählen…" }
+                )
+              )
+            : ""
+        }
 
-        <div class="logbuch-msg logbuch-msg-info" id="planSummaryBox" ${summarySentence ? "" : "hidden"}>
-          ${summarySentence
-            ? `${ui.escapeHtml(summarySentence)}${summaryDetails ? `<br>${ui.escapeHtml(summaryDetails)}` : ""}`
-            : ""}
+        ${
+          levelMeaning
+            ? `<div class="plan-level-meaning">
+                <span class="plan-level-meaning-label">Das bedeutet:</span>
+                <p>${ui.escapeHtml(levelMeaning)}</p>
+              </div>`
+            : state.selectedLevel && state.whatGoalId
+              ? `<div class="logbuch-msg logbuch-msg-info">Für dieses Level wurde noch kein Zieltext hinterlegt.</div>`
+              : ""
+        }
+
+        ${
+          state.whatGoalId && state.selectedLevel
+            ? ui.fieldWrap(
+                ui.fieldLabel("Wie arbeitest du daran?", { required: true }),
+                ui.select(
+                  "howGoalText",
+                  state.howGoals.map((g) => ({ value: g, label: g })),
+                  state.howGoalText,
+                  { phase: "plan", placeholder: "Arbeitsweg wählen…" }
+                )
+              )
+            : ""
+        }
+
+        <div id="planSummaryBox" ${previewReady ? "" : "hidden"}>
+          ${previewReady ? dailyGoalBlockHtml(ui) : ""}
         </div>
 
-        ${ui.fieldWrap(
-          ui.fieldLabel("Was genau?", { optional: true }),
-          `<input type="text" class="logbuch-input" id="planDetailsText" maxlength="100"
+        ${
+          state.whatGoalId && state.selectedLevel
+            ? ui.fieldWrap(
+                ui.fieldLabel("Was genau machst du?", { optional: true }),
+                `<input type="text" class="logbuch-input" id="planDetailsText" maxlength="100"
             placeholder="z. B. Rookie 1–4, danach Operator 1–2"
             value="${ui.escapeHtml(state.detailsText)}">
            <div class="logbuch-char-count"><span id="planDetailsCount">${state.detailsText.length}</span>/100</div>`,
-          "",
-          { wide: true }
-        )}
+                "",
+                { wide: true }
+              )
+            : ""
+        }
 
         ${ui.fieldWrap(
           ui.fieldLabel("Arbeitsziele", { optional: true }),
@@ -280,7 +332,7 @@
         ${ui.btnPrimary(
           state.submitting ? "Speichern…" : "Tagesziel speichern (+2 XP)",
           "planSubmitBtn",
-          state.submitting,
+          state.submitting || !state.whatGoalOptions.length,
           "logbuch-submit-full"
         )}
         ${ui.btnGhost("Abbrechen", "planBackBtn")}
@@ -295,31 +347,48 @@
     });
   }
 
+  function updatePlanningPreview(root) {
+    const box = root.querySelector("#planSummaryBox");
+    if (!box) return;
+    const ready = !!(state.levelGoalText && state.howGoalText);
+    if (!ready) {
+      box.hidden = true;
+      box.innerHTML = "";
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = dailyGoalBlockHtml(UI());
+  }
+
   function bindHandlers(root) {
     UI().bindSelects(root, state, async (field) => {
       if (field === "subject") {
         state.whatGoalId = null;
         state.whatGoalText = "";
+        state.selectedLevel = null;
+        state.levelGoalText = "";
         state.howGoalText = null;
         await loadContext();
         render();
         return;
       }
       if (field === "whatGoalId") {
-        const picked = state.whatGoalOptions.find((g) => String(g.id) === String(state.whatGoalId));
-        state.whatGoalText = picked?.text || "";
-        updatePlanningPreview(root);
+        state.selectedLevel = null;
+        state.levelGoalText = "";
+        state.howGoalText = null;
+        syncLevelGoalText();
+        render();
+        return;
+      }
+      if (field === "selectedLevel") {
+        state.howGoalText = null;
+        syncLevelGoalText();
+        render();
         return;
       }
       if (field === "howGoalText") {
         updatePlanningPreview(root);
       }
-    });
-
-    const whatGoalTextInput = root.querySelector("#planWhatGoalText");
-    whatGoalTextInput?.addEventListener("input", () => {
-      state.whatGoalText = whatGoalTextInput.value.slice(0, 300);
-      updatePlanningPreview(root);
     });
 
     const details = root.querySelector("#planDetailsText");
@@ -342,13 +411,24 @@
       render();
       return;
     }
-    if (!state.whatGoalText || !state.whatGoalText.trim()) {
-      state.errorMsg = "Bitte wähle ein Was-Ziel.";
+    if (!state.whatGoalId) {
+      state.errorMsg = "Bitte wähle ein Was-Ziel aus dem Levelplan.";
+      render();
+      return;
+    }
+    if (!state.selectedLevel) {
+      state.errorMsg = "Bitte wähle ein Level.";
+      render();
+      return;
+    }
+    syncLevelGoalText();
+    if (!state.levelGoalText) {
+      state.errorMsg = "Für dieses Level wurde noch kein Zieltext hinterlegt.";
       render();
       return;
     }
     if (!state.howGoalText) {
-      state.errorMsg = "Bitte wähle ein Wie-Ziel.";
+      state.errorMsg = "Bitte wähle, wie du daran arbeitest.";
       render();
       return;
     }
@@ -371,10 +451,11 @@
           subject: state.subject,
           checkpointId: state.nextCheckpoint?.id || null,
           checkpointTitle: state.nextCheckpoint
-            ? `${state.nextCheckpoint.typeLabel || "Checkpoint"}: ${state.nextCheckpoint.title}`
+            ? `${state.nextCheckpoint.typeLabel || "Nachweis"}: ${state.nextCheckpoint.title}`
             : null,
-          whatGoalId: state.whatGoalId || null,
+          whatGoalId: state.whatGoalId,
           whatGoalText: state.whatGoalText.trim(),
+          selectedLevel: state.selectedLevel,
           howGoalText: state.howGoalText,
           goal: state.howGoalText,
           detailsText: state.detailsText.trim() || null,
@@ -431,7 +512,9 @@
     state.hasClass = data.hasClass !== false;
     state.howGoals = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
     state.whatGoalOptions = Array.isArray(data.whatGoalOptions) ? data.whatGoalOptions : [];
+    state.levelOptions = Array.isArray(data.levelOptions) ? data.levelOptions : LEVEL_OPTIONS;
     state.nextCheckpoint = data.nextCheckpoint || null;
+    state.goalSource = data.goalSource || "none";
     state.subjectLocked = !!data.subjectLocked;
 
     if (data.lockedSubject) {
@@ -446,9 +529,12 @@
     if (state.whatGoalId) {
       const picked = state.whatGoalOptions.find((g) => String(g.id) === String(state.whatGoalId));
       if (picked) {
-        state.whatGoalText = picked.text;
+        syncLevelGoalText();
       } else {
         state.whatGoalId = null;
+        state.whatGoalText = "";
+        state.selectedLevel = null;
+        state.levelGoalText = "";
       }
     }
   }
@@ -462,6 +548,8 @@
     state.subject = q.get("subject") || null;
     state.whatGoalId = null;
     state.whatGoalText = "";
+    state.selectedLevel = null;
+    state.levelGoalText = "";
     state.howGoalText = null;
     state.workGoals = [];
     state.socialForm = null;
@@ -469,6 +557,7 @@
     state.detailsText = "";
     state.whatGoalOptions = [];
     state.nextCheckpoint = null;
+    state.goalSource = "none";
     state.existingEntry = null;
     state.hasClass = true;
     state.subjectLocked = false;

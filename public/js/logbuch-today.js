@@ -99,6 +99,45 @@
     );
   }
 
+  function renderDailyGoalBody(ui, entry) {
+    if (entry.level_goal_text) {
+      const meta = [];
+      if (entry.what_goal_text) meta.push(entry.what_goal_text);
+      if (entry.level_label) meta.push(entry.level_label);
+      return `
+        <div class="today-focus-card">
+          ${meta.length ? `<p class="today-focus-meta">${ui.escapeHtml(meta.join(" · "))}</p>` : ""}
+          <p><strong>Heute arbeite ich an diesem Ziel:</strong><br>${ui.escapeHtml(entry.level_goal_text)}</p>
+          <p><strong>Mein Weg:</strong><br>${ui.escapeHtml(entry.how_goal_text || entry.goal || "")}</p>
+          ${
+            entry.details_text
+              ? `<p><strong>Konkret:</strong><br>${ui.escapeHtml(entry.details_text)}</p>`
+              : ""
+          }
+        </div>`;
+    }
+    const titleText = entry.plan_sentence || entry.goal;
+    const detailText = entry.details_text ? `Konkret: ${entry.details_text}` : "";
+    return `
+      <p class="today-block-goal">${ui.escapeHtml(titleText)}</p>
+      ${detailText ? `<p class="today-block-muted">${ui.escapeHtml(detailText)}</p>` : ""}`;
+  }
+
+  function renderTodayFocus(ui, focus) {
+    if (!focus) return "";
+    return `
+      <section class="today-focus-section">
+        <h3 class="today-focus-heading">Heute im Fokus</h3>
+        <div class="today-focus-subject">${ui.escapeHtml(focus.subject)}</div>
+        ${renderDailyGoalBody(ui, focus)}
+        ${
+          focus.checkpoint_title
+            ? `<p class="today-block-muted">${ui.escapeHtml(focus.checkpoint_title)}</p>`
+            : ""
+        }
+      </section>`;
+  }
+
   function renderBlock(block, editable) {
     const ui = UI();
     const slot = block.slot;
@@ -158,8 +197,7 @@
 
     const actions = !readOnly ? `${viewPlanBtn}${renderActionSelect(entry)}` : viewPlanBtn;
 
-    const titleText = entry.plan_sentence || entry.goal;
-    const detailText = entry.details_text ? `Konkret: ${entry.details_text}` : "";
+    const goalBody = renderDailyGoalBody(ui, entry);
     const checkpointHint = entry.checkpoint_title
       ? `<p class="today-block-muted">${ui.escapeHtml(entry.checkpoint_title)}</p>`
       : "";
@@ -170,9 +208,8 @@
           <span class="today-block-subject">${ui.escapeHtml(entry.subject)}</span>
           ${entry.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
         </div>
-        <p class="today-block-goal">${ui.escapeHtml(titleText)}</p>
-        ${detailText ? `<p class="today-block-muted">${ui.escapeHtml(detailText)}</p>` : ""}
-        ${checkpointHint}
+        ${goalBody}
+        ${!entry.level_goal_text && checkpointHint}
         ${summary}
         ${actions}
       </div>`;
@@ -223,6 +260,8 @@
         ? blockList.map((b) => renderLesson(b, editable)).join("")
         : `<p class="today-block-muted">${emptyMessage(d, editable)}</p>`;
 
+    const focusHtml = renderTodayFocus(ui, d.todayFocus);
+
     root.innerHTML = `
       <div class="today-shell" id="todaySwipeArea">
         <div class="today-nav">
@@ -236,6 +275,7 @@
 
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="todaySlidePanel">
+            ${focusHtml}
             <div class="today-blocks">${blocksHtml}</div>
           </div>
         </div>

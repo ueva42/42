@@ -686,7 +686,8 @@ const PLAN_ENTRY_FIELDS = `
   id, subject, goal, timeslot, work_goals, social_form,
   strategy, confidence_before, freitext, created_at,
   checkpoint_id, checkpoint_title,
-  what_goal_id, what_goal_text, how_goal_text, details_text
+  what_goal_id, what_goal_text, how_goal_text, details_text,
+  selected_level, level_goal_text
 `;
 
 async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId }) {
@@ -728,14 +729,14 @@ async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId })
 const LOG_HOW_GOALS = [
   "Ich starte mit Rookie-Aufgaben.",
   "Ich löse erst Aufgaben mit Hilfe und danach alleine.",
-  "Ich bearbeite Operator-Aufgaben und bleibe dran.",
+  "Ich bearbeite Operator-Aufgaben.",
   "Ich versuche eine Street-Legend-Aufgabe.",
   "Ich vergleiche meinen Rechenweg mit der Musterlösung.",
   "Ich suche gezielt meine Fehler.",
+  "Ich schreibe meinen Rechenweg sauber auf.",
   "Ich erkläre am Ende eine Aufgabe jemandem.",
-  "Ich arbeite ein Lernvideo durch und schreibe das Wichtigste heraus.",
-  "Ich wiederhole ein Thema gezielt.",
-  "Ich bereite mich auf den nächsten Levelcheck vor."
+  "Ich schaue ein Lernvideo und notiere drei wichtige Punkte.",
+  "Ich wiederhole ein unsicheres Unterthema."
 ];
 const LOG_GOALS = LOG_HOW_GOALS;
 
@@ -955,15 +956,41 @@ function collectSubjectSubtopics(levelChecks, subject) {
       const id = String(goal.id);
       if (seen.has(id)) continue;
       seen.add(id);
-      rows.push({
-        id,
-        text: goal.text,
-        levelCheckId: check.id,
-        levelCheckName: check.name
-      });
+      rows.push(mapPlanGoalOption(goal, check));
     }
   }
   return rows;
+}
+
+function mapPlanGoalOption(goal, check) {
+  return {
+    id: String(goal.id),
+    text: goal.text,
+    levelCheckId: check.id,
+    levelCheckName: check.name,
+    rookieGoalText: goal.rookieGoalText || null,
+    operatorGoalText: goal.operatorGoalText || null,
+    streetLegendGoalText: goal.streetLegendGoalText || null
+  };
+}
+
+function findGoalInChecks(checks, goalId) {
+  for (const check of checks || []) {
+    const goal = (check.goals || []).find((g) => String(g.id) === String(goalId));
+    if (goal) return { goal, check };
+  }
+  return null;
+}
+
+function levelGoalTextForOption(option, tier) {
+  if (!option || !tier) return null;
+  const t = String(tier).toLowerCase();
+  if (t === "rookie") return String(option.rookieGoalText || "").trim() || null;
+  if (t === "operator") return String(option.operatorGoalText || "").trim() || null;
+  if (t === "street_legend") {
+    return String(option.streetLegendGoalText || "").trim() || null;
+  }
+  return null;
 }
 
 function collectWhatGoalsForPlan(levelChecks, subject) {
@@ -972,7 +999,11 @@ function collectWhatGoalsForPlan(levelChecks, subject) {
   const allSubjectGoals = collectSubjectSubtopics(levelChecks, subject);
 
   if (!upcoming) {
-    return { checkpoint: null, options: allSubjectGoals };
+    return {
+      checkpoint: null,
+      options: allSubjectGoals,
+      goalSource: allSubjectGoals.length ? "levelplan_fallback" : "none"
+    };
   }
 
   const topic =
@@ -982,20 +1013,17 @@ function collectWhatGoalsForPlan(levelChecks, subject) {
   const linked = Array.isArray(upcoming.linkedSubtopicIds)
     ? upcoming.linkedSubtopicIds.map((id) => String(id))
     : [];
-  const optionMap = new Map(allSubjectGoals.map((g) => [String(g.id), g]));
   let options = [];
 
   if (linked.length) {
-    options = linked.map((id) => optionMap.get(id)).filter(Boolean);
+    options = linked
+      .map((id) => {
+        const found = findGoalInChecks(checks, id);
+        return found ? mapPlanGoalOption(found.goal, found.check) : null;
+      })
+      .filter(Boolean);
   } else if ((topic?.goals || []).length) {
-    options = topic.goals.map((g) => ({
-      id: String(g.id),
-      text: g.text,
-      levelCheckId: topic.id,
-      levelCheckName: topic.name
-    }));
-  } else {
-    options = allSubjectGoals;
+    options = topic.goals.map((g) => mapPlanGoalOption(g, topic));
   }
 
   return {
@@ -1005,7 +1033,8 @@ function collectWhatGoalsForPlan(levelChecks, subject) {
       name: upcoming.name,
       levelCheckId: upcoming.levelCheckId
     },
-    options
+    options,
+    goalSource: options.length ? "checkpoint" : "checkpoint_empty"
   };
 }
 
@@ -1880,6 +1909,8 @@ async function migrate() {
   await ensureColumn("log_entries", "what_goal_text", "TEXT");
   await ensureColumn("log_entries", "how_goal_text", "TEXT");
   await ensureColumn("log_entries", "details_text", "TEXT");
+  await ensureColumn("log_entries", "selected_level", "TEXT");
+  await ensureColumn("log_entries", "level_goal_text", "TEXT");
 
   // LogCheck – Zwischen-Check (Performance)
   await pool.query(`
@@ -2962,11 +2993,13 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
 
     let nextCheckpoint = null;
     let whatGoalOptions = [];
+    let goalSource = "none";
     if (classId && activeSubject) {
       const checks = await getLevelChecksForClass(classId, schoolId, studentId);
       const picked = collectWhatGoalsForPlan(checks, activeSubject);
       nextCheckpoint = picked.checkpoint;
       whatGoalOptions = picked.options;
+      goalSource = picked.goalSource;
     }
 
     const howGoals = activeSubject
@@ -2984,6 +3017,11 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       existingEntry,
       hasClass: !!classId,
       howGoals,
+      levelOptions: LEVEL_CHECK_TIERS.map((tier) => ({
+        value: tier,
+        label: LEVEL_CHECK_TIER_LABELS[tier]
+      })),
+      goalSource,
       nextCheckpoint: nextCheckpoint
         ? {
             id: nextCheckpoint.id,
@@ -3026,6 +3064,7 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       checkpointTitle = null,
       whatGoalId = null,
       whatGoalText = null,
+      selectedLevel = null,
       howGoalText = null,
       detailsText = null,
       workGoals = [],
@@ -3067,11 +3106,13 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
 
     let validWhatGoalOptions = [];
     let nextCheckpoint = null;
+    let goalSource = "none";
     if (classId) {
       const checks = await getLevelChecksForClass(classId, classSchoolId, studentId);
       const picked = collectWhatGoalsForPlan(checks, subject);
       validWhatGoalOptions = picked.options;
       nextCheckpoint = picked.checkpoint;
+      goalSource = picked.goalSource;
     }
 
     const whatById = new Map(validWhatGoalOptions.map((g) => [String(g.id), g]));
@@ -3079,24 +3120,40 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       typeof whatGoalId === "string" || typeof whatGoalId === "number"
         ? String(whatGoalId)
         : null;
-    const cleanWhatGoalTextInput =
-      typeof whatGoalText === "string" ? whatGoalText.trim().slice(0, 300) : "";
-    let finalWhatGoalText = "";
-    let finalWhatGoalId = null;
 
-    if (cleanWhatGoalId && whatById.has(cleanWhatGoalId)) {
-      finalWhatGoalId = cleanWhatGoalId;
-      finalWhatGoalText = whatById.get(cleanWhatGoalId).text;
-    } else if (!validWhatGoalOptions.length && cleanWhatGoalTextInput) {
-      finalWhatGoalText = cleanWhatGoalTextInput;
-    }
-
-    if (!finalWhatGoalText) {
+    if (!cleanWhatGoalId || !whatById.has(cleanWhatGoalId)) {
+      if (goalSource === "checkpoint_empty") {
+        return res.json({
+          success: false,
+          message: "Für diesen Nachweis wurden noch keine Ziele hinterlegt."
+        });
+      }
+      if (!validWhatGoalOptions.length) {
+        return res.json({
+          success: false,
+          message: "Kein kommender Nachweis gefunden. Bitte Lehrkraft informieren."
+        });
+      }
       return res.json({
         success: false,
-        message: validWhatGoalOptions.length
-          ? "Bitte ein Was-Ziel aus den Kompetenzen wählen."
-          : "Für dieses Fach wurden keine passenden Unterthemen gefunden. Bitte eigenes Was-Ziel eintragen."
+        message: "Bitte ein Was-Ziel aus dem Levelplan wählen."
+      });
+    }
+
+    const goalOption = whatById.get(cleanWhatGoalId);
+    const finalWhatGoalId = cleanWhatGoalId;
+    const finalWhatGoalText = goalOption.text;
+
+    const normalizedLevel = String(selectedLevel || "").toLowerCase();
+    if (!LEVEL_CHECK_TIERS.includes(normalizedLevel)) {
+      return res.json({ success: false, message: "Bitte ein Level wählen." });
+    }
+
+    const finalLevelGoalText = levelGoalTextForOption(goalOption, normalizedLevel);
+    if (!finalLevelGoalText) {
+      return res.json({
+        success: false,
+        message: "Für dieses Level wurde noch kein Zieltext hinterlegt."
       });
     }
 
@@ -3177,9 +3234,9 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         user_id, school_id, date, timeslot, subject, goal,
         work_goals, social_form, strategy, confidence_before, freitext,
         checkpoint_id, checkpoint_title, what_goal_id, what_goal_text,
-        how_goal_text, details_text
+        how_goal_text, details_text, selected_level, level_goal_text
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
       RETURNING id, created_at
     `,
       [
@@ -3199,7 +3256,9 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         finalWhatGoalId,
         finalWhatGoalText,
         normalizedHowGoal,
-        cleanDetailsText
+        cleanDetailsText,
+        normalizedLevel,
+        finalLevelGoalText
       ]
     );
 
@@ -3426,6 +3485,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         le.id, le.date, le.timeslot, le.subject, le.goal,
         le.confidence_before, le.created_at,
         le.checkpoint_title, le.what_goal_text, le.how_goal_text, le.details_text,
+        le.selected_level, le.level_goal_text,
         lc.id AS check_id,
         lr.id AS reflection_id,
         lr.goal_achieved, lr.how_worked, lr.next_step,
@@ -3444,7 +3504,9 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       const howGoal = row.how_goal_text || row.goal || null;
       const details = row.details_text || null;
       const planSentence =
-        buildPlanSentence(whatGoal, howGoal) || (row.goal ? String(row.goal) : null);
+        row.level_goal_text && howGoal
+          ? null
+          : buildPlanSentence(whatGoal, howGoal) || (row.goal ? String(row.goal) : null);
 
       return {
         id: row.id,
@@ -3455,6 +3517,11 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         what_goal_text: whatGoal,
         how_goal_text: howGoal,
         details_text: details,
+        selected_level: row.selected_level,
+        level_goal_text: row.level_goal_text || null,
+        level_label: row.selected_level
+          ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+          : null,
         checkpoint_title: row.checkpoint_title,
         plan_sentence: planSentence,
         confidence_before: row.confidence_before,
@@ -3529,6 +3596,10 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
 
     const timetableSubjects = timetableSubjectsFromRows(timetable);
     const todayIso = new Date().toISOString().slice(0, 10);
+    const todayFocus =
+      entries.find((e) => e.level_goal_text) ||
+      entries.find((e) => e.plan_sentence || e.what_goal_text) ||
+      null;
 
     res.json({
       date,
@@ -3543,6 +3614,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       timetableSubjects,
       entries,
       blocks,
+      todayFocus,
       phases
     });
   } catch (err) {

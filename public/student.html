@@ -1,4 +1,4 @@
-<!-- VERSION 126 – Tagesziel Planen: Stebner Was/Wie-Ziel -->
+<!-- VERSION 127 – Tagesziel: Levelplan + Level-Ziel aus Nachweis -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -794,6 +794,79 @@ a { color: inherit; }
 .today-plan-btn { width: 100%; margin-top: 6px; }
 .today-block-status { margin: 0 0 6px; font-size: 11px; opacity: 0.65; }
 .today-block-done-label { margin: 6px 0 0; font-size: 12px; color: #4ade80; }
+
+.today-focus-section {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(15, 23, 42, 0.75);
+}
+.today-focus-heading {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+.today-focus-subject {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #e5e7eb;
+}
+.today-focus-meta {
+  margin: 0 0 8px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.today-focus-card p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.today-focus-card p:last-child { margin-bottom: 0; }
+
+.plan-level-meaning {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  background: rgba(20, 83, 45, 0.2);
+}
+.plan-level-meaning-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #86efac;
+  margin-bottom: 6px;
+}
+.plan-level-meaning p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.plan-daily-goal { margin: 14px 0; }
+.plan-daily-goal-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fcd34d;
+}
+.plan-daily-goal-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  background: rgba(30, 41, 59, 0.65);
+}
+.plan-daily-goal-card p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.plan-daily-goal-card p:last-child { margin-bottom: 0; }
 
 .logbuch-check-goal {
   border-color: rgba(245, 158, 11, 0.35);
@@ -2479,10 +2552,10 @@ h2 {
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=2"></script>
-<script src="/js/logbuch-plan.js?v=7"></script>
+<script src="/js/logbuch-plan.js?v=8"></script>
 <script src="/js/logbuch-check.js"></script>
 <script src="/js/logbuch-reflect.js"></script>
-<script src="/js/logbuch-today.js?v=9"></script>
+<script src="/js/logbuch-today.js?v=10"></script>
 <script src="/js/logbuch-week.js"></script>
 <script src="/js/logbuch-levelplan.js?v=10"></script>
 <script src="/js/logbuch-zielsetzung.js?v=9"></script>
