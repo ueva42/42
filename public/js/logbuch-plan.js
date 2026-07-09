@@ -659,6 +659,7 @@
 
   async function init(query) {
     const q = query || new URLSearchParams(location.search);
+    const forceTutorial = q.get("tutorial") === "1";
 
     state.date = q.get("date") || todayIso();
     state.entryId = q.get("entryId") || null;
@@ -677,7 +678,7 @@
     state.hasClass = true;
     state.subjectLocked = false;
     state.tutorialStep = 0;
-    state.tutorialOpen = !hasSeenTutorial();
+    state.tutorialOpen = forceTutorial || !hasSeenTutorial();
     state.submitting = false;
     state.errorMsg = "";
 
