@@ -99,7 +99,81 @@
     ];
   }
 
+  function ensureTutorialStyles() {
+    if (document.getElementById("goalTutorialStyles")) return;
+    const style = document.createElement("style");
+    style.id = "goalTutorialStyles";
+    style.textContent = `
+      .goal-tutorial-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.78);
+        z-index: 1400;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+      .goal-tutorial-card {
+        width: min(660px, 96vw);
+        border-radius: 14px;
+        border: 1px solid rgba(180, 120, 76, 0.45);
+        padding: 18px;
+        color: #f2ede4;
+        background:
+          radial-gradient(circle at 18% 14%, rgba(211, 97, 51, 0.26), transparent 34%),
+          radial-gradient(circle at 82% 84%, rgba(25, 116, 158, 0.18), transparent 38%),
+          linear-gradient(165deg, rgba(82, 90, 98, 0.96), rgba(40, 46, 54, 0.98));
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 190, 120, 0.12),
+          inset 0 0 24px rgba(0, 0, 0, 0.28),
+          0 24px 40px rgba(0, 0, 0, 0.45);
+        position: relative;
+        overflow: hidden;
+      }
+      .goal-tutorial-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          radial-gradient(circle at 8% 8%, rgba(255, 193, 120, 0.22), transparent 26%),
+          radial-gradient(circle at 92% 18%, rgba(138, 74, 40, 0.34), transparent 30%),
+          radial-gradient(circle at 14% 90%, rgba(124, 62, 30, 0.26), transparent 28%),
+          repeating-linear-gradient(
+            -10deg,
+            rgba(255, 255, 255, 0.03),
+            rgba(255, 255, 255, 0.03) 2px,
+            rgba(0, 0, 0, 0.03) 2px,
+            rgba(0, 0, 0, 0.03) 5px
+          );
+      }
+      .goal-tutorial-title {
+        margin: 0 0 10px;
+        font-size: 22px;
+        color: #fff2d8;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+      }
+      .goal-tutorial-text {
+        margin: 0 0 10px;
+        opacity: 0.96;
+        line-height: 1.45;
+      }
+      .goal-tutorial-tip {
+        margin: 0 0 16px;
+        color: #f7d9a5;
+      }
+      .goal-tutorial-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function openTutorial(step = 0) {
+    ensureTutorialStyles();
     state.tutorialStep = Math.max(0, Math.min(step, tutorialSteps().length - 1));
     state.tutorialOpen = true;
     render();
@@ -137,13 +211,13 @@
     const stepLabel = `${state.tutorialStep + 1} / ${steps.length}`;
 
     return `
-      <div style="position:fixed; inset:0; background:rgba(2,6,23,0.78); z-index:1400; display:flex; align-items:center; justify-content:center; padding:16px;">
-        <div style="width:min(640px,96vw); border:1px solid rgba(148,163,184,0.35); border-radius:14px; background:rgba(12,23,45,0.98); padding:18px;">
+      <div class="goal-tutorial-overlay">
+        <div class="goal-tutorial-card">
           <p class="logbuch-meta" style="margin-bottom:8px">Tagesziel-Tutorial · Schritt ${ui.escapeHtml(stepLabel)}</p>
-          <h3 style="margin:0 0 10px; font-size:22px;">${ui.escapeHtml(step.title)}</h3>
-          <p style="margin:0 0 10px; opacity:0.96; line-height:1.45;">${ui.escapeHtml(step.text)}</p>
-          <p class="logbuch-hint" style="margin:0 0 16px;">${ui.escapeHtml(step.tip)}</p>
-          <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <h3 class="goal-tutorial-title">${ui.escapeHtml(step.title)}</h3>
+          <p class="goal-tutorial-text">${ui.escapeHtml(step.text)}</p>
+          <p class="logbuch-hint goal-tutorial-tip">${ui.escapeHtml(step.tip)}</p>
+          <div class="goal-tutorial-actions">
             <button type="button" class="logbuch-btn-ghost" id="planTutorialCloseBtn">Später</button>
             <button type="button" class="btn-primary" id="planTutorialNextBtn">${isLast ? "Verstanden, Ziel setzen" : "Weiter"}</button>
           </div>
