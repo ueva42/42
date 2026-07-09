@@ -333,12 +333,33 @@ function recommendedTierCounts(totalGoals, targetGradeKey) {
   return out;
 }
 
+function topicDisplayCheckpoint(check) {
+  const cps = Array.isArray(check.checkpoints) ? check.checkpoints : [];
+  if (cps.length) {
+    const today = todayIsoDate();
+    const dated = cps
+      .map((cp) => ({ ...cp, checkpointDate: normalizeIsoDate(cp.checkpointDate) }))
+      .filter((cp) => cp.checkpointDate)
+      .sort((a, b) => a.checkpointDate.localeCompare(b.checkpointDate));
+    const future = dated.filter((cp) => cp.checkpointDate >= today);
+    return future[0] || dated[dated.length - 1] || null;
+  }
+  const legacyDate = normalizeIsoDate(check.checkpointDate);
+  if (!legacyDate) return null;
+  return {
+    checkpointDate: legacyDate,
+    checkpointType: check.checkpointType,
+    checkpointTypeLabel: check.checkpointTypeLabel
+  };
+}
+
 function buildTopicTargetProgress(check, targetsRow = null) {
   const totalGoals = check.goals.length;
   const markCounts = countGoalMarksCumulative(check.goals);
   const targetKey = normalizeTargetGradeKey(targetsRow?.targetGradeKey);
   const achievedKey = normalizeTargetGradeKey(targetsRow?.achievedGradeKey);
   const recommended = targetKey ? recommendedTierCounts(totalGoals, targetKey) : null;
+  const displayCheckpoint = topicDisplayCheckpoint(check);
 
   const tiers = LEVEL_CHECK_TIERS.map((tier) => {
     const required = recommended?.[tier] ?? null;
@@ -367,11 +388,11 @@ function buildTopicTargetProgress(check, targetsRow = null) {
     id: check.id,
     subject: check.subject,
     name: check.name,
-    checkpointDate: normalizeIsoDate(check.checkpointDate),
-    checkpointDateLabel: formatGermanDate(check.checkpointDate),
+    checkpointDate: normalizeIsoDate(displayCheckpoint?.checkpointDate),
+    checkpointDateLabel: formatGermanDate(displayCheckpoint?.checkpointDate),
     checkpointTypeLabel: resolveCheckpointTypeLabel(
-      check.checkpointType,
-      check.checkpointTypeLabel
+      displayCheckpoint?.checkpointType,
+      displayCheckpoint?.checkpointTypeLabel
     ),
     sortOrder: check.sortOrder ?? 0,
     totalGoals,
@@ -854,8 +875,63 @@ function isPlanCheckpointType(typeKey, typeLabel = null) {
   );
 }
 
+function mapLevelCheckCheckpointRow(row) {
+  const linked = row.linked_subtopic_ids;
+  return {
+    id: row.id,
+    levelCheckId: row.level_check_id,
+    checkpointDate: normalizeIsoDate(row.checkpoint_date),
+    checkpointType: normalizeCheckpointType(row.checkpoint_type),
+    checkpointTypeLabel: row.checkpoint_type_label ?? null,
+    linkedSubtopicIds: Array.isArray(linked)
+      ? linked.map((id) => String(id))
+      : []
+  };
+}
+
+function flattenScheduledCheckpoints(levelChecks) {
+  const rows = [];
+  for (const check of levelChecks || []) {
+    const topicCheckpoints = Array.isArray(check.checkpoints) ? check.checkpoints : [];
+    if (topicCheckpoints.length) {
+      for (const cp of topicCheckpoints) {
+        const date = normalizeIsoDate(cp.checkpointDate);
+        if (!date) continue;
+        rows.push({
+          ...cp,
+          checkpointDate: date,
+          levelCheckId: check.id,
+          name: check.name,
+          subject: check.subject,
+          sortOrder: check.sortOrder ?? 0,
+          goals: check.goals || []
+        });
+      }
+      continue;
+    }
+    const legacyDate = normalizeIsoDate(check.checkpointDate);
+    if (legacyDate) {
+      rows.push({
+        id: check.id,
+        levelCheckId: check.id,
+        checkpointDate: legacyDate,
+        checkpointType: normalizeCheckpointType(check.checkpointType),
+        checkpointTypeLabel: check.checkpointTypeLabel ?? null,
+        linkedSubtopicIds: Array.isArray(check.linkedSubtopicIds)
+          ? check.linkedSubtopicIds.map((id) => String(id))
+          : [],
+        name: check.name,
+        subject: check.subject,
+        sortOrder: check.sortOrder ?? 0,
+        goals: check.goals || []
+      });
+    }
+  }
+  return rows;
+}
+
 function pickUpcomingPlanCheckpoint(checks, subject = null) {
-  const filtered = (checks || []).filter(
+  const filtered = flattenScheduledCheckpoints(checks).filter(
     (c) =>
       (!subject || c.subject === subject) &&
       isPlanCheckpointType(c.checkpointType, c.checkpointTypeLabel)
@@ -864,7 +940,6 @@ function pickUpcomingPlanCheckpoint(checks, subject = null) {
 
   const today = todayIsoDate();
   const future = filtered
-    .map((c) => ({ ...c, checkpointDate: normalizeIsoDate(c.checkpointDate) }))
     .filter((c) => c.checkpointDate && c.checkpointDate >= today)
     .sort((a, b) => a.checkpointDate.localeCompare(b.checkpointDate));
 
@@ -900,6 +975,10 @@ function collectWhatGoalsForPlan(levelChecks, subject) {
     return { checkpoint: null, options: allSubjectGoals };
   }
 
+  const topic =
+    checks.find((c) => c.id === upcoming.levelCheckId) ||
+    checks.find((c) => c.id === upcoming.id) ||
+    null;
   const linked = Array.isArray(upcoming.linkedSubtopicIds)
     ? upcoming.linkedSubtopicIds.map((id) => String(id))
     : [];
@@ -908,18 +987,26 @@ function collectWhatGoalsForPlan(levelChecks, subject) {
 
   if (linked.length) {
     options = linked.map((id) => optionMap.get(id)).filter(Boolean);
-  } else if ((upcoming.goals || []).length) {
-    options = upcoming.goals.map((g) => ({
+  } else if ((topic?.goals || []).length) {
+    options = topic.goals.map((g) => ({
       id: String(g.id),
       text: g.text,
-      levelCheckId: upcoming.id,
-      levelCheckName: upcoming.name
+      levelCheckId: topic.id,
+      levelCheckName: topic.name
     }));
   } else {
     options = allSubjectGoals;
   }
 
-  return { checkpoint: upcoming, options };
+  return {
+    checkpoint: {
+      ...upcoming,
+      id: upcoming.id,
+      name: upcoming.name,
+      levelCheckId: upcoming.levelCheckId
+    },
+    options
+  };
 }
 
 function howGoalForSentence(howGoalText) {
@@ -943,23 +1030,47 @@ function isAllowedHowGoal(goal, allowedGoals) {
 }
 
 function pickUpcomingLevelCheck(checks, subject = null) {
+  const flat = flattenScheduledCheckpoints(checks).filter(
+    (c) => !subject || c.subject === subject
+  );
+  if (flat.length) {
+    const today = todayIsoDate();
+    const future = flat
+      .filter((c) => c.checkpointDate >= today)
+      .sort((a, b) => a.checkpointDate.localeCompare(b.checkpointDate));
+    if (future.length) {
+      const pick = future[0];
+      return {
+        id: pick.levelCheckId,
+        checkpointId: pick.id,
+        name: pick.name,
+        subject: pick.subject,
+        sortOrder: pick.sortOrder,
+        checkpointDate: pick.checkpointDate,
+        checkpointType: pick.checkpointType,
+        checkpointTypeLabel: pick.checkpointTypeLabel,
+        linkedSubtopicIds: pick.linkedSubtopicIds
+      };
+    }
+    const past = flat.sort((a, b) => b.checkpointDate.localeCompare(a.checkpointDate));
+    const pick = past[0];
+    return {
+      id: pick.levelCheckId,
+      checkpointId: pick.id,
+      name: pick.name,
+      subject: pick.subject,
+      sortOrder: pick.sortOrder,
+      checkpointDate: pick.checkpointDate,
+      checkpointType: pick.checkpointType,
+      checkpointTypeLabel: pick.checkpointTypeLabel,
+      linkedSubtopicIds: pick.linkedSubtopicIds
+    };
+  }
+
   const filtered = (checks || []).filter((c) => !subject || c.subject === subject);
   if (!filtered.length) return null;
 
-  const today = todayIsoDate();
-  const withDate = filtered
-    .map((c) => ({ ...c, checkpointDate: normalizeIsoDate(c.checkpointDate) }))
-    .filter((c) => c.checkpointDate)
-    .sort((a, b) => a.checkpointDate.localeCompare(b.checkpointDate));
-  const future = withDate.filter((c) => c.checkpointDate >= today);
-  if (future.length) return future[0];
-
-  const undated = filtered.filter((c) => !normalizeIsoDate(c.checkpointDate));
-  if (undated.length) {
-    return undated.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))[0];
-  }
-
-  return withDate[withDate.length - 1] || filtered[0];
+  return filtered.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))[0];
 }
 
 function formatGermanDate(isoDate) {
@@ -1905,6 +2016,53 @@ async function migrate() {
   await ensureColumn("level_checks", "linked_subtopic_ids", "JSONB DEFAULT '[]'::jsonb");
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_check_checkpoints (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER,
+      level_check_id UUID NOT NULL REFERENCES level_checks(id) ON DELETE CASCADE,
+      checkpoint_date DATE NOT NULL,
+      checkpoint_type TEXT NOT NULL DEFAULT 'klassenarbeit',
+      checkpoint_type_label TEXT,
+      linked_subtopic_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await ensureColumn("level_check_checkpoints", "school_id", "INTEGER");
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_level_check_checkpoints_topic_date
+    ON level_check_checkpoints (level_check_id, checkpoint_date DESC)
+  `);
+
+  await pool.query(`
+    INSERT INTO level_check_checkpoints (
+      school_id, level_check_id, checkpoint_date, checkpoint_type,
+      checkpoint_type_label, linked_subtopic_ids
+    )
+    SELECT
+      lc.school_id, lc.id, lc.checkpoint_date,
+      COALESCE(lc.checkpoint_type, 'klassenarbeit'),
+      lc.checkpoint_type_label,
+      COALESCE(lc.linked_subtopic_ids, '[]'::jsonb)
+    FROM level_checks lc
+    WHERE lc.checkpoint_date IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM level_check_checkpoints cp
+        WHERE cp.level_check_id = lc.id
+          AND cp.checkpoint_date = lc.checkpoint_date
+      )
+  `).catch(() => {});
+
+  await pool.query(`
+    UPDATE level_checks
+    SET
+      checkpoint_date = NULL,
+      checkpoint_type = 'klassenarbeit',
+      checkpoint_type_label = NULL,
+      linked_subtopic_ids = '[]'::jsonb
+    WHERE checkpoint_date IS NOT NULL
+  `).catch(() => {});
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS level_check_goals (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       school_id INTEGER,
@@ -2829,6 +2987,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       nextCheckpoint: nextCheckpoint
         ? {
             id: nextCheckpoint.id,
+            levelCheckId: nextCheckpoint.levelCheckId || nextCheckpoint.id,
             title: nextCheckpoint.name,
             date: normalizeIsoDate(nextCheckpoint.checkpointDate),
             dateLabel: formatGermanDate(nextCheckpoint.checkpointDate),
@@ -3699,6 +3858,62 @@ async function findLevelCheckForSchool(levelCheckId, schoolId, classId = null) {
   return r.rows[0] || null;
 }
 
+async function findCheckpointForSchool(checkpointId, schoolId) {
+  const r = await pool.query(
+    `
+    SELECT
+      cp.id,
+      cp.school_id,
+      cp.level_check_id,
+      cp.checkpoint_date,
+      cp.checkpoint_type,
+      cp.checkpoint_type_label,
+      cp.linked_subtopic_ids,
+      lc.class_id,
+      lc.subject,
+      lc.name
+    FROM level_check_checkpoints cp
+    JOIN level_checks lc ON lc.id = cp.level_check_id
+    LEFT JOIN classes c ON c.id = lc.class_id
+    WHERE cp.id = $1
+      AND (cp.school_id = $2 OR lc.school_id = $2 OR c.school_id = $2)
+    LIMIT 1
+  `,
+    [checkpointId, schoolId]
+  );
+  return r.rows[0] || null;
+}
+
+async function validateLinkedSubtopicIds(levelCheckId, linkedSubtopicIds) {
+  if (!Array.isArray(linkedSubtopicIds) || !linkedSubtopicIds.length) return [];
+  const ids = linkedSubtopicIds.map((id) => String(id)).filter(Boolean);
+  const r = await pool.query(
+    `
+    SELECT id::text
+    FROM level_check_goals
+    WHERE level_check_id = $1
+      AND id::text = ANY($2::text[])
+      AND COALESCE(active, true) = true
+  `,
+    [levelCheckId, ids]
+  );
+  return r.rows.map((row) => row.id);
+}
+
+function checkpointPayloadFromRow(row) {
+  const mapped = mapLevelCheckCheckpointRow(row);
+  return {
+    ...mapped,
+    checkpointDateLabel: formatGermanDate(mapped.checkpointDate),
+    checkpointTypeLabel: resolveCheckpointTypeLabel(
+      mapped.checkpointType,
+      mapped.checkpointTypeLabel
+    ),
+    topicName: row.name,
+    subject: row.subject
+  };
+}
+
 async function getLevelChecksForClass(classId, schoolId, studentId = null) {
   if (!classId) return [];
 
@@ -3711,9 +3926,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
 
   const checksRes = await pool.query(
     `
-    SELECT lc.id, lc.subject, lc.name, lc.sort_order, lc.created_at,
-           lc.checkpoint_date, lc.checkpoint_type, lc.checkpoint_type_label,
-           lc.linked_subtopic_ids
+    SELECT lc.id, lc.subject, lc.name, lc.sort_order, lc.created_at
     FROM level_checks lc
     LEFT JOIN classes c ON c.id = lc.class_id
     WHERE lc.class_id = $1${schoolFilter}
@@ -3778,17 +3991,31 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
     });
   }
 
+  let checkpointsByCheck = {};
+  if (checkIds.length) {
+    const cpRes = await pool.query(
+      `
+      SELECT id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids
+      FROM level_check_checkpoints
+      WHERE level_check_id = ANY($1::uuid[])
+      ORDER BY checkpoint_date DESC, created_at DESC
+    `,
+      [checkIds]
+    );
+    for (const row of cpRes.rows) {
+      if (!checkpointsByCheck[row.level_check_id]) {
+        checkpointsByCheck[row.level_check_id] = [];
+      }
+      checkpointsByCheck[row.level_check_id].push(mapLevelCheckCheckpointRow(row));
+    }
+  }
+
   return checksRes.rows.map((c) => ({
     id: c.id,
     subject: c.subject,
     name: c.name,
     sortOrder: c.sort_order,
-    checkpointDate: normalizeIsoDate(c.checkpoint_date),
-    checkpointType: normalizeCheckpointType(c.checkpoint_type),
-    checkpointTypeLabel: c.checkpoint_type_label ?? null,
-    linkedSubtopicIds: Array.isArray(c.linked_subtopic_ids)
-      ? c.linked_subtopic_ids.map((id) => String(id))
-      : [],
+    checkpoints: checkpointsByCheck[c.id] || [],
     goals: goalsByCheck[c.id] || []
   }));
 }
@@ -3923,22 +4150,38 @@ function buildCheckpointPlanEvents(levelChecks) {
   const events = [];
 
   for (const check of levelChecks || []) {
-    const date = normalizeIsoDate(check.checkpointDate);
-    if (!date) continue;
-    const typeKey = normalizeCheckpointType(check.checkpointType);
-    const typeLabel = resolveCheckpointTypeLabel(typeKey, check.checkpointTypeLabel);
-    events.push({
-      id: `checkpoint-${check.id}`,
-      type: typeKey,
-      typeLabel,
-      typeShort: checkpointTypeShortLabel(typeLabel),
-      subject: check.subject,
-      title: check.name,
-      date,
-      dateLabel: formatGermanDate(date),
-      levelCheckId: check.id,
-      editable: false
-    });
+    const topicCheckpoints = Array.isArray(check.checkpoints) ? check.checkpoints : [];
+    const rows = topicCheckpoints.length
+      ? topicCheckpoints
+      : check.checkpointDate
+        ? [
+            {
+              id: check.id,
+              checkpointDate: check.checkpointDate,
+              checkpointType: check.checkpointType,
+              checkpointTypeLabel: check.checkpointTypeLabel
+            }
+          ]
+        : [];
+
+    for (const cp of rows) {
+      const date = normalizeIsoDate(cp.checkpointDate);
+      if (!date) continue;
+      const typeKey = normalizeCheckpointType(cp.checkpointType);
+      const typeLabel = resolveCheckpointTypeLabel(typeKey, cp.checkpointTypeLabel);
+      events.push({
+        id: cp.id,
+        type: typeKey,
+        typeLabel,
+        typeShort: checkpointTypeShortLabel(typeLabel),
+        subject: check.subject,
+        title: check.name,
+        date,
+        dateLabel: formatGermanDate(date),
+        levelCheckId: check.id,
+        editable: false
+      });
+    }
   }
 
   events.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
@@ -4993,6 +5236,184 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ PATCH /api/teacher/levelchecks:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.post("/api/teacher/levelcheck-checkpoints", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const levelCheckId = String(req.body.levelCheckId || "").trim();
+    const checkpointDate = normalizeIsoDate(req.body.checkpointDate);
+    const checkpointType = normalizeCheckpointType(req.body.checkpointType || "klassenarbeit");
+    const checkpointTypeLabel =
+      checkpointType === "custom" ? normalizeFeedbackText(req.body.checkpointTypeLabel) : null;
+
+    if (!levelCheckId) {
+      return res.json({ success: false, message: "Thema fehlt." });
+    }
+    if (!checkpointDate) {
+      return res.json({ success: false, message: "Bitte ein gültiges Datum eingeben." });
+    }
+    if (checkpointType === "custom" && !checkpointTypeLabel) {
+      return res.json({
+        success: false,
+        message: "Bitte eine eigene Bezeichnung für den Checkpoint-Typ eingeben."
+      });
+    }
+
+    const checkRow = await findLevelCheckForSchool(levelCheckId, schoolId);
+    if (!checkRow) {
+      return res.json({ success: false, message: "Thema nicht gefunden." });
+    }
+
+    const linkedSubtopicIds = await validateLinkedSubtopicIds(
+      levelCheckId,
+      req.body.linkedSubtopicIds
+    );
+
+    const ins = await pool.query(
+      `
+      INSERT INTO level_check_checkpoints (
+        school_id, level_check_id, checkpoint_date, checkpoint_type,
+        checkpoint_type_label, linked_subtopic_ids
+      )
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+      RETURNING id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids
+    `,
+      [
+        schoolId,
+        levelCheckId,
+        checkpointDate,
+        checkpointType,
+        checkpointTypeLabel,
+        JSON.stringify(linkedSubtopicIds)
+      ]
+    );
+
+    const topicRes = await pool.query(
+      "SELECT subject, name FROM level_checks WHERE id = $1",
+      [levelCheckId]
+    );
+
+    res.json({
+      success: true,
+      checkpoint: checkpointPayloadFromRow({
+        ...ins.rows[0],
+        subject: topicRes.rows[0]?.subject,
+        name: topicRes.rows[0]?.name
+      })
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/levelcheck-checkpoints:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.patch("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const checkpointId = req.params.id;
+    const existing = await findCheckpointForSchool(checkpointId, schoolId);
+    if (!existing) {
+      return res.json({ success: false, message: "Checkpoint nicht gefunden." });
+    }
+
+    const hasDate = Object.prototype.hasOwnProperty.call(req.body, "checkpointDate");
+    const hasType = Object.prototype.hasOwnProperty.call(req.body, "checkpointType");
+    const hasTypeLabel = Object.prototype.hasOwnProperty.call(req.body, "checkpointTypeLabel");
+    const hasLinked = Object.prototype.hasOwnProperty.call(req.body, "linkedSubtopicIds");
+
+    if (!hasDate && !hasType && !hasTypeLabel && !hasLinked) {
+      return res.json({ success: false, message: "Keine Änderung übergeben." });
+    }
+
+    let checkpointDate = normalizeIsoDate(existing.checkpoint_date);
+    let checkpointType = normalizeCheckpointType(existing.checkpoint_type);
+    let checkpointTypeLabel = existing.checkpoint_type_label ?? null;
+
+    if (hasDate) {
+      checkpointDate = normalizeIsoDate(req.body.checkpointDate);
+      if (!checkpointDate) {
+        return res.json({ success: false, message: "Ungültiges Datum." });
+      }
+    }
+
+    if (hasType) {
+      checkpointType = normalizeCheckpointType(req.body.checkpointType);
+    }
+
+    if (hasTypeLabel || hasType) {
+      checkpointTypeLabel =
+        checkpointType === "custom"
+          ? normalizeFeedbackText(req.body.checkpointTypeLabel)
+          : null;
+    }
+
+    if (checkpointType === "custom" && !checkpointTypeLabel) {
+      return res.json({
+        success: false,
+        message: "Bitte eine eigene Bezeichnung für den Checkpoint-Typ eingeben."
+      });
+    }
+
+    let linkedSubtopicIds = Array.isArray(existing.linked_subtopic_ids)
+      ? existing.linked_subtopic_ids.map((id) => String(id))
+      : [];
+    if (hasLinked) {
+      linkedSubtopicIds = await validateLinkedSubtopicIds(
+        existing.level_check_id,
+        req.body.linkedSubtopicIds
+      );
+    }
+
+    const upd = await pool.query(
+      `
+      UPDATE level_check_checkpoints
+      SET
+        checkpoint_date = $1,
+        checkpoint_type = $2,
+        checkpoint_type_label = $3,
+        linked_subtopic_ids = $4::jsonb
+      WHERE id = $5
+      RETURNING id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids
+    `,
+      [
+        checkpointDate,
+        checkpointType,
+        checkpointTypeLabel,
+        JSON.stringify(linkedSubtopicIds),
+        checkpointId
+      ]
+    );
+
+    res.json({
+      success: true,
+      checkpoint: checkpointPayloadFromRow({
+        ...upd.rows[0],
+        subject: existing.subject,
+        name: existing.name
+      })
+    });
+  } catch (err) {
+    console.error("❌ PATCH /api/teacher/levelcheck-checkpoints:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.delete("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const checkpointId = req.params.id;
+    const existing = await findCheckpointForSchool(checkpointId, schoolId);
+    if (!existing) {
+      return res.json({ success: false, message: "Checkpoint nicht gefunden." });
+    }
+
+    await pool.query("DELETE FROM level_check_checkpoints WHERE id = $1", [checkpointId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE /api/teacher/levelcheck-checkpoints:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
