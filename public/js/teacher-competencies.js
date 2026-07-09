@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Levelstatus (Checkpoint-Karten + Was-Ziele aus allen Themen).
+ * Lehrkraft – Levelstatus (Datum → Art → Thema → Was-Ziele markieren).
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -23,9 +23,11 @@
     "Religion/Ethik"
   ];
 
-  const CHECKPOINT_TYPES = [
+  const DEFAULT_CHECKPOINT_TYPES = [
     { value: "klassenarbeit", label: "Klassenarbeit" },
-    { value: "test", label: "Test" }
+    { value: "test", label: "Test" },
+    { value: "praesentation", label: "Präsentation" },
+    { value: "custom", label: "Eigene Bezeichnung" }
   ];
 
   const state = {
@@ -56,6 +58,12 @@
     return Array.isArray(fromApi) && fromApi.length ? fromApi : FALLBACK_SUBJECTS;
   }
 
+  function checkpointTypeOptions() {
+    return state.data?.checkpointTypeOptions?.length
+      ? state.data.checkpointTypeOptions
+      : DEFAULT_CHECKPOINT_TYPES;
+  }
+
   function topicsForSubject() {
     return (state.data?.levelChecks || []).filter((lc) => lc.subject === state.subject);
   }
@@ -76,107 +84,99 @@
     }
   }
 
-  function allGoalsInSubject() {
-    const items = [];
-    for (const topic of topicsForSubject()) {
-      for (const goal of topic.goals || []) {
-        items.push({
-          id: String(goal.id),
-          text: goal.text,
-          themaId: String(topic.id),
-          themaName: topic.name
-        });
-      }
-    }
-    return items;
-  }
-
-  function typeLabelForTopic(topic) {
-    const type = topic.checkpointType === "test" ? "test" : "klassenarbeit";
-    return CHECKPOINT_TYPES.find((o) => o.value === type)?.label || "Klassenarbeit";
+  function typeLabelFor(type, customLabel) {
+    if (type === "custom" && customLabel) return customLabel;
+    const match = checkpointTypeOptions().find((o) => o.value === type);
+    return match?.label || "Klassenarbeit";
   }
 
   function linkedIdsForTopic(topic) {
-    const linked = topic?.linkedSubtopicIds;
-    if (Array.isArray(linked) && linked.length) {
-      return linked.map((id) => String(id));
-    }
-    return (topic?.goals || []).map((g) => String(g.id));
+    if (!topic) return [];
+    const linked = topic.linkedSubtopicIds;
+    return Array.isArray(linked) ? linked.map((id) => String(id)) : [];
   }
 
-  function checkpointTypeOptions(selected) {
-    const type = selected === "test" ? "test" : "klassenarbeit";
-    return CHECKPOINT_TYPES.map(
-      (o) =>
-        `<option value="${escapeHtml(o.value)}" ${o.value === type ? "selected" : ""}>${escapeHtml(o.label)}</option>`
-    ).join("");
-  }
-
-  function renderCheckpointFields(topic) {
-    const type = topic.checkpointType === "test" ? "test" : "klassenarbeit";
-    return `
-      <div class="tc-checkpoint-row">
-        <label>
-          Termin
-          <input type="date" class="tc-checkpoint-date" data-check-id="${escapeHtml(topic.id)}" value="${escapeHtml(topic.checkpointDate || "")}">
-        </label>
-        <label>
-          Art
-          <select class="tc-checkpoint-type" data-check-id="${escapeHtml(topic.id)}">
-            ${checkpointTypeOptions(type)}
-          </select>
-        </label>
-      </div>`;
-  }
-
-  function renderLinkedGoalsSelect(topic) {
-    const allGoals = allGoalsInSubject();
-    if (!allGoals.length) {
-      return `<p class="tc-goal-empty">Noch keine Was-Ziele importiert.</p>`;
+  function renderCheckpointCard() {
+    const topics = topicsForSubject();
+    if (!topics.length) {
+      return `<p class="tc-empty">Für ${escapeHtml(state.subject)} noch keine Themen. Bitte zuerst unter „Levelplan importieren“ anlegen.</p>`;
     }
 
-    const linked = new Set(linkedIdsForTopic(topic));
-    const byThema = {};
-    for (const goal of allGoals) {
-      if (!byThema[goal.themaName]) byThema[goal.themaName] = [];
-      byThema[goal.themaName].push(goal);
-    }
+    ensureThemaSelection();
+    const topic = selectedTopic();
+    if (!topic) return "";
 
-    const options = Object.entries(byThema)
-      .map(([themaName, goals]) => {
-        const opts = goals
-          .map(
-            (g) =>
-              `<option value="${escapeHtml(g.id)}" ${linked.has(g.id) ? "selected" : ""}>${escapeHtml(g.text)}</option>`
-          )
-          .join("");
-        return `<optgroup label="${escapeHtml(themaName)}">${opts}</optgroup>`;
-      })
+    const type = topic.checkpointType || "klassenarbeit";
+    const isCustom = type === "custom";
+    const typeOptions = checkpointTypeOptions()
+      .map(
+        (o) =>
+          `<option value="${escapeHtml(o.value)}" ${o.value === type ? "selected" : ""}>${escapeHtml(o.label)}</option>`
+      )
       .join("");
 
-    return `
-      <div class="tc-linked-block">
-        <label class="tc-linked-label">
-          Was-Ziele für diesen Checkpoint
-          <span class="tc-hint">Mehrfachauswahl – auch Unterthemen aus anderen Themen möglich (Strg/Cmd + Klick).</span>
-          <select multiple class="tc-linked-select" data-check-id="${escapeHtml(topic.id)}" size="${Math.min(10, Math.max(4, allGoals.length))}">
-            ${options}
-          </select>
-        </label>
-      </div>`;
-  }
+    const themaOptions = topics
+      .map(
+        (t) =>
+          `<option value="${escapeHtml(t.id)}" ${sameId(t.id, state.themaId) ? "selected" : ""}>${escapeHtml(t.name)}</option>`
+      )
+      .join("");
 
-  function renderTopicCard(topic) {
+    const linked = new Set(linkedIdsForTopic(topic));
+    const goals = topic.goals || [];
+
+    const goalChecks = goals.length
+      ? goals
+          .map(
+            (goal) => `
+        <label class="tc-was-goal-item">
+          <input type="checkbox" class="tc-was-goal-check" value="${escapeHtml(goal.id)}" ${linked.has(String(goal.id)) ? "checked" : ""}>
+          <span>${escapeHtml(goal.text)}</span>
+        </label>`
+          )
+          .join("")
+      : `<p class="tc-goal-empty">Für dieses Thema gibt es noch keine Was-Ziele.</p>`;
+
     return `
       <article class="tc-levelcheck-card" data-check-id="${escapeHtml(topic.id)}">
         <div class="tc-levelcheck-head">
           <div>
-            <span class="tc-levelcheck-subject">${escapeHtml(typeLabelForTopic(topic))}</span>
+            <span class="tc-levelcheck-subject">${escapeHtml(typeLabelFor(type, topic.checkpointTypeLabel))}</span>
             <h4 class="tc-levelcheck-name">${escapeHtml(topic.name)}</h4>
-            ${renderCheckpointFields(topic)}
           </div>
         </div>
-        ${renderLinkedGoalsSelect(topic)}
+
+        <div class="tc-checkpoint-row">
+          <label>
+            Termin
+            <input type="date" class="tc-checkpoint-date" value="${escapeHtml(topic.checkpointDate || "")}">
+          </label>
+          <label>
+            Art
+            <select class="tc-checkpoint-type">${typeOptions}</select>
+          </label>
+          <label class="tc-checkpoint-custom-wrap ${isCustom ? "" : "tc-checkpoint-custom-hidden"}">
+            Eigene Bezeichnung
+            <input
+              type="text"
+              class="tc-checkpoint-type-custom"
+              maxlength="80"
+              placeholder="z. B. Projektprüfung"
+              value="${isCustom ? escapeHtml(topic.checkpointTypeLabel || "") : ""}"
+              ${isCustom ? "" : "disabled"}
+            >
+          </label>
+          <label>
+            Thema
+            <select class="tc-card-thema-select">${themaOptions}</select>
+          </label>
+        </div>
+
+        <div class="tc-linked-block">
+          <h4 class="tc-linked-title">Was-Ziele für diesen Checkpoint</h4>
+          <p class="tc-hint">Markiere die Unterthemen aus „${escapeHtml(topic.name)}“, die abgefragt werden.</p>
+          <div class="tc-was-goal-list">${goalChecks}</div>
+        </div>
       </article>`;
   }
 
@@ -194,10 +194,6 @@
       return;
     }
 
-    ensureThemaSelection();
-    const topics = topicsForSubject();
-    const topic = selectedTopic();
-
     const subjectOptions = subjectsList()
       .map(
         (s) =>
@@ -205,27 +201,11 @@
       )
       .join("");
 
-    const themaOptions = topics
-      .map(
-        (t) =>
-          `<option value="${escapeHtml(t.id)}" ${sameId(t.id, state.themaId) ? "selected" : ""}>${escapeHtml(t.name)}</option>`
-      )
-      .join("");
-
-    let body = "";
-    if (!topics.length) {
-      body = `
-        <p class="tc-empty">Für ${escapeHtml(state.subject)} noch keine Themen. Bitte zuerst unter „Levelplan importieren“ anlegen.</p>`;
-    } else if (topic) {
-      body = `<div class="tc-levelcheck-list">${renderTopicCard(topic)}</div>`;
-    }
-
     root.innerHTML = `
       <div class="panel">
         <h2>Levelstatus</h2>
         <p class="hint">
-          Pro Thema Termin und Art (Klassenarbeit oder Test) festlegen und die zugehörigen Was-Ziele wählen –
-          z. B. für einen Test nur „Richtig zählen“, für eine Klassenarbeit mehrere Unterthemen auch aus anderen Themen.
+          Termin und Art festlegen, Thema wählen, dann die Was-Ziele markieren, die in Klassenarbeit oder Test vorkommen.
         </p>
 
         <div class="tc-toolbar">
@@ -235,15 +215,12 @@
           <label>Fach:
             <select id="tcSubjectSelect">${subjectOptions}</select>
           </label>
-          <label>Thema:
-            <select id="tcThemaSelect" ${topics.length ? "" : "disabled"}>${themaOptions}</select>
-          </label>
         </div>
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
 
-        ${body}
+        <div class="tc-levelcheck-list">${renderCheckpointCard()}</div>
       </div>`;
 
     bindHandlers(root);
@@ -259,6 +236,17 @@
           `<option value="${c.id}" ${sameId(c.id, state.classId) ? "selected" : ""}>${escapeHtml(c.name)}</option>`
       )
       .join("");
+  }
+
+  function toggleCustomField(card, show) {
+    const wrap = card?.querySelector(".tc-checkpoint-custom-wrap");
+    if (!wrap) return;
+    wrap.classList.toggle("tc-checkpoint-custom-hidden", !show);
+    const input = wrap.querySelector(".tc-checkpoint-type-custom");
+    if (input) {
+      input.disabled = !show;
+      if (!show) input.value = "";
+    }
   }
 
   function bindHandlers(root) {
@@ -277,23 +265,32 @@
       render();
     });
 
-    root.querySelector("#tcThemaSelect")?.addEventListener("change", (e) => {
+    const card = root.querySelector(".tc-levelcheck-card");
+    if (!card) return;
+
+    card.querySelector(".tc-card-thema-select")?.addEventListener("change", async (e) => {
+      await saveTopicMeta(card.dataset.checkId);
       state.themaId = e.target.value;
       state.message = "";
       state.error = "";
       render();
     });
 
-    root.querySelector(".tc-checkpoint-date")?.addEventListener("change", (e) => {
-      saveTopicMeta(e.target.dataset.checkId);
+    card.querySelector(".tc-checkpoint-date")?.addEventListener("change", () => {
+      saveTopicMeta(card.dataset.checkId);
     });
 
-    root.querySelector(".tc-checkpoint-type")?.addEventListener("change", (e) => {
-      saveTopicMeta(e.target.dataset.checkId);
+    card.querySelector(".tc-checkpoint-type")?.addEventListener("change", (e) => {
+      toggleCustomField(card, e.target.value === "custom");
+      saveTopicMeta(card.dataset.checkId);
     });
 
-    root.querySelector(".tc-linked-select")?.addEventListener("change", (e) => {
-      saveTopicMeta(e.target.dataset.checkId);
+    card.querySelector(".tc-checkpoint-type-custom")?.addEventListener("blur", () => {
+      saveTopicMeta(card.dataset.checkId);
+    });
+
+    card.querySelectorAll(".tc-was-goal-check").forEach((input) => {
+      input.addEventListener("change", () => saveTopicMeta(card.dataset.checkId));
     });
   }
 
@@ -303,15 +300,16 @@
 
     const dateEl = card.querySelector(".tc-checkpoint-date");
     const typeEl = card.querySelector(".tc-checkpoint-type");
-    const linkedEl = card.querySelector(".tc-linked-select");
-    const linkedSubtopicIds = linkedEl
-      ? [...linkedEl.selectedOptions].map((opt) => opt.value)
-      : [];
+    const customEl = card.querySelector(".tc-checkpoint-type-custom");
+    const checkpointType = typeEl?.value || "klassenarbeit";
+    const linkedSubtopicIds = [...card.querySelectorAll(".tc-was-goal-check:checked")].map(
+      (el) => el.value
+    );
 
     return {
       checkpointDate: dateEl?.value || null,
-      checkpointType: typeEl?.value || "klassenarbeit",
-      checkpointTypeLabel: null,
+      checkpointType,
+      checkpointTypeLabel: checkpointType === "custom" ? customEl?.value?.trim() || "" : null,
       linkedSubtopicIds
     };
   }
@@ -320,6 +318,12 @@
     if (!checkId) return;
     const payload = readTopicPayload(checkId);
     if (!payload) return;
+
+    if (payload.checkpointType === "custom" && !payload.checkpointTypeLabel) {
+      state.error = "Bitte eine eigene Bezeichnung eingeben.";
+      render();
+      return;
+    }
 
     state.saving = true;
     state.error = "";

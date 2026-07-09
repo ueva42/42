@@ -30,6 +30,7 @@
     data: null,
     loading: false,
     deletingId: null,
+    deletingTopicId: null,
     message: "",
     error: ""
   };
@@ -107,8 +108,15 @@
 
     return `
       <div class="lpi-preview-wrap">
-        <h3>${escapeHtml(topic.name)}</h3>
-        <p class="hint">${goals.length} Unterthemen in diesem Thema</p>
+        <div class="wg-topic-head">
+          <div>
+            <h3>${escapeHtml(topic.name)}</h3>
+            <p class="hint">${goals.length} Unterthemen in diesem Thema</p>
+          </div>
+          <button type="button" class="tc-delete-btn tc-topic-delete-btn wg-topic-del" data-topic-id="${escapeHtml(topic.id)}" ${state.deletingTopicId === String(topic.id) ? "disabled" : ""}>
+            ${state.deletingTopicId === String(topic.id) ? "Löschen…" : "Gesamtes Thema löschen"}
+          </button>
+        </div>
         <div class="lpi-table-scroll">
           <table class="lpi-table">
             <thead>
@@ -161,7 +169,7 @@
       <div class="panel">
         <h2>Was-Ziele</h2>
         <p class="hint">
-          Importierten Levelplan pro Thema einsehen. Einzelne Was-Ziele kannst du mit × löschen.
+          Importierten Levelplan pro Thema einsehen. Einzelne Was-Ziele mit × oder das ganze Thema löschen.
         </p>
 
         <div class="tc-toolbar">
@@ -221,6 +229,45 @@
     root.querySelectorAll(".wg-goal-del").forEach((btn) => {
       btn.addEventListener("click", () => deleteGoal(btn.dataset.goalId));
     });
+
+    root.querySelector(".wg-topic-del")?.addEventListener("click", (e) => {
+      deleteTopic(e.target.dataset.topicId);
+    });
+  }
+
+  async function deleteTopic(topicId) {
+    const topic = topicsForSubject().find((t) => sameId(t.id, topicId));
+    const name = topic?.name || "dieses Thema";
+    if (!topicId || !confirm(`Thema „${name}“ mit allen Was-Zielen wirklich löschen?`)) return;
+
+    state.deletingTopicId = String(topicId);
+    state.error = "";
+    render();
+
+    try {
+      const encodedId = encodeURIComponent(topicId);
+      let res = await fetch(`/api/teacher/levelchecks/${encodedId}`, { method: "DELETE" });
+      if (res.status === 404 || res.status === 405) {
+        res = await fetch(`/api/teacher/levelchecks/${encodedId}/delete`, { method: "POST" });
+      }
+      const data = await res.json();
+      state.deletingTopicId = null;
+
+      if (!res.ok || !data.success) {
+        state.error = data.message || data.error || "Löschen fehlgeschlagen.";
+        render();
+        return;
+      }
+
+      state.themaId = null;
+      state.message = `Thema „${name}“ gelöscht.`;
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      state.deletingTopicId = null;
+      state.error = "Netzwerkfehler beim Löschen.";
+      render();
+    }
   }
 
   async function deleteGoal(goalId) {
