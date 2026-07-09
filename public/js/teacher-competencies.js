@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Levelstatus (Fach → Checkpoint-Thema → Unterthemen).
+ * Lehrkraft – Levelstatus (Checkpoint: Fach → Thema → Termin + Was-Ziele).
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -23,25 +23,21 @@
     "Religion/Ethik"
   ];
 
-  const DEFAULT_CHECKPOINT_TYPES = [
+  const CHECKPOINT_TYPES = [
     { value: "klassenarbeit", label: "Klassenarbeit" },
-    { value: "test", label: "Test" },
-    { value: "praesentation", label: "Präsentation" },
-    { value: "custom", label: "Eigene Angabe" }
+    { value: "test", label: "Test" }
   ];
 
   const state = {
     classId: null,
     subject: null,
+    themaId: null,
     data: null,
     loading: false,
     saving: false,
-    deletingId: null,
     message: "",
     error: ""
   };
-
-  let rootClickBound = false;
 
   function escapeHtml(str) {
     return String(str ?? "")
@@ -55,143 +51,97 @@
     return String(a) === String(b);
   }
 
-  function checkpointTypeOptions(selected) {
-    const options = state.data?.checkpointTypeOptions?.length
-      ? state.data.checkpointTypeOptions
-      : DEFAULT_CHECKPOINT_TYPES;
-    return options
-      .map(
-        (o) =>
-          `<option value="${escapeHtml(o.value)}" ${o.value === selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`
-      )
-      .join("");
-  }
-
   function subjectsList() {
     const fromApi = state.data?.subjects;
     return Array.isArray(fromApi) && fromApi.length ? fromApi : FALLBACK_SUBJECTS;
   }
 
-  function subjectOptions(subjects, selected) {
-    return (subjects || [])
+  function topicsForSubject() {
+    return (state.data?.levelChecks || []).filter((lc) => lc.subject === state.subject);
+  }
+
+  function selectedTopic() {
+    if (!state.themaId) return null;
+    return topicsForSubject().find((t) => sameId(t.id, state.themaId)) || null;
+  }
+
+  function ensureThemaSelection() {
+    const topics = topicsForSubject();
+    if (!topics.length) {
+      state.themaId = null;
+      return;
+    }
+    if (!state.themaId || !topics.some((t) => sameId(t.id, state.themaId))) {
+      state.themaId = topics[0].id;
+    }
+  }
+
+  function checkpointTypeOptions(selected) {
+    return CHECKPOINT_TYPES.map(
+      (o) =>
+        `<option value="${escapeHtml(o.value)}" ${o.value === selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`
+    ).join("");
+  }
+
+  function linkedIdsForTopic(topic) {
+    const linked = topic?.linkedSubtopicIds;
+    if (Array.isArray(linked) && linked.length) {
+      return linked.map((id) => String(id));
+    }
+    return (topic?.goals || []).map((g) => String(g.id));
+  }
+
+  function renderWasGoalPicker(topic) {
+    const goals = topic.goals || [];
+    if (!goals.length) {
+      return `<p class="tc-empty">Für dieses Thema gibt es noch keine Was-Ziele. Bitte zuerst im Reiter „Levelplan importieren“ anlegen.</p>`;
+    }
+
+    const linked = new Set(linkedIdsForTopic(topic));
+
+    const items = goals
       .map(
-        (s) =>
-          `<option value="${escapeHtml(s)}" ${s === selected ? "selected" : ""}>${escapeHtml(s)}</option>`
+        (goal) => `
+      <label class="tc-was-goal-item">
+        <input
+          type="checkbox"
+          class="tc-was-goal-check"
+          value="${escapeHtml(goal.id)}"
+          ${linked.has(String(goal.id)) ? "checked" : ""}
+        >
+        <span>${escapeHtml(goal.text)}</span>
+      </label>`
       )
       .join("");
-  }
-
-  function topicsForSubject() {
-    const subject = state.subject;
-    return (state.data?.levelChecks || []).filter((lc) => lc.subject === subject);
-  }
-
-  function typeLabelForTopic(topic) {
-    if (topic.checkpointType === "custom" && topic.checkpointTypeLabel) {
-      return topic.checkpointTypeLabel;
-    }
-    const match = (state.data?.checkpointTypeOptions || DEFAULT_CHECKPOINT_TYPES).find(
-      (o) => o.value === topic.checkpointType
-    );
-    return match?.label || "Klassenarbeit";
-  }
-
-  function renderCheckpointFields(topicOrNull, prefix) {
-    const topic = topicOrNull || {};
-    const type = topic.checkpointType || "klassenarbeit";
-    const isCustom = type === "custom";
-    const checkId = topic.id ? ` data-check-id="${escapeHtml(topic.id)}"` : "";
-    const dateValue = topic.checkpointDate || "";
 
     return `
-      <div class="tc-checkpoint-row">
-        <label>
-          Termin
-          <input
-            type="date"
-            class="tc-checkpoint-date"
-            ${checkId}
-            id="${prefix}CheckpointDate"
-            value="${escapeHtml(dateValue)}"
-          >
-        </label>
-        <label>
-          Art
-          <select class="tc-checkpoint-type" ${checkId} id="${prefix}CheckpointType">
-            ${checkpointTypeOptions(type)}
-          </select>
-        </label>
-        <label class="tc-checkpoint-custom-wrap ${isCustom ? "" : "tc-checkpoint-custom-hidden"}">
-          Eigene Bezeichnung
-          <input
-            type="text"
-            class="tc-checkpoint-type-custom"
-            ${checkId}
-            id="${prefix}CheckpointTypeCustom"
-            maxlength="80"
-            placeholder="z. B. Projektprüfung"
-            value="${isCustom ? escapeHtml(topic.checkpointTypeLabel || "") : ""}"
-            ${isCustom ? "" : "disabled"}
-          >
-        </label>
+      <div class="tc-was-goals-block">
+        <h4>Was-Ziele für diesen Checkpoint</h4>
+        <p class="tc-hint">Wähle die Unterthemen, die zu dieser Klassenarbeit bzw. diesem Test gehören.</p>
+        <div class="tc-was-goal-list">${items}</div>
       </div>`;
   }
 
-  function renderAddTopicForm() {
-    return `
-      <form class="tc-add-form" id="tcAddTopicForm">
-        <h3>Neues Checkpoint-Thema</h3>
-        <p class="tc-hint">Thema für ${escapeHtml(state.subject)} – z. B. „Bruchrechnung“. Termin und Art erscheinen im Checkpoint-Plan der Schüler:innen.</p>
-        <div class="tc-add-grid">
-          <label>
-            Thema
-            <input type="text" id="tcAddTopicName" maxlength="120" required placeholder="z. B. Bruchrechnung">
-          </label>
-        </div>
-        ${renderCheckpointFields(null, "tcAdd")}
-        <button type="submit" class="action" id="tcAddTopicBtn" ${state.saving ? "disabled" : ""}>
-          ${state.saving ? "Speichern…" : "Thema anlegen"}
-        </button>
-      </form>`;
-  }
+  function renderTopicEditor(topic) {
+    const type = topic.checkpointType === "test" ? "test" : "klassenarbeit";
 
-  function renderSubtopicRow(goal) {
-    return `
-      <li class="tc-goal-item">
-        <span class="tc-goal-num">${goal.sortOrder}.</span>
-        <span class="tc-goal-text">${escapeHtml(goal.text)}</span>
-        <button type="button" class="tc-delete-btn tc-goal-del" data-goal-id="${escapeHtml(goal.id)}" aria-label="Unterthema löschen">×</button>
-      </li>`;
-  }
-
-  function renderTopic(topic) {
     return `
       <article class="tc-levelcheck-card" data-check-id="${escapeHtml(topic.id)}">
-        <div class="tc-levelcheck-head">
-          <div>
-            <span class="tc-levelcheck-subject">${escapeHtml(typeLabelForTopic(topic))}</span>
-            <h4 class="tc-levelcheck-name">${escapeHtml(topic.name)}</h4>
-            ${renderCheckpointFields(topic, `tcTopic-${topic.id}`)}
-          </div>
-          <button type="button" class="tc-delete-btn tc-topic-delete-btn" data-check-id="${escapeHtml(topic.id)}" ${state.deletingId === String(topic.id) ? "disabled" : ""}>${state.deletingId === String(topic.id) ? "Löschen…" : "Thema löschen"}</button>
+        <h3 class="tc-levelcheck-name">${escapeHtml(topic.name)}</h3>
+        <div class="tc-checkpoint-row">
+          <label>
+            Termin
+            <input type="date" class="tc-checkpoint-date" data-check-id="${escapeHtml(topic.id)}" value="${escapeHtml(topic.checkpointDate || "")}">
+          </label>
+          <label>
+            Art
+            <select class="tc-checkpoint-type" data-check-id="${escapeHtml(topic.id)}">
+              ${checkpointTypeOptions(type)}
+            </select>
+          </label>
         </div>
-        <ol class="tc-goal-list">
-          ${(topic.goals || []).map(renderSubtopicRow).join("")}
-          ${!(topic.goals || []).length ? `<li class="tc-goal-empty">Noch keine Unterthemen – unten das erste eintragen.</li>` : ""}
-        </ol>
-        <form class="tc-goal-add-form" data-check-id="${escapeHtml(topic.id)}">
-          <input type="text" class="tc-goal-input" maxlength="300" placeholder="Neues Unterthema (z. B. Brüche erweitern)" required>
-          <button type="submit" class="action tc-goal-add-btn">Unterthema hinzufügen</button>
-        </form>
+        ${renderWasGoalPicker(topic)}
       </article>`;
-  }
-
-  function renderTopicsList() {
-    const topics = topicsForSubject();
-    if (!topics.length) {
-      return `<p class="tc-empty">Für ${escapeHtml(state.subject)} noch keine Themen. Lege oben das erste an.</p>`;
-    }
-    return `<div class="tc-levelcheck-list">${topics.map(renderTopic).join("")}</div>`;
   }
 
   function render() {
@@ -208,25 +158,59 @@
       return;
     }
 
+    ensureThemaSelection();
+    const topics = topicsForSubject();
+    const topic = selectedTopic();
+
+    const subjectOptions = subjectsList()
+      .map(
+        (s) =>
+          `<option value="${escapeHtml(s)}" ${s === state.subject ? "selected" : ""}>${escapeHtml(s)}</option>`
+      )
+      .join("");
+
+    const themaOptions = topics
+      .map(
+        (t) =>
+          `<option value="${escapeHtml(t.id)}" ${sameId(t.id, state.themaId) ? "selected" : ""}>${escapeHtml(t.name)}</option>`
+      )
+      .join("");
+
+    let body = "";
+    if (!topics.length) {
+      body = `
+        <div class="tc-empty">
+          <p>Für ${escapeHtml(state.subject)} wurden noch keine Themen importiert.</p>
+          <p class="hint">Lege zuerst Was-Ziele unter „Levelplan importieren“ an und prüfe sie unter „Was-Ziele“.</p>
+        </div>`;
+    } else if (topic) {
+      body = renderTopicEditor(topic);
+    }
+
     root.innerHTML = `
       <div class="panel">
         <h2>Levelstatus</h2>
-        <p class="hint">Pro Fach Checkpoint-Themen anlegen: Termin, Art (Klassenarbeit, Test, Präsentation …) und Unterthemen. Schüler:innen sehen Termine im Checkpoint-Plan und setzen Zielnoten in der Zielsetzung.</p>
+        <p class="hint">
+          Pro Fach und Thema: Termin und Art (Klassenarbeit oder Test) festlegen und die passenden Was-Ziele auswählen.
+          Rookie, Operator und Street Legend pflegst du im importierten Levelplan.
+        </p>
 
         <div class="tc-toolbar">
           <label>Klasse:
             <select id="tcClassSelect"></select>
           </label>
           <label>Fach:
-            <select id="tcSubjectSelect">${subjectOptions(subjectsList(), state.subject)}</select>
+            <select id="tcSubjectSelect">${subjectOptions}</select>
+          </label>
+          <label>Thema:
+            <select id="tcThemaSelect" ${topics.length ? "" : "disabled"}>${themaOptions}</select>
           </label>
         </div>
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
 
-        ${renderAddTopicForm()}
-        ${renderTopicsList()}
+        ${body}
       </div>`;
 
     bindHandlers(root);
@@ -244,83 +228,6 @@
       .join("");
   }
 
-  function toggleCustomField(wrap, show) {
-    if (!wrap) return;
-    wrap.classList.toggle("tc-checkpoint-custom-hidden", !show);
-    const input = wrap.querySelector(".tc-checkpoint-type-custom");
-    if (input) {
-      input.disabled = !show;
-      if (!show) input.value = "";
-    }
-  }
-
-  function bindCheckpointTypeToggle(scope) {
-    scope.querySelectorAll(".tc-checkpoint-type").forEach((sel) => {
-      sel.addEventListener("change", () => {
-        const card = sel.closest(".tc-levelcheck-card") || sel.closest(".tc-add-form");
-        const wrap = card?.querySelector(".tc-checkpoint-custom-wrap");
-        toggleCustomField(wrap, sel.value === "custom");
-        if (sel.dataset.checkId) {
-          saveCheckpointMeta(sel.dataset.checkId, card);
-        }
-      });
-    });
-  }
-
-  function bindRootActions() {
-    const root = document.getElementById("competenciesTabRoot");
-    if (!root || rootClickBound) return;
-    rootClickBound = true;
-
-    root.addEventListener("click", (e) => {
-      const topicBtn = e.target.closest(".tc-topic-delete-btn");
-      if (topicBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        deleteTopic(topicBtn.getAttribute("data-check-id"));
-        return;
-      }
-
-      const goalBtn = e.target.closest(".tc-goal-del");
-      if (goalBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        deleteSubtopic(goalBtn.getAttribute("data-goal-id"));
-      }
-    });
-  }
-
-  async function readJsonResponse(res) {
-    try {
-      return await res.json();
-    } catch (_err) {
-      return {};
-    }
-  }
-
-  function apiErrorMessage(res, data, fallback) {
-    if (res.status === 403) return "Keine Berechtigung.";
-    return data.message || data.error || fallback;
-  }
-
-  async function requestLevelCheckDelete(checkId) {
-    const encodedId = encodeURIComponent(checkId);
-    let res = await fetch(`/api/teacher/levelchecks/${encodedId}`, { method: "DELETE" });
-    if (res.status === 404 || res.status === 405) {
-      res = await fetch(`/api/teacher/levelchecks/${encodedId}/delete`, { method: "POST" });
-    }
-    return res;
-  }
-
-  async function requestLevelCheckGoalDelete(goalId) {
-    const encodedId = encodeURIComponent(goalId);
-    let res = await fetch(`/api/teacher/levelcheck-goals/${encodedId}`, { method: "DELETE" });
-    if (res.status === 404 || res.status === 405) {
-      res = await fetch(`/api/teacher/levelcheck-goals/${encodedId}/delete`, { method: "POST" });
-    }
-    return res;
-  }
-
   function bindHandlers(root) {
     root.querySelector("#tcClassSelect")?.addEventListener("change", (e) => {
       state.classId = Number(e.target.value);
@@ -331,62 +238,57 @@
 
     root.querySelector("#tcSubjectSelect")?.addEventListener("change", (e) => {
       state.subject = e.target.value;
+      state.themaId = null;
       state.message = "";
       state.error = "";
       render();
     });
 
-    root.querySelector("#tcAddTopicForm")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      addTopic();
+    root.querySelector("#tcThemaSelect")?.addEventListener("change", (e) => {
+      state.themaId = e.target.value;
+      state.message = "";
+      state.error = "";
+      render();
     });
 
-    root.querySelectorAll(".tc-goal-add-form").forEach((form) => {
-      form.addEventListener("submit", (e) => {
-        e.preventDefault();
-        addSubtopic(form);
-      });
+    root.querySelector(".tc-checkpoint-date")?.addEventListener("change", (e) => {
+      saveTopicMeta(e.target.dataset.checkId);
     });
 
-    bindCheckpointTypeToggle(root);
+    root.querySelector(".tc-checkpoint-type")?.addEventListener("change", (e) => {
+      saveTopicMeta(e.target.dataset.checkId);
+    });
 
-    root.querySelectorAll(".tc-checkpoint-date").forEach((input) => {
+    root.querySelectorAll(".tc-was-goal-check").forEach((input) => {
       input.addEventListener("change", () => {
-        if (input.dataset.checkId) {
-          saveCheckpointMeta(input.dataset.checkId, input.closest(".tc-levelcheck-card"));
-        }
-      });
-    });
-
-    root.querySelectorAll(".tc-checkpoint-type-custom").forEach((input) => {
-      input.addEventListener("blur", () => {
-        if (input.dataset.checkId && input.value.trim()) {
-          saveCheckpointMeta(input.dataset.checkId, input.closest(".tc-levelcheck-card"));
-        }
+        const card = input.closest(".tc-levelcheck-card");
+        saveTopicMeta(card?.dataset?.checkId);
       });
     });
   }
 
-  function readCheckpointPayload(scope) {
-    const typeEl = scope?.querySelector(".tc-checkpoint-type");
-    const dateEl = scope?.querySelector(".tc-checkpoint-date");
-    const customEl = scope?.querySelector(".tc-checkpoint-type-custom");
-    const checkpointType = typeEl?.value || "klassenarbeit";
+  function readTopicPayload(checkId) {
+    const card = document.querySelector(`.tc-levelcheck-card[data-check-id="${checkId}"]`);
+    if (!card) return null;
+
+    const dateEl = card.querySelector(".tc-checkpoint-date");
+    const typeEl = card.querySelector(".tc-checkpoint-type");
+    const linkedSubtopicIds = [...card.querySelectorAll(".tc-was-goal-check:checked")].map(
+      (el) => el.value
+    );
+
     return {
       checkpointDate: dateEl?.value || null,
-      checkpointType,
-      checkpointTypeLabel: checkpointType === "custom" ? customEl?.value?.trim() || "" : null
+      checkpointType: typeEl?.value || "klassenarbeit",
+      checkpointTypeLabel: null,
+      linkedSubtopicIds
     };
   }
 
-  async function saveCheckpointMeta(checkId, scope) {
-    if (!checkId || !scope) return;
-    const payload = readCheckpointPayload(scope);
-    if (payload.checkpointType === "custom" && !payload.checkpointTypeLabel) {
-      state.error = "Bitte eine eigene Bezeichnung eingeben.";
-      render();
-      return;
-    }
+  async function saveTopicMeta(checkId) {
+    if (!checkId) return;
+    const payload = readTopicPayload(checkId);
+    if (!payload) return;
 
     state.saving = true;
     state.error = "";
@@ -399,164 +301,18 @@
       const data = await res.json();
       state.saving = false;
       if (!data.success) {
-        state.error = data.message || "Checkpoint-Daten konnten nicht gespeichert werden.";
+        state.error = data.message || "Speichern fehlgeschlagen.";
         render();
         return;
       }
       state.message = data.checkpointDate
         ? `${data.checkpointTypeLabel} gespeichert · ${data.checkpointDateLabel}`
-        : `${data.checkpointTypeLabel} gespeichert (ohne Termin)`;
+        : `${data.checkpointTypeLabel} gespeichert`;
       await loadData();
     } catch (err) {
       console.error(err);
       state.saving = false;
       state.error = "Netzwerkfehler beim Speichern.";
-      render();
-    }
-  }
-
-  async function addTopic() {
-    const root = document.getElementById("competenciesTabRoot");
-    const form = root?.querySelector("#tcAddTopicForm");
-    const name = root?.querySelector("#tcAddTopicName")?.value?.trim();
-    const payload = readCheckpointPayload(form);
-
-    if (!state.subject || !name) {
-      state.error = "Bitte Thema benennen.";
-      state.message = "";
-      render();
-      return;
-    }
-    if (payload.checkpointType === "custom" && !payload.checkpointTypeLabel) {
-      state.error = "Bitte eine eigene Bezeichnung eingeben.";
-      state.message = "";
-      render();
-      return;
-    }
-
-    state.saving = true;
-    state.error = "";
-    state.message = "";
-    render();
-
-    try {
-      const res = await fetch("/api/teacher/levelchecks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          classId: state.classId,
-          subject: state.subject,
-          name,
-          ...payload
-        })
-      });
-      const data = await res.json();
-      state.saving = false;
-
-      if (!data.success) {
-        state.error = data.message || "Speichern fehlgeschlagen.";
-        render();
-        return;
-      }
-
-      state.message = `„${name}" angelegt – jetzt Unterthemen hinzufügen.`;
-      await loadData();
-    } catch (err) {
-      console.error(err);
-      state.saving = false;
-      state.error = "Netzwerkfehler.";
-      render();
-    }
-  }
-
-  async function addSubtopic(form) {
-    const checkId = form.dataset.checkId;
-    const input = form.querySelector(".tc-goal-input");
-    const goalText = input?.value?.trim();
-    if (!checkId || !goalText) return;
-
-    state.saving = true;
-    state.error = "";
-    try {
-      const res = await fetch(`/api/teacher/levelchecks/${encodeURIComponent(checkId)}/goals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goalText })
-      });
-      const data = await res.json();
-      state.saving = false;
-      if (!data.success) {
-        state.error = data.message || "Unterthema konnte nicht gespeichert werden.";
-        render();
-        return;
-      }
-      state.message = "Unterthema hinzugefügt.";
-      await loadData();
-    } catch (err) {
-      console.error(err);
-      state.saving = false;
-      state.error = "Netzwerkfehler.";
-      render();
-    }
-  }
-
-  async function deleteTopic(checkId) {
-    if (!checkId || state.deletingId) return;
-    if (!confirm("Thema mit allen Unterthemen wirklich löschen?")) return;
-
-    state.deletingId = String(checkId);
-    state.error = "";
-    state.message = "";
-    render();
-
-    try {
-      const res = await requestLevelCheckDelete(checkId);
-      const data = await readJsonResponse(res);
-      state.deletingId = null;
-
-      if (!res.ok || !data.success) {
-        state.error = apiErrorMessage(res, data, "Löschen fehlgeschlagen.");
-        render();
-        return;
-      }
-
-      if (state.data?.levelChecks) {
-        state.data = {
-          ...state.data,
-          levelChecks: state.data.levelChecks.filter((lc) => String(lc.id) !== String(checkId))
-        };
-      }
-      state.message = "Thema gelöscht.";
-      render();
-      await loadData();
-    } catch (err) {
-      console.error(err);
-      state.deletingId = null;
-      state.error = "Netzwerkfehler beim Löschen.";
-      render();
-    }
-  }
-
-  async function deleteSubtopic(goalId) {
-    if (!goalId || state.deletingId) return;
-    if (!confirm("Unterthema wirklich löschen?")) return;
-
-    state.error = "";
-    state.message = "";
-
-    try {
-      const res = await requestLevelCheckGoalDelete(goalId);
-      const data = await readJsonResponse(res);
-      if (!res.ok || !data.success) {
-        state.error = apiErrorMessage(res, data, "Löschen fehlgeschlagen.");
-        render();
-        return;
-      }
-      state.message = "Unterthema gelöscht.";
-      await loadData();
-    } catch (err) {
-      console.error(err);
-      state.error = "Netzwerkfehler beim Löschen.";
       render();
     }
   }
@@ -609,8 +365,6 @@
   async function init() {
     state.message = "";
     state.error = "";
-    state.deletingId = null;
-    bindRootActions();
 
     const root = document.getElementById("competenciesTabRoot");
     if (root) root.innerHTML = `<div class="tc-loading">Lade Levelstatus…</div>`;

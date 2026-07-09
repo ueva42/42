@@ -2,9 +2,32 @@
  * Lehrkraft – Levelplan per Copy & Paste importieren.
  */
 (function () {
+  const FALLBACK_SUBJECTS = [
+    "Mathe",
+    "Deutsch",
+    "BNT",
+    "Englisch",
+    "Geo",
+    "Geschichte",
+    "Projekt",
+    "Physik",
+    "Chemie",
+    "Biologie",
+    "AES",
+    "Technik",
+    "Französisch",
+    "GK",
+    "Musik",
+    "BK",
+    "WBS",
+    "Religion/Ethik"
+  ];
+
   const state = {
     classId: null,
+    subject: null,
     classes: [],
+    subjects: FALLBACK_SUBJECTS,
     text: "",
     previewRows: [],
     loading: false,
@@ -105,6 +128,16 @@
                 .join("")}
             </select>
           </label>
+          <label>Fach:
+            <select id="lpiSubjectSelect">
+              ${state.subjects
+                .map(
+                  (s) =>
+                    `<option value="${escapeHtml(s)}" ${s === state.subject ? "selected" : ""}>${escapeHtml(s)}</option>`
+                )
+                .join("")}
+            </select>
+          </label>
         </div>
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
@@ -149,12 +182,34 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
       render();
     });
 
+    root.querySelector("#lpiSubjectSelect")?.addEventListener("change", (e) => {
+      state.subject = e.target.value;
+      state.message = "";
+      state.error = "";
+      render();
+    });
+
     root.querySelector("#lpiTextInput")?.addEventListener("input", (e) => {
       state.text = e.target.value;
     });
 
     root.querySelector("#lpiPreviewBtn")?.addEventListener("click", createPreview);
     root.querySelector("#lpiConfirmBtn")?.addEventListener("click", confirmImport);
+  }
+
+  async function loadSubjects() {
+    try {
+      const res = await fetch("/api/teacher/subject-lesson-goals");
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.subjects) && data.subjects.length) {
+        state.subjects = data.subjects;
+      }
+    } catch (err) {
+      console.warn("Fächerliste Fallback", err);
+    }
+    if (!state.subject || !state.subjects.includes(state.subject)) {
+      state.subject = state.subjects[0] || null;
+    }
   }
 
   async function loadClasses() {
@@ -198,6 +253,27 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
       }
 
       state.previewRows = Array.isArray(data.rows) ? data.rows : [];
+      if (state.subject) {
+        state.previewRows = state.previewRows.map((row) => {
+          const missing = (row.missing || []).filter((m) => m !== "fach");
+          if (!row.thema) missing.push("thema");
+          if (!row.unterthema) missing.push("unterthema");
+          if (!row.rookieZiel) missing.push("rookie");
+          if (!row.operatorZiel) missing.push("operator");
+          if (!row.streetLegendZiel) missing.push("streetLegend");
+          const uniqueMissing = [...new Set(missing)];
+          return {
+            ...row,
+            fach: state.subject,
+            missing: uniqueMissing,
+            status: uniqueMissing.length ? row.status === "Unvollständig" ? "Unvollständig" : uniqueMissing.length ? "Unvollständig" : "OK" : "OK"
+          };
+        });
+        state.previewRows = state.previewRows.map((row) => ({
+          ...row,
+          status: row.missing?.length ? "Unvollständig" : "OK"
+        }));
+      }
       state.message = `Vorschau erstellt: ${data.summary?.ok || 0} OK, ${data.summary?.incomplete || 0} unvollständig.`;
       render();
     } catch (err) {
@@ -259,7 +335,7 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
     render();
 
     try {
-      await loadClasses();
+      await Promise.all([loadClasses(), loadSubjects()]);
       render();
     } catch (err) {
       console.error(err);

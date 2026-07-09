@@ -663,6 +663,18 @@
     .lpi-table th { background: rgba(15,23,42,0.65); }
     .lpi-status-ok { color: #86efac; font-weight: 600; }
     .lpi-status-warn { color: #fca5a5; font-weight: 600; }
+    .lpi-toolbar { display:flex; gap:16px; flex-wrap:wrap; }
+    .lpi-toolbar label, .tc-toolbar label { display:flex; flex-direction:column; gap:6px; font-size:12px; }
+    .tc-was-goals-block { margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(148,163,184,0.2); }
+    .tc-was-goals-block h4 { margin: 0 0 6px; font-size: 14px; }
+    .tc-was-goal-list { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .tc-was-goal-item {
+      display:flex; gap:10px; align-items:flex-start;
+      padding:10px 12px; border-radius:10px;
+      border:1px solid rgba(148,163,184,0.2); background:rgba(15,23,42,0.35);
+      font-size:14px; line-height:1.4; cursor:pointer;
+    }
+    .tc-was-goal-item input { margin-top:3px; flex-shrink:0; }
     .tc-checkpoint-date-wrap { display:flex; flex-direction:column; gap:4px; margin-top:8px; font-size:11px; opacity:0.85; }
     .tc-checkpoint-date { padding:6px 8px; border-radius:8px; border:1px solid rgba(148,163,184,0.35); background:#0f172a; color:#f9fafb; font-size:12px; max-width:180px; }
     .tc-checkpoint-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-top:8px; }
@@ -722,6 +734,11 @@
   <div class="nav-item" data-tab="lessonGoalsTab" onclick="showTab('lessonGoalsTab', event)">
     <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
     <span class="nav-label">Wie-Ziele</span>
+  </div>
+
+  <div class="nav-item" data-tab="wasGoalsTab" onclick="showTab('wasGoalsTab', event)">
+    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+    <span class="nav-label">Was-Ziele</span>
   </div>
 
   <div class="nav-item" data-tab="levelplanImportTab" onclick="showTab('levelplanImportTab', event)">
@@ -811,6 +828,11 @@
     <!-- STUNDENZIELE -->
     <div id="lessonGoalsTab" class="tab hidden">
       <div id="lessonGoalsTabRoot"></div>
+    </div>
+
+    <!-- WAS-ZIELE -->
+    <div id="wasGoalsTab" class="tab hidden">
+      <div id="wasGoalsTabRoot"></div>
     </div>
 
     <!-- LEVELPLAN IMPORT -->
@@ -1126,8 +1148,9 @@
 <script src="/js/teacher-timetable.js?v=4"></script>
 <script src="/js/teacher-lesson-goals.js?v=2"></script>
 <script src="/js/teacher-week.js"></script>
-<script src="/js/teacher-levelplan-import.js?v=3"></script>
-<script src="/js/teacher-competencies.js?v=8"></script>
+<script src="/js/teacher-was-goals.js?v=1"></script>
+<script src="/js/teacher-levelplan-import.js?v=4"></script>
+<script src="/js/teacher-competencies.js?v=9"></script>
 
 <script>
 const TEACHER_TAB_ROUTES = {
@@ -1135,6 +1158,7 @@ const TEACHER_TAB_ROUTES = {
   teacherWeekTab: "/teacher/week",
   timetableTab: "/teacher/timetable",
   lessonGoalsTab: "/teacher/lesson-goals",
+  wasGoalsTab: "/teacher/was-goals",
   levelplanImportTab: "/teacher/levelplan-import",
   competenciesTab: "/teacher/levelstatus",
   xpTab: "/admin#xp",
@@ -1152,6 +1176,7 @@ const ROUTE_TABS = {
   "/teacher/week": "teacherWeekTab",
   "/teacher/timetable": "timetableTab",
   "/teacher/lesson-goals": "lessonGoalsTab",
+  "/teacher/was-goals": "wasGoalsTab",
   "/teacher/levelplan-import": "levelplanImportTab",
   "/teacher/levelstatus": "competenciesTab",
   "/teacher/competencies": "competenciesTab",
@@ -1180,6 +1205,7 @@ function showTab(id, ev, options = {}) {
   if (id === "dashboardTab" && window.TeacherDashboard) TeacherDashboard.init();
   if (id === "timetableTab" && window.TeacherTimetable) TeacherTimetable.init();
   if (id === "lessonGoalsTab" && window.TeacherLessonGoals) TeacherLessonGoals.init();
+  if (id === "wasGoalsTab" && window.TeacherWasGoals) TeacherWasGoals.init();
   if (id === "levelplanImportTab" && window.TeacherLevelplanImport) TeacherLevelplanImport.init();
   if (id === "teacherWeekTab" && window.TeacherWeek) TeacherWeek.init();
   if (id === "competenciesTab" && window.TeacherCompetencies) TeacherCompetencies.init();

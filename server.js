@@ -4847,14 +4847,15 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
     const hasDate = Object.prototype.hasOwnProperty.call(req.body, "checkpointDate");
     const hasType = Object.prototype.hasOwnProperty.call(req.body, "checkpointType");
     const hasTypeLabel = Object.prototype.hasOwnProperty.call(req.body, "checkpointTypeLabel");
+    const hasLinked = Object.prototype.hasOwnProperty.call(req.body, "linkedSubtopicIds");
 
-    if (!hasDate && !hasType && !hasTypeLabel) {
+    if (!hasDate && !hasType && !hasTypeLabel && !hasLinked) {
       return res.json({ success: false, message: "Keine Änderung übergeben." });
     }
 
     const existingRes = await pool.query(
       `
-      SELECT lc.checkpoint_date, lc.checkpoint_type, lc.checkpoint_type_label
+      SELECT lc.checkpoint_date, lc.checkpoint_type, lc.checkpoint_type_label, lc.linked_subtopic_ids
       FROM level_checks lc
       LEFT JOIN classes c ON c.id = lc.class_id
       WHERE lc.id = $1 AND (lc.school_id = $2 OR c.school_id = $2)
@@ -4898,20 +4899,37 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
       });
     }
 
+    let linkedSubtopicIds = Array.isArray(existing.linked_subtopic_ids)
+      ? existing.linked_subtopic_ids.map((id) => String(id))
+      : [];
+    if (hasLinked) {
+      linkedSubtopicIds = Array.isArray(req.body.linkedSubtopicIds)
+        ? req.body.linkedSubtopicIds.map((id) => String(id)).filter(Boolean)
+        : [];
+    }
+
     const upd = await pool.query(
       `
       UPDATE level_checks lc
       SET
         checkpoint_date = $1,
         checkpoint_type = $2,
-        checkpoint_type_label = $3
+        checkpoint_type_label = $3,
+        linked_subtopic_ids = $4::jsonb
       FROM classes c
-      WHERE lc.id = $4
+      WHERE lc.id = $5
         AND c.id = lc.class_id
-        AND (lc.school_id = $5 OR c.school_id = $5)
-      RETURNING lc.id, lc.checkpoint_date, lc.checkpoint_type, lc.checkpoint_type_label
+        AND (lc.school_id = $6 OR c.school_id = $6)
+      RETURNING lc.id, lc.checkpoint_date, lc.checkpoint_type, lc.checkpoint_type_label, lc.linked_subtopic_ids
     `,
-      [checkpointDate, checkpointType, checkpointTypeLabel, levelCheckId, schoolId]
+      [
+        checkpointDate,
+        checkpointType,
+        checkpointTypeLabel,
+        JSON.stringify(linkedSubtopicIds),
+        levelCheckId,
+        schoolId
+      ]
     );
 
     res.json({
@@ -4922,7 +4940,10 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
       checkpointTypeLabel: resolveCheckpointTypeLabel(
         upd.rows[0].checkpoint_type,
         upd.rows[0].checkpoint_type_label
-      )
+      ),
+      linkedSubtopicIds: Array.isArray(upd.rows[0].linked_subtopic_ids)
+        ? upd.rows[0].linked_subtopic_ids.map((id) => String(id))
+        : []
     });
   } catch (err) {
     console.error("❌ PATCH /api/teacher/levelchecks:", err);
