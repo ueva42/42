@@ -37,6 +37,11 @@
     subject: null,
     themaId: null,
     editCheckpointId: null,
+    formDraft: {
+      date: "",
+      type: "klassenarbeit",
+      customLabel: ""
+    },
     data: null,
     loading: false,
     saving: false,
@@ -44,6 +49,26 @@
     message: "",
     error: ""
   };
+
+  function clearFormDraft() {
+    state.formDraft = {
+      date: "",
+      type: "klassenarbeit",
+      customLabel: ""
+    };
+  }
+
+  function captureFormDraft(card) {
+    if (!card || state.editCheckpointId) return;
+    const dateEl = card.querySelector(".tc-checkpoint-date");
+    const typeEl = card.querySelector(".tc-checkpoint-type");
+    const customEl = card.querySelector(".tc-checkpoint-type-custom");
+    state.formDraft = {
+      date: dateEl?.value?.trim() || "",
+      type: typeEl?.value || "klassenarbeit",
+      customLabel: customEl?.value?.trim() || ""
+    };
+  }
 
   function escapeHtml(str) {
     return String(str ?? "")
@@ -224,9 +249,9 @@
     ensureThemaSelection();
     return {
       topicId: state.themaId,
-      date: "",
-      type: "klassenarbeit",
-      customLabel: "",
+      date: state.formDraft.date,
+      type: state.formDraft.type,
+      customLabel: state.formDraft.customLabel,
       linked: new Set()
     };
   }
@@ -398,6 +423,11 @@
     const root = document.getElementById("competenciesTabRoot");
     if (!root) return;
 
+    const existingCard = root.querySelector(".tc-levelcheck-card");
+    if (existingCard && !state.editCheckpointId) {
+      captureFormDraft(existingCard);
+    }
+
     if (state.loading && !state.data) {
       root.innerHTML = `<div class="tc-loading">Lade Levelstatus…</div>`;
       return;
@@ -467,6 +497,7 @@
 
   function resetNewForm() {
     state.editCheckpointId = null;
+    clearFormDraft();
     state.message = "";
     state.error = "";
     render();
@@ -476,6 +507,7 @@
     root.querySelector("#tcClassSelect")?.addEventListener("change", (e) => {
       state.classId = Number(e.target.value);
       state.editCheckpointId = null;
+      clearFormDraft();
       state.message = "";
       state.error = "";
       loadData();
@@ -485,6 +517,7 @@
       state.subject = e.target.value;
       state.themaId = null;
       state.editCheckpointId = null;
+      clearFormDraft();
       state.message = "";
       state.error = "";
       render();
@@ -494,6 +527,7 @@
     if (card) {
       card.querySelector(".tc-card-thema-select")?.addEventListener("change", (e) => {
         if (state.editCheckpointId) return;
+        captureFormDraft(card);
         state.themaId = e.target.value;
         state.message = "";
         state.error = "";
@@ -520,6 +554,7 @@
       btn.addEventListener("click", () => {
         const cp = checkpointById(btn.dataset.editCheckpointId);
         if (!cp) return;
+        clearFormDraft();
         state.editCheckpointId = cp.id;
         state.themaId = cp.topicId;
         state.message = "";
@@ -623,6 +658,7 @@
       const cp = data.checkpoint || {};
       state.message = `${cp.checkpointTypeLabel || "Checkpoint"} gespeichert · ${cp.checkpointDateLabel || isoToGerman(payload.checkpointDate)} · ${payload.linkedSubtopicIds.length} Was-Ziel(e)`;
       state.editCheckpointId = null;
+      clearFormDraft();
       await loadData();
     } catch (err) {
       console.error(err);
