@@ -91,6 +91,7 @@
           <strong>Fach</strong>, <strong>Thema</strong>, <strong>Unterthema</strong> und die drei Level
           (<strong>Rookie</strong>, <strong>Operator</strong>, <strong>Street Legend</strong>).
           Doppelpunkt ist optional; Leveltexte dürfen auch in der nächsten Zeile stehen.
+          Fach z. B. <strong>Mathe</strong> (auch <strong>mathematik</strong> wird erkannt).
         </p>
 
         <div class="lpi-toolbar">

@@ -493,6 +493,45 @@ const LOG_SUBJECTS = [
   "Religion/Ethik"
 ];
 
+const LOG_SUBJECT_ALIASES = {
+  mathe: "Mathe",
+  mathematik: "Mathe",
+  math: "Mathe",
+  deutsch: "Deutsch",
+  englisch: "Englisch",
+  geo: "Geo",
+  geographie: "Geo",
+  erdkunde: "Geo",
+  geschichte: "Geschichte",
+  physik: "Physik",
+  chemie: "Chemie",
+  biologie: "Biologie",
+  bio: "Biologie",
+  musik: "Musik",
+  franzoesisch: "Französisch",
+  französisch: "Französisch",
+  religion: "Religion/Ethik",
+  ethik: "Religion/Ethik",
+  "religion/ethik": "Religion/Ethik"
+};
+
+function normalizeImportSubject(raw) {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return { subject: "", known: false };
+
+  if (LOG_SUBJECTS.includes(trimmed)) {
+    return { subject: trimmed, known: true };
+  }
+
+  const caseMatch = LOG_SUBJECTS.find((s) => s.toLowerCase() === trimmed.toLowerCase());
+  if (caseMatch) return { subject: caseMatch, known: true };
+
+  const alias = LOG_SUBJECT_ALIASES[trimmed.toLowerCase()];
+  if (alias) return { subject: alias, known: true };
+
+  return { subject: trimmed, known: false };
+}
+
 const TIMETABLE_DEFAULT_TIMES = [
   "7.50-8.35",
   "8.40-9.25",
@@ -4857,7 +4896,7 @@ function parseLevelplanImportText(raw) {
     const fachMatch = line.match(/^Fach[:\s]+(.+)$/i);
     if (fachMatch) {
       pushCurrent();
-      currentFach = fachMatch[1].trim();
+      currentFach = normalizeImportSubject(fachMatch[1].trim()).subject;
       currentThema = "";
       continue;
     }
@@ -4940,8 +4979,11 @@ function parseLevelplanImportText(raw) {
   pushCurrent();
 
   return rows.map((row) => {
+    const normalizedFach = normalizeImportSubject(row.fach);
+    const fach = normalizedFach.subject;
+
     const missing = [];
-    if (!row.fach) missing.push("fach");
+    if (!fach) missing.push("fach");
     if (!row.thema) missing.push("thema");
     if (!row.unterthema) missing.push("unterthema");
     if (!row.rookieZiel) missing.push("rookie");
@@ -4950,9 +4992,9 @@ function parseLevelplanImportText(raw) {
 
     let status = "OK";
     if (missing.length) status = "Unvollständig";
-    else if (row.fach && !LOG_SUBJECTS.includes(row.fach)) status = "Unbekanntes Fach";
+    else if (fach && !normalizedFach.known) status = "Unbekanntes Fach";
 
-    return { ...row, status, missing };
+    return { ...row, fach, status, missing };
   });
 }
 
