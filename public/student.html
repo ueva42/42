@@ -2292,10 +2292,6 @@ h2 {
     <div class="menu-icon">K</div><span class="menu-label">Checkpoint-Plan</span>
   </div>
 
-  <div class="menu-item" data-section="plan" onclick="openGoalTutorialFromMenu(event)">
-    <div class="menu-icon">?</div><span class="menu-label">Tagesziel-Tutorial</span>
-  </div>
-
   <div class="menu-item" data-section="missionen" onclick="showSection(event,'missionen')">
     <div class="menu-icon">M</div><span class="menu-label">Missionen</span>
   </div>
@@ -2438,7 +2434,7 @@ h2 {
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=2"></script>
-<script src="/js/logbuch-plan.js?v=9"></script>
+<script src="/js/logbuch-plan.js?v=8"></script>
 <script src="/js/logbuch-check.js"></script>
 <script src="/js/logbuch-reflect.js"></script>
 <script src="/js/logbuch-today.js?v=9"></script>
@@ -2483,11 +2479,6 @@ function showSection(ev, name, options = {}) {
   document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
   if (ev && ev.target) ev.target.closest(".menu-item")?.classList.add("active");
   if (window.innerWidth <= 900) document.body.classList.remove("menu-open");
-}
-
-function openGoalTutorialFromMenu(ev) {
-  const q = new URLSearchParams({ tutorial: "1" });
-  showSection(ev, "plan", { query: q });
 }
 
 /* ============================================
