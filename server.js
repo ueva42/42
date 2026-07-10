@@ -857,14 +857,40 @@ const LOG_SOCIAL_FORMS = ["einzel", "partner", "gruppe", "frei"];
 
 const LOG_GOAL_ACHIEVED = ["ja", "teilweise", "nein"];
 
+const LOG_REFLECT_GOAL_REACHED = [
+  { id: "ja_sicher", label: "Ja, ich bin sicher.", legacy: "ja" },
+  { id: "teilweise_uebung", label: "Teilweise, ich brauche noch Übung.", legacy: "teilweise" },
+  { id: "nein_nicht", label: "Nein, ich habe es noch nicht verstanden.", legacy: "nein" }
+];
+
 const LOG_HOW_WORKED = ["konzentriert", "mit_hilfe", "unruhig", "abgelenkt"];
+
+const LOG_REFLECT_WORK_PATH = [
+  { id: "ja_geplant", label: "Ja, ich habe wie geplant gearbeitet." },
+  { id: "teilweise_abgewichen", label: "Teilweise, ich bin etwas abgewichen." },
+  { id: "nein_anders", label: "Nein, ich habe anders gearbeitet." }
+];
+
+const LOG_REFLECT_STRATEGY_HELPED = [
+  { id: "ja_geholfen", label: "Ja, sie hat mir geholfen." },
+  { id: "ein_bisschen", label: "Ein bisschen." },
+  { id: "nein_andere", label: "Nein, ich brauche eine andere Strategie." },
+  { id: "keine_genutzt", label: "Ich habe keine Strategie genutzt." }
+];
 
 const LOG_NEXT_STEPS = [
   "weiterüben",
   "hilfe_holen",
   "levelcheck_machen",
   "test_vorbereiten",
-  "neues_thema"
+  "neues_thema",
+  "weiter_gleiches_ziel",
+  "naechstes_level",
+  "rookie_wiederholen",
+  "operator_weiter",
+  "hilfestellung",
+  "lehrkraft_fragen",
+  "nachweis_vorbereiten"
 ];
 
 const LOG_STRATEGIES = [
@@ -1291,8 +1317,123 @@ const LOG_NEXT_STEP_LABELS = {
   hilfe_holen: "Hilfe holen",
   levelcheck_machen: "Zielsetzung prüfen",
   test_vorbereiten: "Test vorbereiten",
-  neues_thema: "Neues Thema"
+  neues_thema: "Neues Thema",
+  weiter_gleiches_ziel: "Ich übe dasselbe Ziel weiter.",
+  naechstes_level: "Ich gehe zum nächsten Level.",
+  rookie_wiederholen: "Ich wiederhole zuerst Rookie-Aufgaben.",
+  operator_weiter: "Ich bearbeite Operator-Aufgaben weiter.",
+  hilfestellung: "Ich brauche eine Hilfestellung.",
+  lehrkraft_fragen: "Ich frage die Lehrkraft.",
+  nachweis_vorbereiten: "Ich bereite mich weiter auf den Nachweis vor."
 };
+
+function reflectGoalLegacy(goalReachedId) {
+  const v2 = LOG_REFLECT_GOAL_REACHED.find((x) => x.id === goalReachedId);
+  if (v2) return v2.legacy;
+  if (LOG_GOAL_ACHIEVED.includes(goalReachedId)) return goalReachedId;
+  return null;
+}
+
+function reflectGoalReachedLabel(id) {
+  const v2 = LOG_REFLECT_GOAL_REACHED.find((x) => x.id === id);
+  if (v2) return v2.label;
+  if (id === "ja") return "Ja";
+  if (id === "teilweise") return "Teilweise";
+  if (id === "nein") return "Nein";
+  return id || "–";
+}
+
+function reflectWorkPathLabel(id) {
+  const v2 = LOG_REFLECT_WORK_PATH.find((x) => x.id === id);
+  if (v2) return v2.label;
+  const legacy = {
+    konzentriert: "Konzentriert",
+    mit_hilfe: "Mit Hilfe",
+    unruhig: "Unruhig",
+    abgelenkt: "Abgelenkt"
+  };
+  return legacy[id] || id || "–";
+}
+
+function reflectStrategyHelpedLabel(id) {
+  const hit = LOG_REFLECT_STRATEGY_HELPED.find((x) => x.id === id);
+  return hit?.label || id || "–";
+}
+
+function isAllowedReflectWorkPath(id) {
+  return LOG_REFLECT_WORK_PATH.some((x) => x.id === id) || LOG_HOW_WORKED.includes(id);
+}
+
+function isAllowedReflectGoalReached(id) {
+  return reflectGoalLegacy(id) != null;
+}
+
+function isAllowedReflectStrategyHelped(id) {
+  return LOG_REFLECT_STRATEGY_HELPED.some((x) => x.id === id);
+}
+
+function parseReflectionPayload(body) {
+  const goalReachedAnswer = body.goalReachedAnswer || body.goalAchieved || null;
+  const workPathAnswer = body.workPathAnswer || body.howWorked || null;
+  const nextStep = body.nextStepAnswer || body.nextStep || null;
+  const confidenceAfter = body.confidenceAfter;
+  const learnedToday = body.learnedToday ?? body.learnedText ?? null;
+  const workPathNote = body.workPathNote ?? null;
+  const strategyHelpedAnswer = body.strategyHelpedAnswer ?? null;
+  const usedStrategyName = body.usedStrategyName ?? null;
+
+  const legacyGoal = reflectGoalLegacy(goalReachedAnswer);
+  if (!legacyGoal) {
+    return { error: "Bitte wähle, ob du dein Ziel erreicht hast." };
+  }
+
+  if (!workPathAnswer || !isAllowedReflectWorkPath(workPathAnswer)) {
+    return { error: "Bitte beantworte, ob du deinen Weg eingehalten hast." };
+  }
+
+  if (!nextStep || !LOG_NEXT_STEPS.includes(nextStep)) {
+    return { error: "Bitte wähle den nächsten Schritt." };
+  }
+
+  if (!strategyHelpedAnswer || !isAllowedReflectStrategyHelped(strategyHelpedAnswer)) {
+    return { error: "Bitte beantworte, ob dir die Strategie geholfen hat." };
+  }
+
+  const confidence = Number(confidenceAfter);
+  if (!Number.isInteger(confidence) || confidence < 1 || confidence > 5) {
+    return { error: "Bitte wähle, wie sicher du dich jetzt fühlst (1–5)." };
+  }
+
+  const cleanLearned =
+    typeof learnedToday === "string" && learnedToday.trim()
+      ? learnedToday.trim().slice(0, 200)
+      : null;
+  const cleanWorkPathNote =
+    typeof workPathNote === "string" && workPathNote.trim()
+      ? workPathNote.trim().slice(0, 200)
+      : null;
+  const cleanStrategyName =
+    typeof usedStrategyName === "string" && usedStrategyName.trim()
+      ? usedStrategyName.trim().slice(0, 120)
+      : null;
+
+  const goalReachedLabel =
+    LOG_REFLECT_GOAL_REACHED.find((x) => x.id === goalReachedAnswer)?.label ||
+    reflectGoalReachedLabel(legacyGoal);
+
+  return {
+    goalAchieved: legacyGoal,
+    goalReachedAnswer: goalReachedLabel,
+    howWorked: workPathAnswer,
+    workPathAnswer,
+    workPathNote: cleanWorkPathNote,
+    nextStep,
+    confidenceAfter: confidence,
+    learnedToday: cleanLearned,
+    strategyHelpedAnswer,
+    usedStrategyName: cleanStrategyName
+  };
+}
 
 const TEACHER_HINT_PRIORITY = { yellow: 0, red: 1, green: 2, blue: 3 };
 
@@ -2080,6 +2221,13 @@ async function migrate() {
       UNIQUE(log_entry_id)
     )
   `);
+
+  await ensureColumn("log_reflections", "goal_reached_answer", "TEXT");
+  await ensureColumn("log_reflections", "work_path_answer", "TEXT");
+  await ensureColumn("log_reflections", "work_path_note", "TEXT");
+  await ensureColumn("log_reflections", "used_strategy_name", "TEXT");
+  await ensureColumn("log_reflections", "strategy_helped_answer", "TEXT");
+  await ensureColumn("log_reflections", "updated_at", "TIMESTAMP");
 
   // LogWeekReflection – Wochenreflexion inkl. Zeitfresser-Matrix
   await pool.query(`
@@ -3889,7 +4037,9 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         lc.selected_strategy_name AS check_selected_strategy_name,
         lr.id AS reflection_id,
         lr.goal_achieved, lr.how_worked, lr.next_step,
-        lr.confidence_after, lr.learned_today
+        lr.confidence_after, lr.learned_today,
+        lr.goal_reached_answer, lr.work_path_answer, lr.strategy_helped_answer,
+        lr.used_strategy_name AS reflection_used_strategy_name
       FROM log_entries le
       LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
       LEFT JOIN log_reflections lr ON lr.log_entry_id = le.id
@@ -3943,7 +4093,11 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
               how_worked: row.how_worked,
               next_step: row.next_step,
               confidence_after: row.confidence_after,
-              learned_today: row.learned_today
+              learned_today: row.learned_today,
+              goal_reached_answer: row.goal_reached_answer,
+              work_path_answer: row.work_path_answer,
+              strategy_helped_answer: row.strategy_helped_answer,
+              used_strategy_name: row.reflection_used_strategy_name
             }
           : null
       };
@@ -4347,21 +4501,38 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
 
     const entryRes = await pool.query(
       `
-      SELECT id, date, timeslot, subject, goal, confidence_before, created_at
-      FROM log_entries
-      WHERE id=$1 AND user_id=$2
+      SELECT
+        le.id, le.date, le.timeslot, le.subject, le.goal,
+        le.what_goal_text, le.how_goal_text, le.details_text,
+        le.selected_level, le.level_goal_text, le.confidence_before,
+        le.created_at,
+        lc.selected_strategy_name AS check_strategy_name
+      FROM log_entries le
+      LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
+      WHERE le.id=$1 AND le.user_id=$2
     `,
       [entryId, studentId]
     );
 
     if (!entryRes.rows.length) {
-      return res.json({ entry: null, existingReflection: null });
+      return res.json({ entry: null, existingReflection: null, existingCheck: null });
     }
+
+    const row = entryRes.rows[0];
+    const entry = {
+      ...row,
+      level_label: row.selected_level
+        ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+        : null,
+      used_strategy_name: row.check_strategy_name || null
+    };
+    delete entry.check_strategy_name;
 
     const reflectionRes = await pool.query(
       `
       SELECT id, goal_achieved, how_worked, next_step, confidence_after,
-             learned_today, created_at
+             learned_today, goal_reached_answer, work_path_answer, work_path_note,
+             used_strategy_name, strategy_helped_answer, created_at, updated_at
       FROM log_reflections
       WHERE log_entry_id=$1
     `,
@@ -4375,8 +4546,11 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
     }
 
     res.json({
-      entry: entryRes.rows[0],
-      existingReflection
+      entry,
+      existingReflection,
+      existingCheck: row.check_strategy_name
+        ? { selected_strategy_name: row.check_strategy_name }
+        : null
     });
   } catch (err) {
     console.error("❌ /api/student/log/reflect-context:", err);
@@ -4388,22 +4562,19 @@ app.post("/api/student/log/reflect", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
     const schoolId = req.session.user.school_id;
-
-    const {
-      logEntryId,
-      goalAchieved,
-      howWorked,
-      nextStep,
-      confidenceAfter,
-      learnedToday = null
-    } = req.body;
+    const { logEntryId } = req.body;
 
     if (!logEntryId) {
       return res.json({ success: false, message: "Lern-Eintrag fehlt." });
     }
 
     const entryRes = await pool.query(
-      "SELECT id FROM log_entries WHERE id=$1 AND user_id=$2",
+      `
+      SELECT le.id, lc.selected_strategy_name
+      FROM log_entries le
+      LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
+      WHERE le.id=$1 AND le.user_id=$2
+    `,
       [logEntryId, studentId]
     );
 
@@ -4411,30 +4582,14 @@ app.post("/api/student/log/reflect", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Lern-Eintrag nicht gefunden." });
     }
 
-    if (!goalAchieved || !LOG_GOAL_ACHIEVED.includes(goalAchieved)) {
-      return res.json({ success: false, message: "Bitte Zielerreichung wählen." });
+    const parsed = parseReflectionPayload({
+      ...req.body,
+      usedStrategyName:
+        req.body.usedStrategyName ?? entryRes.rows[0].selected_strategy_name ?? null
+    });
+    if (parsed.error) {
+      return res.json({ success: false, message: parsed.error });
     }
-
-    if (!howWorked || !LOG_HOW_WORKED.includes(howWorked)) {
-      return res.json({ success: false, message: "Bitte Arbeitsweise wählen." });
-    }
-
-    if (!nextStep || !LOG_NEXT_STEPS.includes(nextStep)) {
-      return res.json({ success: false, message: "Bitte nächsten Schritt wählen." });
-    }
-
-    const confidence = Number(confidenceAfter);
-    if (!Number.isInteger(confidence) || confidence < 1 || confidence > 5) {
-      return res.json({
-        success: false,
-        message: "Selbstwirksamkeit muss zwischen 1 und 5 liegen."
-      });
-    }
-
-    const cleanLearned =
-      typeof learnedToday === "string" && learnedToday.trim()
-        ? learnedToday.trim().slice(0, 200)
-        : null;
 
     const existingRes = await pool.query(
       "SELECT id FROM log_reflections WHERE log_entry_id=$1",
@@ -4453,12 +4608,26 @@ app.post("/api/student/log/reflect", isStudent, async (req, res) => {
       `
       INSERT INTO log_reflections (
         log_entry_id, goal_achieved, how_worked, next_step,
-        confidence_after, learned_today
+        confidence_after, learned_today,
+        goal_reached_answer, work_path_answer, work_path_note,
+        used_strategy_name, strategy_helped_answer, updated_at
       )
-      VALUES ($1,$2,$3,$4,$5,$6)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
       RETURNING id, created_at
     `,
-      [logEntryId, goalAchieved, howWorked, nextStep, confidence, cleanLearned]
+      [
+        logEntryId,
+        parsed.goalAchieved,
+        parsed.howWorked,
+        parsed.nextStep,
+        parsed.confidenceAfter,
+        parsed.learnedToday,
+        parsed.goalReachedAnswer,
+        parsed.workPathAnswer,
+        parsed.workPathNote,
+        parsed.usedStrategyName,
+        parsed.strategyHelpedAnswer
+      ]
     );
 
     await awardLogbuchXP(studentId, LOGBUCH_XP.reflect, "logbuch_reflect", schoolId);
@@ -4497,37 +4666,32 @@ app.patch("/api/student/log/reflect/:logEntryId", isStudent, async (req, res) =>
     }
 
     const {
+      goalReachedAnswer,
       goalAchieved,
+      workPathAnswer,
       howWorked,
+      workPathNote,
       nextStep,
+      nextStepAnswer,
       confidenceAfter,
-      learnedToday = null
+      learnedToday,
+      strategyHelpedAnswer,
+      usedStrategyName
     } = req.body;
 
-    if (!goalAchieved || !LOG_GOAL_ACHIEVED.includes(goalAchieved)) {
-      return res.json({ success: false, message: "Bitte Zielerreichung wählen." });
+    const parsed = parseReflectionPayload({
+      goalReachedAnswer: goalReachedAnswer || goalAchieved,
+      workPathAnswer: workPathAnswer || howWorked,
+      workPathNote,
+      nextStep: nextStepAnswer || nextStep,
+      confidenceAfter,
+      learnedToday,
+      strategyHelpedAnswer,
+      usedStrategyName
+    });
+    if (parsed.error) {
+      return res.json({ success: false, message: parsed.error });
     }
-
-    if (!howWorked || !LOG_HOW_WORKED.includes(howWorked)) {
-      return res.json({ success: false, message: "Bitte Arbeitsweise wählen." });
-    }
-
-    if (!nextStep || !LOG_NEXT_STEPS.includes(nextStep)) {
-      return res.json({ success: false, message: "Bitte nächsten Schritt wählen." });
-    }
-
-    const confidence = Number(confidenceAfter);
-    if (!Number.isInteger(confidence) || confidence < 1 || confidence > 5) {
-      return res.json({
-        success: false,
-        message: "Selbstwirksamkeit muss zwischen 1 und 5 liegen."
-      });
-    }
-
-    const cleanLearned =
-      typeof learnedToday === "string" && learnedToday.trim()
-        ? learnedToday.trim().slice(0, 200)
-        : null;
 
     const existingRes = await pool.query(
       "SELECT id FROM log_reflections WHERE log_entry_id=$1",
@@ -4545,10 +4709,28 @@ app.patch("/api/student/log/reflect/:logEntryId", isStudent, async (req, res) =>
           how_worked=$3,
           next_step=$4,
           confidence_after=$5,
-          learned_today=$6
+          learned_today=$6,
+          goal_reached_answer=$7,
+          work_path_answer=$8,
+          work_path_note=$9,
+          used_strategy_name=$10,
+          strategy_helped_answer=$11,
+          updated_at=NOW()
       WHERE log_entry_id=$1
     `,
-      [logEntryId, goalAchieved, howWorked, nextStep, confidence, cleanLearned]
+      [
+        logEntryId,
+        parsed.goalAchieved,
+        parsed.howWorked,
+        parsed.nextStep,
+        parsed.confidenceAfter,
+        parsed.learnedToday,
+        parsed.goalReachedAnswer,
+        parsed.workPathAnswer,
+        parsed.workPathNote,
+        parsed.usedStrategyName,
+        parsed.strategyHelpedAnswer
+      ]
     );
 
     res.json({ success: true, updated: true });

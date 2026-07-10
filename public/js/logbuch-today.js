@@ -156,11 +156,26 @@
     const r = entry.reflection;
     if (!r) return "";
 
+    const goalText =
+      r.goal_reached_answer ||
+      (r.goal_achieved === "ja"
+        ? "Ja"
+        : r.goal_achieved === "teilweise"
+          ? "Teilweise"
+          : r.goal_achieved === "nein"
+            ? "Nein"
+            : r.goal_achieved || "–");
+
     return `
       <div class="today-focus-card today-reflect-card">
         <p class="today-focus-card-title">Reflexion</p>
-        <p><strong>Ziel erreicht:</strong> ${goalAchievedSymbol(r.goal_achieved)} ${ui.escapeHtml(r.goal_achieved || "–")}</p>
-        <p><strong>Selbstwirksamkeit:</strong> ${entry.confidence_before ?? "–"} → ${r.confidence_after}</p>
+        <p><strong>Ziel erreicht:</strong> ${goalAchievedSymbol(r.goal_achieved)} ${ui.escapeHtml(goalText)}</p>
+        <p><strong>Sicherheit:</strong> ${entry.confidence_before ?? "–"} → ${r.confidence_after}/5</p>
+        ${
+          r.used_strategy_name
+            ? `<p><strong>Strategie:</strong> ${ui.escapeHtml(r.used_strategy_name)}</p>`
+            : ""
+        }
         ${
           r.learned_today
             ? `<p><strong>Gelernt:</strong> ${ui.escapeHtml(r.learned_today)}</p>`

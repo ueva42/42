@@ -71,22 +71,36 @@ window.LOGBUCH = {
     ]
   },
   GOAL_ACHIEVED: [
-    { id: "ja", label: "Ja" },
-    { id: "teilweise", label: "Teilweise" },
-    { id: "nein", label: "Nein" }
+    { id: "ja_sicher", label: "Ja, ich bin sicher." },
+    { id: "teilweise_uebung", label: "Teilweise, ich brauche noch Übung." },
+    { id: "nein_nicht", label: "Nein, ich habe es noch nicht verstanden." }
   ],
   HOW_WORKED: [
-    { id: "konzentriert", label: "Konzentriert" },
-    { id: "mit_hilfe", label: "Mit Hilfe" },
-    { id: "unruhig", label: "Unruhig" },
-    { id: "abgelenkt", label: "Abgelenkt" }
+    { id: "ja_geplant", label: "Ja, ich habe wie geplant gearbeitet." },
+    { id: "teilweise_abgewichen", label: "Teilweise, ich bin etwas abgewichen." },
+    { id: "nein_anders", label: "Nein, ich habe anders gearbeitet." }
+  ],
+  REFLECT_STRATEGY_HELPED: [
+    { id: "ja_geholfen", label: "Ja, sie hat mir geholfen." },
+    { id: "ein_bisschen", label: "Ein bisschen." },
+    { id: "nein_andere", label: "Nein, ich brauche eine andere Strategie." },
+    { id: "keine_genutzt", label: "Ich habe keine Strategie genutzt." }
+  ],
+  REFLECT_CONFIDENCE: [
+    { value: "1", label: "1 – sehr unsicher" },
+    { value: "2", label: "2 – eher unsicher" },
+    { value: "3", label: "3 – geht so" },
+    { value: "4", label: "4 – eher sicher" },
+    { value: "5", label: "5 – sehr sicher" }
   ],
   NEXT_STEPS: [
-    { id: "weiterüben", label: "Weiterüben" },
-    { id: "hilfe_holen", label: "Hilfe holen" },
-    { id: "levelcheck_machen", label: "Zielsetzung prüfen" },
-    { id: "test_vorbereiten", label: "Test vorbereiten" },
-    { id: "neues_thema", label: "Neues Thema" }
+    { id: "weiter_gleiches_ziel", label: "Ich übe dasselbe Ziel weiter." },
+    { id: "naechstes_level", label: "Ich gehe zum nächsten Level." },
+    { id: "rookie_wiederholen", label: "Ich wiederhole zuerst Rookie-Aufgaben." },
+    { id: "operator_weiter", label: "Ich bearbeite Operator-Aufgaben weiter." },
+    { id: "hilfestellung", label: "Ich brauche eine Hilfestellung." },
+    { id: "lehrkraft_fragen", label: "Ich frage die Lehrkraft." },
+    { id: "nachweis_vorbereiten", label: "Ich bereite mich weiter auf den Nachweis vor." }
   ],
   TIME_WASTERS: [
     "Handy / Social Media",
