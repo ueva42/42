@@ -9042,6 +9042,7 @@ const teacherSpaPaths = [
   "/teacher/dashboard",
   "/teacher/timetable",
   "/teacher/week",
+  "/teacher/kompetenzraster",
   "/teacher/competencies",
   "/teacher/levelchecks",
   "/teacher/levelstatus",

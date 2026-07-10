@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Levelcheck planen (Nachweise anlegen & bearbeiten).
+ * Lehrkraft – Nachweise planen (Nachweise anlegen & bearbeiten).
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -407,12 +407,12 @@
     }
 
     if (state.loading && !state.data) {
-      root.innerHTML = `<div class="tc-loading">Lade Levelcheck planen…</div>`;
+      root.innerHTML = `<div class="tc-loading">Lade Nachweise planen…</div>`;
       return;
     }
 
     if (!state.data) {
-      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Levelcheck planen konnte nicht geladen werden.")}</div>`;
+      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Nachweise planen konnte nicht geladen werden.")}</div>`;
       return;
     }
 
@@ -425,7 +425,7 @@
 
     root.innerHTML = `
       <div class="panel">
-        <h2>Levelcheck planen</h2>
+        <h2>Nachweise planen</h2>
         <p class="hint">
           Termin (tt.mm.jjjj) und Art wählen, Was-Ziele über mehrere Themen markieren – dann speichern.
           <button type="button" class="tc-link-btn" id="tcOpenTermineBtn">Alle Termine ansehen</button>
@@ -699,7 +699,7 @@
     state.error = "";
 
     const root = document.getElementById("competenciesTabRoot");
-    if (root) root.innerHTML = `<div class="tc-loading">Lade Levelcheck planen…</div>`;
+    if (root) root.innerHTML = `<div class="tc-loading">Lade Nachweise planen…</div>`;
 
     try {
       const classes = await loadClasses();

@@ -204,6 +204,41 @@
         0 0 16px rgba(248,113,113,0.9);
     }
 
+    .nav-section {
+      margin-top: 16px;
+    }
+
+    .nav-section:first-child {
+      margin-top: 0;
+    }
+
+    .nav-section-title {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #6b7280;
+      padding: 6px 12px 6px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .kr-topic-block {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(148,163,184,0.2);
+    }
+
+    .kr-topic-block:first-of-type {
+      margin-top: 12px;
+      padding-top: 0;
+      border-top: none;
+    }
+
+    .kr-topic-block h3 {
+      margin: 0 0 4px;
+      font-size: 16px;
+    }
+
     /* ================================
        CONTENT-BEREICH
     ================================== */
@@ -805,92 +840,111 @@
   </div>
 
   <div class="sidebar-nav">
-  <div class="nav-item active" data-tab="dashboardTab" onclick="showTab('dashboardTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
-    <span class="nav-label">Klassenübersicht</span>
+  <div class="nav-section">
+    <div class="nav-section-title">Überblick &amp; Lernsteuerung</div>
+
+    <div class="nav-item active" data-tab="dashboardTab" onclick="showTab('dashboardTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+      <span class="nav-label">Klassenübersicht</span>
+    </div>
+
+    <div class="nav-item" data-tab="teacherWeekTab" onclick="showTab('teacherWeekTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
+      <span class="nav-label">Wochenübersicht</span>
+    </div>
+
+    <div class="nav-item" data-tab="timetableTab" onclick="showTab('timetableTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+      <span class="nav-label">Stundenplan</span>
+    </div>
+
+    <div class="nav-item" data-tab="kompetenzrasterTab" onclick="showTab('kompetenzrasterTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
+      <span class="nav-label">Kompetenzraster</span>
+    </div>
+
+    <div class="nav-item" data-tab="levelplanImportTab" onclick="showTab('levelplanImportTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+      <span class="nav-label">Levelplan importieren</span>
+    </div>
+
+    <div class="nav-item" data-tab="wasGoalsTab" onclick="showTab('wasGoalsTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+      <span class="nav-label">Was-Ziele</span>
+    </div>
+
+    <div class="nav-item" data-tab="lessonGoalsTab" onclick="showTab('lessonGoalsTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+      <span class="nav-label">Wie-Ziele</span>
+    </div>
+
+    <div class="nav-item" data-tab="competenciesTab" onclick="showTab('competenciesTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+      <span class="nav-label">Nachweise planen</span>
+    </div>
+
+    <div class="nav-item" data-tab="termineTab" onclick="showTab('termineTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+      <span class="nav-label">Termine</span>
+    </div>
   </div>
 
-  <div class="nav-item" data-tab="teacherWeekTab" onclick="showTab('teacherWeekTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>
-    <span class="nav-label">Woche Klasse</span>
+  <div class="nav-section">
+    <div class="nav-section-title">Klasse &amp; Bewertung</div>
+
+    <div class="nav-item" data-tab="classTab" onclick="showTab('classTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M12 12c2.5 0 4.5-2 4.5-4.5S14.5 3 12 3 7.5 5 7.5 7.5 9.5 12 12 12zm0 1.5c-3 0-9 1.5-9 4.5V21h18v-3c0-3-6-4.5-9-4.5z"/></svg>
+      <span class="nav-label">Klassen &amp; Schüler</span>
+    </div>
+
+    <div class="nav-item" data-tab="xpTab" onclick="showTab('xpTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/></svg>
+      <span class="nav-label">XP-Verwaltung</span>
+    </div>
+
+    <div class="nav-item" data-tab="classProgressTab" onclick="showTab('classProgressTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M4 20h3v-7H4v7zm6 0h3V4h-3v16zm6 0h3v-4h-3v4z"/></svg>
+      <span class="nav-label">Klassen-Voting</span>
+    </div>
   </div>
 
-  <div class="nav-item" data-tab="timetableTab" onclick="showTab('timetableTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
-    <span class="nav-label">Stundenplan</span>
+  <div class="nav-section">
+    <div class="nav-section-title">Spielsystem</div>
+
+    <div class="nav-item" data-tab="missionTab" onclick="showTab('missionTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M3 3v18l9-4 9 4V3H3zm16 2v11.1l-7-3.1-7 3.1V5h14z"/></svg>
+      <span class="nav-label">Missionen</span>
+    </div>
+
+    <div class="nav-item" data-tab="bonusTab" onclick="showTab('bonusTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M4 6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v1c0 .6.4 1 1 1h3c.6 0 1-.4 1-1V6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v3.1c-.9.2-1.6.9-1.8 1.8-.2.9.1 1.9.8 2.5.3.3.6.5 1 .6V18c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1V15c.4-.1.7-.3 1-.6.7-.7 1-1.6.8-2.5-.2-.9-.9-1.6-1.8-1.8V6z"/></svg>
+      <span class="nav-label">Bonuskarten</span>
+    </div>
+
+    <div class="nav-item" data-tab="characterTab" onclick="showTab('characterTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4zm0 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/></svg>
+      <span class="nav-label">Charaktere</span>
+    </div>
+
+    <div class="nav-item" data-tab="levelTab" onclick="showTab('levelTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M4 21h16v-2H4v2zm2-4h12v-3H6v3zm3-5h6V4H9v8z"/></svg>
+      <span class="nav-label">Levelsystem</span>
+    </div>
   </div>
 
-  <div class="nav-item" data-tab="lessonGoalsTab" onclick="showTab('lessonGoalsTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-    <span class="nav-label">Wie-Ziele</span>
-  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Konto</div>
 
-  <div class="nav-item" data-tab="wasGoalsTab" onclick="showTab('wasGoalsTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
-    <span class="nav-label">Was-Ziele</span>
-  </div>
+    <div class="nav-item" data-tab="profileTab" onclick="showTab('profileTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 110 10 5 5 0 010-10zm0 12c-3.3 0-7 1.7-7 4.5V20h14v-1.5C19 15.7 15.3 14 12 14zm6.7-3.7l1.3 1.3-4.9 4.9-2.1-2.1 1.3-1.3.8.8 3.6-3.6z"/></svg>
+      <span class="nav-label">Profil &amp; Passwort</span>
+    </div>
 
-  <div class="nav-item" data-tab="levelplanImportTab" onclick="showTab('levelplanImportTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-    <span class="nav-label">Levelplan importieren</span>
+    <div class="nav-item nav-item-logout" onclick="logout()">
+      <svg viewBox="0 0 24 24"><path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9v2h10v14H9v2h10c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+      <span class="nav-label">Logout</span>
+    </div>
   </div>
-
-  <div class="nav-item" data-tab="termineTab" onclick="showTab('termineTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
-    <span class="nav-label">Termine</span>
-  </div>
-
-  <div class="nav-item" data-tab="competenciesTab" onclick="showTab('competenciesTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
-    <span class="nav-label">Levelcheck planen</span>
-  </div>
-
-  <div class="nav-item" data-tab="xpTab" onclick="showTab('xpTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M5 3v18h2V3H5zm12 0v18h2V3h-2zM9 8v2h6V8H9zm0 6v2h4v-2H9z"/></svg>
-    <span class="nav-label">XP-Verwaltung</span>
-  </div>
-
-  <!-- KLASSEN-FORTSCHRITT / VOTING -->
-  <div class="nav-item" data-tab="classProgressTab" onclick="showTab('classProgressTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M4 20h3v-7H4v7zm6 0h3V4h-3v16zm6 0h3v-4h-3v4z"/></svg>
-    <span class="nav-label">Klassen-Voting</span>
-  </div>
-
-  <div class="nav-item" data-tab="classTab" onclick="showTab('classTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M12 12c2.5 0 4.5-2 4.5-4.5S14.5 3 12 3 7.5 5 7.5 7.5 9.5 12 12 12zm0 1.5c-3 0-9 1.5-9 4.5V21h18v-3c0-3-6-4.5-9-4.5z"/></svg>
-    <span class="nav-label">Klassen & Schüler</span>
-  </div>
-
-  <div class="nav-item" onclick="showTab('missionTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M3 3v18l9-4 9 4V3H3zm16 2v11.1l-7-3.1-7 3.1V5h14z"/></svg>
-    <span class="nav-label">Missionen</span>
-  </div>
-
-  <div class="nav-item" data-tab="bonusTab" onclick="showTab('bonusTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M4 6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v1c0 .6.4 1 1 1h3c.6 0 1-.4 1-1V6c0-.6.4-1 1-1h3c.6 0 1 .4 1 1v3.1c-.9.2-1.6.9-1.8 1.8-.2.9.1 1.9.8 2.5.3.3.6.5 1 .6V18c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1V15c.4-.1.7-.3 1-.6.7-.7 1-1.6.8-2.5-.2-.9-.9-1.6-1.8-1.8V6z"/></svg>
-    <span class="nav-label">Bonuskarten</span>
-  </div>
-
-  <div class="nav-item" data-tab="characterTab" onclick="showTab('characterTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M12 2l4 4-4 4-4-4 4-4zm0 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"/></svg>
-    <span class="nav-label">Charaktere</span>
-  </div>
-
-  <div class="nav-item" data-tab="levelTab" onclick="showTab('levelTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M4 21h16v-2H4v2zm2-4h12v-3H6v3zm3-5h6V4H9v8z"/></svg>
-    <span class="nav-label">Level</span>
-  </div>
-
-  <!-- Profil & Passwort -->
-  <div class="nav-item" data-tab="profileTab" onclick="showTab('profileTab', event)">
-    <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 110 10 5 5 0 010-10zm0 12c-3.3 0-7 1.7-7 4.5V20h14v-1.5C19 15.7 15.3 14 12 14zm6.7-3.7l1.3 1.3-4.9 4.9-2.1-2.1 1.3-1.3.8.8 3.6-3.6z"/></svg>
-    <span class="nav-label">Profil & Passwort</span>
-  </div>
-  </div>
-
-  <div class="nav-item nav-item-logout" onclick="logout()">
-    <svg viewBox="0 0 24 24"><path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9v2h10v14H9v2h10c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
-    <span class="nav-label">Logout</span>
   </div>
 </div>
 
@@ -920,6 +974,11 @@
       <div id="timetableTabRoot"></div>
     </div>
 
+    <!-- KOMPETENZRASTER -->
+    <div id="kompetenzrasterTab" class="tab hidden">
+      <div id="kompetenzrasterTabRoot"></div>
+    </div>
+
     <!-- STUNDENZIELE -->
     <div id="lessonGoalsTab" class="tab hidden">
       <div id="lessonGoalsTabRoot"></div>
@@ -935,7 +994,7 @@
       <div id="levelplanImportTabRoot"></div>
     </div>
 
-    <!-- LEVELCHECK PLANEN -->
+    <!-- NACHWEISE PLANEN -->
     <div id="competenciesTab" class="tab hidden">
       <div id="competenciesTabRoot"></div>
     </div>
@@ -1250,7 +1309,8 @@
 <script src="/js/teacher-week.js"></script>
 <script src="/js/teacher-was-goals.js?v=4"></script>
 <script src="/js/teacher-levelplan-import.js?v=4"></script>
-<script src="/js/teacher-competencies.js?v=18"></script>
+<script src="/js/teacher-kompetenzraster.js?v=1"></script>
+<script src="/js/teacher-competencies.js?v=19"></script>
 <script src="/js/teacher-termine.js?v=1"></script>
 
 <script>
@@ -1258,6 +1318,7 @@ const TEACHER_TAB_ROUTES = {
   dashboardTab: "/teacher/dashboard",
   teacherWeekTab: "/teacher/week",
   timetableTab: "/teacher/timetable",
+  kompetenzrasterTab: "/teacher/kompetenzraster",
   lessonGoalsTab: "/teacher/lesson-goals",
   wasGoalsTab: "/teacher/was-goals",
   levelplanImportTab: "/teacher/levelplan-import",
@@ -1277,6 +1338,7 @@ const ROUTE_TABS = {
   "/teacher/dashboard": "dashboardTab",
   "/teacher/week": "teacherWeekTab",
   "/teacher/timetable": "timetableTab",
+  "/teacher/kompetenzraster": "kompetenzrasterTab",
   "/teacher/lesson-goals": "lessonGoalsTab",
   "/teacher/was-goals": "wasGoalsTab",
   "/teacher/levelplan-import": "levelplanImportTab",
@@ -1311,6 +1373,7 @@ function showTab(id, ev, options = {}) {
   if (id === "lessonGoalsTab" && window.TeacherLessonGoals) TeacherLessonGoals.init();
   if (id === "wasGoalsTab" && window.TeacherWasGoals) TeacherWasGoals.init();
   if (id === "levelplanImportTab" && window.TeacherLevelplanImport) TeacherLevelplanImport.init();
+  if (id === "kompetenzrasterTab" && window.TeacherKompetenzraster) TeacherKompetenzraster.init();
   if (id === "teacherWeekTab" && window.TeacherWeek) TeacherWeek.init();
   if (id === "termineTab" && window.TeacherTermine) TeacherTermine.init();
   if (id === "competenciesTab" && window.TeacherCompetencies) TeacherCompetencies.init();
