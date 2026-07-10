@@ -4522,6 +4522,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
     subject: c.subject,
     name: c.name,
     sortOrder: c.sort_order,
+    createdAt: c.created_at,
     checkpoints: checkpointsByCheck[c.id] || [],
     goals: goalsByCheck[c.id] || []
   }));
@@ -9042,6 +9043,7 @@ const teacherSpaPaths = [
   "/teacher/dashboard",
   "/teacher/timetable",
   "/teacher/week",
+  "/teacher/levelplan",
   "/teacher/kompetenzraster",
   "/teacher/competencies",
   "/teacher/levelchecks",

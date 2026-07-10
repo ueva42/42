@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Kompetenzraster (importierter Levelplan, nur Ansicht).
+ * Lehrkraft – Levelplan (importierter Plan, nur Ansicht).
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -48,16 +48,38 @@
     return Array.isArray(fromApi) && fromApi.length ? fromApi : FALLBACK_SUBJECTS;
   }
 
+  function topicSortTime(topic) {
+    if (!topic?.createdAt) return 0;
+    const t = new Date(topic.createdAt).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+
   function topicsForSubject() {
-    return (state.data?.levelChecks || []).filter((lc) => lc.subject === state.subject);
+    return (state.data?.levelChecks || [])
+      .filter((lc) => lc.subject === state.subject)
+      .slice()
+      .sort((a, b) => {
+        const byDate = topicSortTime(b) - topicSortTime(a);
+        if (byDate !== 0) return byDate;
+        return (b.sortOrder ?? 0) - (a.sortOrder ?? 0);
+      });
+  }
+
+  function formatTopicDate(topic) {
+    if (!topic?.createdAt) return "";
+    const d = new Date(topic.createdAt);
+    if (!Number.isFinite(d.getTime())) return "";
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
   }
 
   function renderTopicBlock(topic) {
     const goals = topic.goals || [];
+    const dateLabel = formatTopicDate(topic);
+
     if (!goals.length) {
       return `
         <div class="kr-topic-block">
-          <h3>${escapeHtml(topic.name)}</h3>
+          <h3>${escapeHtml(topic.name)}${dateLabel ? ` <span class="hint">(${dateLabel})</span>` : ""}</h3>
           <p class="tc-empty">Noch keine Unterthemen in diesem Thema.</p>
         </div>`;
     }
@@ -76,7 +98,7 @@
 
     return `
       <div class="kr-topic-block">
-        <h3>${escapeHtml(topic.name)}</h3>
+        <h3>${escapeHtml(topic.name)}${dateLabel ? ` <span class="hint">(${dateLabel})</span>` : ""}</h3>
         <p class="hint">${goals.length} Unterthemen</p>
         <div class="lpi-table-scroll">
           <table class="lpi-table">
@@ -100,7 +122,7 @@
       return `
         <div class="tc-empty">
           <p>Für ${escapeHtml(state.subject)} wurde noch kein Levelplan importiert.</p>
-          <p class="hint">Nutze „Levelplan importieren“, um das Kompetenzraster anzulegen.</p>
+          <p class="hint">Nutze „Levelplan importieren“, um Themen und Zielstufen anzulegen.</p>
         </div>`;
     }
 
@@ -108,16 +130,16 @@
   }
 
   function render() {
-    const root = document.getElementById("kompetenzrasterTabRoot");
+    const root = document.getElementById("levelplanTabRoot");
     if (!root) return;
 
     if (state.loading && !state.data) {
-      root.innerHTML = `<div class="tc-loading">Lade Kompetenzraster…</div>`;
+      root.innerHTML = `<div class="tc-loading">Lade Levelplan…</div>`;
       return;
     }
 
     if (!state.data) {
-      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Kompetenzraster konnte nicht geladen werden.")}</div>`;
+      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Levelplan konnte nicht geladen werden.")}</div>`;
       return;
     }
 
@@ -130,17 +152,18 @@
 
     root.innerHTML = `
       <div class="panel">
-        <h2>Kompetenzraster</h2>
+        <h2>Levelplan</h2>
         <p class="hint">
           Übersicht über importierte Themen und Zielstufen (Rookie, Operator, Street Legend) – nur Ansicht.
+          Neueste Themen stehen oben.
         </p>
 
         <div class="tc-toolbar">
           <label>Klasse:
-            <select id="krClassSelect"></select>
+            <select id="lpClassSelect"></select>
           </label>
           <label>Fach:
-            <select id="krSubjectSelect">${subjectOptions}</select>
+            <select id="lpSubjectSelect">${subjectOptions}</select>
           </label>
         </div>
 
@@ -154,9 +177,9 @@
   }
 
   function fillClassSelect(root) {
-    const sel = root.querySelector("#krClassSelect");
-    if (!sel || !window.__krClasses) return;
-    sel.innerHTML = window.__krClasses
+    const sel = root.querySelector("#lpClassSelect");
+    if (!sel || !window.__lpClasses) return;
+    sel.innerHTML = window.__lpClasses
       .map(
         (c) =>
           `<option value="${c.id}" ${sameId(c.id, state.classId) ? "selected" : ""}>${escapeHtml(c.name)}</option>`
@@ -165,13 +188,13 @@
   }
 
   function bindHandlers(root) {
-    root.querySelector("#krClassSelect")?.addEventListener("change", (e) => {
+    root.querySelector("#lpClassSelect")?.addEventListener("change", (e) => {
       state.classId = Number(e.target.value);
       state.error = "";
       loadData();
     });
 
-    root.querySelector("#krSubjectSelect")?.addEventListener("change", (e) => {
+    root.querySelector("#lpSubjectSelect")?.addEventListener("change", (e) => {
       state.subject = e.target.value;
       render();
     });
@@ -183,7 +206,7 @@
     if (!r.ok || !Array.isArray(payload)) {
       throw new Error(payload?.error || "Klassen konnten nicht geladen werden.");
     }
-    window.__krClasses = payload;
+    window.__lpClasses = payload;
     return payload;
   }
 
@@ -224,8 +247,8 @@
 
   async function init() {
     state.error = "";
-    const root = document.getElementById("kompetenzrasterTabRoot");
-    if (root) root.innerHTML = `<div class="tc-loading">Lade Kompetenzraster…</div>`;
+    const root = document.getElementById("levelplanTabRoot");
+    if (root) root.innerHTML = `<div class="tc-loading">Lade Levelplan…</div>`;
 
     try {
       const classes = await loadClasses();
@@ -249,5 +272,5 @@
     }
   }
 
-  window.TeacherKompetenzraster = { init };
+  window.TeacherLevelplan = { init };
 })();

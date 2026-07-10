@@ -858,9 +858,9 @@
       <span class="nav-label">Stundenplan</span>
     </div>
 
-    <div class="nav-item" data-tab="kompetenzrasterTab" onclick="showTab('kompetenzrasterTab', event)">
+    <div class="nav-item" data-tab="levelplanTab" onclick="showTab('levelplanTab', event)">
       <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
-      <span class="nav-label">Kompetenzraster</span>
+      <span class="nav-label">Levelplan</span>
     </div>
 
     <div class="nav-item" data-tab="levelplanImportTab" onclick="showTab('levelplanImportTab', event)">
@@ -974,9 +974,9 @@
       <div id="timetableTabRoot"></div>
     </div>
 
-    <!-- KOMPETENZRASTER -->
-    <div id="kompetenzrasterTab" class="tab hidden">
-      <div id="kompetenzrasterTabRoot"></div>
+    <!-- LEVELPLAN -->
+    <div id="levelplanTab" class="tab hidden">
+      <div id="levelplanTabRoot"></div>
     </div>
 
     <!-- STUNDENZIELE -->
@@ -1309,7 +1309,7 @@
 <script src="/js/teacher-week.js"></script>
 <script src="/js/teacher-was-goals.js?v=4"></script>
 <script src="/js/teacher-levelplan-import.js?v=4"></script>
-<script src="/js/teacher-kompetenzraster.js?v=1"></script>
+<script src="/js/teacher-levelplan.js?v=1"></script>
 <script src="/js/teacher-competencies.js?v=19"></script>
 <script src="/js/teacher-termine.js?v=1"></script>
 
@@ -1318,7 +1318,7 @@ const TEACHER_TAB_ROUTES = {
   dashboardTab: "/teacher/dashboard",
   teacherWeekTab: "/teacher/week",
   timetableTab: "/teacher/timetable",
-  kompetenzrasterTab: "/teacher/kompetenzraster",
+  levelplanTab: "/teacher/levelplan",
   lessonGoalsTab: "/teacher/lesson-goals",
   wasGoalsTab: "/teacher/was-goals",
   levelplanImportTab: "/teacher/levelplan-import",
@@ -1338,7 +1338,8 @@ const ROUTE_TABS = {
   "/teacher/dashboard": "dashboardTab",
   "/teacher/week": "teacherWeekTab",
   "/teacher/timetable": "timetableTab",
-  "/teacher/kompetenzraster": "kompetenzrasterTab",
+  "/teacher/levelplan": "levelplanTab",
+  "/teacher/kompetenzraster": "levelplanTab",
   "/teacher/lesson-goals": "lessonGoalsTab",
   "/teacher/was-goals": "wasGoalsTab",
   "/teacher/levelplan-import": "levelplanImportTab",
@@ -1373,7 +1374,7 @@ function showTab(id, ev, options = {}) {
   if (id === "lessonGoalsTab" && window.TeacherLessonGoals) TeacherLessonGoals.init();
   if (id === "wasGoalsTab" && window.TeacherWasGoals) TeacherWasGoals.init();
   if (id === "levelplanImportTab" && window.TeacherLevelplanImport) TeacherLevelplanImport.init();
-  if (id === "kompetenzrasterTab" && window.TeacherKompetenzraster) TeacherKompetenzraster.init();
+  if (id === "levelplanTab" && window.TeacherLevelplan) TeacherLevelplan.init();
   if (id === "teacherWeekTab" && window.TeacherWeek) TeacherWeek.init();
   if (id === "termineTab" && window.TeacherTermine) TeacherTermine.init();
   if (id === "competenciesTab" && window.TeacherCompetencies) TeacherCompetencies.init();
