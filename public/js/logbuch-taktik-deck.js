@@ -99,13 +99,22 @@
 
     root.innerHTML = `
       <div class="taktik-deck-shell">
-        <p class="taktik-deck-intro">
-          Hier findest du Strategien, die dir helfen, wenn du beim Lernen festhängst.
-        </p>
+        <div class="taktik-deck-head">
+          <p class="taktik-deck-intro">
+            Hier findest du Strategien, die dir helfen, wenn du beim Lernen festhängst.
+          </p>
+          <button type="button" class="logbuch-btn-ghost taktik-briefing-replay" id="taktikBriefingReplayBtn">
+            Start-Briefing nochmal ansehen
+          </button>
+        </div>
         <div class="taktik-deck-grid">
           ${strategies.map((s) => renderStrategyCard(ui, s)).join("")}
         </div>
       </div>`;
+
+    root.querySelector("#taktikBriefingReplayBtn")?.addEventListener("click", () => {
+      window.LogbuchStartBriefing?.openReview();
+    });
 
     root.querySelectorAll(".taktik-card-btn").forEach((btn) => {
       btn.addEventListener("click", () => openModal(btn.dataset.strategyId));

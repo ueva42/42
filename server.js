@@ -2026,6 +2026,7 @@ async function migrate() {
   `);
 
   await ensureColumn("users", "first_login", "BOOLEAN NOT NULL DEFAULT FALSE");
+  await ensureColumn("users", "has_seen_start_briefing", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("users", "school_id", "INTEGER");
 
     // -------------------------------------------------------
@@ -3248,6 +3249,7 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   const userData = await pool.query(
     `
     SELECT u.id,u.name,u.xp,u.character_id,u.level_id,u.school_id,
+           u.has_seen_start_briefing,
            l.name AS level_name,l.min_xp AS level_min_xp
     FROM users u
     LEFT JOIN levels l ON l.id = u.level_id
@@ -3366,8 +3368,23 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     xp_log: xpLog.rows,
     uploads: uploads.rows,
     levels: levels.rows,
-    xp_per_mission: xpByMission
+    xp_per_mission: xpByMission,
+    hasSeenStartBriefing: !!user.has_seen_start_briefing
   });
+});
+
+app.post("/api/student/start-briefing/complete", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    await pool.query(
+      `UPDATE users SET has_seen_start_briefing = TRUE WHERE id = $1`,
+      [studentId]
+    );
+    res.json({ success: true, hasSeenStartBriefing: true });
+  } catch (err) {
+    console.error("❌ /api/student/start-briefing/complete:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
 });
 
 // -------------------------------------------------------
