@@ -99,7 +99,7 @@
 
     root.innerHTML = `
       <div class="taktik-deck-shell">
-        <div class="taktik-deck-head">
+        <div class="taktik-deck-intro-card">
           <p class="taktik-deck-intro">
             Hier findest du Strategien, die dir helfen, wenn du beim Lernen festhängst.
           </p>

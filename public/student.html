@@ -1103,22 +1103,18 @@ a { color: inherit; }
   justify-content: flex-end;
 }
 
-.taktik-deck-head {
+.taktik-deck-intro-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-@media (min-width: 720px) {
-  .taktik-deck-head {
-    flex-direction: row;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-  }
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  background: rgba(15, 23, 42, 0.55);
 }
 .taktik-briefing-replay {
-  flex-shrink: 0;
-  white-space: nowrap;
+  font-size: 12px;
 }
 
 .briefing-overlay {
@@ -1228,8 +1224,9 @@ a { color: inherit; }
 .taktik-deck-intro {
   margin: 0;
   font-size: 13px;
-  opacity: 0.75;
   line-height: 1.5;
+  opacity: 0.85;
+  max-width: none;
 }
 .taktik-deck-grid {
   display: grid;
@@ -3019,7 +3016,7 @@ h2 {
 <script src="/js/logbuch-week.js?v=2"></script>
 <script src="/js/logbuch-levelplan.js?v=10"></script>
 <script src="/js/logbuch-start-briefing.js?v=1"></script>
-<script src="/js/logbuch-taktik-deck.js?v=3"></script>
+<script src="/js/logbuch-taktik-deck.js?v=4"></script>
 <script src="/js/logbuch-zielsetzung.js?v=9"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=2"></script>
 <script src="/js/logbuch-screens.js?v=2"></script>
