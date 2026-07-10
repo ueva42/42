@@ -949,19 +949,115 @@ function flattenScheduledCheckpoints(levelChecks) {
 }
 
 function pickUpcomingPlanCheckpoint(checks, subject = null) {
-  const filtered = flattenScheduledCheckpoints(checks).filter(
+  const checkpoints = listPlanCheckpointsForSubject(checks, subject);
+  return pickDefaultPlanCheckpoint(checkpoints);
+}
+
+function planCheckpointTypeOrder(cp) {
+  const t = normalizeCheckpointType(cp.checkpointType);
+  if (t === "test") return 1;
+  if (t === "praesentation") return 2;
+  if (t === "custom") return 3;
+  return 4;
+}
+
+function listPlanCheckpointsForSubject(levelChecks, subject) {
+  const today = todayIsoDate();
+  const filtered = flattenScheduledCheckpoints(levelChecks).filter(
     (c) =>
-      (!subject || c.subject === subject) &&
+      c.subject === subject &&
       isPlanCheckpointType(c.checkpointType, c.checkpointTypeLabel)
   );
-  if (!filtered.length) return null;
 
-  const today = todayIsoDate();
-  const future = filtered
-    .filter((c) => c.checkpointDate && c.checkpointDate >= today)
-    .sort((a, b) => a.checkpointDate.localeCompare(b.checkpointDate));
+  return filtered.sort((a, b) => {
+    const aFuture = a.checkpointDate >= today;
+    const bFuture = b.checkpointDate >= today;
+    if (aFuture && bFuture) {
+      const byDate = a.checkpointDate.localeCompare(b.checkpointDate);
+      if (byDate !== 0) return byDate;
+      return planCheckpointTypeOrder(a) - planCheckpointTypeOrder(b);
+    }
+    if (aFuture) return -1;
+    if (bFuture) return 1;
+    return b.checkpointDate.localeCompare(a.checkpointDate);
+  });
+}
 
-  return future[0] || null;
+function pickDefaultPlanCheckpoint(checkpoints) {
+  return checkpoints?.length ? checkpoints[0] : null;
+}
+
+function serializePlanCheckpoint(cp) {
+  if (!cp) return null;
+  const typeLabel = resolveCheckpointTypeLabel(cp.checkpointType, cp.checkpointTypeLabel);
+  const date = normalizeIsoDate(cp.checkpointDate);
+  const dateLabel = formatGermanDate(date);
+  return {
+    id: cp.id,
+    levelCheckId: cp.levelCheckId || cp.id,
+    title: cp.name,
+    date,
+    dateLabel,
+    type: normalizeCheckpointType(cp.checkpointType),
+    typeLabel,
+    label: `${typeLabel}: ${cp.name} am ${dateLabel}`
+  };
+}
+
+function collectWhatGoalsForPlan(levelChecks, subject, selectedCheckpointId = null) {
+  const checks = (levelChecks || []).filter((c) => c.subject === subject);
+  const allSubjectGoals = collectSubjectSubtopics(levelChecks, subject);
+  const checkpoints = listPlanCheckpointsForSubject(levelChecks, subject);
+
+  if (!checkpoints.length) {
+    return {
+      checkpoint: null,
+      checkpoints: [],
+      options: allSubjectGoals,
+      goalSource: allSubjectGoals.length ? "levelplan_fallback" : "none"
+    };
+  }
+
+  let checkpoint = null;
+  if (selectedCheckpointId) {
+    checkpoint =
+      checkpoints.find((c) => String(c.id) === String(selectedCheckpointId)) || null;
+  }
+  if (!checkpoint) {
+    checkpoint = pickDefaultPlanCheckpoint(checkpoints);
+  }
+
+  const topic =
+    checks.find((c) => c.id === checkpoint.levelCheckId) ||
+    checks.find((c) => c.id === checkpoint.id) ||
+    null;
+  const linked = Array.isArray(checkpoint.linkedSubtopicIds)
+    ? checkpoint.linkedSubtopicIds.map((id) => String(id))
+    : [];
+  let options = [];
+
+  if (linked.length) {
+    options = linked
+      .map((id) => {
+        const found = findGoalInChecks(checks, id);
+        return found ? mapPlanGoalOption(found.goal, found.check) : null;
+      })
+      .filter(Boolean);
+  } else if ((topic?.goals || []).length) {
+    options = topic.goals.map((g) => mapPlanGoalOption(g, topic));
+  }
+
+  return {
+    checkpoint: {
+      ...checkpoint,
+      id: checkpoint.id,
+      name: checkpoint.name,
+      levelCheckId: checkpoint.levelCheckId
+    },
+    checkpoints,
+    options,
+    goalSource: options.length ? "checkpoint" : "checkpoint_empty"
+  };
 }
 
 function collectSubjectSubtopics(levelChecks, subject) {
@@ -1008,51 +1104,6 @@ function levelGoalTextForOption(option, tier) {
     return String(option.streetLegendGoalText || "").trim() || null;
   }
   return null;
-}
-
-function collectWhatGoalsForPlan(levelChecks, subject) {
-  const checks = (levelChecks || []).filter((c) => c.subject === subject);
-  const upcoming = pickUpcomingPlanCheckpoint(checks, subject);
-  const allSubjectGoals = collectSubjectSubtopics(levelChecks, subject);
-
-  if (!upcoming) {
-    return {
-      checkpoint: null,
-      options: allSubjectGoals,
-      goalSource: allSubjectGoals.length ? "levelplan_fallback" : "none"
-    };
-  }
-
-  const topic =
-    checks.find((c) => c.id === upcoming.levelCheckId) ||
-    checks.find((c) => c.id === upcoming.id) ||
-    null;
-  const linked = Array.isArray(upcoming.linkedSubtopicIds)
-    ? upcoming.linkedSubtopicIds.map((id) => String(id))
-    : [];
-  let options = [];
-
-  if (linked.length) {
-    options = linked
-      .map((id) => {
-        const found = findGoalInChecks(checks, id);
-        return found ? mapPlanGoalOption(found.goal, found.check) : null;
-      })
-      .filter(Boolean);
-  } else if ((topic?.goals || []).length) {
-    options = topic.goals.map((g) => mapPlanGoalOption(g, topic));
-  }
-
-  return {
-    checkpoint: {
-      ...upcoming,
-      id: upcoming.id,
-      name: upcoming.name,
-      levelCheckId: upcoming.levelCheckId
-    },
-    options,
-    goalSource: options.length ? "checkpoint" : "checkpoint_empty"
-  };
 }
 
 function howGoalForSentence(howGoalText) {
@@ -3012,12 +3063,25 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
         : suggestedSubject;
 
     let nextCheckpoint = null;
+    let selectedCheckpoint = null;
+    let checkpoints = [];
     let whatGoalOptions = [];
     let goalSource = "none";
     if (classId && activeSubject) {
       const checks = await getLevelChecksForClass(classId, schoolId, studentId);
-      const picked = collectWhatGoalsForPlan(checks, activeSubject);
+      const checkpointIdQuery = req.query.checkpointId || null;
+      const preferredCheckpointId =
+        checkpointIdQuery || existingEntry?.checkpoint_id || null;
+      const picked = collectWhatGoalsForPlan(
+        checks,
+        activeSubject,
+        preferredCheckpointId
+      );
       nextCheckpoint = picked.checkpoint;
+      selectedCheckpoint = picked.checkpoint
+        ? serializePlanCheckpoint(picked.checkpoint)
+        : null;
+      checkpoints = (picked.checkpoints || []).map(serializePlanCheckpoint);
       whatGoalOptions = picked.options;
       goalSource = picked.goalSource;
     }
@@ -3042,20 +3106,9 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
         label: LEVEL_CHECK_TIER_LABELS[tier]
       })),
       goalSource,
-      nextCheckpoint: nextCheckpoint
-        ? {
-            id: nextCheckpoint.id,
-            levelCheckId: nextCheckpoint.levelCheckId || nextCheckpoint.id,
-            title: nextCheckpoint.name,
-            date: normalizeIsoDate(nextCheckpoint.checkpointDate),
-            dateLabel: formatGermanDate(nextCheckpoint.checkpointDate),
-            type: normalizeCheckpointType(nextCheckpoint.checkpointType),
-            typeLabel: resolveCheckpointTypeLabel(
-              nextCheckpoint.checkpointType,
-              nextCheckpoint.checkpointTypeLabel
-            )
-          }
-        : null,
+      checkpoints,
+      selectedCheckpoint,
+      nextCheckpoint: selectedCheckpoint,
       whatGoalOptions,
       subjectLocked,
       lockedSubject
@@ -3129,7 +3182,19 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     let goalSource = "none";
     if (classId) {
       const checks = await getLevelChecksForClass(classId, classSchoolId, studentId);
-      const picked = collectWhatGoalsForPlan(checks, subject);
+      const planCheckpoints = listPlanCheckpointsForSubject(checks, subject);
+      if (planCheckpoints.length && checkpointId) {
+        const validCp = planCheckpoints.find(
+          (c) => String(c.id) === String(checkpointId)
+        );
+        if (!validCp) {
+          return res.json({
+            success: false,
+            message: "Bitte einen gültigen Nachweis wählen."
+          });
+        }
+      }
+      const picked = collectWhatGoalsForPlan(checks, subject, checkpointId || null);
       validWhatGoalOptions = picked.options;
       nextCheckpoint = picked.checkpoint;
       goalSource = picked.goalSource;
@@ -3352,7 +3417,19 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
     let goalSource = "none";
     if (classId) {
       const checks = await getLevelChecksForClass(classId, classSchoolId, studentId);
-      const picked = collectWhatGoalsForPlan(checks, subject);
+      const planCheckpoints = listPlanCheckpointsForSubject(checks, subject);
+      if (planCheckpoints.length && checkpointId) {
+        const validCp = planCheckpoints.find(
+          (c) => String(c.id) === String(checkpointId)
+        );
+        if (!validCp) {
+          return res.json({
+            success: false,
+            message: "Bitte einen gültigen Nachweis wählen."
+          });
+        }
+      }
+      const picked = collectWhatGoalsForPlan(checks, subject, checkpointId || null);
       validWhatGoalOptions = picked.options;
       nextCheckpoint = picked.checkpoint;
       goalSource = picked.goalSource;

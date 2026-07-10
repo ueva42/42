@@ -68,6 +68,8 @@
     howGoalsBase: HOW_GOAL_OPTIONS,
     levelOptions: LEVEL_OPTIONS,
     nextCheckpoint: null,
+    checkpoints: [],
+    selectedCheckpointId: null,
     goalSource: "none",
     hasClass: true,
     subjectLocked: false,
@@ -163,6 +165,45 @@
       </div>`;
   }
 
+  function pickedCheckpoint() {
+    if (!state.checkpoints.length) return state.nextCheckpoint;
+    return (
+      state.checkpoints.find((c) => String(c.id) === String(state.selectedCheckpointId)) ||
+      state.nextCheckpoint
+    );
+  }
+
+  function renderCheckpointField(ui) {
+    if (!state.checkpoints.length) {
+      const fallbackMsg =
+        state.goalSource === "levelplan_fallback"
+          ? `<div class="logbuch-msg logbuch-msg-info" style="margin-top:8px">Kein Nachweis geplant – du kannst ein Ziel aus dem Levelplan wählen.</div>`
+          : "";
+      return ui.fieldWrap(
+        ui.fieldLabel("Nachweis"),
+        `<div class="plan-subject-locked">Kein Nachweis geplant.</div>${fallbackMsg}`
+      );
+    }
+
+    if (state.checkpoints.length === 1) {
+      const cp = state.checkpoints[0];
+      return ui.fieldWrap(
+        ui.fieldLabel("Nachweis"),
+        `<div class="plan-subject-locked">${ui.escapeHtml(cp.label)}</div>`
+      );
+    }
+
+    return ui.fieldWrap(
+      ui.fieldLabel("Für welchen Nachweis arbeitest du?", { required: true }),
+      ui.select(
+        "selectedCheckpointId",
+        state.checkpoints.map((c) => ({ value: c.id, label: c.label })),
+        state.selectedCheckpointId,
+        { phase: "plan", placeholder: "Nachweis wählen…" }
+      )
+    );
+  }
+
   function whatGoalMessage(ui) {
     if (state.whatGoalOptions.length) return "";
     if (state.goalSource === "checkpoint_empty") {
@@ -193,6 +234,7 @@
     state.workGoals = Array.isArray(entry.work_goals) ? entry.work_goals : [];
     state.socialForm = entry.social_form || null;
     state.confidenceBefore = entry.confidence_before ?? null;
+    state.selectedCheckpointId = entry.checkpoint_id || null;
     state.existingEntry = null;
     refreshHowGoals();
   }
@@ -254,12 +296,6 @@
       return;
     }
 
-    const checkpoint = state.nextCheckpoint;
-    const checkpointText = checkpoint
-      ? `${checkpoint.typeLabel || "Nachweis"}: ${checkpoint.title}${
-          checkpoint.date ? ` am ${checkpoint.dateLabel}` : ""
-        }`
-      : "Kein kommender Nachweis gefunden.";
     const levelMeaning = state.levelGoalText;
     const previewReady = !!(state.levelGoalText && state.howGoalText);
 
@@ -291,14 +327,7 @@
               )
         }
 
-        ${ui.fieldWrap(
-          ui.fieldLabel("Nächster Nachweis"),
-          `<div class="plan-subject-locked">${ui.escapeHtml(checkpointText)}</div>${
-            state.goalSource === "levelplan_fallback"
-              ? `<div class="logbuch-msg logbuch-msg-info" style="margin-top:8px">Kein kommender Nachweis – du kannst ein Ziel aus dem Levelplan wählen.</div>`
-              : ""
-          }`
-        )}
+        ${renderCheckpointField(ui)}
 
         ${ui.fieldWrap(
           ui.fieldLabel("Was willst du heute können?", { required: true }),
@@ -444,6 +473,17 @@
         state.selectedLevel = null;
         state.levelGoalText = "";
         state.howGoalText = null;
+        state.selectedCheckpointId = null;
+        await loadContext();
+        render();
+        return;
+      }
+      if (field === "selectedCheckpointId") {
+        state.whatGoalId = null;
+        state.whatGoalText = "";
+        state.selectedLevel = null;
+        state.levelGoalText = "";
+        state.howGoalText = null;
         await loadContext();
         render();
         return;
@@ -493,6 +533,11 @@
       render();
       return;
     }
+    if (state.checkpoints.length > 1 && !state.selectedCheckpointId) {
+      state.errorMsg = "Bitte wähle den Nachweis, für den du arbeitest.";
+      render();
+      return;
+    }
     if (!state.selectedLevel) {
       state.errorMsg = "Bitte wähle ein Level.";
       render();
@@ -518,6 +563,8 @@
     state.submitting = true;
     render();
 
+    const checkpoint = pickedCheckpoint();
+
     try {
       const isEdit = !!state.editingEntryId;
       const res = await fetch(
@@ -531,9 +578,9 @@
           date: state.date,
           timeslot: state.timeslot || null,
           subject: state.subject,
-          checkpointId: state.nextCheckpoint?.id || null,
-          checkpointTitle: state.nextCheckpoint
-            ? `${state.nextCheckpoint.typeLabel || "Nachweis"}: ${state.nextCheckpoint.title}`
+          checkpointId: checkpoint?.id || state.selectedCheckpointId || null,
+          checkpointTitle: checkpoint
+            ? `${checkpoint.typeLabel || "Nachweis"}: ${checkpoint.title}`
             : null,
           whatGoalId: state.whatGoalId,
           whatGoalText: state.whatGoalText.trim(),
@@ -582,6 +629,9 @@
     if (state.entryId) params.set("entryId", state.entryId);
     if (state.timeslot) params.set("timeslot", state.timeslot);
     if (state.subject) params.set("subject", state.subject);
+    if (state.selectedCheckpointId) {
+      params.set("checkpointId", state.selectedCheckpointId);
+    }
 
     const res = await fetch(`/api/student/log/plan-context?${params}`);
     if (!res.ok) {
@@ -599,7 +649,12 @@
     refreshHowGoals();
     state.whatGoalOptions = Array.isArray(data.whatGoalOptions) ? data.whatGoalOptions : [];
     state.levelOptions = Array.isArray(data.levelOptions) ? data.levelOptions : LEVEL_OPTIONS;
-    state.nextCheckpoint = data.nextCheckpoint || null;
+    state.checkpoints = Array.isArray(data.checkpoints) ? data.checkpoints : [];
+    state.nextCheckpoint = data.selectedCheckpoint || data.nextCheckpoint || null;
+    state.selectedCheckpointId =
+      data.selectedCheckpoint?.id ||
+      state.selectedCheckpointId ||
+      (state.checkpoints.length === 1 ? state.checkpoints[0].id : null);
     state.goalSource = data.goalSource || "none";
     state.subjectLocked = !!data.subjectLocked;
 
@@ -642,6 +697,8 @@
     state.confidenceBefore = null;
     state.detailsText = "";
     state.whatGoalOptions = [];
+    state.checkpoints = [];
+    state.selectedCheckpointId = null;
     state.nextCheckpoint = null;
     state.goalSource = "none";
     state.existingEntry = null;
