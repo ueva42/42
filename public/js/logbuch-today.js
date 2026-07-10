@@ -124,6 +124,60 @@
       ${detailText ? `<p class="today-block-muted">${ui.escapeHtml(detailText)}</p>` : ""}`;
   }
 
+  function renderCheckSummary(ui, entry) {
+    const c = entry.check;
+    if (!c?.on_track) return "";
+
+    const isLegacy = ["👍", "😐", "👎"].includes(c.on_track);
+    if (isLegacy) {
+      return `
+        <div class="today-focus-card today-check-card">
+          <p class="today-focus-card-title">Zwischen-Check</p>
+          <p class="today-block-muted">Abgeschlossen (älteres Format)</p>
+        </div>`;
+    }
+
+    return `
+      <div class="today-focus-card today-check-card">
+        <p class="today-focus-card-title">Zwischen-Check</p>
+        <p><strong>Auf dem Weg:</strong> ${ui.escapeHtml(c.on_track)}</p>
+        <p><strong>Verstanden:</strong> ${ui.escapeHtml(c.understands)}</p>
+        <p><strong>Fortschritt:</strong> ${ui.escapeHtml(c.progress)}</p>
+        <p><strong>Jetzt:</strong> ${ui.escapeHtml(c.next_step_answer || "–")}</p>
+        ${
+          c.selected_strategy_name
+            ? `<p><strong>Strategie:</strong> ${ui.escapeHtml(c.selected_strategy_name)}</p>`
+            : ""
+        }
+      </div>`;
+  }
+
+  function renderReflectionSummary(ui, entry) {
+    const r = entry.reflection;
+    if (!r) return "";
+
+    return `
+      <div class="today-focus-card today-reflect-card">
+        <p class="today-focus-card-title">Reflexion</p>
+        <p><strong>Ziel erreicht:</strong> ${goalAchievedSymbol(r.goal_achieved)} ${ui.escapeHtml(r.goal_achieved || "–")}</p>
+        <p><strong>Selbstwirksamkeit:</strong> ${entry.confidence_before ?? "–"} → ${r.confidence_after}</p>
+        ${
+          r.learned_today
+            ? `<p><strong>Gelernt:</strong> ${ui.escapeHtml(r.learned_today)}</p>`
+            : ""
+        }
+      </div>`;
+  }
+
+  function navButton(label, nav, query, primary = false) {
+    const ui = UI();
+    const cls = primary ? "btn-primary today-plan-btn" : "logbuch-btn-ghost today-view-plan-btn";
+    return `
+      <button type="button" class="${cls}" data-nav="${ui.escapeHtml(nav)}" data-query="${ui.escapeHtml(query)}">
+        ${ui.escapeHtml(label)}
+      </button>`;
+  }
+
   function renderBlock(block, editable) {
     const ui = UI();
     const slot = block.slot;
@@ -159,31 +213,46 @@
     }
 
     const readOnly = !editable;
-    let summary = "";
-    if (readOnly && entry.reflection) {
-      summary = `
-        <div class="today-block-summary">
-          <span>Erreicht: <b>${goalAchievedSymbol(entry.reflection.goal_achieved)}</b></span>
-          <span>Selbstwirksamkeit: ${entry.confidence_before ?? "–"} → ${entry.reflection.confidence_after}</span>
-        </div>`;
-    } else if (readOnly && entry.hasCheck) {
-      summary = `<div class="today-block-summary"><span>Zwischen-Check abgeschlossen</span></div>`;
-    }
 
     const params = new URLSearchParams({ date: state.date });
     if (entry.id) params.set("entryId", entry.id);
     if (entry.subject) params.set("subject", entry.subject);
     if (entry.timeslot) params.set("timeslot", entry.timeslot);
 
-    const viewPlanBtn = `
-      <button type="button" class="${editable && !entry.hasReflection ? "btn-primary today-plan-btn" : "logbuch-btn-ghost today-view-plan-btn"}"
-        data-nav="plan" data-query="${ui.escapeHtml(params.toString())}">
-        ${editable && !entry.hasReflection ? "Tagesziel bearbeiten" : "Tagesziel ansehen"}
-      </button>`;
+    const checkParams = new URLSearchParams({ entryId: entry.id });
+    const reflectParams = new URLSearchParams({ entryId: entry.id });
 
-    const actions = !readOnly ? `${viewPlanBtn}${renderActionSelect(entry)}` : viewPlanBtn;
+    const viewPlanBtn = navButton(
+      editable && !entry.hasReflection ? "Tagesziel bearbeiten" : "Tagesziel ansehen",
+      "plan",
+      params.toString(),
+      editable && !entry.hasReflection
+    );
+
+    const viewCheckBtn = entry.hasCheck
+      ? navButton(
+          editable && !entry.hasReflection ? "Zwischen-Check bearbeiten" : "Zwischen-Check ansehen",
+          "check",
+          checkParams.toString()
+        )
+      : "";
+
+    const viewReflectBtn = entry.hasReflection
+      ? navButton(
+          editable ? "Reflexion bearbeiten" : "Reflexion ansehen",
+          "reflect",
+          reflectParams.toString()
+        )
+      : "";
+
+    const phaseButtons = [viewPlanBtn, viewCheckBtn, viewReflectBtn].filter(Boolean).join("");
+    const actions = !readOnly
+      ? `<div class="today-phase-actions">${phaseButtons}${renderActionSelect(entry)}</div>`
+      : `<div class="today-phase-actions">${phaseButtons}</div>`;
 
     const goalBody = renderDailyGoalBody(ui, entry);
+    const checkBody = entry.hasCheck ? renderCheckSummary(ui, entry) : "";
+    const reflectBody = entry.hasReflection ? renderReflectionSummary(ui, entry) : "";
     const checkpointHint = entry.checkpoint_title
       ? `<p class="today-block-muted">${ui.escapeHtml(entry.checkpoint_title)}</p>`
       : "";
@@ -195,8 +264,9 @@
           ${entry.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
         </div>
         ${goalBody}
+        ${checkBody}
+        ${reflectBody}
         ${!entry.level_goal_text && checkpointHint}
-        ${summary}
         ${actions}
       </div>`;
   }
@@ -282,9 +352,9 @@
     root.querySelectorAll("[data-nav]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const nav = btn.dataset.nav;
-        if (nav === "plan") {
-          const q = new URLSearchParams(btn.dataset.query || "");
-          window.StudentRouter?.navigateToSection("plan", { query: q });
+        const q = new URLSearchParams(btn.dataset.query || "");
+        if (nav === "plan" || nav === "check" || nav === "reflect") {
+          window.StudentRouter?.navigateToSection(nav, { query: q });
         }
       });
     });

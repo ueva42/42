@@ -237,38 +237,63 @@
     });
   }
 
-  function renderDone() {
+  function renderCheckDetailsList(ui, c) {
+    const legacy = isLegacyCheck(c);
+    if (legacy) {
+      return `${ui.escapeHtml(c.on_track)} ${ui.escapeHtml(c.understands)} ${ui.escapeHtml(c.progress)}${
+        c.change_note ? `<br>${ui.escapeHtml(c.change_note)}` : ""
+      }`;
+    }
+
+    const rows = [
+      ["Bin ich auf dem richtigen Weg?", c.on_track],
+      ["Verstehe ich die Aufgaben?", c.understands],
+      ["Komme ich gut voran?", c.progress],
+      ["Was mache ich jetzt?", c.next_step_answer || "–"]
+    ];
+    if (c.selected_strategy_name) {
+      rows.push(["Gewählte Strategie", c.selected_strategy_name]);
+    }
+
+    return `
+      <dl class="plan-readonly-list">
+        ${rows
+          .map(
+            ([label, value]) => `
+          <div class="plan-readonly-row">
+            <dt>${ui.escapeHtml(label)}</dt>
+            <dd>${ui.escapeHtml(value || "–")}</dd>
+          </div>`
+          )
+          .join("")}
+      </dl>`;
+  }
+
+  function applyCheckToState(check) {
+    if (!check || isLegacyCheck(check)) return false;
+    state.onTrack = check.on_track;
+    state.understands = check.understands;
+    state.progress = check.progress;
+    state.nextStepAnswer = check.next_step_answer;
+    state.selectedStrategyName = check.selected_strategy_name || null;
+    state.selectedStrategyProblem = check.selected_strategy_problem || null;
+    state.selectedStrategyNextStep = check.selected_strategy_next_step || null;
+    return true;
+  }
+
+  function renderReadOnly() {
     const root = document.getElementById("check-screen-root");
     if (!root) return;
     const ui = UI();
     const c = state.existingCheck;
-    const legacy = isLegacyCheck(c);
-
-    const strategySummary =
-      c.selected_strategy_name
-        ? `<li><strong>Strategie:</strong> ${ui.escapeHtml(c.selected_strategy_name)}</li>`
-        : "";
-
-    const summary = legacy
-      ? `${ui.escapeHtml(c.on_track)} ${ui.escapeHtml(c.understands)} ${ui.escapeHtml(c.progress)}${
-          c.change_note ? `<br>${ui.escapeHtml(c.change_note)}` : ""
-        }`
-      : `
-        <ul class="check-done-list">
-          <li><strong>Auf dem richtigen Weg:</strong> ${ui.escapeHtml(c.on_track)}</li>
-          <li><strong>Aufgaben verstanden:</strong> ${ui.escapeHtml(c.understands)}</li>
-          <li><strong>Fortschritt:</strong> ${ui.escapeHtml(c.progress)}</li>
-          <li><strong>Nächster Schritt:</strong> ${ui.escapeHtml(c.next_step_answer || "–")}</li>
-          ${strategySummary}
-        </ul>`;
 
     root.innerHTML = `
-      <div class="logbuch-form">
+      <div class="logbuch-form logbuch-form-readonly">
         ${renderDailyGoalCard(ui, state.entry)}
         <div class="logbuch-msg logbuch-msg-info">
-          Zwischen-Check für <b>${ui.escapeHtml(state.entry.subject)}</b> ist bereits abgeschlossen.
-          <br>${summary}
+          Dein Zwischen-Check für <b>${ui.escapeHtml(state.entry.subject)}</b> (nur Ansicht)
         </div>
+        ${renderCheckDetailsList(ui, c)}
         ${ui.btnGhost("Zurück zu Mein Tag", "checkBackBtn")}
       </div>`;
 
@@ -307,8 +332,12 @@
     }
 
     if (state.existingCheck) {
-      renderDone();
-      return;
+      if (state.existingCheck.canEdit && applyCheckToState(state.existingCheck)) {
+        // Bearbeitungsmodus – Formular weiter unten
+      } else {
+        renderReadOnly();
+        return;
+      }
     }
 
     const ui = UI();
@@ -323,6 +352,12 @@
         <p class="logbuch-meta">${ui.escapeHtml(formatDate(dateIso))}${e.timeslot ? ` · ${ui.escapeHtml(e.timeslot)}` : ""}</p>
 
         ${renderDailyGoalCard(ui, e)}
+
+        ${
+          state.existingCheck?.canEdit
+            ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest deinen Zwischen-Check – beim Speichern gibt es kein zusätzliches XP.</div>`
+            : ""
+        }
 
         ${ui.fieldWrap(
           ui.fieldLabel("Bin ich auf dem richtigen Weg?", { required: true }),
@@ -364,7 +399,11 @@
         ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
 
         ${ui.btnPrimary(
-          state.submitting ? "Speichern…" : "Zwischen-Check speichern (+3 XP)",
+          state.submitting
+            ? "Speichern…"
+            : state.existingCheck?.canEdit
+              ? "Zwischen-Check speichern"
+              : "Zwischen-Check speichern (+3 XP)",
           "checkSubmitBtn",
           state.submitting || !allQuestionsAnswered(),
           "logbuch-submit-full"
@@ -417,12 +456,19 @@
       payload.selectedStrategyNextStep = state.selectedStrategyNextStep;
     }
 
+    const isEdit = !!state.existingCheck?.canEdit;
+
     try {
-      const res = await fetch("/api/student/log/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      const res = await fetch(
+        isEdit
+          ? `/api/student/log/check/${encodeURIComponent(state.entryId)}`
+          : "/api/student/log/check",
+        {
+          method: isEdit ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        }
+      );
 
       const data = await res.json();
 
@@ -490,6 +536,9 @@
 
       state.entry = data.entry;
       state.existingCheck = data.existingCheck || null;
+      if (state.existingCheck?.canEdit) {
+        applyCheckToState(state.existingCheck);
+      }
       render();
     } catch (err) {
       console.error(err);

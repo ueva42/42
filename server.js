@@ -742,6 +742,33 @@ async function enrichPlanEntryForStudent(studentId, entry, date) {
   return { ...entry, canEdit };
 }
 
+async function logEntryIsTodayForStudent(studentId, logEntryId) {
+  const entryRes = await pool.query(
+    `SELECT date FROM log_entries WHERE id=$1 AND user_id=$2`,
+    [logEntryId, studentId]
+  );
+  if (!entryRes.rows.length) return false;
+  return normalizeIsoDate(entryRes.rows[0].date) === todayIsoDate();
+}
+
+async function checkEntryCanEdit(studentId, logEntryId) {
+  if (!(await logEntryIsTodayForStudent(studentId, logEntryId))) return false;
+  const refl = await pool.query(
+    `SELECT id FROM log_reflections WHERE log_entry_id = $1 LIMIT 1`,
+    [logEntryId]
+  );
+  return !refl.rows.length;
+}
+
+async function reflectionEntryCanEdit(studentId, logEntryId) {
+  if (!(await logEntryIsTodayForStudent(studentId, logEntryId))) return false;
+  const refl = await pool.query(
+    `SELECT id FROM log_reflections WHERE log_entry_id = $1 LIMIT 1`,
+    [logEntryId]
+  );
+  return !!refl.rows.length;
+}
+
 const LOG_HOW_GOALS = [
   "Ich schaue mir zuerst ein Beispiel an.",
   "Ich starte mit Rookie-Aufgaben.",
@@ -3855,6 +3882,11 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         le.checkpoint_title, le.what_goal_text, le.how_goal_text, le.details_text,
         le.selected_level, le.level_goal_text,
         lc.id AS check_id,
+        lc.on_track AS check_on_track,
+        lc.understands AS check_understands,
+        lc.progress AS check_progress,
+        lc.next_step_answer AS check_next_step_answer,
+        lc.selected_strategy_name AS check_selected_strategy_name,
         lr.id AS reflection_id,
         lr.goal_achieved, lr.how_worked, lr.next_step,
         lr.confidence_after, lr.learned_today
@@ -3896,6 +3928,15 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         created_at: row.created_at,
         hasCheck: !!row.check_id,
         hasReflection: !!row.reflection_id,
+        check: row.check_id
+          ? {
+              on_track: row.check_on_track,
+              understands: row.check_understands,
+              progress: row.check_progress,
+              next_step_answer: row.check_next_step_answer,
+              selected_strategy_name: row.check_selected_strategy_name
+            }
+          : null,
         reflection: row.reflection_id
           ? {
               goal_achieved: row.goal_achieved,
@@ -4033,9 +4074,15 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
       [entryId]
     );
 
+    let existingCheck = checkRes.rows[0] || null;
+    if (existingCheck) {
+      const canEdit = await checkEntryCanEdit(studentId, entryId);
+      existingCheck = { ...existingCheck, canEdit };
+    }
+
     res.json({
       entry,
-      existingCheck: checkRes.rows[0] || null
+      existingCheck
     });
   } catch (err) {
     console.error("❌ /api/student/log/check-context:", err);
@@ -4174,6 +4221,118 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
   }
 });
 
+app.patch("/api/student/log/check/:logEntryId", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const logEntryId = req.params.logEntryId;
+
+    const entryRes = await pool.query(
+      "SELECT id FROM log_entries WHERE id=$1 AND user_id=$2",
+      [logEntryId, studentId]
+    );
+
+    if (!entryRes.rows.length) {
+      return res.json({ success: false, message: "Lern-Eintrag nicht gefunden." });
+    }
+
+    if (!(await checkEntryCanEdit(studentId, logEntryId))) {
+      return res.json({
+        success: false,
+        message: "Dieser Zwischen-Check kann nicht mehr bearbeitet werden.",
+        readOnly: true
+      });
+    }
+
+    const {
+      onTrack,
+      understands,
+      progress,
+      nextStepAnswer = null,
+      selectedStrategyName = null,
+      selectedStrategyProblem = null,
+      selectedStrategyNextStep = null
+    } = req.body;
+
+    const onTrackVal = onTrack;
+    const understandsVal = understands;
+    const progressVal = progress;
+    const nextStepVal =
+      typeof nextStepAnswer === "string" && nextStepAnswer.trim()
+        ? nextStepAnswer.trim()
+        : null;
+    const strategyName =
+      typeof selectedStrategyName === "string" && selectedStrategyName.trim()
+        ? selectedStrategyName.trim().slice(0, 120)
+        : null;
+    const strategyProblem =
+      typeof selectedStrategyProblem === "string" && selectedStrategyProblem.trim()
+        ? selectedStrategyProblem.trim().slice(0, 200)
+        : null;
+    const strategyNextStep =
+      typeof selectedStrategyNextStep === "string" && selectedStrategyNextStep.trim()
+        ? selectedStrategyNextStep.trim().slice(0, 200)
+        : null;
+
+    if (isLegacyCheckRating(onTrackVal) || isLegacyCheckRating(understandsVal) || isLegacyCheckRating(progressVal)) {
+      return res.json({
+        success: false,
+        message: "Alter Zwischen-Check-Typ kann nicht bearbeitet werden."
+      });
+    }
+
+    if (!isAllowedCheckAnswer(onTrackVal, LOG_CHECK_ON_TRACK)) {
+      return res.json({ success: false, message: "Bitte Frage 1 beantworten." });
+    }
+    if (!isAllowedCheckAnswer(understandsVal, LOG_CHECK_UNDERSTANDING)) {
+      return res.json({ success: false, message: "Bitte Frage 2 beantworten." });
+    }
+    if (!isAllowedCheckAnswer(progressVal, LOG_CHECK_PROGRESS)) {
+      return res.json({ success: false, message: "Bitte Frage 3 beantworten." });
+    }
+    if (!isAllowedCheckAnswer(nextStepVal, LOG_CHECK_NEXT_STEP)) {
+      return res.json({ success: false, message: "Bitte Frage 4 beantworten." });
+    }
+
+    const existingRes = await pool.query(
+      "SELECT id FROM log_checks WHERE log_entry_id=$1",
+      [logEntryId]
+    );
+
+    if (!existingRes.rows.length) {
+      return res.json({ success: false, message: "Zwischen-Check nicht gefunden." });
+    }
+
+    await pool.query(
+      `
+      UPDATE log_checks
+      SET on_track=$2,
+          understands=$3,
+          progress=$4,
+          next_step_answer=$5,
+          selected_strategy_name=$6,
+          selected_strategy_problem=$7,
+          selected_strategy_next_step=$8
+      WHERE log_entry_id=$1
+    `,
+      [
+        logEntryId,
+        onTrackVal,
+        understandsVal,
+        progressVal,
+        nextStepVal,
+        strategyName,
+        strategyProblem,
+        strategyNextStep
+      ]
+    );
+
+    res.json({ success: true, updated: true });
+  } catch (err) {
+    console.error("❌ PATCH /api/student/log/check:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
 // -------------------------------------------------------
 // STUDENT: SRL-Logbuch – Tagesabschluss
 // -------------------------------------------------------
@@ -4209,9 +4368,15 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
       [entryId]
     );
 
+    let existingReflection = reflectionRes.rows[0] || null;
+    if (existingReflection) {
+      const canEdit = await reflectionEntryCanEdit(studentId, entryId);
+      existingReflection = { ...existingReflection, canEdit };
+    }
+
     res.json({
       entry: entryRes.rows[0],
-      existingReflection: reflectionRes.rows[0] || null
+      existingReflection
     });
   } catch (err) {
     console.error("❌ /api/student/log/reflect-context:", err);
@@ -4305,6 +4470,90 @@ app.post("/api/student/log/reflect", isStudent, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ /api/student/log/reflect:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.patch("/api/student/log/reflect/:logEntryId", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const logEntryId = req.params.logEntryId;
+
+    const entryRes = await pool.query(
+      "SELECT id FROM log_entries WHERE id=$1 AND user_id=$2",
+      [logEntryId, studentId]
+    );
+
+    if (!entryRes.rows.length) {
+      return res.json({ success: false, message: "Lern-Eintrag nicht gefunden." });
+    }
+
+    if (!(await reflectionEntryCanEdit(studentId, logEntryId))) {
+      return res.json({
+        success: false,
+        message: "Diese Reflexion kann nicht mehr bearbeitet werden.",
+        readOnly: true
+      });
+    }
+
+    const {
+      goalAchieved,
+      howWorked,
+      nextStep,
+      confidenceAfter,
+      learnedToday = null
+    } = req.body;
+
+    if (!goalAchieved || !LOG_GOAL_ACHIEVED.includes(goalAchieved)) {
+      return res.json({ success: false, message: "Bitte Zielerreichung wählen." });
+    }
+
+    if (!howWorked || !LOG_HOW_WORKED.includes(howWorked)) {
+      return res.json({ success: false, message: "Bitte Arbeitsweise wählen." });
+    }
+
+    if (!nextStep || !LOG_NEXT_STEPS.includes(nextStep)) {
+      return res.json({ success: false, message: "Bitte nächsten Schritt wählen." });
+    }
+
+    const confidence = Number(confidenceAfter);
+    if (!Number.isInteger(confidence) || confidence < 1 || confidence > 5) {
+      return res.json({
+        success: false,
+        message: "Selbstwirksamkeit muss zwischen 1 und 5 liegen."
+      });
+    }
+
+    const cleanLearned =
+      typeof learnedToday === "string" && learnedToday.trim()
+        ? learnedToday.trim().slice(0, 200)
+        : null;
+
+    const existingRes = await pool.query(
+      "SELECT id FROM log_reflections WHERE log_entry_id=$1",
+      [logEntryId]
+    );
+
+    if (!existingRes.rows.length) {
+      return res.json({ success: false, message: "Reflexion nicht gefunden." });
+    }
+
+    await pool.query(
+      `
+      UPDATE log_reflections
+      SET goal_achieved=$2,
+          how_worked=$3,
+          next_step=$4,
+          confidence_after=$5,
+          learned_today=$6
+      WHERE log_entry_id=$1
+    `,
+      [logEntryId, goalAchieved, howWorked, nextStep, confidence, cleanLearned]
+    );
+
+    res.json({ success: true, updated: true });
+  } catch (err) {
+    console.error("❌ PATCH /api/student/log/reflect:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
