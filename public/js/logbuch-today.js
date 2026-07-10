@@ -281,7 +281,7 @@
         ${goalBody}
         ${checkBody}
         ${reflectBody}
-        ${!entry.level_goal_text && checkpointHint}
+        ${entry.level_goal_text ? "" : checkpointHint}
         ${actions}
       </div>`;
   }
