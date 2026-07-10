@@ -683,7 +683,7 @@ async function fetchTimetableForClassDay(classId, weekday) {
 }
 
 const PLAN_ENTRY_FIELDS = `
-  id, subject, goal, timeslot, work_goals, social_form,
+  id, date, subject, goal, timeslot, work_goals, social_form,
   strategy, confidence_before, freitext, created_at,
   checkpoint_id, checkpoint_title,
   what_goal_id, what_goal_text, how_goal_text, details_text,
@@ -724,6 +724,22 @@ async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId })
     [studentId, date, subject, timeslot || null]
   );
   return flexible.rows[0] || null;
+}
+
+async function planEntryCanEdit(studentId, entry, date) {
+  if (!entry || !entry.id) return false;
+  if (date !== todayIsoDate()) return false;
+  const refl = await pool.query(
+    `SELECT id FROM log_reflections WHERE log_entry_id = $1 LIMIT 1`,
+    [entry.id]
+  );
+  return !refl.rows.length;
+}
+
+async function enrichPlanEntryForStudent(studentId, entry, date) {
+  if (!entry) return null;
+  const canEdit = await planEntryCanEdit(studentId, entry, date);
+  return { ...entry, canEdit };
 }
 
 const LOG_HOW_GOALS = [
@@ -2971,6 +2987,9 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
         timeslot
       });
     }
+    if (existingEntry) {
+      existingEntry = await enrichPlanEntryForStudent(studentId, existingEntry, date);
+    }
 
     const timetableSubjects = timetableSubjectsFromRows(timetable);
     const lockedSubject = timetableSubjectForSlot(timetable, timeslot);
@@ -3272,6 +3291,223 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ /api/student/log/plan:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const entryId = req.params.entryId;
+
+    const existing = await findPlanLogEntry(studentId, { entryId });
+    if (!existing) {
+      return res.json({ success: false, message: "Tagesziel nicht gefunden." });
+    }
+
+    const date = normalizeIsoDate(existing.date) || isoDateOrToday(req.body.date);
+    if (!(await planEntryCanEdit(studentId, existing, date))) {
+      return res.json({
+        success: false,
+        message: "Dieses Tagesziel kann nicht mehr bearbeitet werden.",
+        readOnly: true,
+        entryId: existing.id
+      });
+    }
+
+    const {
+      subject = existing.subject,
+      goal,
+      checkpointId = null,
+      checkpointTitle = null,
+      whatGoalId = null,
+      selectedLevel = null,
+      howGoalText = null,
+      detailsText = null,
+      workGoals = [],
+      socialForm = null,
+      strategy = null,
+      confidenceBefore = null,
+      freitext = null
+    } = req.body;
+
+    if (!subject || !LOG_SUBJECTS.includes(subject)) {
+      return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
+    }
+
+    const normalizedHowGoal = String(howGoalText || goal || "").trim();
+    const { classId, schoolId: classSchoolId } = await getStudentClassContext(studentId);
+    const effectiveSchoolId = classSchoolId || schoolId;
+    const allowedHowGoals = await getLessonGoalsForSubject(effectiveSchoolId, subject);
+    if (!isAllowedHowGoal(normalizedHowGoal, allowedHowGoals)) {
+      return res.json({
+        success: false,
+        message: "Bitte ein gültiges Wie-Ziel wählen."
+      });
+    }
+
+    let validWhatGoalOptions = [];
+    let nextCheckpoint = null;
+    let goalSource = "none";
+    if (classId) {
+      const checks = await getLevelChecksForClass(classId, classSchoolId, studentId);
+      const picked = collectWhatGoalsForPlan(checks, subject);
+      validWhatGoalOptions = picked.options;
+      nextCheckpoint = picked.checkpoint;
+      goalSource = picked.goalSource;
+    }
+
+    const whatById = new Map(validWhatGoalOptions.map((g) => [String(g.id), g]));
+    const cleanWhatGoalId =
+      typeof whatGoalId === "string" || typeof whatGoalId === "number"
+        ? String(whatGoalId)
+        : null;
+
+    if (!cleanWhatGoalId || !whatById.has(cleanWhatGoalId)) {
+      if (goalSource === "checkpoint_empty") {
+        return res.json({
+          success: false,
+          message: "Für diesen Nachweis wurden noch keine Ziele hinterlegt."
+        });
+      }
+      if (!validWhatGoalOptions.length) {
+        return res.json({
+          success: false,
+          message: "Kein kommender Nachweis gefunden. Bitte Lehrkraft informieren."
+        });
+      }
+      return res.json({
+        success: false,
+        message: "Bitte ein Was-Ziel aus dem Levelplan wählen."
+      });
+    }
+
+    const goalOption = whatById.get(cleanWhatGoalId);
+    const normalizedLevel = String(selectedLevel || "").toLowerCase();
+    if (!LEVEL_CHECK_TIERS.includes(normalizedLevel)) {
+      return res.json({ success: false, message: "Bitte ein Level wählen." });
+    }
+
+    const finalLevelGoalText = levelGoalTextForOption(goalOption, normalizedLevel);
+    if (!finalLevelGoalText) {
+      return res.json({
+        success: false,
+        message: "Für dieses Level wurde noch kein Zieltext hinterlegt."
+      });
+    }
+
+    const cleanWorkGoals = Array.isArray(workGoals)
+      ? workGoals.filter((g) => LOG_WORK_GOALS.includes(g))
+      : [];
+
+    if (socialForm && !LOG_SOCIAL_FORMS.includes(socialForm)) {
+      return res.json({ success: false, message: "Ungültige Sozialform." });
+    }
+
+    if (socialForm === "gruppe" || socialForm === "frei") {
+      const unlock = await getSocialFormUnlock(studentId, schoolId);
+      if (socialForm === "gruppe" && !unlock.gruppe) {
+        return res.json({
+          success: false,
+          message: "Gruppe ist erst ab Level Silber freigeschaltet."
+        });
+      }
+      if (socialForm === "frei" && !unlock.frei) {
+        return res.json({
+          success: false,
+          message: "Frei ist erst ab Level Gold freigeschaltet."
+        });
+      }
+    }
+
+    if (strategy && !LOG_STRATEGIES.includes(strategy)) {
+      return res.json({ success: false, message: "Ungültige Lernstrategie." });
+    }
+
+    const confidence =
+      confidenceBefore === null || confidenceBefore === undefined
+        ? null
+        : Number(confidenceBefore);
+    if (
+      confidence !== null &&
+      (!Number.isInteger(confidence) || confidence < 1 || confidence > 5)
+    ) {
+      return res.json({
+        success: false,
+        message: "Selbstwirksamkeit muss zwischen 1 und 5 liegen."
+      });
+    }
+
+    const cleanDetailsText =
+      typeof detailsText === "string" && detailsText.trim()
+        ? detailsText.trim().slice(0, 100)
+        : typeof freitext === "string" && freitext.trim()
+          ? freitext.trim().slice(0, 100)
+          : null;
+
+    const finalCheckpointId = nextCheckpoint?.id || null;
+    const finalCheckpointTitle = nextCheckpoint
+      ? `${resolveCheckpointTypeLabel(nextCheckpoint.checkpointType, nextCheckpoint.checkpointTypeLabel)}: ${nextCheckpoint.name}`
+      : typeof checkpointTitle === "string" && checkpointTitle.trim()
+        ? checkpointTitle.trim().slice(0, 200)
+        : existing.checkpoint_title;
+
+    const upd = await pool.query(
+      `
+      UPDATE log_entries
+      SET
+        subject = $1,
+        goal = $2,
+        work_goals = $3::jsonb,
+        social_form = $4,
+        strategy = $5,
+        confidence_before = $6,
+        freitext = $7,
+        checkpoint_id = $8,
+        checkpoint_title = $9,
+        what_goal_id = $10,
+        what_goal_text = $11,
+        how_goal_text = $12,
+        details_text = $13,
+        selected_level = $14,
+        level_goal_text = $15
+      WHERE id = $16 AND user_id = $17
+      RETURNING id, created_at
+    `,
+      [
+        subject,
+        normalizedHowGoal,
+        JSON.stringify(cleanWorkGoals),
+        socialForm || null,
+        strategy || null,
+        confidence,
+        cleanDetailsText,
+        finalCheckpointId,
+        finalCheckpointTitle,
+        cleanWhatGoalId,
+        goalOption.text,
+        normalizedHowGoal,
+        cleanDetailsText,
+        normalizedLevel,
+        finalLevelGoalText,
+        entryId,
+        studentId
+      ]
+    );
+
+    if (!upd.rows.length) {
+      return res.json({ success: false, message: "Tagesziel nicht gefunden." });
+    }
+
+    res.json({
+      success: true,
+      entry: upd.rows[0],
+      xpAwarded: 0,
+      updated: true
+    });
+  } catch (err) {
+    console.error("❌ PATCH /api/student/log/plan:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });

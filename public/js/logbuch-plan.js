@@ -62,6 +62,7 @@
     detailsText: "",
     socialUnlock: { gruppe: false, frei: false },
     existingEntry: null,
+    editingEntryId: null,
     whatGoalOptions: [],
     howGoals: HOW_GOAL_OPTIONS,
     howGoalsBase: HOW_GOAL_OPTIONS,
@@ -178,6 +179,24 @@
     return ui.msg("Für dieses Fach wurden noch keine Ziele aus dem Levelplan importiert.");
   }
 
+  function applyEntryToForm(entry) {
+    state.editingEntryId = entry.id;
+    state.entryId = entry.id;
+    state.subject = entry.subject;
+    if (entry.timeslot) state.timeslot = entry.timeslot;
+    state.whatGoalId = entry.what_goal_id;
+    state.whatGoalText = entry.what_goal_text || "";
+    state.selectedLevel = entry.selected_level;
+    state.levelGoalText = entry.level_goal_text || "";
+    state.howGoalText = entry.how_goal_text || entry.goal || null;
+    state.detailsText = entry.details_text || entry.freitext || "";
+    state.workGoals = Array.isArray(entry.work_goals) ? entry.work_goals : [];
+    state.socialForm = entry.social_form || null;
+    state.confidenceBefore = entry.confidence_before ?? null;
+    state.existingEntry = null;
+    refreshHowGoals();
+  }
+
   function renderExistingEntry(ui, dateLabel) {
     const e = state.existingEntry;
     const workGoals = Array.isArray(e.work_goals) ? e.work_goals : [];
@@ -201,7 +220,7 @@
     return `
       <div class="logbuch-form logbuch-form-readonly">
         <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${e.timeslot ? ` · ${ui.escapeHtml(e.timeslot)}` : ""}</p>
-        <div class="logbuch-msg logbuch-msg-info">Dein Tagesziel (nur Ansicht – nicht änderbar)</div>
+        <div class="logbuch-msg logbuch-msg-info">Dein Tagesziel (nur Ansicht – nach dem Tagesabschluss nicht mehr änderbar)</div>
         ${dailyGoalBlockHtml(ui, e)}
         <dl class="plan-readonly-list">
           ${rows
@@ -247,6 +266,12 @@
     root.innerHTML = `
       <div class="logbuch-form">
         <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${state.timeslot ? ` · ${ui.escapeHtml(state.timeslot)}` : ""}</p>
+
+        ${
+          state.editingEntryId
+            ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest dein Tagesziel – beim Speichern gibt es kein zusätzliches XP.</div>`
+            : ""
+        }
 
         ${
           state.subjectLocked
@@ -377,7 +402,11 @@
         ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
 
         ${ui.btnPrimary(
-          state.submitting ? "Speichern…" : "Tagesziel speichern (+2 XP)",
+          state.submitting
+            ? "Speichern…"
+            : state.editingEntryId
+              ? "Änderungen speichern"
+              : "Tagesziel speichern (+2 XP)",
           "planSubmitBtn",
           state.submitting || !state.whatGoalOptions.length,
           "logbuch-submit-full"
@@ -490,10 +519,15 @@
     render();
 
     try {
-      const res = await fetch("/api/student/log/plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const isEdit = !!state.editingEntryId;
+      const res = await fetch(
+        isEdit
+          ? `/api/student/log/plan/${encodeURIComponent(state.editingEntryId)}`
+          : "/api/student/log/plan",
+        {
+          method: isEdit ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
           date: state.date,
           timeslot: state.timeslot || null,
           subject: state.subject,
@@ -557,6 +591,9 @@
 
     state.socialUnlock = data.socialUnlock || { gruppe: false, frei: false };
     state.existingEntry = data.existingEntry || null;
+    if (data.existingEntry?.canEdit) {
+      applyEntryToForm(data.existingEntry);
+    }
     state.hasClass = data.hasClass !== false;
     state.howGoalsBase = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
     refreshHowGoals();
@@ -608,6 +645,7 @@
     state.nextCheckpoint = null;
     state.goalSource = "none";
     state.existingEntry = null;
+    state.editingEntryId = null;
     state.hasClass = true;
     state.subjectLocked = false;
     state.submitting = false;

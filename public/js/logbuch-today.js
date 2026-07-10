@@ -191,9 +191,9 @@
     if (entry.timeslot) params.set("timeslot", entry.timeslot);
 
     const viewPlanBtn = `
-      <button type="button" class="logbuch-btn-ghost today-view-plan-btn"
+      <button type="button" class="${editable && !entry.hasReflection ? "btn-primary today-plan-btn" : "logbuch-btn-ghost today-view-plan-btn"}"
         data-nav="plan" data-query="${ui.escapeHtml(params.toString())}">
-        Tagesziel ansehen
+        ${editable && !entry.hasReflection ? "Tagesziel bearbeiten" : "Tagesziel ansehen"}
       </button>`;
 
     const actions = !readOnly ? `${viewPlanBtn}${renderActionSelect(entry)}` : viewPlanBtn;
