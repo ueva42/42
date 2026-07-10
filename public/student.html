@@ -928,6 +928,141 @@ a { color: inherit; }
 }
 .check-done-list li { margin-bottom: 6px; }
 
+.check-strategy-block {
+  margin: 4px 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.logbuch-btn-strategy {
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.logbuch-btn-strategy:hover {
+  background: rgba(245, 158, 11, 0.22);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.25);
+}
+.check-strategy-selected {
+  margin-top: 4px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px dashed rgba(245, 158, 11, 0.35);
+  background: rgba(15, 23, 42, 0.45);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.check-strategy-selected-label {
+  display: block;
+  opacity: 0.7;
+  margin-bottom: 2px;
+}
+.strategy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(2, 6, 23, 0.82);
+  backdrop-filter: blur(4px);
+}
+.strategy-modal {
+  width: min(100%, 480px);
+  max-height: min(88vh, 720px);
+  overflow-y: auto;
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  border: 2px solid rgba(245, 158, 11, 0.35);
+  background: linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98));
+  box-shadow: 0 12px 40px rgba(0,0,0,0.85);
+}
+.strategy-modal-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: #fcd34d;
+}
+.strategy-modal-kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.strategy-problem-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.strategy-problem-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,0.25);
+  background: rgba(15,23,42,0.65);
+  color: #e5e7eb;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.strategy-problem-btn:hover {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.08);
+}
+.strategy-problem-num {
+  color: #f59e0b;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.strategy-tutorial-block {
+  margin-bottom: 12px;
+}
+.strategy-tutorial-block h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+}
+.strategy-tutorial-block p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.strategy-steps {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.strategy-steps li {
+  margin-bottom: 6px;
+}
+.strategy-next-block p {
+  color: #fcd34d;
+  font-weight: 600;
+}
+.strategy-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.strategy-modal-actions-end {
+  justify-content: flex-end;
+}
+
 .logbuch-check-goal {
   border-color: rgba(245, 158, 11, 0.35);
   background: rgba(245, 158, 11, 0.08);
@@ -2608,12 +2743,13 @@ h2 {
 </div>
 
 <script src="/js/auth-fetch.js?v=3"></script>
-<script src="/js/logbuch-constants.js?v=4"></script>
+<script src="/js/logbuch-constants.js?v=5"></script>
+<script src="/js/logbuch-strategies.js?v=1"></script>
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=2"></script>
 <script src="/js/logbuch-plan.js?v=12"></script>
-<script src="/js/logbuch-check.js?v=2"></script>
+<script src="/js/logbuch-check.js?v=3"></script>
 <script src="/js/logbuch-reflect.js"></script>
 <script src="/js/logbuch-today.js?v=13"></script>
 <script src="/js/logbuch-week.js"></script>

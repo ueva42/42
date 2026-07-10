@@ -120,12 +120,16 @@ window.LOGBUCH = {
   CHECK_NEXT_STEP: [
     "Ich arbeite weiter wie geplant.",
     "Ich schaue mir ein Beispiel an.",
+    "Ich schaue mir zuerst eine Beispielaufgabe an.",
     "Ich nutze eine Hilfestellung.",
     "Ich vergleiche mit der Musterlösung.",
     "Ich frage eine Partnerin oder einen Partner.",
     "Ich teile die Aufgabe in kleine Schritte.",
     "Ich mache eine Probe oder kontrolliere rückwärts.",
-    "Ich gehe kurz zurück zu Rookie-Aufgaben."
+    "Ich gehe kurz zurück zu Rookie-Aufgaben.",
+    "Ich markiere gegeben und gesucht.",
+    "Ich suche gezielt meine Fehler und verbessere sie.",
+    "Ich arbeite 5 Minuten konzentriert an einer kleinen Aufgabe."
   ],
   COMPETENCY_STATUS: {
     offen: { label: "Offen", class: "status-offen" },

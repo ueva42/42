@@ -1221,12 +1221,16 @@ const LOG_CHECK_PROGRESS = [
 const LOG_CHECK_NEXT_STEP = [
   "Ich arbeite weiter wie geplant.",
   "Ich schaue mir ein Beispiel an.",
+  "Ich schaue mir zuerst eine Beispielaufgabe an.",
   "Ich nutze eine Hilfestellung.",
   "Ich vergleiche mit der Musterlösung.",
   "Ich frage eine Partnerin oder einen Partner.",
   "Ich teile die Aufgabe in kleine Schritte.",
   "Ich mache eine Probe oder kontrolliere rückwärts.",
-  "Ich gehe kurz zurück zu Rookie-Aufgaben."
+  "Ich gehe kurz zurück zu Rookie-Aufgaben.",
+  "Ich markiere gegeben und gesucht.",
+  "Ich suche gezielt meine Fehler und verbessere sie.",
+  "Ich arbeite 5 Minuten konzentriert an einer kleinen Aufgabe."
 ];
 
 function isLegacyCheckRating(value) {
@@ -2031,6 +2035,9 @@ async function migrate() {
     )
   `);
   await ensureColumn("log_checks", "next_step_answer", "TEXT");
+  await ensureColumn("log_checks", "selected_strategy_name", "TEXT");
+  await ensureColumn("log_checks", "selected_strategy_problem", "TEXT");
+  await ensureColumn("log_checks", "selected_strategy_next_step", "TEXT");
 
   // LogReflection – Tagesabschluss (Self-Reflection)
   await pool.query(`
@@ -4017,7 +4024,9 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
 
     const checkRes = await pool.query(
       `
-      SELECT id, on_track, understands, progress, change_note, next_step_answer, created_at
+      SELECT id, on_track, understands, progress, change_note, next_step_answer,
+             selected_strategy_name, selected_strategy_problem, selected_strategy_next_step,
+             created_at
       FROM log_checks
       WHERE log_entry_id=$1
     `,
@@ -4045,7 +4054,10 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
       understands,
       progress,
       nextStepAnswer = null,
-      changeNote = null
+      changeNote = null,
+      selectedStrategyName = null,
+      selectedStrategyProblem = null,
+      selectedStrategyNextStep = null
     } = req.body;
 
     if (!logEntryId) {
@@ -4067,6 +4079,18 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
     const nextStepVal =
       typeof nextStepAnswer === "string" && nextStepAnswer.trim()
         ? nextStepAnswer.trim()
+        : null;
+    const strategyName =
+      typeof selectedStrategyName === "string" && selectedStrategyName.trim()
+        ? selectedStrategyName.trim().slice(0, 120)
+        : null;
+    const strategyProblem =
+      typeof selectedStrategyProblem === "string" && selectedStrategyProblem.trim()
+        ? selectedStrategyProblem.trim().slice(0, 200)
+        : null;
+    const strategyNextStep =
+      typeof selectedStrategyNextStep === "string" && selectedStrategyNextStep.trim()
+        ? selectedStrategyNextStep.trim().slice(0, 200)
         : null;
 
     const isLegacySubmission =
@@ -4118,9 +4142,10 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
     const insertRes = await pool.query(
       `
       INSERT INTO log_checks (
-        log_entry_id, on_track, understands, progress, change_note, next_step_answer
+        log_entry_id, on_track, understands, progress, change_note, next_step_answer,
+        selected_strategy_name, selected_strategy_problem, selected_strategy_next_step
       )
-      VALUES ($1,$2,$3,$4,$5,$6)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING id, created_at
     `,
       [
@@ -4129,7 +4154,10 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
         understandsVal,
         progressVal,
         isLegacySubmission ? cleanChangeNote : null,
-        isLegacySubmission ? null : nextStepVal
+        isLegacySubmission ? null : nextStepVal,
+        isLegacySubmission ? null : strategyName,
+        isLegacySubmission ? null : strategyProblem,
+        isLegacySubmission ? null : strategyNextStep
       ]
     );
 
