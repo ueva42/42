@@ -40,7 +40,8 @@
     formDraft: {
       date: "",
       type: "klassenarbeit",
-      customLabel: ""
+      customLabel: "",
+      linked: []
     },
     data: null,
     loading: false,
@@ -54,7 +55,8 @@
     state.formDraft = {
       date: "",
       type: "klassenarbeit",
-      customLabel: ""
+      customLabel: "",
+      linked: []
     };
   }
 
@@ -66,7 +68,8 @@
     state.formDraft = {
       date: dateEl?.value?.trim() || "",
       type: typeEl?.value || "klassenarbeit",
-      customLabel: customEl?.value?.trim() || ""
+      customLabel: customEl?.value?.trim() || "",
+      linked: [...card.querySelectorAll(".tc-was-goal-check:checked")].map((el) => el.value)
     };
   }
 
@@ -173,13 +176,77 @@
     return Array.isArray(linked) ? linked.map((id) => String(id)) : [];
   }
 
-  function linkedGoalLabels(cp, topic) {
-    const ids = new Set(linkedIdsForCheckpoint(cp, topic));
+  function linkedGoalLabels(cp) {
+    const ids = new Set(linkedIdsForCheckpoint(cp));
     const labels = [];
-    for (const goal of topic?.goals || []) {
-      if (ids.has(String(goal.id))) labels.push(goal.text);
+    for (const topic of topicsForSubject()) {
+      for (const goal of topic.goals || []) {
+        if (ids.has(String(goal.id))) {
+          labels.push(`${topic.name}: ${goal.text}`);
+        }
+      }
     }
     return labels;
+  }
+
+  function linkedTopicNames(cp) {
+    const ids = new Set(linkedIdsForCheckpoint(cp));
+    const names = new Set();
+    for (const topic of topicsForSubject()) {
+      for (const goal of topic.goals || []) {
+        if (ids.has(String(goal.id))) names.add(topic.name);
+      }
+    }
+    if (names.size) return [...names].join(", ");
+    return cp.topicName || "–";
+  }
+
+  function primaryTopicIdFromLinked(linkedIds) {
+    const idSet = new Set((linkedIds || []).map((id) => String(id)));
+    for (const topic of topicsForSubject()) {
+      for (const goal of topic.goals || []) {
+        if (idSet.has(String(goal.id))) return topic.id;
+      }
+    }
+    return topicsForSubject()[0]?.id || null;
+  }
+
+  function renderGoalsByTopic(linked) {
+    const topics = topicsForSubject();
+    const sections = topics
+      .map((topic) => {
+        const goals = topic.goals || [];
+        if (!goals.length) return "";
+        const goalChecks = goals
+          .map(
+            (goal) => `
+        <label class="tc-was-goal-item">
+          <input type="checkbox" class="tc-was-goal-check" value="${escapeHtml(goal.id)}" ${linked.has(String(goal.id)) ? "checked" : ""}>
+          <span>${escapeHtml(goal.text)}</span>
+        </label>`
+          )
+          .join("");
+        return `
+        <div class="tc-topic-goal-group">
+          <h5 class="tc-topic-goal-title">${escapeHtml(topic.name)}</h5>
+          <div class="tc-was-goal-list">${goalChecks}</div>
+        </div>`;
+      })
+      .filter(Boolean)
+      .join("");
+
+    return sections || `<p class="tc-goal-empty">Für dieses Fach gibt es noch keine Was-Ziele.</p>`;
+  }
+
+  function startEditCheckpoint(checkpointId) {
+    const cp = checkpointById(checkpointId);
+    if (!cp) return;
+    clearFormDraft();
+    state.editCheckpointId = cp.id;
+    state.themaId = cp.topicId;
+    state.message = "";
+    state.error = "";
+    render();
   }
 
   function allCheckpoints() {
@@ -252,7 +319,7 @@
       date: state.formDraft.date,
       type: state.formDraft.type,
       customLabel: state.formDraft.customLabel,
-      linked: new Set()
+      linked: new Set(state.formDraft.linked || [])
     };
   }
 
@@ -274,9 +341,6 @@
       return renderCheckpointForm();
     }
 
-    const topic = topicById(values.topicId) || topics[0];
-    if (!topic) return "";
-
     const isCustom = values.type === "custom";
     const isEditing = !!state.editCheckpointId;
     const typeOptions = checkpointTypeOptions()
@@ -286,26 +350,8 @@
       )
       .join("");
 
-    const themaOptions = topics
-      .map(
-        (t) =>
-          `<option value="${escapeHtml(t.id)}" ${sameId(t.id, values.topicId) ? "selected" : ""}>${escapeHtml(t.name)}</option>`
-      )
-      .join("");
-
     const linked = values.linked;
-    const goals = topic.goals || [];
-    const goalChecks = goals.length
-      ? goals
-          .map(
-            (goal) => `
-        <label class="tc-was-goal-item">
-          <input type="checkbox" class="tc-was-goal-check" value="${escapeHtml(goal.id)}" ${linked.has(String(goal.id)) ? "checked" : ""}>
-          <span>${escapeHtml(goal.text)}</span>
-        </label>`
-          )
-          .join("")
-      : `<p class="tc-goal-empty">Für dieses Thema gibt es noch keine Was-Ziele.</p>`;
+    const goalSections = renderGoalsByTopic(linked);
 
     const saveLabel = typeLabelFor(
       values.type,
@@ -315,7 +361,7 @@
     return `
       <section class="tc-form-section">
         <h3>${isEditing ? "Checkpoint bearbeiten" : "Neuen Checkpoint planen"}</h3>
-        <article class="tc-levelcheck-card" data-topic-id="${escapeHtml(topic.id)}">
+        <article class="tc-levelcheck-card">
           <div class="tc-checkpoint-row">
             <label>
               Termin
@@ -343,16 +389,12 @@
                 ${isCustom ? "" : "disabled"}
               >
             </label>
-            <label>
-              Thema
-              <select class="tc-card-thema-select" ${isEditing ? "disabled" : ""}>${themaOptions}</select>
-            </label>
           </div>
 
           <div class="tc-linked-block">
-            <h4 class="tc-linked-title">Was-Ziele für diesen Checkpoint</h4>
-            <p class="tc-hint">Markiere die Unterthemen aus „${escapeHtml(topic.name)}“, die abgefragt werden.</p>
-            <div class="tc-was-goal-list">${goalChecks}</div>
+            <h4 class="tc-linked-title">Was-Ziele für diesen Nachweis</h4>
+            <p class="tc-hint">Themen und Unterthemen aus dem Levelplan markieren – auch über mehrere Themen hinweg.</p>
+            <div class="tc-topic-goal-groups">${goalSections}</div>
           </div>
 
           <div class="tc-save-row">
@@ -380,24 +422,25 @@
       .map((group) => {
         const items = group.items
           .map((cp) => {
-            const topic = topicById(cp.topicId);
+            const goals = linkedGoalLabels(cp);
+            const goalText = goals.length
+              ? goals.slice(0, 3).map(escapeHtml).join(", ") + (goals.length > 3 ? " …" : "")
+              : "Keine Was-Ziele markiert";
+            const themaText = linkedTopicNames(cp);
             const when =
               cp.dateIso >= today
                 ? `<span class="tc-when tc-when-upcoming">anstehend</span>`
                 : `<span class="tc-when tc-when-past">vergangen</span>`;
-            const goals = linkedGoalLabels(cp, topic);
-            const goalText = goals.length
-              ? goals.slice(0, 3).map(escapeHtml).join(", ") + (goals.length > 3 ? " …" : "")
-              : "Keine Was-Ziele markiert";
 
             return `
             <li class="tc-checkpoint-item ${state.editCheckpointId && sameId(state.editCheckpointId, cp.id) ? "tc-checkpoint-item-active" : ""}">
-              <button type="button" class="tc-checkpoint-item-main" data-edit-checkpoint-id="${escapeHtml(cp.id)}">
+              <div class="tc-checkpoint-item-body">
                 <span class="tc-checkpoint-item-date">${escapeHtml(isoToGerman(cp.dateIso))}</span>
-                <span class="tc-checkpoint-item-thema">${escapeHtml(cp.topicName)}</span>
+                <span class="tc-checkpoint-item-thema">${escapeHtml(themaText)}</span>
                 <span class="tc-checkpoint-item-goals">${goalText}</span>
                 ${when}
-              </button>
+              </div>
+              <button type="button" class="tc-edit-btn tc-checkpoint-edit" data-edit-checkpoint-id="${escapeHtml(cp.id)}">Bearbeiten</button>
               <button type="button" class="tc-delete-btn tc-checkpoint-del" data-checkpoint-id="${escapeHtml(cp.id)}" ${state.deletingId === String(cp.id) ? "disabled" : ""} title="Checkpoint löschen">×</button>
             </li>`;
           })
@@ -414,7 +457,7 @@
     return `
       <section class="tc-overview-section">
         <h3>Geplante & vergangene Checkpoints</h3>
-        <p class="hint">Neueste Termine oben, älteste unten – gruppiert nach Art. Klicken zum Bearbeiten.</p>
+        <p class="hint">Neueste Termine oben, älteste unten – gruppiert nach Art.</p>
         ${sections}
       </section>`;
   }
@@ -449,8 +492,8 @@
       <div class="panel">
         <h2>Levelstatus</h2>
         <p class="hint">
-          Termin (tt.mm.jjjj), Art und Thema wählen, Was-Ziele markieren – dann speichern.
-          Pro Thema können mehrere Checkpoints mit unterschiedlichen Terminen angelegt werden.
+          Termin (tt.mm.jjjj) und Art wählen, Was-Ziele über mehrere Themen markieren – dann speichern.
+          Pro Fach können mehrere Nachweise mit unterschiedlichen Terminen angelegt werden.
         </p>
 
         <div class="tc-toolbar">
@@ -525,41 +568,35 @@
 
     const card = root.querySelector(".tc-levelcheck-card");
     if (card) {
-      card.querySelector(".tc-card-thema-select")?.addEventListener("change", (e) => {
-        if (state.editCheckpointId) return;
-        captureFormDraft(card);
-        state.themaId = e.target.value;
-        state.message = "";
-        state.error = "";
-        render();
-      });
-
       card.querySelector(".tc-checkpoint-type")?.addEventListener("change", (e) => {
+        captureFormDraft(card);
         toggleCustomField(card, e.target.value === "custom");
         updateSaveButtonLabel(card);
       });
 
       card.querySelector(".tc-checkpoint-type-custom")?.addEventListener("input", () => {
+        captureFormDraft(card);
         updateSaveButtonLabel(card);
       });
 
+      card.querySelector(".tc-checkpoint-date")?.addEventListener("input", () => {
+        captureFormDraft(card);
+      });
+
+      card.querySelectorAll(".tc-was-goal-check").forEach((el) => {
+        el.addEventListener("change", () => captureFormDraft(card));
+      });
+
       card.querySelector("#tcSaveCheckpointBtn")?.addEventListener("click", () => {
-        saveCheckpoint(card.dataset.topicId);
+        saveCheckpoint();
       });
 
       card.querySelector("#tcNewCheckpointBtn")?.addEventListener("click", resetNewForm);
     }
 
-    root.querySelectorAll(".tc-checkpoint-item-main").forEach((btn) => {
+    root.querySelectorAll(".tc-checkpoint-edit").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const cp = checkpointById(btn.dataset.editCheckpointId);
-        if (!cp) return;
-        clearFormDraft();
-        state.editCheckpointId = cp.id;
-        state.themaId = cp.topicId;
-        state.message = "";
-        state.error = "";
-        render();
+        startEditCheckpoint(btn.dataset.editCheckpointId);
       });
     });
 
@@ -584,11 +621,10 @@
     btn.textContent = `${label} speichern`;
   }
 
-  function readCheckpointPayload(topicId) {
-    const card = document.querySelector(`.tc-levelcheck-card[data-topic-id="${topicId}"]`);
+  function readCheckpointPayload() {
+    const card = document.querySelector(".tc-levelcheck-card");
     if (!card) return null;
 
-    const themaEl = card.querySelector(".tc-card-thema-select");
     const dateEl = card.querySelector(".tc-checkpoint-date");
     const typeEl = card.querySelector(".tc-checkpoint-type");
     const customEl = card.querySelector(".tc-checkpoint-type-custom");
@@ -600,7 +636,7 @@
     );
 
     return {
-      levelCheckId: themaEl?.value || topicId,
+      levelCheckId: primaryTopicIdFromLinked(linkedSubtopicIds),
       checkpointDate,
       dateRaw,
       checkpointType,
@@ -609,9 +645,8 @@
     };
   }
 
-  async function saveCheckpoint(topicId) {
-    if (!topicId) return;
-    const payload = readCheckpointPayload(topicId);
+  async function saveCheckpoint() {
+    const payload = readCheckpointPayload();
     if (!payload) return;
 
     if (!payload.dateRaw) {
@@ -641,6 +676,8 @@
         method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          classId: state.classId,
+          subject: state.subject,
           levelCheckId: payload.levelCheckId,
           checkpointDate: payload.checkpointDate,
           checkpointType: payload.checkpointType,

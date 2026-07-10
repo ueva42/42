@@ -2162,6 +2162,11 @@ async function migrate() {
   `).catch(() => {});
 
   await pool.query(`
+    DELETE FROM level_checks lc
+    WHERE lower(trim(lc.name)) IN ('wahrscheinlichkeit ii', 'wahrsacherinlichkeit')
+  `).catch(() => {});
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS level_check_goals (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       school_id INTEGER,
@@ -4286,6 +4291,52 @@ async function validateLinkedSubtopicIds(levelCheckId, linkedSubtopicIds) {
   return r.rows.map((row) => row.id);
 }
 
+async function validateLinkedSubtopicIdsForClass(classId, schoolId, subject, linkedSubtopicIds) {
+  if (!classId || !subject) {
+    return { linkedIds: [], primaryLevelCheckId: null };
+  }
+  if (!Array.isArray(linkedSubtopicIds) || !linkedSubtopicIds.length) {
+    return { linkedIds: [], primaryLevelCheckId: null };
+  }
+  const ids = linkedSubtopicIds.map((id) => String(id)).filter(Boolean);
+  const r = await pool.query(
+    `
+    SELECT g.id::text, g.level_check_id
+    FROM level_check_goals g
+    JOIN level_checks lc ON lc.id = g.level_check_id
+    LEFT JOIN classes c ON c.id = lc.class_id
+    WHERE lc.class_id = $1
+      AND lc.subject = $2
+      AND (lc.school_id = $3 OR c.school_id = $3)
+      AND g.id::text = ANY($4::text[])
+      AND COALESCE(g.active, true) = true
+    ORDER BY lc.sort_order ASC, lc.name ASC, g.sort_order ASC, g.created_at ASC
+  `,
+    [classId, subject, schoolId, ids]
+  );
+  return {
+    linkedIds: r.rows.map((row) => row.id),
+    primaryLevelCheckId: r.rows[0]?.level_check_id || null
+  };
+}
+
+async function firstLevelCheckIdForClassSubject(classId, schoolId, subject) {
+  const r = await pool.query(
+    `
+    SELECT lc.id
+    FROM level_checks lc
+    LEFT JOIN classes c ON c.id = lc.class_id
+    WHERE lc.class_id = $1
+      AND lc.subject = $2
+      AND (lc.school_id = $3 OR c.school_id = $3)
+    ORDER BY lc.sort_order ASC, lc.name ASC
+    LIMIT 1
+  `,
+    [classId, subject, schoolId]
+  );
+  return r.rows[0]?.id || null;
+}
+
 function checkpointPayloadFromRow(row) {
   const mapped = mapLevelCheckCheckpointRow(row);
   return {
@@ -5629,14 +5680,16 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
 app.post("/api/teacher/levelcheck-checkpoints", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const levelCheckId = String(req.body.levelCheckId || "").trim();
+    const classId = Number(req.body.classId);
+    const subject = String(req.body.subject || "").trim();
+    let levelCheckId = String(req.body.levelCheckId || "").trim();
     const checkpointDate = normalizeIsoDate(req.body.checkpointDate);
     const checkpointType = normalizeCheckpointType(req.body.checkpointType || "klassenarbeit");
     const checkpointTypeLabel =
       checkpointType === "custom" ? normalizeFeedbackText(req.body.checkpointTypeLabel) : null;
 
-    if (!levelCheckId) {
-      return res.json({ success: false, message: "Thema fehlt." });
+    if (!classId || !subject) {
+      return res.json({ success: false, message: "Klasse oder Fach fehlt." });
     }
     if (!checkpointDate) {
       return res.json({ success: false, message: "Bitte ein gültiges Datum eingeben." });
@@ -5648,15 +5701,29 @@ app.post("/api/teacher/levelcheck-checkpoints", isAdmin, async (req, res) => {
       });
     }
 
-    const checkRow = await findLevelCheckForSchool(levelCheckId, schoolId);
+    const { linkedIds, primaryLevelCheckId } = await validateLinkedSubtopicIdsForClass(
+      classId,
+      schoolId,
+      subject,
+      req.body.linkedSubtopicIds
+    );
+
+    if (primaryLevelCheckId) {
+      levelCheckId = primaryLevelCheckId;
+    } else if (!levelCheckId) {
+      levelCheckId = await firstLevelCheckIdForClassSubject(classId, schoolId, subject);
+    }
+
+    if (!levelCheckId) {
+      return res.json({ success: false, message: "Kein Thema für dieses Fach gefunden." });
+    }
+
+    const checkRow = await findLevelCheckForSchool(levelCheckId, schoolId, classId);
     if (!checkRow) {
       return res.json({ success: false, message: "Thema nicht gefunden." });
     }
 
-    const linkedSubtopicIds = await validateLinkedSubtopicIds(
-      levelCheckId,
-      req.body.linkedSubtopicIds
-    );
+    const linkedSubtopicIds = linkedIds;
 
     const ins = await pool.query(
       `
@@ -5746,25 +5813,34 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) =
     let linkedSubtopicIds = Array.isArray(existing.linked_subtopic_ids)
       ? existing.linked_subtopic_ids.map((id) => String(id))
       : [];
+    let levelCheckId = existing.level_check_id;
     if (hasLinked) {
-      linkedSubtopicIds = await validateLinkedSubtopicIds(
-        existing.level_check_id,
+      const validated = await validateLinkedSubtopicIdsForClass(
+        existing.class_id,
+        schoolId,
+        existing.subject,
         req.body.linkedSubtopicIds
       );
+      linkedSubtopicIds = validated.linkedIds;
+      if (validated.primaryLevelCheckId) {
+        levelCheckId = validated.primaryLevelCheckId;
+      }
     }
 
     const upd = await pool.query(
       `
       UPDATE level_check_checkpoints
       SET
-        checkpoint_date = $1,
-        checkpoint_type = $2,
-        checkpoint_type_label = $3,
-        linked_subtopic_ids = $4::jsonb
-      WHERE id = $5
+        level_check_id = $1,
+        checkpoint_date = $2,
+        checkpoint_type = $3,
+        checkpoint_type_label = $4,
+        linked_subtopic_ids = $5::jsonb
+      WHERE id = $6
       RETURNING id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids
     `,
       [
+        levelCheckId,
         checkpointDate,
         checkpointType,
         checkpointTypeLabel,
@@ -5773,12 +5849,17 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) =
       ]
     );
 
+    const topicRes = await pool.query(
+      "SELECT subject, name FROM level_checks WHERE id = $1",
+      [levelCheckId]
+    );
+
     res.json({
       success: true,
       checkpoint: checkpointPayloadFromRow({
         ...upd.rows[0],
-        subject: existing.subject,
-        name: existing.name
+        subject: topicRes.rows[0]?.subject || existing.subject,
+        name: topicRes.rows[0]?.name || existing.name
       })
     });
   } catch (err) {
