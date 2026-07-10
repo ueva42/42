@@ -2163,7 +2163,11 @@ async function migrate() {
 
   await pool.query(`
     DELETE FROM level_checks lc
-    WHERE lower(trim(lc.name)) IN ('wahrscheinlichkeit ii', 'wahrsacherinlichkeit')
+    WHERE lower(trim(lc.name)) IN (
+      'wahrscheinlichkeit ii',
+      'wahrsacherinlichkeit',
+      'wahrsacherinlichkerit'
+    )
   `).catch(() => {});
 
   await pool.query(`
