@@ -687,7 +687,7 @@ const PLAN_ENTRY_FIELDS = `
   strategy, confidence_before, freitext, created_at,
   checkpoint_id, checkpoint_title,
   what_goal_id, what_goal_text, how_goal_text, details_text,
-  selected_level, level_goal_text
+  selected_level, level_goal_text, plan_b_strategy_text
 `;
 
 async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId }) {
@@ -1250,6 +1250,27 @@ const LOG_TIME_WASTERS = [
 ];
 
 const LOG_TIME_WASTER_LEVELS = ["nie", "selten", "manchmal", "oft"];
+
+const LOG_PLAN_B_OPTIONS = [
+  "Ich schaue mir eine Beispielaufgabe an.",
+  "Ich markiere gegeben und gesucht.",
+  "Ich nutze eine Hilfestellung.",
+  "Ich mache eine Probe oder kontrolliere rückwärts.",
+  "Ich teile die Aufgabe in kleine Schritte.",
+  "Ich frage eine Partnerin oder einen Partner.",
+  "Ich starte mit einer einfachen Rookie-Aufgabe.",
+  "Ich arbeite 5 Minuten konzentriert an einer kleinen Aufgabe."
+];
+
+function parsePlanBStrategyText(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const clean = String(value).trim();
+  if (!clean) return null;
+  if (!LOG_PLAN_B_OPTIONS.includes(clean)) {
+    return { error: "Ungültiger Plan B." };
+  }
+  return clean;
+}
 
 const LOG_WEEK_STRATEGIES = [
   "Gegeben und gesucht markieren",
@@ -2291,6 +2312,7 @@ async function migrate() {
   await ensureColumn("log_entries", "details_text", "TEXT");
   await ensureColumn("log_entries", "selected_level", "TEXT");
   await ensureColumn("log_entries", "level_goal_text", "TEXT");
+  await ensureColumn("log_entries", "plan_b_strategy_text", "TEXT");
 
   // LogCheck – Zwischen-Check (Performance)
   await pool.query(`
@@ -3485,7 +3507,8 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       socialForm = null,
       strategy = null,
       confidenceBefore = null,
-      freitext = null
+      freitext = null,
+      planBStrategyText = null
     } = req.body;
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
@@ -3632,6 +3655,11 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
           ? freitext.trim().slice(0, 100)
           : null;
 
+    const parsedPlanB = parsePlanBStrategyText(planBStrategyText);
+    if (parsedPlanB && parsedPlanB.error) {
+      return res.json({ success: false, message: parsedPlanB.error });
+    }
+
     const finalCheckpointId = nextCheckpoint?.id || null;
     const finalCheckpointTitle = nextCheckpoint
       ? `${resolveCheckpointTypeLabel(nextCheckpoint.checkpointType, nextCheckpoint.checkpointTypeLabel)}: ${nextCheckpoint.name}`
@@ -3660,9 +3688,10 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         user_id, school_id, date, timeslot, subject, goal,
         work_goals, social_form, strategy, confidence_before, freitext,
         checkpoint_id, checkpoint_title, what_goal_id, what_goal_text,
-        how_goal_text, details_text, selected_level, level_goal_text
+        how_goal_text, details_text, selected_level, level_goal_text,
+        plan_b_strategy_text
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
       RETURNING id, created_at
     `,
       [
@@ -3684,7 +3713,8 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         normalizedHowGoal,
         cleanDetailsText,
         normalizedLevel,
-        finalLevelGoalText
+        finalLevelGoalText,
+        parsedPlanB
       ]
     );
 
@@ -3735,7 +3765,8 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       socialForm = null,
       strategy = null,
       confidenceBefore = null,
-      freitext = null
+      freitext = null,
+      planBStrategyText = null
     } = req.body;
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
@@ -3864,6 +3895,11 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
           ? freitext.trim().slice(0, 100)
           : null;
 
+    const parsedPlanB = parsePlanBStrategyText(planBStrategyText);
+    if (parsedPlanB && parsedPlanB.error) {
+      return res.json({ success: false, message: parsedPlanB.error });
+    }
+
     const finalCheckpointId = nextCheckpoint?.id || null;
     const finalCheckpointTitle = nextCheckpoint
       ? `${resolveCheckpointTypeLabel(nextCheckpoint.checkpointType, nextCheckpoint.checkpointTypeLabel)}: ${nextCheckpoint.name}`
@@ -3889,8 +3925,9 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
         how_goal_text = $12,
         details_text = $13,
         selected_level = $14,
-        level_goal_text = $15
-      WHERE id = $16 AND user_id = $17
+        level_goal_text = $15,
+        plan_b_strategy_text = $16
+      WHERE id = $17 AND user_id = $18
       RETURNING id, created_at
     `,
       [
@@ -3909,6 +3946,7 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
         cleanDetailsText,
         normalizedLevel,
         finalLevelGoalText,
+        parsedPlanB,
         entryId,
         studentId
       ]
@@ -4188,7 +4226,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         le.id, le.date, le.timeslot, le.subject, le.goal,
         le.confidence_before, le.created_at,
         le.checkpoint_title, le.what_goal_text, le.how_goal_text, le.details_text,
-        le.selected_level, le.level_goal_text,
+        le.selected_level, le.level_goal_text, le.plan_b_strategy_text,
         lc.id AS check_id,
         lc.on_track AS check_on_track,
         lc.understands AS check_understands,
@@ -4229,6 +4267,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         details_text: details,
         selected_level: row.selected_level,
         level_goal_text: row.level_goal_text || null,
+        plan_b_strategy_text: row.plan_b_strategy_text || null,
         level_label: row.selected_level
           ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
           : null,
@@ -4357,7 +4396,7 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
       SELECT
         id, date, timeslot, subject, goal,
         what_goal_text, how_goal_text, details_text,
-        selected_level, level_goal_text,
+        selected_level, level_goal_text, plan_b_strategy_text,
         created_at
       FROM log_entries
       WHERE id=$1 AND user_id=$2
@@ -9691,6 +9730,7 @@ const studentSpaPaths = [
   "/student/reflect",
   "/student/week",
   "/student/levelplan",
+  "/student/taktik-deck",
   "/student/zielsetzung",
   "/student/checkpoint-plan",
   "/student/levelcheck",

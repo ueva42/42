@@ -18,6 +18,11 @@
       subtitle: "Matrix: pro Unterthema deine Stufe markieren.",
       phase: null
     },
+    "taktik-deck": {
+      title: "Taktik-Deck",
+      subtitle: "Strategien, die dir helfen, wenn du festhängst.",
+      phase: null
+    },
     zielsetzung: {
       title: "Zielsetzung",
       subtitle: "Street Target – Zielnote setzen & Level-Fortschritt.",
@@ -90,6 +95,11 @@
 
     if (section === "levelplan" && window.LogbuchLevelplan) {
       window.LogbuchLevelplan.init();
+      return;
+    }
+
+    if (section === "taktik-deck" && window.LogbuchTaktikDeck) {
+      window.LogbuchTaktikDeck.init();
       return;
     }
 

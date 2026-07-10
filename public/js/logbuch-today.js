@@ -115,6 +115,11 @@
               ? `<p><strong>Konkret:</strong><br>${ui.escapeHtml(entry.details_text)}</p>`
               : ""
           }
+          ${
+            entry.plan_b_strategy_text
+              ? `<p><strong>Plan B, wenn ich hänge:</strong><br>${ui.escapeHtml(entry.plan_b_strategy_text)}</p>`
+              : ""
+          }
         </div>`;
     }
     const titleText = entry.plan_sentence || entry.goal;
@@ -146,7 +151,7 @@
         <p><strong>Jetzt:</strong> ${ui.escapeHtml(c.next_step_answer || "–")}</p>
         ${
           c.selected_strategy_name
-            ? `<p><strong>Strategie:</strong> ${ui.escapeHtml(c.selected_strategy_name)}</p>`
+            ? `<p><strong>Gewählte Taktik:</strong> ${ui.escapeHtml(c.selected_strategy_name)}</p>`
             : ""
         }
       </div>`;

@@ -4,6 +4,7 @@
 (function () {
   const C = () => window.LOGBUCH;
   const UI = () => window.LogbuchUI;
+  const PLAN_B = () => window.LogbuchStrategies?.planBOptions() || window.LOGBUCH_PLAN_B_OPTIONS || [];
   const HOW_GOAL_OPTIONS = [
     "Ich schaue mir zuerst ein Beispiel an.",
     "Ich starte mit Rookie-Aufgaben.",
@@ -56,6 +57,7 @@
     selectedLevel: null,
     levelGoalText: "",
     howGoalText: null,
+    planBStrategyText: null,
     workGoals: [],
     socialForm: null,
     confidenceBefore: null,
@@ -192,6 +194,11 @@
               ? `<p><strong>Konkret:</strong><br>${ui.escapeHtml(String(details).trim())}</p>`
               : ""
           }
+          ${
+            (entry?.plan_b_strategy_text || state.planBStrategyText)
+              ? `<p><strong>Plan B, wenn ich hänge:</strong><br>${ui.escapeHtml(entry?.plan_b_strategy_text || state.planBStrategyText)}</p>`
+              : ""
+          }
         </div>
       </div>`;
   }
@@ -261,6 +268,7 @@
     state.selectedLevel = entry.selected_level;
     state.levelGoalText = entry.level_goal_text || "";
     state.howGoalText = entry.how_goal_text || entry.goal || null;
+    state.planBStrategyText = entry.plan_b_strategy_text || null;
     state.detailsText = entry.details_text || entry.freitext || "";
     state.workGoals = Array.isArray(entry.work_goals) ? entry.work_goals : [];
     state.socialForm = entry.social_form || null;
@@ -289,6 +297,9 @@
       ],
       ["Was genau?", e.details_text || e.freitext || "–"]
     ];
+    if (e.plan_b_strategy_text) {
+      rows.push(["Plan B, wenn ich hänge", e.plan_b_strategy_text]);
+    }
 
     return `
       <div class="logbuch-form logbuch-form-readonly">
@@ -425,6 +436,21 @@
             : ""
         }
 
+        ${
+          state.whatGoalId && state.selectedLevel
+            ? ui.fieldWrap(
+                ui.fieldLabel("Mein Plan B, wenn ich hänge", { optional: true }),
+                ui.select(
+                  "planBStrategyText",
+                  PLAN_B().map((g) => ({ value: g, label: g })),
+                  state.planBStrategyText,
+                  { phase: "plan", placeholder: "Optional: Strategie wählen…" }
+                ),
+                "Wähle eine Strategie, die du nutzen willst, wenn du nicht weiterkommst."
+              )
+            : ""
+        }
+
         <div id="planSummaryBox" ${showDailyGoal ? "" : "hidden"}>
           ${showDailyGoal ? dailyGoalBlockHtml(ui) : ""}
         </div>
@@ -546,7 +572,7 @@
         render();
         return;
       }
-      if (field === "howGoalText") {
+      if (field === "howGoalText" || field === "planBStrategyText") {
         updatePlanningPreview(root);
         const submitBtn = root.querySelector("#planSubmitBtn");
         if (submitBtn) {
@@ -642,6 +668,7 @@
           socialForm: state.socialForm,
           confidenceBefore:
             state.confidenceBefore != null ? Number(state.confidenceBefore) : null,
+          planBStrategyText: state.planBStrategyText || null,
           freitext: state.detailsText.trim() || null
         })
       });
@@ -742,6 +769,7 @@
     state.selectedLevel = null;
     state.levelGoalText = "";
     state.howGoalText = null;
+    state.planBStrategyText = window.LogbuchStrategies?.rememberedPlanB() || null;
     state.workGoals = [];
     state.socialForm = null;
     state.confidenceBefore = null;

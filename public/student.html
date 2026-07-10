@@ -1103,6 +1103,62 @@ a { color: inherit; }
   justify-content: flex-end;
 }
 
+.taktik-deck-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.taktik-deck-intro {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.75;
+  line-height: 1.5;
+}
+.taktik-deck-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 720px) {
+  .taktik-deck-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.taktik-card {
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(15, 23, 42, 0.75);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.taktik-card-category {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #93c5fd;
+  opacity: 0.85;
+}
+.taktik-card-title {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 14px;
+  color: #f9fafb;
+}
+.taktik-card-when {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.75;
+  flex: 1;
+}
+.taktik-card-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
 .logbuch-check-goal {
   border-color: rgba(245, 158, 11, 0.35);
   background: rgba(245, 158, 11, 0.08);
@@ -2682,6 +2738,10 @@ h2 {
     <div class="menu-icon">P</div><span class="menu-label">Levelstatus</span>
   </div>
 
+  <div class="menu-item" data-section="taktik-deck" onclick="showSection(event,'taktik-deck')">
+    <div class="menu-icon">⚡</div><span class="menu-label">Taktik-Deck</span>
+  </div>
+
   <div class="menu-item" data-section="checkpoint-plan" onclick="showSection(event,'checkpoint-plan')">
     <div class="menu-icon">K</div><span class="menu-label">Checkpoint-Plan</span>
   </div>
@@ -2759,6 +2819,12 @@ h2 {
     <div id="levelplan-screen-root" class="logbuch-root"></div>
   </div>
 
+  <!-- TAKTIK-DECK -->
+  <div id="taktik-deck-section" class="card section logbuch-screen" style="display:none;">
+    <h2>Taktik-Deck</h2>
+    <div id="taktik-deck-screen-root" class="logbuch-root"></div>
+  </div>
+
   <!-- CHECKPOINT-PLAN -->
   <div id="checkpoint-plan-section" class="card section logbuch-screen" style="display:none;">
     <h2>Checkpoint-Plan</h2>
@@ -2825,19 +2891,20 @@ h2 {
 
 <script src="/js/auth-fetch.js?v=3"></script>
 <script src="/js/logbuch-constants.js?v=6"></script>
-<script src="/js/logbuch-strategies.js?v=1"></script>
+<script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/student-router.js?v=2"></script>
-<script src="/js/logbuch-plan.js?v=12"></script>
-<script src="/js/logbuch-check.js?v=4"></script>
+<script src="/js/student-router.js?v=3"></script>
+<script src="/js/logbuch-plan.js?v=13"></script>
+<script src="/js/logbuch-check.js?v=5"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>
-<script src="/js/logbuch-today.js?v=16"></script>
+<script src="/js/logbuch-today.js?v=17"></script>
 <script src="/js/logbuch-week.js?v=2"></script>
 <script src="/js/logbuch-levelplan.js?v=10"></script>
+<script src="/js/logbuch-taktik-deck.js?v=1"></script>
 <script src="/js/logbuch-zielsetzung.js?v=9"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=2"></script>
-<script src="/js/logbuch-screens.js"></script>
+<script src="/js/logbuch-screens.js?v=2"></script>
 
 <script>
 /* ============================================

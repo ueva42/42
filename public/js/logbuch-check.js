@@ -83,6 +83,11 @@
               ? `<p><strong>Konkret:</strong><br>${ui.escapeHtml(String(details).trim())}</p>`
               : ""
           }
+          ${
+            entry.plan_b_strategy_text
+              ? `<p><strong>Plan B, wenn ich hänge:</strong><br>${ui.escapeHtml(entry.plan_b_strategy_text)}</p>`
+              : ""
+          }
         </div>
       </section>`;
   }
@@ -91,7 +96,7 @@
     if (!state.selectedStrategyName) return "";
     return `
       <div class="check-strategy-selected">
-        <span class="check-strategy-selected-label">Gewählte Strategie:</span>
+        <span class="check-strategy-selected-label">Gewählte Taktik:</span>
         <strong>${ui.escapeHtml(state.selectedStrategyName)}</strong>
       </div>`;
   }
@@ -99,8 +104,8 @@
   function renderStrategyBlock(ui) {
     return `
       <div class="check-strategy-block">
-        <button type="button" class="logbuch-btn-strategy" id="strategyOpenBtn">Strategie holen</button>
-        <p class="logbuch-hint">Wenn du nicht weiterkommst, hol dir eine passende Lernstrategie.</p>
+        <button type="button" class="logbuch-btn-strategy" id="strategyOpenBtn">Taktik holen</button>
+        <p class="logbuch-hint">Wenn du festhängst, hol dir eine passende Lernstrategie.</p>
         ${renderStrategySelected(ui)}
       </div>`;
   }
@@ -146,7 +151,7 @@
       </div>
 
       <div class="strategy-modal-actions">
-        ${ui.btnPrimary("Diese Strategie nutzen", "strategyApplyBtn")}
+        ${ui.btnPrimary("Diese Taktik nutzen", "strategyApplyBtn")}
         ${ui.btnGhost("Zurück", "strategyBackBtn")}
         ${ui.btnGhost("Abbrechen", "strategyCancelBtn")}
       </div>`;
@@ -252,7 +257,7 @@
       ["Was mache ich jetzt?", c.next_step_answer || "–"]
     ];
     if (c.selected_strategy_name) {
-      rows.push(["Gewählte Strategie", c.selected_strategy_name]);
+      rows.push(["Gewählte Taktik", c.selected_strategy_name]);
     }
 
     return `
