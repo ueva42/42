@@ -1249,7 +1249,24 @@ const LOG_TIME_WASTERS = [
   "Ich habe aufgeschoben"
 ];
 
-const LOG_TIME_WASTER_LEVELS = ["selten", "manchmal", "oft"];
+const LOG_TIME_WASTER_LEVELS = ["nie", "selten", "manchmal", "oft"];
+
+const LOG_WEEK_STRATEGIES = [
+  "Gegeben und gesucht markieren",
+  "Beispielaufgabe anschauen",
+  "Fehlerjäger-Check",
+  "Probe machen / rückwärts kontrollieren",
+  "Aufgabe kleiner machen",
+  "5-Minuten-Start",
+  "Keine Strategie genutzt"
+];
+
+const LOG_WEEK_STRATEGY_HELPED = [
+  { id: "ja_sehr", label: "Ja, sehr." },
+  { id: "ein_bisschen", label: "Ein bisschen." },
+  { id: "nein", label: "Nein." },
+  { id: "keine_genutzt", label: "Ich habe keine Strategie genutzt." }
+];
 
 const LOG_CHECK_RATINGS = ["👍", "😐", "👎"];
 
@@ -1358,6 +1375,92 @@ function reflectWorkPathLabel(id) {
 function reflectStrategyHelpedLabel(id) {
   const hit = LOG_REFLECT_STRATEGY_HELPED.find((x) => x.id === id);
   return hit?.label || id || "–";
+}
+
+function weekGoalResultLabel(goalAchieved) {
+  if (goalAchieved === "ja") return "erreicht";
+  if (goalAchieved === "teilweise") return "teilweise";
+  if (goalAchieved === "nein") return "offen";
+  return "offen";
+}
+
+function weekGoalResultSymbol(goalAchieved) {
+  if (goalAchieved === "ja") return "✓";
+  if (goalAchieved === "teilweise") return "◐";
+  if (goalAchieved === "nein") return "✗";
+  return "○";
+}
+
+function buildOpenGoalLabel(row) {
+  const what = row.what_goal_text || row.goal || "Ziel";
+  const level = row.selected_level
+    ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+    : null;
+  return level ? `${what} auf ${level}-Level` : what;
+}
+
+function isAllowedWeekStrategyHelped(id) {
+  return LOG_WEEK_STRATEGY_HELPED.some((x) => x.id === id);
+}
+
+function parseWeekReflectionPayload(body) {
+  const timeWasters = body.timeWasters;
+  if (!timeWasters || typeof timeWasters !== "object") {
+    return { error: "Bitte bewerte, was dich beim Lernen gestört hat." };
+  }
+
+  const cleanWasters = {};
+  for (const item of LOG_TIME_WASTERS) {
+    const level = timeWasters[item];
+    if (!level || !LOG_TIME_WASTER_LEVELS.includes(level)) {
+      return { error: `Bitte alle Störungen bewerten (${item}).` };
+    }
+    cleanWasters[item] = level;
+  }
+
+  const nextWeekFocusGoalText = String(body.nextWeekFocusGoalText || "").trim();
+  const nextWeekHowGoalText = String(body.nextWeekHowGoalText || "").trim();
+  if (!nextWeekFocusGoalText) {
+    return { error: "Bitte wähle oder formuliere dein wichtigstes Ziel für nächste Woche." };
+  }
+  if (!nextWeekHowGoalText) {
+    return { error: "Bitte wähle, wie du nächste Woche daran arbeiten willst." };
+  }
+
+  const weeklyHelpfulStrategy = String(body.weeklyHelpfulStrategy || "").trim();
+  const strategyHelpedAnswer = body.weeklyStrategyHelpedAnswer || null;
+  if (!weeklyHelpfulStrategy || !LOG_WEEK_STRATEGIES.includes(weeklyHelpfulStrategy)) {
+    return { error: "Bitte wähle eine Strategie für die Woche." };
+  }
+  if (!strategyHelpedAnswer || !isAllowedWeekStrategyHelped(strategyHelpedAnswer)) {
+    return { error: "Bitte beantworte, ob die Strategie geholfen hat." };
+  }
+
+  const weeklyLearnedText =
+    typeof body.weeklyLearnedText === "string" && body.weeklyLearnedText.trim()
+      ? body.weeklyLearnedText.trim().slice(0, 500)
+      : null;
+  const nextWeekGoalText =
+    typeof body.nextWeekGoalText === "string" && body.nextWeekGoalText.trim()
+      ? body.nextWeekGoalText.trim().slice(0, 300)
+      : null;
+  const openGoalsSummary =
+    typeof body.openGoalsSummary === "string" && body.openGoalsSummary.trim()
+      ? body.openGoalsSummary.trim().slice(0, 1000)
+      : null;
+  const nextWeekGoalId = body.nextWeekGoalId || null;
+
+  return {
+    timeWasters: cleanWasters,
+    weeklyLearnedText,
+    openGoalsSummary,
+    nextWeekGoalId,
+    nextWeekGoalText,
+    weeklyHelpfulStrategy,
+    weeklyStrategyHelpedAnswer: strategyHelpedAnswer,
+    nextWeekFocusGoalText: nextWeekFocusGoalText.slice(0, 300),
+    nextWeekHowGoalText: nextWeekHowGoalText.slice(0, 300)
+  };
 }
 
 function isAllowedReflectWorkPath(id) {
@@ -2242,6 +2345,15 @@ async function migrate() {
     )
   `);
   await ensureColumn("log_week_reflections", "school_id", "INTEGER");
+  await ensureColumn("log_week_reflections", "weekly_learned_text", "TEXT");
+  await ensureColumn("log_week_reflections", "open_goals_summary", "TEXT");
+  await ensureColumn("log_week_reflections", "next_week_goal_id", "UUID");
+  await ensureColumn("log_week_reflections", "next_week_goal_text", "TEXT");
+  await ensureColumn("log_week_reflections", "weekly_helpful_strategy", "TEXT");
+  await ensureColumn("log_week_reflections", "weekly_strategy_helped_answer", "TEXT");
+  await ensureColumn("log_week_reflections", "next_week_focus_goal_text", "TEXT");
+  await ensureColumn("log_week_reflections", "next_week_how_goal_text", "TEXT");
+  await ensureColumn("log_week_reflections", "updated_at", "TIMESTAMP");
 
   // CompetencyStatus – Kompetenz-Status pro Fach/Thema
   await pool.query(`
@@ -3846,6 +3958,7 @@ app.get("/api/student/log/week", isStudent, async (req, res) => {
       `
       SELECT
         le.id, le.date, le.subject, le.goal,
+        le.what_goal_text, le.selected_level, le.how_goal_text,
         lr.goal_achieved
       FROM log_entries le
       LEFT JOIN log_reflections lr ON lr.log_entry_id = le.id
@@ -3857,6 +3970,21 @@ app.get("/api/student/log/week", isStudent, async (req, res) => {
       [studentId, weekStart, weekEnd]
     );
 
+    const strategiesRes = await pool.query(
+      `
+      SELECT DISTINCT lc.selected_strategy_name
+      FROM log_checks lc
+      JOIN log_entries le ON le.id = lc.log_entry_id
+      WHERE le.user_id=$1
+        AND le.date >= $2
+        AND le.date <= $3
+        AND lc.selected_strategy_name IS NOT NULL
+        AND TRIM(lc.selected_strategy_name) <> ''
+      ORDER BY lc.selected_strategy_name ASC
+    `,
+      [studentId, weekStart, weekEnd]
+    );
+
     const weekdayShort = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
     const rows = entriesRes.rows.map((row) => {
       const dateIso =
@@ -3864,28 +3992,44 @@ app.get("/api/student/log/week", isStudent, async (req, res) => {
           ? row.date.toISOString().slice(0, 10)
           : String(row.date).slice(0, 10);
       const d = new Date(`${dateIso}T12:00:00`);
-      let achieved = "–";
-      if (row.goal_achieved === "ja") achieved = "✓";
-      else if (row.goal_achieved === "teilweise") achieved = "◐";
-      else if (row.goal_achieved === "nein") achieved = "✗";
-      else if (!row.goal_achieved) achieved = "○";
+      const whatGoal = row.what_goal_text || row.goal || "–";
+      const levelLabel = row.selected_level
+        ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+        : "–";
 
       return {
+        entryId: row.id,
         date: dateIso,
         weekday: weekdayShort[d.getDay()],
         subject: row.subject,
         goal: row.goal,
-        achieved,
-        goalAchieved: row.goal_achieved
+        whatGoal,
+        level: levelLabel,
+        levelId: row.selected_level,
+        achieved: weekGoalResultSymbol(row.goal_achieved),
+        result: weekGoalResultLabel(row.goal_achieved),
+        goalAchieved: row.goal_achieved,
+        openGoalLabel: buildOpenGoalLabel(row)
       };
     });
+
+    const openGoals = rows.filter(
+      (r) => r.goalAchieved === "teilweise" || r.goalAchieved === "nein" || !r.goalAchieved
+    );
 
     const stats = {
       gesetzt: rows.length,
       erreicht: rows.filter((r) => r.goalAchieved === "ja").length,
       teilweise: rows.filter((r) => r.goalAchieved === "teilweise").length,
-      offen: rows.filter((r) => !r.goalAchieved).length
+      offen: rows.filter((r) => !r.goalAchieved || r.goalAchieved === "nein").length
     };
+
+    const subjects = [...new Set(rows.map((r) => r.subject).filter(Boolean))];
+    const customLessonGoals = await fetchCustomSubjectLessonGoals(schoolId);
+    const howGoalsBySubject = {};
+    for (const subject of subjects) {
+      howGoalsBySubject[subject] = lessonGoalsForSubject(customLessonGoals, subject);
+    }
 
     const xpRes = await pool.query(
       `
@@ -3902,7 +4046,10 @@ app.get("/api/student/log/week", isStudent, async (req, res) => {
 
     const weekReflectionRes = await pool.query(
       `
-      SELECT id, time_wasters, created_at
+      SELECT id, time_wasters, weekly_learned_text, open_goals_summary,
+             next_week_goal_id, next_week_goal_text, weekly_helpful_strategy,
+             weekly_strategy_helped_answer, next_week_focus_goal_text,
+             next_week_how_goal_text, created_at, updated_at
       FROM log_week_reflections
       WHERE user_id=$1 AND week_start=$2
     `,
@@ -3917,8 +4064,14 @@ app.get("/api/student/log/week", isStudent, async (req, res) => {
       stats,
       xpThisWeek: Number(xpRes.rows[0]?.total || 0),
       rows,
+      openGoals,
+      usedStrategies: strategiesRes.rows.map((r) => r.selected_strategy_name),
       timeWasterItems: LOG_TIME_WASTERS,
       timeWasterLevels: LOG_TIME_WASTER_LEVELS,
+      weekStrategies: LOG_WEEK_STRATEGIES,
+      weekStrategyHelped: LOG_WEEK_STRATEGY_HELPED,
+      howGoals: LOG_HOW_GOALS,
+      howGoalsBySubject,
       weekReflection: weekReflectionRes.rows[0] || null
     });
   } catch (err) {
@@ -3931,7 +4084,7 @@ app.post("/api/student/log/week-reflection", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
     const schoolId = req.session.user.school_id;
-    const { weekStart, timeWasters } = req.body;
+    const { weekStart } = req.body;
 
     const cleanWeekStart = isoDateOrToday(weekStart);
     if (!cleanWeekStart || mondayOfWeek(cleanWeekStart) !== cleanWeekStart) {
@@ -3941,20 +4094,9 @@ app.post("/api/student/log/week-reflection", isStudent, async (req, res) => {
       });
     }
 
-    if (!timeWasters || typeof timeWasters !== "object") {
-      return res.json({ success: false, message: "Zeitfresser-Matrix fehlt." });
-    }
-
-    const cleanWasters = {};
-    for (const item of LOG_TIME_WASTERS) {
-      const level = timeWasters[item];
-      if (!level || !LOG_TIME_WASTER_LEVELS.includes(level)) {
-        return res.json({
-          success: false,
-          message: `Bitte alle Zeitfresser bewerten (${item}).`
-        });
-      }
-      cleanWasters[item] = level;
+    const parsed = parseWeekReflectionPayload(req.body);
+    if (parsed.error) {
+      return res.json({ success: false, message: parsed.error });
     }
 
     const existingRes = await pool.query(
@@ -3971,11 +4113,29 @@ app.post("/api/student/log/week-reflection", isStudent, async (req, res) => {
 
     const insertRes = await pool.query(
       `
-      INSERT INTO log_week_reflections (user_id, school_id, week_start, time_wasters)
-      VALUES ($1,$2,$3,$4)
+      INSERT INTO log_week_reflections (
+        user_id, school_id, week_start, time_wasters,
+        weekly_learned_text, open_goals_summary, next_week_goal_id, next_week_goal_text,
+        weekly_helpful_strategy, weekly_strategy_helped_answer,
+        next_week_focus_goal_text, next_week_how_goal_text, updated_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
       RETURNING id, created_at
     `,
-      [studentId, schoolId, cleanWeekStart, JSON.stringify(cleanWasters)]
+      [
+        studentId,
+        schoolId,
+        cleanWeekStart,
+        JSON.stringify(parsed.timeWasters),
+        parsed.weeklyLearnedText,
+        parsed.openGoalsSummary,
+        parsed.nextWeekGoalId,
+        parsed.nextWeekGoalText,
+        parsed.weeklyHelpfulStrategy,
+        parsed.weeklyStrategyHelpedAnswer,
+        parsed.nextWeekFocusGoalText,
+        parsed.nextWeekHowGoalText
+      ]
     );
 
     await awardLogbuchXP(

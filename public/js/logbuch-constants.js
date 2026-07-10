@@ -110,7 +110,22 @@ window.LOGBUCH = {
     "Aufgabe war unklar",
     "Ich habe aufgeschoben"
   ],
-  TIME_WASTER_LEVELS: ["selten", "manchmal", "oft"],
+  TIME_WASTER_LEVELS: ["nie", "selten", "manchmal", "oft"],
+  WEEK_STRATEGIES: [
+    "Gegeben und gesucht markieren",
+    "Beispielaufgabe anschauen",
+    "Fehlerjäger-Check",
+    "Probe machen / rückwärts kontrollieren",
+    "Aufgabe kleiner machen",
+    "5-Minuten-Start",
+    "Keine Strategie genutzt"
+  ],
+  WEEK_STRATEGY_HELPED: [
+    { id: "ja_sehr", label: "Ja, sehr." },
+    { id: "ein_bisschen", label: "Ein bisschen." },
+    { id: "nein", label: "Nein." },
+    { id: "keine_genutzt", label: "Ich habe keine Strategie genutzt." }
+  ],
   CHECK_RATINGS: [
     { id: "👍", label: "👍" },
     { id: "😐", label: "😐" },
