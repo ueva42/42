@@ -124,21 +124,6 @@
       ${detailText ? `<p class="today-block-muted">${ui.escapeHtml(detailText)}</p>` : ""}`;
   }
 
-  function renderTodayFocus(ui, focus) {
-    if (!focus) return "";
-    return `
-      <section class="today-focus-section">
-        <h3 class="today-focus-heading">Heute im Fokus</h3>
-        <div class="today-focus-subject">${ui.escapeHtml(focus.subject)}</div>
-        ${renderDailyGoalBody(ui, focus)}
-        ${
-          focus.checkpoint_title
-            ? `<p class="today-block-muted">${ui.escapeHtml(focus.checkpoint_title)}</p>`
-            : ""
-        }
-      </section>`;
-  }
-
   function renderBlock(block, editable) {
     const ui = UI();
     const slot = block.slot;
@@ -261,8 +246,6 @@
         ? blockList.map((b) => renderLesson(b, editable)).join("")
         : `<p class="today-block-muted">${emptyMessage(d, editable)}</p>`;
 
-    const focusHtml = renderTodayFocus(ui, d.todayFocus);
-
     root.innerHTML = `
       <div class="today-shell" id="todaySwipeArea">
         <div class="today-nav">
@@ -276,7 +259,6 @@
 
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="todaySlidePanel">
-            ${focusHtml}
             <div class="today-blocks">${blocksHtml}</div>
           </div>
         </div>

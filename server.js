@@ -3918,26 +3918,20 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     };
 
     const timetableSubjects = timetableSubjectsFromRows(timetable);
-    const todayIso = new Date().toISOString().slice(0, 10);
-    const todayFocus =
-      entries.find((e) => e.level_goal_text) ||
-      entries.find((e) => e.plan_sentence || e.what_goal_text) ||
-      null;
 
     res.json({
       date,
       weekday,
       weekdayLabel,
       dateLabel,
-      isToday: date === todayIso,
-      isPast: date < todayIso,
+      isToday: date === new Date().toISOString().slice(0, 10),
+      isPast: date < new Date().toISOString().slice(0, 10),
       hasClass: !!classId,
       className,
       timetable: uniqueTimetableSlots,
       timetableSubjects,
       entries,
       blocks,
-      todayFocus,
       phases
     });
   } catch (err) {
@@ -8979,7 +8973,11 @@ const teacherSpaPaths = [
   "/teacher/competencies",
   "/teacher/levelchecks",
   "/teacher/levelstatus",
-  "/teacher/lesson-goals"
+  "/teacher/levelcheck-planen",
+  "/teacher/termine",
+  "/teacher/lesson-goals",
+  "/teacher/was-goals",
+  "/teacher/levelplan-import"
 ];
 
 for (const route of teacherSpaPaths) {

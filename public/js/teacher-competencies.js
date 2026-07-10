@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Levelstatus (Checkpoint planen + Übersicht).
+ * Lehrkraft – Levelcheck planen (Nachweise anlegen & bearbeiten).
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -30,8 +30,6 @@
     { value: "custom", label: "Eigene Bezeichnung" }
   ];
 
-  const TYPE_ORDER = ["klassenarbeit", "test", "praesentation", "custom"];
-
   const state = {
     classId: null,
     subject: null,
@@ -46,7 +44,6 @@
     data: null,
     loading: false,
     saving: false,
-    deletingId: null,
     message: "",
     error: ""
   };
@@ -189,19 +186,7 @@
     return labels;
   }
 
-  function linkedTopicNames(cp) {
-    const ids = new Set(linkedIdsForCheckpoint(cp));
-    const names = new Set();
-    for (const topic of topicsForSubject()) {
-      for (const goal of topic.goals || []) {
-        if (ids.has(String(goal.id))) names.add(topic.name);
-      }
-    }
-    if (names.size) return [...names].join(", ");
-    return cp.topicName || "–";
-  }
-
-  function primaryTopicIdFromLinked(linkedIds) {
+  function linkedGoalLabels(cp) {
     const idSet = new Set((linkedIds || []).map((id) => String(id)));
     for (const topic of topicsForSubject()) {
       for (const goal of topic.goals || []) {
@@ -238,69 +223,64 @@
     return sections || `<p class="tc-goal-empty">Für dieses Fach gibt es noch keine Was-Ziele.</p>`;
   }
 
+  function findCheckpointInAllSubjects(checkpointId) {
+    for (const topic of state.data?.levelChecks || []) {
+      for (const cp of topic.checkpoints || []) {
+        if (sameId(cp.id, checkpointId)) {
+          return {
+            checkpoint: cp,
+            subject: topic.subject,
+            topicId: topic.id,
+            topicName: topic.name
+          };
+        }
+      }
+    }
+    return null;
+  }
+
+  function applyRouteParams() {
+    const params = new URLSearchParams(location.search);
+    const checkpointId = params.get("checkpointId");
+    const classId = params.get("classId");
+    const subject = params.get("subject");
+    if (classId) state.classId = Number(classId);
+    if (subject) state.subject = subject;
+    if (checkpointId) state.editCheckpointId = checkpointId;
+  }
+
+  function clearRouteParams() {
+    if (!location.pathname.includes("levelcheck-planen") && location.pathname !== "/teacher/levelstatus") {
+      return;
+    }
+    const params = new URLSearchParams(location.search);
+    if (!params.has("checkpointId") && !params.has("classId") && !params.has("subject")) return;
+    history.replaceState({ tab: "competenciesTab" }, "", "/teacher/levelcheck-planen");
+  }
+
   function startEditCheckpoint(checkpointId) {
-    const cp = checkpointById(checkpointId);
-    if (!cp) return;
+    const found = findCheckpointInAllSubjects(checkpointId);
+    if (!found) return;
     clearFormDraft();
-    state.editCheckpointId = cp.id;
-    state.themaId = cp.topicId;
+    state.editCheckpointId = found.checkpoint.id;
+    state.subject = found.subject;
+    state.themaId = found.topicId;
     state.message = "";
     state.error = "";
     render();
   }
 
-  function allCheckpoints() {
-    const rows = [];
-    for (const topic of topicsForSubject()) {
-      for (const cp of topic.checkpoints || []) {
-        if (!cp.checkpointDate) continue;
-        rows.push({
-          ...cp,
-          topicId: topic.id,
-          topicName: topic.name,
-          goals: topic.goals || [],
-          typeKey: normalizeType(cp),
-          typeLabel: typeLabelFor(cp.checkpointType, cp.checkpointTypeLabel),
-          dateIso: String(cp.checkpointDate)
-        });
-      }
+  function openTermineTab() {
+    history.pushState({ tab: "termineTab" }, "", "/teacher/termine");
+    if (typeof showTab === "function") {
+      showTab("termineTab", null, { skipHistory: true });
     }
-    return rows;
+    if (window.TeacherTermine) {
+      window.TeacherTermine.init();
+    }
   }
 
-  function groupedCheckpointList() {
-    const saved = allCheckpoints();
-    const groups = new Map();
-
-    for (const item of saved) {
-      const key =
-        item.typeKey === "custom"
-          ? `custom:${item.checkpointTypeLabel || "Eigene"}`
-          : item.typeKey;
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          label: item.typeLabel,
-          sortOrder: TYPE_ORDER.indexOf(item.typeKey),
-          items: []
-        });
-      }
-      groups.get(key).items.push(item);
-    }
-
-    for (const group of groups.values()) {
-      group.items.sort((a, b) => b.dateIso.localeCompare(a.dateIso));
-    }
-
-    return [...groups.values()].sort((a, b) => {
-      const ao = a.sortOrder >= 0 ? a.sortOrder : 99;
-      const bo = b.sortOrder >= 0 ? b.sortOrder : 99;
-      if (ao !== bo) return ao - bo;
-      return a.label.localeCompare(b.label, "de");
-    });
-  }
-
-  function formValues() {
+  function primaryTopicIdFromLinked(linkedIds) {
     if (state.editCheckpointId) {
       const cp = checkpointById(state.editCheckpointId);
       if (!cp) return null;
@@ -407,61 +387,6 @@
       </section>`;
   }
 
-  function renderCheckpointOverview() {
-    const groups = groupedCheckpointList();
-    if (!groups.length) {
-      return `
-        <section class="tc-overview-section">
-          <h3>Geplante & vergangene Checkpoints</h3>
-          <p class="tc-empty">Noch keine Checkpoints mit Termin gespeichert.</p>
-        </section>`;
-    }
-
-    const today = todayIso();
-    const sections = groups
-      .map((group) => {
-        const items = group.items
-          .map((cp) => {
-            const goals = linkedGoalLabels(cp);
-            const goalText = goals.length
-              ? goals.slice(0, 3).map(escapeHtml).join(", ") + (goals.length > 3 ? " …" : "")
-              : "Keine Was-Ziele markiert";
-            const themaText = linkedTopicNames(cp);
-            const when =
-              cp.dateIso >= today
-                ? `<span class="tc-when tc-when-upcoming">anstehend</span>`
-                : `<span class="tc-when tc-when-past">vergangen</span>`;
-
-            return `
-            <li class="tc-checkpoint-item ${state.editCheckpointId && sameId(state.editCheckpointId, cp.id) ? "tc-checkpoint-item-active" : ""}">
-              <div class="tc-checkpoint-item-body">
-                <span class="tc-checkpoint-item-date">${escapeHtml(isoToGerman(cp.dateIso))}</span>
-                <span class="tc-checkpoint-item-thema">${escapeHtml(themaText)}</span>
-                <span class="tc-checkpoint-item-goals">${goalText}</span>
-                ${when}
-              </div>
-              <button type="button" class="tc-edit-btn tc-checkpoint-edit" data-edit-checkpoint-id="${escapeHtml(cp.id)}">Bearbeiten</button>
-              <button type="button" class="tc-delete-btn tc-checkpoint-del" data-checkpoint-id="${escapeHtml(cp.id)}" ${state.deletingId === String(cp.id) ? "disabled" : ""} title="Checkpoint löschen">×</button>
-            </li>`;
-          })
-          .join("");
-
-        return `
-        <div class="tc-checkpoint-group">
-          <h4 class="tc-checkpoint-group-title">${escapeHtml(group.label)}</h4>
-          <ul class="tc-checkpoint-overview">${items}</ul>
-        </div>`;
-      })
-      .join("");
-
-    return `
-      <section class="tc-overview-section">
-        <h3>Geplante & vergangene Checkpoints</h3>
-        <p class="hint">Neueste Termine oben, älteste unten – gruppiert nach Art.</p>
-        ${sections}
-      </section>`;
-  }
-
   function render() {
     const root = document.getElementById("competenciesTabRoot");
     if (!root) return;
@@ -472,12 +397,12 @@
     }
 
     if (state.loading && !state.data) {
-      root.innerHTML = `<div class="tc-loading">Lade Levelstatus…</div>`;
+      root.innerHTML = `<div class="tc-loading">Lade Levelcheck planen…</div>`;
       return;
     }
 
     if (!state.data) {
-      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Levelstatus konnte nicht geladen werden.")}</div>`;
+      root.innerHTML = `<div class="tc-error">${escapeHtml(state.error || "Levelcheck planen konnte nicht geladen werden.")}</div>`;
       return;
     }
 
@@ -490,10 +415,10 @@
 
     root.innerHTML = `
       <div class="panel">
-        <h2>Levelstatus</h2>
+        <h2>Levelcheck planen</h2>
         <p class="hint">
           Termin (tt.mm.jjjj) und Art wählen, Was-Ziele über mehrere Themen markieren – dann speichern.
-          Pro Fach können mehrere Nachweise mit unterschiedlichen Terminen angelegt werden.
+          <button type="button" class="tc-link-btn" id="tcOpenTermineBtn">Alle Termine ansehen</button>
         </p>
 
         <div class="tc-toolbar">
@@ -509,7 +434,6 @@
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
 
         ${renderCheckpointForm()}
-        ${renderCheckpointOverview()}
       </div>`;
 
     bindHandlers(root);
@@ -543,6 +467,7 @@
     clearFormDraft();
     state.message = "";
     state.error = "";
+    clearRouteParams();
     render();
   }
 
@@ -594,18 +519,7 @@
       card.querySelector("#tcNewCheckpointBtn")?.addEventListener("click", resetNewForm);
     }
 
-    root.querySelectorAll(".tc-checkpoint-edit").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        startEditCheckpoint(btn.dataset.editCheckpointId);
-      });
-    });
-
-    root.querySelectorAll(".tc-checkpoint-del").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        deleteCheckpoint(btn.dataset.checkpointId);
-      });
-    });
+    root.querySelector("#tcOpenTermineBtn")?.addEventListener("click", openTermineTab);
   }
 
   function updateSaveButtonLabel(card) {
@@ -696,45 +610,12 @@
       state.message = `${cp.checkpointTypeLabel || "Checkpoint"} gespeichert · ${cp.checkpointDateLabel || isoToGerman(payload.checkpointDate)} · ${payload.linkedSubtopicIds.length} Was-Ziel(e)`;
       state.editCheckpointId = null;
       clearFormDraft();
+      clearRouteParams();
       await loadData();
     } catch (err) {
       console.error(err);
       state.saving = false;
       state.error = "Netzwerkfehler beim Speichern.";
-      render();
-    }
-  }
-
-  async function deleteCheckpoint(checkpointId) {
-    if (!checkpointId || !confirm("Diesen Checkpoint wirklich löschen?")) {
-      return;
-    }
-
-    state.deletingId = String(checkpointId);
-    state.error = "";
-    render();
-
-    try {
-      const res = await fetch(
-        `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(checkpointId)}`,
-        { method: "DELETE" }
-      );
-      const data = await res.json();
-      state.deletingId = null;
-
-      if (!data.success) {
-        state.error = data.message || "Löschen fehlgeschlagen.";
-        render();
-        return;
-      }
-
-      if (sameId(state.editCheckpointId, checkpointId)) state.editCheckpointId = null;
-      state.message = "Checkpoint gelöscht.";
-      await loadData();
-    } catch (err) {
-      console.error(err);
-      state.deletingId = null;
-      state.error = "Netzwerkfehler beim Löschen.";
       render();
     }
   }
@@ -762,8 +643,14 @@
       if (!state.subject || !subjectsList().includes(state.subject)) {
         state.subject = subjectsList()[0] || null;
       }
-      if (state.editCheckpointId && !checkpointById(state.editCheckpointId)) {
-        state.editCheckpointId = null;
+      if (state.editCheckpointId) {
+        const found = findCheckpointInAllSubjects(state.editCheckpointId);
+        if (found) {
+          state.subject = found.subject;
+          state.themaId = found.topicId;
+        } else {
+          state.editCheckpointId = null;
+        }
       }
       state.loading = false;
       state.error = "";
@@ -788,11 +675,12 @@
   }
 
   async function init() {
+    applyRouteParams();
     state.message = "";
     state.error = "";
 
     const root = document.getElementById("competenciesTabRoot");
-    if (root) root.innerHTML = `<div class="tc-loading">Lade Levelstatus…</div>`;
+    if (root) root.innerHTML = `<div class="tc-loading">Lade Levelcheck planen…</div>`;
 
     try {
       const classes = await loadClasses();
@@ -816,5 +704,5 @@
     }
   }
 
-  window.TeacherCompetencies = { init };
+  window.TeacherCompetencies = { init, startEditCheckpoint };
 })();

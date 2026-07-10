@@ -743,6 +743,13 @@
       color:#fdba74; font-size:12px; cursor:pointer;
     }
     .tc-edit-btn:hover { background:rgba(249,115,22,0.22); }
+    .tc-termine-actions { margin: 14px 0 10px; }
+    .tc-termine-list { margin-top: 8px; }
+    .tc-termine-item-body {
+      grid-template-columns: 92px 72px 110px 1fr auto !important;
+    }
+    .tc-termine-subject { font-weight: 600; font-size: 12px; }
+    .tc-termine-type { font-size: 12px; opacity: 0.85; }
     .tc-when { font-size:11px; padding:2px 8px; border-radius:999px; white-space:nowrap; }
     .tc-when-upcoming { background:rgba(34,197,94,0.15); color:#86efac; }
     .tc-when-past { background:rgba(148,163,184,0.15); color:#cbd5e1; }
@@ -753,6 +760,7 @@
     }
     @media (max-width: 640px) {
       .tc-checkpoint-item-body { grid-template-columns: 1fr; }
+      .tc-termine-item-body { grid-template-columns: 1fr !important; }
       .tc-checkpoint-item-goals { grid-column: 1; }
     }
     .tc-checkpoint-date-wrap { display:flex; flex-direction:column; gap:4px; margin-top:8px; font-size:11px; opacity:0.85; }
@@ -827,9 +835,14 @@
     <span class="nav-label">Levelplan importieren</span>
   </div>
 
+  <div class="nav-item" data-tab="termineTab" onclick="showTab('termineTab', event)">
+    <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+    <span class="nav-label">Termine</span>
+  </div>
+
   <div class="nav-item" data-tab="competenciesTab" onclick="showTab('competenciesTab', event)">
     <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
-    <span class="nav-label">Levelstatus</span>
+    <span class="nav-label">Levelcheck planen</span>
   </div>
 
   <div class="nav-item" data-tab="xpTab" onclick="showTab('xpTab', event)">
@@ -922,9 +935,14 @@
       <div id="levelplanImportTabRoot"></div>
     </div>
 
-    <!-- KOMPETENZEN -->
+    <!-- LEVELCHECK PLANEN -->
     <div id="competenciesTab" class="tab hidden">
       <div id="competenciesTabRoot"></div>
+    </div>
+
+    <!-- TERMINE -->
+    <div id="termineTab" class="tab hidden">
+      <div id="termineTabRoot"></div>
     </div>
 
     <!-- XP TAB -->
@@ -1232,7 +1250,8 @@
 <script src="/js/teacher-week.js"></script>
 <script src="/js/teacher-was-goals.js?v=4"></script>
 <script src="/js/teacher-levelplan-import.js?v=4"></script>
-<script src="/js/teacher-competencies.js?v=16"></script>
+<script src="/js/teacher-competencies.js?v=17"></script>
+<script src="/js/teacher-termine.js?v=1"></script>
 
 <script>
 const TEACHER_TAB_ROUTES = {
@@ -1242,7 +1261,8 @@ const TEACHER_TAB_ROUTES = {
   lessonGoalsTab: "/teacher/lesson-goals",
   wasGoalsTab: "/teacher/was-goals",
   levelplanImportTab: "/teacher/levelplan-import",
-  competenciesTab: "/teacher/levelstatus",
+  termineTab: "/teacher/termine",
+  competenciesTab: "/teacher/levelcheck-planen",
   xpTab: "/admin#xp",
   classProgressTab: "/admin#classProgress",
   classTab: "/admin#class",
@@ -1260,6 +1280,8 @@ const ROUTE_TABS = {
   "/teacher/lesson-goals": "lessonGoalsTab",
   "/teacher/was-goals": "wasGoalsTab",
   "/teacher/levelplan-import": "levelplanImportTab",
+  "/teacher/termine": "termineTab",
+  "/teacher/levelcheck-planen": "competenciesTab",
   "/teacher/levelstatus": "competenciesTab",
   "/teacher/competencies": "competenciesTab",
   "/teacher/levelchecks": "competenciesTab"
@@ -1290,6 +1312,7 @@ function showTab(id, ev, options = {}) {
   if (id === "wasGoalsTab" && window.TeacherWasGoals) TeacherWasGoals.init();
   if (id === "levelplanImportTab" && window.TeacherLevelplanImport) TeacherLevelplanImport.init();
   if (id === "teacherWeekTab" && window.TeacherWeek) TeacherWeek.init();
+  if (id === "termineTab" && window.TeacherTermine) TeacherTermine.init();
   if (id === "competenciesTab" && window.TeacherCompetencies) TeacherCompetencies.init();
   if (id === "xpTab") loadXPInit();
   if (id === "classTab") loadClassesForManage();
