@@ -102,6 +102,31 @@ window.LOGBUCH = {
     { id: "😐", label: "😐" },
     { id: "👎", label: "👎" }
   ],
+  CHECK_ON_TRACK: [
+    "Ja, ich arbeite passend zu meinem Ziel.",
+    "Teilweise, ich bin etwas unsicher.",
+    "Nein, ich habe den Fokus verloren."
+  ],
+  CHECK_UNDERSTANDING: [
+    "Ja, ich verstehe sie.",
+    "Teilweise, ich brauche noch Hilfe.",
+    "Nein, ich weiß nicht, was ich tun soll."
+  ],
+  CHECK_PROGRESS: [
+    "Ja, ich komme gut voran.",
+    "Teilweise, es geht langsam.",
+    "Nein, ich hänge fest."
+  ],
+  CHECK_NEXT_STEP: [
+    "Ich arbeite weiter wie geplant.",
+    "Ich schaue mir ein Beispiel an.",
+    "Ich nutze eine Hilfestellung.",
+    "Ich vergleiche mit der Musterlösung.",
+    "Ich frage eine Partnerin oder einen Partner.",
+    "Ich teile die Aufgabe in kleine Schritte.",
+    "Ich mache eine Probe oder kontrolliere rückwärts.",
+    "Ich gehe kurz zurück zu Rookie-Aufgaben."
+  ],
   COMPETENCY_STATUS: {
     offen: { label: "Offen", class: "status-offen" },
     in_arbeit: { label: "In Arbeit", class: "status-in-arbeit" },

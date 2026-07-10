@@ -144,6 +144,37 @@
     state.levelGoalText = levelGoalTextFor(goal, state.selectedLevel);
   }
 
+  function checkpointSatisfied() {
+    if (!state.checkpoints.length) return true;
+    if (state.checkpoints.length === 1) return true;
+    return !!state.selectedCheckpointId;
+  }
+
+  function requiredFieldsComplete() {
+    return !!(
+      state.subject &&
+      state.whatGoalId &&
+      state.selectedLevel &&
+      state.levelGoalText &&
+      state.howGoalText &&
+      checkpointSatisfied() &&
+      state.whatGoalOptions.length
+    );
+  }
+
+  function renderWorkGoalChips(ui) {
+    const chips = C().WORK_GOALS.map(
+      (goal) => `
+      <button type="button"
+        class="plan-work-chip ${state.workGoals.includes(goal) ? "active" : ""}"
+        data-work-goal="${ui.escapeHtml(goal)}">
+        ${ui.escapeHtml(goal)}
+      </button>`
+    ).join("");
+
+    return `<div class="plan-work-goal-chips" id="planWorkGoalChips">${chips}</div>`;
+  }
+
   function dailyGoalBlockHtml(ui, entry) {
     const levelGoal = entry?.level_goal_text || state.levelGoalText;
     const howGoal = entry?.how_goal_text || entry?.goal || state.howGoalText;
@@ -297,7 +328,7 @@
     }
 
     const levelMeaning = state.levelGoalText;
-    const previewReady = !!(state.levelGoalText && state.howGoalText);
+    const showDailyGoal = requiredFieldsComplete();
 
     root.innerHTML = `
       <div class="logbuch-form">
@@ -394,20 +425,14 @@
             : ""
         }
 
-        <div id="planSummaryBox" ${previewReady ? "" : "hidden"}>
-          ${previewReady ? dailyGoalBlockHtml(ui) : ""}
+        <div id="planSummaryBox" ${showDailyGoal ? "" : "hidden"}>
+          ${showDailyGoal ? dailyGoalBlockHtml(ui) : ""}
         </div>
 
         ${ui.fieldWrap(
           ui.fieldLabel("Arbeitsziele", { optional: true }),
-          ui.select(
-            "workGoals",
-            C().WORK_GOALS.map((g) => ({ value: g, label: g })),
-            state.workGoals,
-            { multiple: true, size: 4, hidePlaceholder: true, phase: "plan" }
-          ),
-          "Mehrere mit Strg/Cmd wählen",
-          { wide: true }
+          renderWorkGoalChips(ui),
+          "Tippe mehrere an – optionaler Arbeitsfokus"
         )}
 
         ${ui.fieldWrap(
@@ -437,7 +462,7 @@
               ? "Änderungen speichern"
               : "Tagesziel speichern (+2 XP)",
           "planSubmitBtn",
-          state.submitting || !state.whatGoalOptions.length,
+          state.submitting || !requiredFieldsComplete(),
           "logbuch-submit-full"
         )}
         ${ui.btnGhost("Abbrechen", "planBackBtn")}
@@ -455,7 +480,7 @@
   function updatePlanningPreview(root) {
     const box = root.querySelector("#planSummaryBox");
     if (!box) return;
-    const ready = !!(state.levelGoalText && state.howGoalText);
+    const ready = requiredFieldsComplete();
     if (!ready) {
       box.hidden = true;
       box.innerHTML = "";
@@ -463,6 +488,24 @@
     }
     box.hidden = false;
     box.innerHTML = dailyGoalBlockHtml(UI());
+  }
+
+  function bindWorkGoalChips(root) {
+    root.querySelectorAll(".plan-work-chip").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const goal = btn.dataset.workGoal;
+        if (!goal) return;
+        const idx = state.workGoals.indexOf(goal);
+        if (idx >= 0) {
+          state.workGoals.splice(idx, 1);
+        } else {
+          state.workGoals.push(goal);
+        }
+        root.querySelectorAll(".plan-work-chip").forEach((chip) => {
+          chip.classList.toggle("active", state.workGoals.includes(chip.dataset.workGoal));
+        });
+      });
+    });
   }
 
   function bindHandlers(root) {
@@ -505,8 +548,15 @@
       }
       if (field === "howGoalText") {
         updatePlanningPreview(root);
+        const submitBtn = root.querySelector("#planSubmitBtn");
+        if (submitBtn) {
+          submitBtn.disabled = state.submitting || !requiredFieldsComplete();
+        }
+        return;
       }
     });
+
+    bindWorkGoalChips(root);
 
     const details = root.querySelector("#planDetailsText");
     details?.addEventListener("input", () => {

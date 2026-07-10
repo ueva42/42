@@ -1200,6 +1200,43 @@ const LOG_TIME_WASTER_LEVELS = ["selten", "manchmal", "oft"];
 
 const LOG_CHECK_RATINGS = ["👍", "😐", "👎"];
 
+const LOG_CHECK_ON_TRACK = [
+  "Ja, ich arbeite passend zu meinem Ziel.",
+  "Teilweise, ich bin etwas unsicher.",
+  "Nein, ich habe den Fokus verloren."
+];
+
+const LOG_CHECK_UNDERSTANDING = [
+  "Ja, ich verstehe sie.",
+  "Teilweise, ich brauche noch Hilfe.",
+  "Nein, ich weiß nicht, was ich tun soll."
+];
+
+const LOG_CHECK_PROGRESS = [
+  "Ja, ich komme gut voran.",
+  "Teilweise, es geht langsam.",
+  "Nein, ich hänge fest."
+];
+
+const LOG_CHECK_NEXT_STEP = [
+  "Ich arbeite weiter wie geplant.",
+  "Ich schaue mir ein Beispiel an.",
+  "Ich nutze eine Hilfestellung.",
+  "Ich vergleiche mit der Musterlösung.",
+  "Ich frage eine Partnerin oder einen Partner.",
+  "Ich teile die Aufgabe in kleine Schritte.",
+  "Ich mache eine Probe oder kontrolliere rückwärts.",
+  "Ich gehe kurz zurück zu Rookie-Aufgaben."
+];
+
+function isLegacyCheckRating(value) {
+  return LOG_CHECK_RATINGS.includes(value);
+}
+
+function isAllowedCheckAnswer(value, allowed) {
+  return typeof value === "string" && allowed.includes(value);
+}
+
 const LOG_COMPETENCY_STATUSES = [
   "offen",
   "in_arbeit",
@@ -1993,6 +2030,7 @@ async function migrate() {
       UNIQUE(log_entry_id)
     )
   `);
+  await ensureColumn("log_checks", "next_step_answer", "TEXT");
 
   // LogReflection – Tagesabschluss (Self-Reflection)
   await pool.query(`
@@ -3954,7 +3992,11 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
 
     const entryRes = await pool.query(
       `
-      SELECT id, date, timeslot, subject, goal, created_at
+      SELECT
+        id, date, timeslot, subject, goal,
+        what_goal_text, how_goal_text, details_text,
+        selected_level, level_goal_text,
+        created_at
       FROM log_entries
       WHERE id=$1 AND user_id=$2
     `,
@@ -3965,9 +4007,17 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
       return res.json({ entry: null, existingCheck: null });
     }
 
+    const row = entryRes.rows[0];
+    const entry = {
+      ...row,
+      level_label: row.selected_level
+        ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+        : null
+    };
+
     const checkRes = await pool.query(
       `
-      SELECT id, on_track, understands, progress, change_note, created_at
+      SELECT id, on_track, understands, progress, change_note, next_step_answer, created_at
       FROM log_checks
       WHERE log_entry_id=$1
     `,
@@ -3975,7 +4025,7 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
     );
 
     res.json({
-      entry: entryRes.rows[0],
+      entry,
       existingCheck: checkRes.rows[0] || null
     });
   } catch (err) {
@@ -3994,6 +4044,7 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
       onTrack,
       understands,
       progress,
+      nextStepAnswer = null,
       changeNote = null
     } = req.body;
 
@@ -4010,27 +4061,45 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Lern-Eintrag nicht gefunden." });
     }
 
-    if (!onTrack || !LOG_CHECK_RATINGS.includes(onTrack)) {
-      return res.json({ success: false, message: "Bitte alle drei Check-Fragen beantworten." });
-    }
-    if (!understands || !LOG_CHECK_RATINGS.includes(understands)) {
-      return res.json({ success: false, message: "Bitte alle drei Check-Fragen beantworten." });
-    }
-    if (!progress || !LOG_CHECK_RATINGS.includes(progress)) {
-      return res.json({ success: false, message: "Bitte alle drei Check-Fragen beantworten." });
-    }
-
-    const hasThumbsDown = [onTrack, understands, progress].includes("👎");
-    const cleanChangeNote =
-      typeof changeNote === "string" && changeNote.trim()
-        ? changeNote.trim().slice(0, 200)
+    const onTrackVal = onTrack;
+    const understandsVal = understands;
+    const progressVal = progress;
+    const nextStepVal =
+      typeof nextStepAnswer === "string" && nextStepAnswer.trim()
+        ? nextStepAnswer.trim()
         : null;
 
-    if (hasThumbsDown && !cleanChangeNote) {
-      return res.json({
-        success: false,
-        message: "Bitte notiere, was du jetzt änderst (mindestens ein 👎)."
-      });
+    const isLegacySubmission =
+      isLegacyCheckRating(onTrackVal) &&
+      isLegacyCheckRating(understandsVal) &&
+      isLegacyCheckRating(progressVal);
+
+    let cleanChangeNote = null;
+    if (isLegacySubmission) {
+      const hasThumbsDown = [onTrackVal, understandsVal, progressVal].includes("👎");
+      cleanChangeNote =
+        typeof changeNote === "string" && changeNote.trim()
+          ? changeNote.trim().slice(0, 200)
+          : null;
+      if (hasThumbsDown && !cleanChangeNote) {
+        return res.json({
+          success: false,
+          message: "Bitte notiere, was du jetzt änderst (mindestens ein 👎)."
+        });
+      }
+    } else {
+      if (!isAllowedCheckAnswer(onTrackVal, LOG_CHECK_ON_TRACK)) {
+        return res.json({ success: false, message: "Bitte Frage 1 beantworten." });
+      }
+      if (!isAllowedCheckAnswer(understandsVal, LOG_CHECK_UNDERSTANDING)) {
+        return res.json({ success: false, message: "Bitte Frage 2 beantworten." });
+      }
+      if (!isAllowedCheckAnswer(progressVal, LOG_CHECK_PROGRESS)) {
+        return res.json({ success: false, message: "Bitte Frage 3 beantworten." });
+      }
+      if (!isAllowedCheckAnswer(nextStepVal, LOG_CHECK_NEXT_STEP)) {
+        return res.json({ success: false, message: "Bitte Frage 4 beantworten." });
+      }
     }
 
     const existingRes = await pool.query(
@@ -4048,16 +4117,19 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
 
     const insertRes = await pool.query(
       `
-      INSERT INTO log_checks (log_entry_id, on_track, understands, progress, change_note)
-      VALUES ($1,$2,$3,$4,$5)
+      INSERT INTO log_checks (
+        log_entry_id, on_track, understands, progress, change_note, next_step_answer
+      )
+      VALUES ($1,$2,$3,$4,$5,$6)
       RETURNING id, created_at
     `,
       [
         logEntryId,
-        onTrack,
-        understands,
-        progress,
-        hasThumbsDown ? cleanChangeNote : null
+        onTrackVal,
+        understandsVal,
+        progressVal,
+        isLegacySubmission ? cleanChangeNote : null,
+        isLegacySubmission ? null : nextStepVal
       ]
     );
 
