@@ -5,17 +5,41 @@
   const C = () => window.LOGBUCH;
   const UI = () => window.LogbuchUI;
   const HOW_GOAL_OPTIONS = [
+    "Ich schaue mir zuerst ein Beispiel an.",
     "Ich starte mit Rookie-Aufgaben.",
-    "Ich löse erst Aufgaben mit Hilfe und danach alleine.",
+    "Ich löse erst mit Hilfe und danach alleine.",
     "Ich bearbeite Operator-Aufgaben.",
     "Ich versuche eine Street-Legend-Aufgabe.",
-    "Ich vergleiche meinen Rechenweg mit der Musterlösung.",
+    "Ich vergleiche meinen Lösungsweg mit der Musterlösung.",
     "Ich suche gezielt meine Fehler.",
-    "Ich schreibe meinen Rechenweg sauber auf.",
+    "Ich schreibe meinen Lösungsweg sauber auf.",
     "Ich erkläre am Ende eine Aufgabe jemandem.",
     "Ich schaue ein Lernvideo und notiere drei wichtige Punkte.",
-    "Ich wiederhole ein unsicheres Unterthema."
+    "Ich wiederhole ein unsicheres Ziel."
   ];
+
+  const HOW_GOAL_PREFERRED = {
+    rookie: [
+      "Ich schaue mir zuerst ein Beispiel an.",
+      "Ich starte mit Rookie-Aufgaben.",
+      "Ich löse erst mit Hilfe und danach alleine.",
+      "Ich schaue ein Lernvideo und notiere drei wichtige Punkte.",
+      "Ich wiederhole ein unsicheres Ziel."
+    ],
+    operator: [
+      "Ich bearbeite Operator-Aufgaben.",
+      "Ich löse erst mit Hilfe und danach alleine.",
+      "Ich vergleiche meinen Lösungsweg mit der Musterlösung.",
+      "Ich suche gezielt meine Fehler.",
+      "Ich schreibe meinen Lösungsweg sauber auf."
+    ],
+    street_legend: [
+      "Ich versuche eine Street-Legend-Aufgabe.",
+      "Ich erkläre am Ende eine Aufgabe jemandem.",
+      "Ich suche gezielt meine Fehler.",
+      "Ich vergleiche meinen Lösungsweg mit der Musterlösung."
+    ]
+  };
 
   const LEVEL_OPTIONS = [
     { value: "rookie", label: "Rookie" },
@@ -40,6 +64,7 @@
     existingEntry: null,
     whatGoalOptions: [],
     howGoals: HOW_GOAL_OPTIONS,
+    howGoalsBase: HOW_GOAL_OPTIONS,
     levelOptions: LEVEL_OPTIONS,
     nextCheckpoint: null,
     goalSource: "none",
@@ -88,6 +113,28 @@
     return "";
   }
 
+  function levelMeaningLabel(level) {
+    if (level === "rookie") return "Auf Rookie-Level heißt das:";
+    if (level === "operator") return "Auf Operator-Level heißt das:";
+    if (level === "street_legend") return "Auf Street-Legend-Level heißt das:";
+    return "Das bedeutet:";
+  }
+
+  function howGoalsForLevel(level, baseList) {
+    const all = Array.isArray(baseList) && baseList.length ? baseList : HOW_GOAL_OPTIONS;
+    const preferred = level && HOW_GOAL_PREFERRED[level] ? HOW_GOAL_PREFERRED[level] : [];
+    const orderedPreferred = preferred.filter((g) => all.includes(g));
+    const rest = all.filter((g) => !orderedPreferred.includes(g));
+    return orderedPreferred.length ? [...orderedPreferred, ...rest] : all;
+  }
+
+  function refreshHowGoals() {
+    state.howGoals = howGoalsForLevel(state.selectedLevel, state.howGoalsBase);
+    if (state.howGoalText && !state.howGoals.includes(state.howGoalText)) {
+      state.howGoalText = null;
+    }
+  }
+
   function syncLevelGoalText() {
     const goal = pickedWhatGoal();
     state.whatGoalText = goal?.text || "";
@@ -102,9 +149,9 @@
 
     return `
       <div class="plan-daily-goal">
-        <p class="plan-daily-goal-title">Dein Tagesziel</p>
+        <p class="plan-daily-goal-title">Dein Tagesziel heute</p>
         <div class="plan-daily-goal-card">
-          <p><strong>Heute arbeite ich an diesem Ziel:</strong><br>${ui.escapeHtml(levelGoal)}</p>
+          <p><strong>Ich arbeite an diesem Ziel:</strong><br>${ui.escapeHtml(levelGoal)}</p>
           <p><strong>Mein Weg:</strong><br>${ui.escapeHtml(howGoal)}</p>
           ${
             details && String(details).trim()
@@ -145,7 +192,7 @@
       ["Arbeitsziele", workGoals.length ? workGoals.join(", ") : "–"],
       ["Sozialform", e.social_form ? labelForSocialForm(e.social_form) : "–"],
       [
-        "Selbstwirksamkeit vorher",
+        "Wie sicher fühlst du dich vorher?",
         e.confidence_before != null ? String(e.confidence_before) : "–"
       ],
       ["Was genau?", e.details_text || e.freitext || "–"]
@@ -257,7 +304,7 @@
         ${
           levelMeaning
             ? `<div class="plan-level-meaning">
-                <span class="plan-level-meaning-label">Das bedeutet:</span>
+                <span class="plan-level-meaning-label">${ui.escapeHtml(levelMeaningLabel(state.selectedLevel))}</span>
                 <p>${ui.escapeHtml(levelMeaning)}</p>
               </div>`
             : state.selectedLevel && state.whatGoalId
@@ -268,7 +315,7 @@
         ${
           state.whatGoalId && state.selectedLevel
             ? ui.fieldWrap(
-                ui.fieldLabel("Wie arbeitest du daran?", { required: true }),
+                ui.fieldLabel("Wie willst du daran arbeiten?", { required: true }),
                 ui.select(
                   "howGoalText",
                   state.howGoals.map((g) => ({ value: g, label: g })),
@@ -278,10 +325,6 @@
               )
             : ""
         }
-
-        <div id="planSummaryBox" ${previewReady ? "" : "hidden"}>
-          ${previewReady ? dailyGoalBlockHtml(ui) : ""}
-        </div>
 
         ${
           state.whatGoalId && state.selectedLevel
@@ -296,6 +339,10 @@
               )
             : ""
         }
+
+        <div id="planSummaryBox" ${previewReady ? "" : "hidden"}>
+          ${previewReady ? dailyGoalBlockHtml(ui) : ""}
+        </div>
 
         ${ui.fieldWrap(
           ui.fieldLabel("Arbeitsziele", { optional: true }),
@@ -315,7 +362,7 @@
         )}
 
         ${ui.fieldWrap(
-          ui.fieldLabel("Selbstwirksamkeit vorher", { optional: true }),
+          ui.fieldLabel("Wie sicher fühlst du dich vorher?", { optional: true }),
           ui.select(
             "confidenceBefore",
             [1, 2, 3, 4, 5].map((n) => ({
@@ -383,6 +430,7 @@
       if (field === "selectedLevel") {
         state.howGoalText = null;
         syncLevelGoalText();
+        refreshHowGoals();
         render();
         return;
       }
@@ -510,7 +558,8 @@
     state.socialUnlock = data.socialUnlock || { gruppe: false, frei: false };
     state.existingEntry = data.existingEntry || null;
     state.hasClass = data.hasClass !== false;
-    state.howGoals = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
+    state.howGoalsBase = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
+    refreshHowGoals();
     state.whatGoalOptions = Array.isArray(data.whatGoalOptions) ? data.whatGoalOptions : [];
     state.levelOptions = Array.isArray(data.levelOptions) ? data.levelOptions : LEVEL_OPTIONS;
     state.nextCheckpoint = data.nextCheckpoint || null;

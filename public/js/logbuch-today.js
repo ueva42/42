@@ -106,8 +106,9 @@
       if (entry.level_label) meta.push(entry.level_label);
       return `
         <div class="today-focus-card">
+          <p class="today-focus-card-title">Dein Tagesziel heute</p>
           ${meta.length ? `<p class="today-focus-meta">${ui.escapeHtml(meta.join(" · "))}</p>` : ""}
-          <p><strong>Heute arbeite ich an diesem Ziel:</strong><br>${ui.escapeHtml(entry.level_goal_text)}</p>
+          <p><strong>Ich arbeite an diesem Ziel:</strong><br>${ui.escapeHtml(entry.level_goal_text)}</p>
           <p><strong>Mein Weg:</strong><br>${ui.escapeHtml(entry.how_goal_text || entry.goal || "")}</p>
           ${
             entry.details_text

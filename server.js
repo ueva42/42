@@ -727,16 +727,17 @@ async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId })
 }
 
 const LOG_HOW_GOALS = [
+  "Ich schaue mir zuerst ein Beispiel an.",
   "Ich starte mit Rookie-Aufgaben.",
-  "Ich löse erst Aufgaben mit Hilfe und danach alleine.",
+  "Ich löse erst mit Hilfe und danach alleine.",
   "Ich bearbeite Operator-Aufgaben.",
   "Ich versuche eine Street-Legend-Aufgabe.",
-  "Ich vergleiche meinen Rechenweg mit der Musterlösung.",
+  "Ich vergleiche meinen Lösungsweg mit der Musterlösung.",
   "Ich suche gezielt meine Fehler.",
-  "Ich schreibe meinen Rechenweg sauber auf.",
+  "Ich schreibe meinen Lösungsweg sauber auf.",
   "Ich erkläre am Ende eine Aufgabe jemandem.",
   "Ich schaue ein Lernvideo und notiere drei wichtige Punkte.",
-  "Ich wiederhole ein unsicheres Unterthema."
+  "Ich wiederhole ein unsicheres Ziel."
 ];
 const LOG_GOALS = LOG_HOW_GOALS;
 
