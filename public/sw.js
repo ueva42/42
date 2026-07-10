@@ -1,4 +1,4 @@
-const CACHE_VERSION = "sol-logbuch-v4";
+const CACHE_VERSION = "sol-logbuch-v5";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -46,15 +46,24 @@ function trimCache(cacheName, maxItems) {
   });
 }
 
+function cacheResponse(request, response, cacheName, maxItems = 80, cache = null) {
+  if (!response || !response.ok) return;
+  const copy = response.clone();
+  const doPut = (c) => {
+    c.put(request, copy);
+    trimCache(cacheName, maxItems);
+  };
+  if (cache) {
+    doPut(cache);
+  } else {
+    caches.open(cacheName).then(doPut);
+  }
+}
+
 function networkFirstAsset(request, cacheName, maxItems = 80) {
   return fetch(request)
     .then((response) => {
-      if (response && response.ok) {
-        caches.open(cacheName).then((cache) => {
-          cache.put(request, response.clone());
-          trimCache(cacheName, maxItems);
-        });
-      }
+      cacheResponse(request, response, cacheName, maxItems);
       return response;
     })
     .catch(() => caches.match(request));
@@ -65,10 +74,7 @@ function staleWhileRevalidate(request, cacheName, maxItems = 80) {
     const cached = await cache.match(request);
     const networkPromise = fetch(request)
       .then((response) => {
-        if (response && response.ok) {
-          cache.put(request, response.clone());
-          trimCache(cacheName, maxItems);
-        }
+        cacheResponse(request, response, cacheName, maxItems, cache);
         return response;
       })
       .catch(() => null);
@@ -98,9 +104,7 @@ function networkFirstPage(request) {
 
   return fetch(request)
     .then((response) => {
-      if (response && response.ok) {
-        caches.open(STATIC_CACHE).then((cache) => cache.put(request, response.clone()));
-      }
+      cacheResponse(request, response, STATIC_CACHE);
       return response;
     })
     .catch(async () => {

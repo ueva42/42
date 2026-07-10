@@ -280,7 +280,7 @@
     }
   }
 
-  function primaryTopicIdFromLinked(linkedIds) {
+  function formValues() {
     if (state.editCheckpointId) {
       const cp = checkpointById(state.editCheckpointId);
       if (!cp) return null;
@@ -301,6 +301,16 @@
       customLabel: state.formDraft.customLabel,
       linked: new Set(state.formDraft.linked || [])
     };
+  }
+
+  function primaryTopicIdFromLinked(linkedIds) {
+    const idSet = new Set((linkedIds || []).map((id) => String(id)));
+    for (const topic of topicsForSubject()) {
+      for (const goal of topic.goals || []) {
+        if (idSet.has(String(goal.id))) return topic.id;
+      }
+    }
+    return topicsForSubject()[0]?.id || null;
   }
 
   function renderCheckpointForm() {
@@ -654,7 +664,16 @@
       }
       state.loading = false;
       state.error = "";
-      render();
+      try {
+        render();
+      } catch (renderErr) {
+        console.error(renderErr);
+        state.error = "Anzeige konnte nicht geladen werden.";
+        const root = document.getElementById("competenciesTabRoot");
+        if (root) {
+          root.innerHTML = `<div class="tc-error">${escapeHtml(state.error)}</div>`;
+        }
+      }
     } catch (err) {
       console.error(err);
       state.loading = false;

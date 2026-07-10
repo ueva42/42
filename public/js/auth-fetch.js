@@ -43,7 +43,13 @@
           path !== "/api/auth/session" &&
           !window.location.pathname.startsWith("/login")
         ) {
-          window.location.href = "/login";
+          const sessionRes = await nativeFetch("/api/auth/session", {
+            credentials: "same-origin",
+            cache: "no-store"
+          });
+          if (!sessionRes.ok) {
+            window.location.href = "/login";
+          }
         }
         return res;
       }
