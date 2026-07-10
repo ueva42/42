@@ -23,7 +23,7 @@
 
   function renderModalContent(ui, strategy) {
     const steps = strategy.steps
-      .map((step, i) => `<li><span>${i + 1}.</span> ${ui.escapeHtml(step)}</li>`)
+      .map((step) => `<li>${ui.escapeHtml(step)}</li>`)
       .join("");
 
     return `
