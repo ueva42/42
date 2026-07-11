@@ -1494,8 +1494,8 @@ body.student-app .card.section:not(#hub-section) {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.32);
 }
 
-.student-screen--orange { --accent: #ff8a1f; --accent-soft: rgba(255, 138, 31, 0.22); }
-.student-screen--purple { --accent: #a855f7; --accent-soft: rgba(168, 85, 247, 0.22); }
+.student-screen--orange { --accent: #ff8a1f; --accent-soft: rgba(255, 138, 31, 0.22); --accent-glow: rgba(255, 138, 31, 0.45); }
+.student-screen--purple { --accent: #a855f7; --accent-soft: rgba(168, 85, 247, 0.22); --accent-glow: rgba(168, 85, 247, 0.45); }
 .student-screen--cyan { --accent: #22d3ee; --accent-soft: rgba(34, 211, 238, 0.22); }
 .student-screen--teal { --accent: #06b6d4; --accent-soft: rgba(6, 182, 212, 0.22); }
 .student-screen--green { --accent: #22c55e; --accent-soft: rgba(34, 197, 94, 0.22); }
@@ -1504,6 +1504,457 @@ body.student-app .card.section:not(#hub-section) {
 .student-screen--gold { --accent: #f59e0b; --accent-soft: rgba(245, 158, 11, 0.22); }
 .student-screen--violet { --accent: #8b5cf6; --accent-soft: rgba(139, 92, 246, 0.22); }
 .student-screen--magenta { --accent: #d946ef; --accent-soft: rgba(217, 70, 239, 0.22); }
+
+body.student-app {
+  overflow-x: hidden;
+}
+
+/* ── App page components (student subpages) ── */
+.student-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.page-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.page-grid--2 {
+  display: grid;
+  gap: 14px;
+}
+
+@media (min-width: 720px) {
+  .page-grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.student-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent, #94a3b8) 22%, transparent);
+  background:
+    radial-gradient(circle at 92% 18%, var(--accent-soft, rgba(255, 255, 255, 0.06)), transparent 38%),
+    linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.96));
+  padding: 16px 18px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28);
+}
+
+.student-card .card-content {
+  position: relative;
+  z-index: 2;
+}
+
+.card-hero-art {
+  position: absolute;
+  right: 12px;
+  bottom: 6px;
+  width: 34%;
+  max-width: 220px;
+  height: auto;
+  opacity: 0.2;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 28px var(--accent-glow, rgba(255, 255, 255, 0.2))) saturate(1.1) contrast(1.05);
+}
+
+.stat-card {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(2, 6, 23, 0.55);
+  padding: 12px 14px;
+  text-align: center;
+}
+
+.stat-card__value {
+  display: block;
+  font-family: "Orbitron", system-ui;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f1f5f9;
+  line-height: 1.2;
+}
+
+.stat-card__label {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.stat-card--accent .stat-card__value {
+  color: color-mix(in srgb, var(--accent, #fff) 80%, #fff);
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .stat-row--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .stat-row--5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.day-nav-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.day-nav-card__center {
+  flex: 1;
+  text-align: center;
+  min-width: 0;
+}
+
+.day-nav-card__title {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f1f5f9;
+}
+
+.day-nav-card__sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.day-chip-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.day-chip {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(2, 6, 23, 0.65);
+  color: #cbd5e1;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.day-chip.is-active {
+  border-color: color-mix(in srgb, var(--accent, #fff) 45%, transparent);
+  background: color-mix(in srgb, var(--accent, #fff) 14%, rgba(2, 6, 23, 0.85));
+  color: #f8fafc;
+  box-shadow: 0 0 18px var(--accent-glow, rgba(255, 255, 255, 0.15));
+}
+
+.day-chip.is-today:not(.is-active) {
+  border-color: color-mix(in srgb, var(--accent, #fff) 28%, transparent);
+}
+
+.day-chip__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--accent, #94a3b8);
+  vertical-align: middle;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid color-mix(in srgb, var(--accent, #fff) 30%, transparent);
+  background: color-mix(in srgb, var(--accent, #fff) 12%, rgba(2, 6, 23, 0.8));
+  color: color-mix(in srgb, var(--accent, #fff) 75%, #fff);
+}
+
+.status-badge--ok {
+  --accent: #22c55e;
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.status-badge--part {
+  --accent: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+
+.status-badge--open {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.1);
+  color: #cbd5e1;
+}
+
+.goal-card-grid {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .goal-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.goal-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(2, 6, 23, 0.72);
+  padding: 14px 16px;
+}
+
+.goal-card--ok { border-color: rgba(34, 197, 94, 0.35); box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.08); }
+.goal-card--part { border-color: rgba(245, 158, 11, 0.35); box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.08); }
+.goal-card--open { border-color: rgba(148, 163, 184, 0.25); }
+
+.goal-card__subject {
+  margin: 0 0 6px;
+  font-family: "Orbitron", system-ui;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #e2e8f0;
+}
+
+.goal-card__what {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #f1f5f9;
+}
+
+.goal-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.lesson-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.lesson-card__subject {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent, #fff) 75%, #fff);
+}
+
+.lesson-card__time {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.lesson-card__goal {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #e2e8f0;
+  max-width: 92%;
+}
+
+.lesson-card__phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.phase-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(2, 6, 23, 0.55);
+  color: #94a3b8;
+}
+
+.phase-pill.is-done {
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.lesson-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lesson-card__actions .btn-primary,
+.lesson-card__actions .logbuch-btn-ghost {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+  margin-top: 0;
+}
+
+.lesson-card__actions .today-action-select {
+  flex: 1 1 100%;
+  margin-top: 0;
+}
+
+.empty-state-card {
+  text-align: center;
+  padding: 28px 22px;
+}
+
+.empty-state-card__eyebrow {
+  margin: 0 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent, #fff) 70%, #fff);
+}
+
+.empty-state-card__title {
+  margin: 0 0 10px;
+  font-family: "Orbitron", system-ui;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  color: #f1f5f9;
+}
+
+.empty-state-card__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #94a3b8;
+  max-width: 36em;
+  margin-inline: auto;
+}
+
+.empty-state-card__hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.section-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-block__title {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent, #fff) 70%, #fff);
+}
+
+.reflection-chip-grid {
+  display: grid;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .reflection-chip-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.reflection-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(2, 6, 23, 0.55);
+}
+
+.reflection-chip__label {
+  font-size: 13px;
+  color: #e2e8f0;
+  line-height: 1.35;
+}
+
+.reflection-chip__value {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
+  color: color-mix(in srgb, var(--accent, #fff) 75%, #fff);
+}
+
+.reflection-chip .logbuch-select {
+  width: 100%;
+}
+
+.open-goal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.open-goal-chip {
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.08);
+  font-size: 12px;
+  line-height: 1.4;
+  color: #fde68a;
+}
+
+.week-form-card .logbuch-field-wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 639px) {
+  .card-hero-art,
+  .student-screen-hero {
+    width: 38%;
+    opacity: 0.14;
+  }
+}
 
 .student-screen-head {
   display: flex;
@@ -2094,18 +2545,26 @@ body.student-app .card.section > h2 {
 }
 .today-shell { display: flex; flex-direction: column; gap: 12px; }
 .today-status-panel {
+  display: grid;
+  gap: 10px;
   margin-bottom: 14px;
-  padding: 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.45);
+  padding: 0;
+  border: none;
+  background: transparent;
 }
-.today-status-user {
-  font-size: 14px;
-  line-height: 1.6;
+.today-status-user { margin: 0; }
+.today-status-level { margin: 0; }
+.today-xp-bar__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
   margin-bottom: 8px;
+  font-size: 11px;
+  color: #94a3b8;
 }
-.today-status-level { margin: 4px 0 14px; }
+.today-xp-bar .hub-progress-track {
+  height: 8px;
+}
 .today-status-subtitle {
   margin: 0 0 10px;
   font-size: 15px;
@@ -4652,8 +5111,8 @@ h2 {
 <script src="/js/logbuch-plan.js?v=13"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>
-<script src="/js/logbuch-today.js?v=17"></script>
-<script src="/js/logbuch-week.js?v=2"></script>
+<script src="/js/logbuch-today.js?v=18"></script>
+<script src="/js/logbuch-week.js?v=3"></script>
 <script src="/js/logbuch-levelplan.js?v=10"></script>
 <script src="/js/logbuch-start-briefing.js?v=1"></script>
 <script src="/js/logbuch-taktik-deck.js?v=4"></script>
@@ -4946,10 +5405,15 @@ window.loadMe = async function loadMe() {
   window.__hasSeenStartBriefing = !!data.hasSeenStartBriefing;
 
   document.getElementById("userCard").innerHTML = `
-    <div>
-      <b>Name:</b> ${u.name}<br>
-      <b>XP:</b> ${u.xp}<br>
-      <b>Level:</b> ${u.level_name || "—"} (ab ${u.level_min_xp})
+    <div class="stat-row">
+      <div class="stat-card stat-card--accent">
+        <span class="stat-card__value">${Number(u.xp).toLocaleString("de-DE")}</span>
+        <span class="stat-card__label">XP gesamt</span>
+      </div>
+      <div class="stat-card stat-card--accent">
+        <span class="stat-card__value">${u.level_name || "—"}</span>
+        <span class="stat-card__label">Level</span>
+      </div>
     </div>
   `;
 
@@ -4999,6 +5463,7 @@ window.loadMe = async function loadMe() {
 
   renderLevelBar(data.levels || [], u.xp);
   updateStudentProfile(u, data.levels || [], data.character);
+  renderLevelBar(data.levels || [], u.xp);
 
   if (!data.character) openCharacterOverlay();
   else if (window.LogbuchStartBriefing) window.LogbuchStartBriefing.openAuto();
@@ -5010,23 +5475,37 @@ window.loadMe = async function loadMe() {
    LEVEL BAR
 ============================================ */
 function renderLevelBar(levels, xp) {
-  let html = `<div class="level-step-container">`;
+  const p = window.__studentProfile;
+  const el = document.getElementById("levelBar");
+  if (!el) return;
 
+  if (p) {
+    el.innerHTML = `
+      <div class="today-xp-bar">
+        <div class="today-xp-bar__meta">
+          <span>${p.xpProgressLabel || `${xp} XP`}</span>
+          <span>${p.nextLevelLabel || ""}</span>
+        </div>
+        <div class="hub-progress-track">
+          <div class="hub-progress-fill hub-progress-fill-xp" style="width:${p.xpPct ?? 0}%"></div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  let html = `<div class="level-step-container">`;
   for (let i = 0; i < levels.length; i++) {
     if (i > 0) html += `<div class="level-step-star">★</div>`;
-
     const min = levels[i].min_xp;
     const next = levels[i+1]?.min_xp ?? (min + 1);
     let pct = xp >= min ? Math.min(100, ((xp - min)/(next - min))*100) : 0;
-
     html += `
       <div class="level-step">
         <div class="level-step-fill" style="width:${pct}%"></div>
       </div>`;
   }
-
   html += `</div>`;
-  document.getElementById("levelBar").innerHTML = html;
+  el.innerHTML = html;
 }
 
 /* ============================================

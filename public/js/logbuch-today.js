@@ -1,5 +1,5 @@
 /**
- * SRL-Logbuch – MEIN TAG (Default-Screen, Mo–Fr-Swipe).
+ * SRL-Logbuch – MEIN TAG (App-Card Layout).
  */
 (function () {
   const UI = () => window.LogbuchUI;
@@ -46,24 +46,24 @@
     };
   }
 
-  function renderPhaseIndicator(phases, className = "today-phases-inline") {
+  function visibleBlocks(blocks) {
+    return (blocks || []).filter(
+      (b) => b?.slot?.subject && b.slot.subject !== "Frei" && !b.isFree
+    );
+  }
+
+  function renderPhasePills(phases) {
     const items = [
       { key: "plan", label: "Plan" },
       { key: "check", label: "Check" },
       { key: "reflect", label: "Reflexion" }
     ];
-
-    return `
-      <p class="${className}">
-        ${items
-          .map(
-            (p, i) => `
-          <span class="today-phase-inline ${phases[p.key] ? "done" : ""}">
-            ${phases[p.key] ? "✓" : "○"} ${p.label}
-          </span>${i < items.length - 1 ? '<span class="today-phase-sep">·</span>' : ""}`
-          )
-          .join("")}
-      </p>`;
+    return items
+      .map(
+        (p) =>
+          `<span class="phase-pill ${phases[p.key] ? "is-done" : ""}">${phases[p.key] ? "✓" : "○"} ${p.label}</span>`
+      )
+      .join("");
   }
 
   function renderActionSelect(entry) {
@@ -93,12 +93,6 @@
       </select>`;
   }
 
-  function visibleBlocks(blocks) {
-    return (blocks || []).filter(
-      (b) => b?.slot?.subject && b.slot.subject !== "Frei" && !b.isFree
-    );
-  }
-
   function renderDailyGoalBody(ui, entry) {
     if (entry.level_goal_text) {
       const meta = [];
@@ -106,26 +100,21 @@
       if (entry.level_label) meta.push(entry.level_label);
       return `
         <div class="today-focus-card">
-          <p class="today-focus-card-title">Dein Tagesziel heute</p>
+          <p class="today-focus-card-title">Dein Tagesziel</p>
           ${meta.length ? `<p class="today-focus-meta">${ui.escapeHtml(meta.join(" · "))}</p>` : ""}
-          <p><strong>Ich arbeite an diesem Ziel:</strong><br>${ui.escapeHtml(entry.level_goal_text)}</p>
-          <p><strong>Mein Weg:</strong><br>${ui.escapeHtml(entry.how_goal_text || entry.goal || "")}</p>
+          <p class="lesson-card__goal"><strong>Ziel:</strong> ${ui.escapeHtml(entry.level_goal_text)}</p>
           ${
-            entry.details_text
-              ? `<p><strong>Konkret:</strong><br>${ui.escapeHtml(entry.details_text)}</p>`
-              : ""
-          }
-          ${
-            entry.plan_b_strategy_text
-              ? `<p><strong>Plan B, wenn ich hänge:</strong><br>${ui.escapeHtml(entry.plan_b_strategy_text)}</p>`
+            entry.how_goal_text || entry.goal
+              ? `<p class="lesson-card__goal"><strong>Weg:</strong> ${ui.escapeHtml(entry.how_goal_text || entry.goal || "")}</p>`
               : ""
           }
         </div>`;
     }
     const titleText = entry.plan_sentence || entry.goal;
+    if (!titleText) return "";
     const detailText = entry.details_text ? `Konkret: ${entry.details_text}` : "";
     return `
-      <p class="today-block-goal">${ui.escapeHtml(titleText)}</p>
+      <p class="lesson-card__goal">${ui.escapeHtml(titleText)}</p>
       ${detailText ? `<p class="today-block-muted">${ui.escapeHtml(detailText)}</p>` : ""}`;
   }
 
@@ -135,26 +124,13 @@
 
     const isLegacy = ["👍", "😐", "👎"].includes(c.on_track);
     if (isLegacy) {
-      return `
-        <div class="today-focus-card today-check-card">
-          <p class="today-focus-card-title">Zwischen-Check</p>
-          <p class="today-block-muted">Abgeschlossen (älteres Format)</p>
-        </div>`;
+      return `<p class="today-block-muted">Zwischen-Check abgeschlossen</p>`;
     }
 
     return `
-      <div class="today-focus-card today-check-card">
-        <p class="today-focus-card-title">Zwischen-Check</p>
-        <p><strong>Auf dem Weg:</strong> ${ui.escapeHtml(c.on_track)}</p>
-        <p><strong>Verstanden:</strong> ${ui.escapeHtml(c.understands)}</p>
-        <p><strong>Fortschritt:</strong> ${ui.escapeHtml(c.progress)}</p>
-        <p><strong>Jetzt:</strong> ${ui.escapeHtml(c.next_step_answer || "–")}</p>
-        ${
-          c.selected_strategy_name
-            ? `<p><strong>Gewählte Taktik:</strong> ${ui.escapeHtml(c.selected_strategy_name)}</p>`
-            : ""
-        }
-      </div>`;
+      <p class="today-block-muted">
+        Check: ${ui.escapeHtml(c.on_track)} · Verstanden: ${ui.escapeHtml(c.understands)} · Fortschritt: ${ui.escapeHtml(c.progress)}
+      </p>`;
   }
 
   function renderReflectionSummary(ui, entry) {
@@ -172,30 +148,27 @@
             : r.goal_achieved || "–");
 
     return `
-      <div class="today-focus-card today-reflect-card">
-        <p class="today-focus-card-title">Reflexion</p>
-        <p><strong>Ziel erreicht:</strong> ${goalAchievedSymbol(r.goal_achieved)} ${ui.escapeHtml(goalText)}</p>
-        <p><strong>Sicherheit:</strong> ${entry.confidence_before ?? "–"} → ${r.confidence_after}/5</p>
-        ${
-          r.used_strategy_name
-            ? `<p><strong>Strategie:</strong> ${ui.escapeHtml(r.used_strategy_name)}</p>`
-            : ""
-        }
-        ${
-          r.learned_today
-            ? `<p><strong>Gelernt:</strong> ${ui.escapeHtml(r.learned_today)}</p>`
-            : ""
-        }
-      </div>`;
+      <p class="today-block-muted">
+        Reflexion: ${goalAchievedSymbol(r.goal_achieved)} ${ui.escapeHtml(goalText)}
+        · Sicherheit ${entry.confidence_before ?? "–"} → ${r.confidence_after}/5
+      </p>`;
   }
 
   function navButton(label, nav, query, primary = false) {
     const ui = UI();
-    const cls = primary ? "btn-primary today-plan-btn" : "logbuch-btn-ghost today-view-plan-btn";
+    const cls = primary ? "btn-primary" : "logbuch-btn-ghost";
     return `
       <button type="button" class="${cls}" data-nav="${ui.escapeHtml(nav)}" data-query="${ui.escapeHtml(query)}">
-        ${ui.escapeHtml(label)}
+        ${ui.escapeHtml(label)} →
       </button>`;
+  }
+
+  function primaryAction(entry, editable) {
+    if (!editable || entry.hasReflection) return null;
+    if (!entry.hasCheck) {
+      return navButton("Zwischen-Check", "check", new URLSearchParams({ entryId: entry.id }).toString(), true);
+    }
+    return navButton("Tagesabschluss", "reflect", new URLSearchParams({ entryId: entry.id }).toString(), true);
   }
 
   function renderBlock(block, editable) {
@@ -206,13 +179,15 @@
     if (!entry) {
       if (!editable) {
         return `
-          <div class="today-block today-block-empty">
-            <div class="today-block-head">
-              <span class="today-block-subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</span>
-              ${slot?.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
+          <article class="student-card lesson-card">
+            <div class="card-content">
+              <div class="lesson-card__head">
+                <h3 class="lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
+                ${slot?.timeslot ? `<span class="lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
+              </div>
+              <p class="today-block-muted">Kein Eintrag</p>
             </div>
-            <p class="today-block-muted">Kein Eintrag</p>
-          </div>`;
+          </article>`;
       }
 
       const params = new URLSearchParams({ date: state.date });
@@ -220,20 +195,21 @@
       if (slot?.timeslot) params.set("timeslot", slot.timeslot);
 
       return `
-        <div class="today-block today-block-open">
-          <div class="today-block-head">
-            <span class="today-block-subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</span>
-            ${slot?.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
+        <article class="student-card lesson-card">
+          <div class="card-content">
+            <div class="lesson-card__head">
+              <h3 class="lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
+              ${slot?.timeslot ? `<span class="lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
+            </div>
+            <p class="lesson-card__goal">Noch kein Tagesziel gesetzt.</p>
+            <div class="lesson-card__actions">
+              ${navButton("Tagesziel setzen", "plan", params.toString(), true)}
+            </div>
           </div>
-          <button type="button" class="btn-primary today-plan-btn"
-            data-nav="plan" data-query="${ui.escapeHtml(params.toString())}">
-            Tagesziel setzen
-          </button>
-        </div>`;
+        </article>`;
     }
 
     const readOnly = !editable;
-
     const params = new URLSearchParams({ date: state.date });
     if (entry.id) params.set("entryId", entry.id);
     if (entry.subject) params.set("subject", entry.subject);
@@ -241,73 +217,120 @@
 
     const checkParams = new URLSearchParams({ entryId: entry.id });
     const reflectParams = new URLSearchParams({ entryId: entry.id });
+    const phases = blockPhases(entry);
 
     const viewPlanBtn = navButton(
-      editable && !entry.hasReflection ? "Tagesziel bearbeiten" : "Tagesziel ansehen",
+      editable && !entry.hasReflection ? "Ziel bearbeiten" : "Ziel ansehen",
       "plan",
-      params.toString(),
-      editable && !entry.hasReflection
+      params.toString()
     );
-
     const viewCheckBtn = entry.hasCheck
       ? navButton(
-          editable && !entry.hasReflection ? "Zwischen-Check bearbeiten" : "Zwischen-Check ansehen",
+          editable && !entry.hasReflection ? "Check bearbeiten" : "Check ansehen",
           "check",
           checkParams.toString()
         )
       : "";
-
     const viewReflectBtn = entry.hasReflection
-      ? navButton(
-          editable ? "Reflexion bearbeiten" : "Reflexion ansehen",
-          "reflect",
-          reflectParams.toString()
-        )
+      ? navButton(editable ? "Reflexion bearbeiten" : "Reflexion ansehen", "reflect", reflectParams.toString())
       : "";
 
-    const phaseButtons = [viewPlanBtn, viewCheckBtn, viewReflectBtn].filter(Boolean).join("");
-    const actions = !readOnly
-      ? `<div class="today-phase-actions">${phaseButtons}${renderActionSelect(entry)}</div>`
-      : `<div class="today-phase-actions">${phaseButtons}</div>`;
+    const primary = primaryAction(entry, editable);
+    const secondary = [viewPlanBtn, viewCheckBtn, viewReflectBtn].filter(Boolean).join("");
+    const nextSelect = !readOnly && !(entry.hasCheck && entry.hasReflection) ? renderActionSelect(entry) : "";
 
-    const goalBody = renderDailyGoalBody(ui, entry);
-    const checkBody = entry.hasCheck ? renderCheckSummary(ui, entry) : "";
-    const reflectBody = entry.hasReflection ? renderReflectionSummary(ui, entry) : "";
     const checkpointHint = entry.checkpoint_title
       ? `<p class="today-block-muted">${ui.escapeHtml(entry.checkpoint_title)}</p>`
       : "";
 
     return `
-      <div class="today-block today-block-done">
-        <div class="today-block-head">
-          <span class="today-block-subject">${ui.escapeHtml(entry.subject)}</span>
-          ${entry.timeslot ? `<span class="today-block-slot">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
+      <article class="student-card lesson-card">
+        <div class="card-content">
+          <div class="lesson-card__head">
+            <h3 class="lesson-card__subject">${ui.escapeHtml(entry.subject)}</h3>
+            ${entry.timeslot ? `<span class="lesson-card__time">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
+          </div>
+          ${checkpointHint}
+          ${renderDailyGoalBody(ui, entry)}
+          ${entry.hasCheck ? renderCheckSummary(ui, entry) : ""}
+          ${entry.hasReflection ? renderReflectionSummary(ui, entry) : ""}
+          <div class="lesson-card__phases">${renderPhasePills(phases)}</div>
+          <div class="lesson-card__actions">
+            ${primary || ""}
+            ${secondary}
+            ${nextSelect}
+          </div>
         </div>
-        ${goalBody}
-        ${checkBody}
-        ${reflectBody}
-        ${entry.level_goal_text ? "" : checkpointHint}
-        ${actions}
-      </div>`;
+      </article>`;
   }
 
-  function renderLesson(block, editable) {
+  function renderProgressStrip(blockList) {
+    const total = blockList.length;
+    const planned = blockList.filter((b) => b.entry).length;
+    const checked = blockList.filter((b) => b.entry?.hasCheck).length;
+    const reflected = blockList.filter((b) => b.entry?.hasReflection).length;
+    const p = window.__studentProfile || {};
+
     return `
-      <div class="today-lesson">
-        ${renderPhaseIndicator(blockPhases(block.entry), "today-lesson-phases")}
-        ${renderBlock(block, editable)}
+      <div class="stat-row stat-row--4">
+        <div class="stat-card stat-card--accent">
+          <span class="stat-card__value">${planned}/${total || 0}</span>
+          <span class="stat-card__label">Ziele gesetzt</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__value">${checked}/${total || 0}</span>
+          <span class="stat-card__label">Checks</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__value">${reflected}/${total || 0}</span>
+          <span class="stat-card__label">Reflexionen</span>
+        </div>
+        <div class="stat-card stat-card--accent">
+          <span class="stat-card__value">${Number(p.xp || 0).toLocaleString("de-DE")}</span>
+          <span class="stat-card__label">XP gesamt</span>
+        </div>
       </div>`;
   }
 
-  function emptyMessage(d, editable) {
+  function renderEmptyState(d, editable) {
+    const ui = UI();
     if (!d.hasClass) {
-      return "Dir ist noch keine Klasse zugeordnet – bitte deine Lehrkraft.";
+      return `
+        <div class="student-card empty-state-card">
+          <div class="card-content">
+            <p class="empty-state-card__eyebrow">Keine Klasse</p>
+            <h3 class="empty-state-card__title">Dir ist noch keine Klasse zugeordnet.</h3>
+            <p class="empty-state-card__text">Bitte wende dich an deine Lehrkraft.</p>
+          </div>
+        </div>`;
     }
-    const cls = d.className ? ` (${d.className})` : "";
-    if (editable) {
-      return `Für diesen Tag${cls} sind noch keine Unterrichtsstunden im Stundenplan – deine Lehrkraft trägt sie im Admin-Bereich ein.`;
-    }
-    return `Keine Unterrichtsstunden an diesem Tag${cls}.`;
+
+    return `
+      <div class="student-card empty-state-card">
+        <img class="card-hero-art" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true">
+        <div class="card-content">
+          <p class="empty-state-card__eyebrow">Keine Stunden</p>
+          <h3 class="empty-state-card__title">Heute ist noch nichts eingetragen.</h3>
+          <p class="empty-state-card__text">
+            Für diesen Tag${d.className ? ` (${ui.escapeHtml(d.className)})` : ""} sind noch keine Unterrichtsstunden im Stundenplan.
+            Deine Lehrkraft kann sie im Admin-Bereich eintragen.
+          </p>
+          ${editable ? `<p class="empty-state-card__hint">Schau später nochmal vorbei.</p>` : ""}
+        </div>
+      </div>`;
+  }
+
+  function renderDayNav(d) {
+    const ui = UI();
+    return `
+      <div class="student-card day-nav-card">
+        <button type="button" class="today-arrow" data-dir="prev" aria-label="Vorheriger Tag">‹</button>
+        <div class="day-nav-card__center">
+          <h3 class="day-nav-card__title">${ui.escapeHtml(d.weekdayLabel)}</h3>
+          <p class="day-nav-card__sub">${ui.escapeHtml(d.dateLabel)}</p>
+        </div>
+        <button type="button" class="today-arrow" data-dir="next" aria-label="Nächster Tag">›</button>
+      </div>`;
   }
 
   function render() {
@@ -328,28 +351,26 @@
 
     const editable = isEditableDate(state.date);
     const slideClass = state.slideDir ? `today-slide-${state.slideDir}` : "";
-
     const blockList = visibleBlocks(d.blocks);
 
-    const blocksHtml =
+    const lessonsHtml =
       blockList.length > 0
-        ? blockList.map((b) => renderLesson(b, editable)).join("")
-        : `<p class="today-block-muted">${emptyMessage(d, editable)}</p>`;
+        ? blockList.map((b) => renderBlock(b, editable)).join("")
+        : renderEmptyState(d, editable);
 
     root.innerHTML = `
-      <div class="today-shell" id="todaySwipeArea">
-        <div class="today-nav">
-          <button type="button" class="today-arrow" data-dir="prev" aria-label="Vorheriger Tag">‹</button>
-          <div class="today-date-wrap">
-            <div class="today-date">${ui.escapeHtml(d.weekdayLabel)}</div>
-            <div class="today-date-sub">${ui.escapeHtml(d.dateLabel)}</div>
-          </div>
-          <button type="button" class="today-arrow" data-dir="next" aria-label="Nächster Tag">›</button>
-        </div>
+      <div class="student-page today-shell" id="todaySwipeArea">
+        ${renderDayNav(d)}
+        ${renderProgressStrip(blockList)}
 
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="todaySlidePanel">
-            <div class="today-blocks">${blocksHtml}</div>
+            <section class="page-grid">
+              <div class="section-block">
+                <h3 class="section-block__title">${blockList.length ? "Deine Stunden" : "Übersicht"}</h3>
+                <div class="today-blocks">${lessonsHtml}</div>
+              </div>
+            </section>
           </div>
         </div>
       </div>`;
@@ -406,9 +427,7 @@
     if (!state.data) render();
 
     try {
-      const res = await fetch(
-        `/api/student/log/today?date=${encodeURIComponent(dateIso)}`
-      );
+      const res = await fetch(`/api/student/log/today?date=${encodeURIComponent(dateIso)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       state.data = data;
