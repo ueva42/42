@@ -1,5 +1,5 @@
 /**
- * Schüler-Hub – Kontrollzentrum (Game-Hub Layout).
+ * Schüler-Hub – Kontrollzentrum (Game-Hub, ohne Sidebar).
  */
 (function () {
   const UI = () => window.LogbuchUI;
@@ -8,23 +8,23 @@
     {
       section: "today",
       title: "Mein Tag",
-      text: "Deine heutigen Aufgaben auf einen Blick.",
+      text: "Deine Aufgaben für heute. Fokus. Fortschritt. Erfolg.",
       cta: "Heute starten",
-      tone: "purple",
+      tone: "orange",
       icon: "☀"
     },
     {
       section: "week",
       title: "Meine Woche",
-      text: "Dein Lernplan für diese Woche.",
-      cta: "Woche planen",
+      text: "Dein Wochenplan im Überblick.",
+      cta: "Woche ansehen",
       tone: "blue",
       icon: "📅"
     },
     {
       section: "zielsetzung",
       title: "Zielsetzung",
-      text: "Setze Ziele und verfolge deinen Fortschritt.",
+      text: "Setze klare Ziele und verfolge deinen Fortschritt.",
       cta: "Ziele ansehen",
       tone: "green",
       icon: "🎯"
@@ -32,27 +32,27 @@
     {
       section: "levelplan",
       title: "Mein Lernstand",
-      text: "Sieh deine Entwicklung und nächste Schritte.",
+      text: "Sieh, woran du arbeitest und was du schon sicher kannst.",
       cta: "Lernstand öffnen",
-      tone: "orange",
+      tone: "green",
       icon: "📊"
     },
     {
       section: "taktik-deck",
       title: "Taktik-Deck",
-      text: "Deine Strategien für jede Lernherausforderung.",
-      cta: "Taktik-Deck öffnen",
-      tone: "pink",
+      text: "Strategien, die dir helfen, wenn du festhängst.",
+      cta: "Deck öffnen",
+      tone: "purple",
       featured: true,
       icon: "⚡"
     },
     {
       section: "checkpoint-plan",
       title: "Meine Checks",
-      text: "Plane deine Etappen und Meilensteine.",
+      text: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
       cta: "Plan öffnen",
-      tone: "cyan",
-      icon: "🚩"
+      tone: "blue",
+      icon: "✓"
     }
   ];
 
@@ -60,37 +60,122 @@
     {
       section: "missionen",
       title: "Missionen",
-      text: "Nimm Missionen an und sammle XP.",
-      tone: "purple",
+      text: "Nimm Herausforderungen an und sammle XP.",
+      tone: "muted",
       icon: "◎"
     },
     {
       section: "belohnungen",
       title: "Belohnungen",
-      text: "Schalte Belohnungen frei und feiere Erfolge.",
-      tone: "gold",
+      text: "Schalte Extras frei und feiere Erfolge.",
+      tone: "muted",
       icon: "🏆"
     },
     {
       section: "charakter",
       title: "Charakter",
-      text: "Passe deinen Charakter an und zeig deinen Style.",
-      tone: "blue",
+      text: "Passe deinen Charakter an.",
+      tone: "muted",
       icon: "👤"
     },
     {
       section: "xp",
       title: "XP-Historie",
-      text: "Verfolge deine XP und Lernstatistiken.",
-      tone: "pink",
+      text: "Sieh deine Entwicklung und XP.",
+      tone: "muted",
       icon: "XP"
     }
   ];
 
-  const state = { todayFocus: null };
+  const state = {
+    todayDate: null,
+    blocks: [],
+    nextStep: null
+  };
 
-  function navigate(section) {
-    window.StudentRouter?.navigateToSection(section);
+  function todayIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function visibleBlocks(blocks) {
+    return (blocks || []).filter(
+      (b) => b?.slot?.subject && b.slot.subject !== "Frei" && !b.isFree
+    );
+  }
+
+  function computeNextStep(blocks, date) {
+    const visible = visibleBlocks(blocks);
+
+    if (visible.length === 0) {
+      return {
+        label: "Mein Tag öffnen",
+        hint: "Schau, was heute ansteht.",
+        section: "today",
+        query: null
+      };
+    }
+
+    for (const block of visible) {
+      const slot = block.slot || {};
+      const entry = block.entry;
+      const subject = entry?.subject || slot.subject || "Stunde";
+
+      if (!entry) {
+        const params = new URLSearchParams({ date: date || todayIso() });
+        if (slot.subject) params.set("subject", slot.subject);
+        if (slot.timeslot) params.set("timeslot", slot.timeslot);
+        return {
+          label: "Tagesziel setzen",
+          hint: `${subject} – lege dein Tagesziel fest.`,
+          section: "plan",
+          query: params
+        };
+      }
+
+      if (!entry.hasCheck) {
+        return {
+          label: "Zwischen-Check starten",
+          hint: `${subject} – wie läuft's gerade?`,
+          section: "check",
+          query: new URLSearchParams({ entryId: entry.id })
+        };
+      }
+
+      if (!entry.hasReflection) {
+        return {
+          label: "Tagesabschluss machen",
+          hint: `${subject} – Reflexion abschließen.`,
+          section: "reflect",
+          query: new URLSearchParams({ entryId: entry.id })
+        };
+      }
+    }
+
+    return {
+      label: "Mein Tag ansehen",
+      hint: "Alle Schritte für heute erledigt. Stark!",
+      section: "today",
+      query: null
+    };
+  }
+
+  function todayStats(blocks) {
+    const visible = visibleBlocks(blocks);
+    const withEntry = visible.filter((b) => b.entry);
+    return {
+      total: visible.length,
+      done: withEntry.filter((b) => b.entry?.hasReflection).length,
+      planned: withEntry.length
+    };
+  }
+
+  function navigate(section, query) {
+    if (query) {
+      window.StudentRouter?.navigateToSection(section, { query });
+    } else {
+      window.StudentRouter?.navigateToSection(section);
+    }
   }
 
   function renderMainTile(ui, tile) {
@@ -118,96 +203,61 @@
       </button>`;
   }
 
-  function focusRingSvg(done, total) {
-    const pct = total > 0 ? done / total : 0;
-    const r = 36;
-    const c = 2 * Math.PI * r;
-    const offset = c * (1 - pct);
-    return `
-      <svg class="hub-focus-ring" viewBox="0 0 88 88" aria-hidden="true">
-        <circle cx="44" cy="44" r="${r}" class="hub-focus-ring-bg"/>
-        <circle cx="44" cy="44" r="${r}" class="hub-focus-ring-fill"
-          stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/>
-      </svg>`;
-  }
-
   function render() {
     const root = document.getElementById("hub-screen-root");
     if (!root) return;
     const ui = UI();
     const p = window.__studentProfile || {};
-    const focus = state.todayFocus || { done: 0, total: 0 };
-    const focusPct = focus.total > 0 ? Math.round((focus.done / focus.total) * 100) : 0;
-    const xpPct = p.xpPct ?? 0;
+    const stats = todayStats(state.blocks);
+    const step = state.nextStep || computeNextStep(state.blocks, state.todayDate);
+    const focusPct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+    const firstName = (p.name || "").split(/\s+/)[0] || "du";
 
     root.innerHTML = `
       <div class="hub-page">
-        <header class="hub-page-header">
-          <div class="hub-page-brand">
-            <h1 class="hub-page-title">Streets of Logic – XP Edition</h1>
-            <p class="hub-page-tagline">Strategien lernen. Logik beherrschen. XP verdienen.</p>
-          </div>
-          <div class="hub-level-card">
-            <div class="hub-level-card-icon">XP</div>
-            <div class="hub-level-card-body">
-              <span class="hub-level-card-label" id="hubHeaderLevel">${ui.escapeHtml(p.levelName || "Level –")}</span>
-              <div class="hub-level-card-bar">
-                <div class="hub-level-card-bar-fill" id="hubHeaderXpBar" style="width:${xpPct}%"></div>
-              </div>
-              <span class="hub-level-card-meta" id="hubHeaderXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</span>
+        <section class="hub-hero">
+          <div class="hub-hero-main">
+            <p class="hub-hero-kicker">Dein Tag. Dein Plan.</p>
+            <h1 class="hub-hero-title">Hey ${ui.escapeHtml(firstName)}!</h1>
+            <p class="hub-hero-sub">Starte mit deinem nächsten Lernschritt.</p>
+            <div class="hub-hero-next">
+              <span class="hub-hero-next-label">Nächster Schritt</span>
+              <p class="hub-hero-next-text" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
+              <button type="button" class="hub-hero-cta" id="hubNextBtn" data-hub-action="next">
+                ${ui.escapeHtml(step.label)} →
+              </button>
             </div>
           </div>
-        </header>
+          <aside class="hub-hero-aside">
+            <div class="hub-hero-stat">
+              <span class="hub-hero-stat-label">Heute</span>
+              <span class="hub-hero-stat-value" id="hubFocusLabel">${stats.done}/${stats.total || 0}</span>
+              <span class="hub-hero-stat-sub">Stunden abgeschlossen</span>
+              <div class="hub-hero-stat-bar">
+                <div class="hub-hero-stat-bar-fill" id="hubFocusBar" style="width:${focusPct}%"></div>
+              </div>
+            </div>
+            <div class="hub-hero-stat hub-hero-stat-xp">
+              <span class="hub-hero-stat-label">Level</span>
+              <span class="hub-hero-stat-value" id="hubHeroLevel">${ui.escapeHtml(p.levelName || "–")}</span>
+              <span class="hub-hero-stat-sub" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</span>
+            </div>
+          </aside>
+        </section>
 
-        <section class="hub-intro">
+        <header class="hub-section-head">
           <div>
-            <p class="hub-intro-kicker">Student Hub</p>
-            <h2 class="hub-intro-title">Dein Kontrollzentrum</h2>
-            <p class="hub-intro-sub">Plane dein Lernen, nutze Taktiken und sammle XP.</p>
+            <h2 class="hub-section-head-title">Dein Kontrollzentrum</h2>
+            <p class="hub-section-head-sub">Plane dein Lernen, nutze Taktiken und sammle XP.</p>
           </div>
           <button type="button" class="hub-intro-briefing" id="hubBriefingBtn">
             Start-Briefing ansehen →
           </button>
-        </section>
+        </header>
 
         <section class="hub-section">
           <div class="hub-grid-main">
             ${MAIN_TILES.map((t) => renderMainTile(ui, t)).join("")}
-          </div>
-        </section>
-
-        <section class="hub-focus-row">
-          <div class="hub-focus-card">
-            <div class="hub-focus-ring-wrap">
-              ${focusRingSvg(focus.done, focus.total)}
-              <span class="hub-focus-ring-label" id="hubFocusLabel">${focus.done}/${focus.total || 0}</span>
-            </div>
-            <div class="hub-focus-copy">
-              <h3 class="hub-focus-title">Täglicher Fokus</h3>
-              <p class="hub-focus-text" id="hubFocusText">
-                ${focus.total > 0
-                  ? `${focus.done} von ${focus.total} Stunden mit Tagesabschluss.`
-                  : "Setze heute dein erstes Tagesziel."}
-              </p>
-              <div class="hub-focus-bar">
-                <div class="hub-focus-bar-fill" id="hubFocusBar" style="width:${focusPct}%"></div>
-              </div>
-              <button type="button" class="hub-focus-btn" data-hub-section="today">Weiter machen →</button>
-            </div>
-          </div>
-
-          <div class="hub-xp-card">
-            <div class="hub-xp-card-head">
-              <div>
-                <h3 class="hub-xp-card-title">XP-Fortschritt</h3>
-                <p class="hub-xp-card-meta" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</p>
-                <p class="hub-xp-card-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
-              </div>
-              <div class="hub-xp-emblem">XP</div>
-            </div>
-            <div class="hub-xp-bar">
-              <div class="hub-xp-bar-fill" id="hubXpBar" style="width:${xpPct}%"></div>
-            </div>
           </div>
         </section>
 
@@ -226,25 +276,25 @@
     root.querySelectorAll("[data-hub-section]").forEach((btn) => {
       btn.addEventListener("click", () => navigate(btn.dataset.hubSection));
     });
+
     root.querySelector("#hubBriefingBtn")?.addEventListener("click", () => {
       window.LogbuchStartBriefing?.openReview();
     });
+
+    root.querySelector("#hubNextBtn")?.addEventListener("click", () => {
+      const s = state.nextStep || step;
+      navigate(s.section, s.query);
+    });
   }
 
-  async function loadTodayFocus() {
+  async function loadTodayData() {
     try {
       const res = await fetch("/api/student/log/today");
       if (!res.ok) return;
       const data = await res.json();
-      const blocks = (data.blocks || []).filter(
-        (b) => b?.slot?.subject && b.slot.subject !== "Frei" && !b.isFree
-      );
-      const withEntry = blocks.filter((b) => b.entry);
-      state.todayFocus = {
-        total: blocks.length,
-        done: withEntry.filter((b) => b.entry?.hasReflection).length,
-        planned: withEntry.length
-      };
+      state.todayDate = data.date || todayIso();
+      state.blocks = data.blocks || [];
+      state.nextStep = computeNextStep(state.blocks, state.todayDate);
     } catch (err) {
       console.error(err);
     }
@@ -259,37 +309,43 @@
       if (el) el.textContent = val;
     };
 
-    set("hubHeaderLevel", p.levelName ? `Level · ${p.levelName}` : "Level –");
-    set("hubHeaderXpMeta", p.xpProgressLabel || "–");
-    set("hubXpMeta", p.xpProgressLabel || "–");
+    set("hubHeroLevel", p.levelName || "–");
     set("hubHeroNext", p.nextLevelLabel || "–");
     set("topbarXp", String(p.xp ?? "–"));
     set("topbarLevel", p.levelName || "–");
 
-    const barIds = ["hubHeaderXpBar", "hubXpBar"];
-    barIds.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.style.width = `${p.xpPct ?? 0}%`;
-    });
-
-    const focus = state.todayFocus || { done: 0, total: 0 };
-    const focusPct = focus.total > 0 ? Math.round((focus.done / focus.total) * 100) : 0;
-    set("hubFocusLabel", `${focus.done}/${focus.total || 0}`);
+    const stats = todayStats(state.blocks);
+    const focusPct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+    set("hubFocusLabel", `${stats.done}/${stats.total || 0}`);
     const focusBar = document.getElementById("hubFocusBar");
     if (focusBar) focusBar.style.width = `${focusPct}%`;
+
+    const step = state.nextStep;
+    if (step) {
+      set("hubNextHint", step.hint);
+      const btn = document.getElementById("hubNextBtn");
+      if (btn) btn.textContent = `${step.label} →`;
+    }
 
     const nameEl = document.getElementById("topbarName");
     if (nameEl) nameEl.textContent = p.name || "";
   }
 
   async function init() {
-    await loadTodayFocus();
+    await loadTodayData();
+    render();
+    refreshStats();
+  }
+
+  async function refresh() {
+    await loadTodayData();
     render();
     refreshStats();
   }
 
   window.LogbuchHub = {
     init,
+    refresh,
     refreshStats,
     scrollToSecondary: () => {
       document.getElementById("hubSecondary")?.scrollIntoView({ behavior: "smooth", block: "start" });

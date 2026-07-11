@@ -56,6 +56,18 @@
     "xp"
   ]);
 
+  const TOP_NAV_SECTIONS = new Set(["today", "week", "zielsetzung", "taktik-deck"]);
+
+  const MORE_SECTIONS = new Set([
+    "hub",
+    "levelplan",
+    "checkpoint-plan",
+    "missionen",
+    "belohnungen",
+    "charakter",
+    "xp"
+  ]);
+
   const FLOW_SECTIONS = new Set(["plan", "check", "reflect"]);
 
   const DEFAULT_SECTION = "hub";
@@ -91,9 +103,30 @@
   }
 
   function setNavActive(section) {
-    document.querySelectorAll(".student-bottomnav-item, .student-nav-rail-item[data-section]").forEach((item) => {
-      item.classList.toggle("active", item.dataset.section === section);
+    section = normalizeSection(section);
+    const navSection = section === "levelcheck" ? "zielsetzung" : section;
+    const mehrActive =
+      MORE_SECTIONS.has(navSection) &&
+      !TOP_NAV_SECTIONS.has(navSection) &&
+      navSection !== "hub";
+
+    document.querySelectorAll(".student-bottomnav-item[data-section], .student-topnav-item[data-section]").forEach((item) => {
+      item.classList.toggle("active", item.dataset.section === navSection);
     });
+
+    document.querySelectorAll(".student-bottomnav-mehr, .student-topnav-mehr").forEach((btn) => {
+      btn.classList.toggle("active", mehrActive);
+    });
+  }
+
+  function closeMoreSheet() {
+    document.getElementById("studentMoreSheet")?.classList.remove("open");
+    document.body.classList.remove("student-more-open");
+  }
+
+  function openMoreSheet() {
+    document.getElementById("studentMoreSheet")?.classList.add("open");
+    document.body.classList.add("student-more-open");
   }
 
   function updateStudentChrome(section) {
@@ -104,6 +137,8 @@
     if (backBtn) backBtn.hidden = section === "hub" || FLOW_SECTIONS.has(section);
 
     document.body.classList.toggle("student-on-hub", section === "hub");
+
+    closeMoreSheet();
 
     if (NAV_SECTIONS.has(section)) {
       setNavActive(section === "levelcheck" ? "zielsetzung" : section);
@@ -135,7 +170,7 @@
     }
 
     if (section === "hub" && window.LogbuchHub) {
-      window.LogbuchHub.refreshStats();
+      window.LogbuchHub.refresh();
     }
   }
 
@@ -167,12 +202,25 @@
     showSectionOnly(section);
   }
 
-  function bindBottomNav() {
-    document.querySelectorAll(".student-bottomnav-item, .student-nav-rail-item[data-section]").forEach((item) => {
+  function bindNavigation() {
+    document.querySelectorAll(".student-bottomnav-item[data-section], .student-topnav-item[data-section]").forEach((item) => {
       item.addEventListener("click", () => {
         navigateToSection(item.dataset.section);
       });
     });
+
+    document.querySelectorAll(".student-bottomnav-mehr, .student-topnav-mehr").forEach((btn) => {
+      btn.addEventListener("click", () => openMoreSheet());
+    });
+
+    document.querySelectorAll(".student-more-link").forEach((link) => {
+      link.addEventListener("click", () => {
+        navigateToSection(link.dataset.section);
+      });
+    });
+
+    document.getElementById("studentMoreClose")?.addEventListener("click", closeMoreSheet);
+    document.getElementById("studentMoreBackdrop")?.addEventListener("click", closeMoreSheet);
 
     document.getElementById("topbarBackBtn")?.addEventListener("click", () => {
       navigateToSection("hub");
@@ -190,7 +238,10 @@
     navigateToSection,
     showSectionOnly,
     initFromPath,
-    bindBottomNav,
+    bindBottomNav: bindNavigation,
+    bindNavigation,
+    openMoreSheet,
+    closeMoreSheet,
     DEFAULT_SECTION
   };
 
@@ -200,8 +251,8 @@
   });
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", bindBottomNav);
+    document.addEventListener("DOMContentLoaded", bindNavigation);
   } else {
-    bindBottomNav();
+    bindNavigation();
   }
 })();
