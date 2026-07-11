@@ -14,8 +14,8 @@
       phase: "week"
     },
     levelplan: {
-      title: "Levelplan",
-      subtitle: "Matrix: pro Unterthema deine Stufe markieren.",
+      title: "Mein Lernstand",
+      subtitle: "Sieh deine Entwicklung und was du schon sicher kannst.",
       phase: null
     },
     "taktik-deck": {
@@ -29,8 +29,8 @@
       phase: null
     },
     "checkpoint-plan": {
-      title: "Checkpoint-Plan",
-      subtitle: "Kalender für Klassenarbeiten und Arbeits-Checkpoints.",
+      title: "Meine Checks",
+      subtitle: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
       phase: null
     },
     plan: {

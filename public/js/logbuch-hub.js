@@ -68,7 +68,7 @@
       title: "Missionen",
       text: "Nimm Herausforderungen an und sammle XP.",
       cta: "Ansehen",
-      accent: "purple",
+      accent: "violet",
       iconSrc: "/icons/student/missionen.svg",
       heroSrc: "/icons/student/hero/missionen-hero.png"
     },
@@ -95,7 +95,7 @@
       title: "XP-Historie",
       text: "Verfolge deine XP und Lernstatistiken.",
       cta: "Ansehen",
-      accent: "pink",
+      accent: "magenta",
       iconSrc: "/icons/student/xp-historie.svg",
       heroSrc: "/icons/student/hero/xp-historie-hero.png"
     }
@@ -189,6 +189,10 @@
     return "🔥".repeat(lit) + "⚫".repeat(Math.max(0, 7 - lit));
   }
 
+  function firstNameFromProfile(p) {
+    return (p?.name || "").split(/\s+/)[0] || "du";
+  }
+
   function navigate(section, query) {
     if (query) {
       window.StudentRouter?.navigateToSection(section, { query });
@@ -233,16 +237,16 @@
     const missionTotal = Math.max(stats.total, 1);
     const missionPct = Math.round((missionDone / missionTotal) * 100);
 
+    const firstName = firstNameFromProfile(p);
+
     root.innerHTML = `
       <div class="hub-page">
         <section class="hub-hero-grid">
-          <div class="hub-hero-card">
+          <div class="hub-hero-card hub-hero-greeting">
             <div class="hub-hero-card-bg" aria-hidden="true"></div>
-            <p class="hub-hero-kicker">Mein Tag</p>
-            <h1 class="hub-hero-title">Dein Tag. Dein Plan.</h1>
+            <h1 class="hub-hero-greeting-title" id="hubGreetingTitle">Hey ${ui.escapeHtml(firstName)}!</h1>
             <p class="hub-hero-sub">
-              Starte mit deinem nächsten Lernschritt. Plane dein Lernen, nutze
-              Taktiken und sammle XP.
+              Bereit, heute etwas zu lernen und XP zu sammeln?
             </p>
             <div class="hub-hero-actions">
               <button type="button" class="hub-btn-primary" id="hubNextBtn" data-hub-action="next">
@@ -255,20 +259,23 @@
             <p class="hub-hero-hint" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
           </div>
 
-          <aside class="hub-streak-card">
-            <p class="hub-streak-label">Tages-Streak</p>
-            <div class="hub-streak-value-row">
-              <span class="hub-streak-value" id="hubStreakDays">${stats.done}</span>
-              <span class="hub-streak-unit">Tage</span>
-            </div>
-            <div class="hub-streak-flames" id="hubStreakFlames">${streakFlames(stats.done, stats.total)}</div>
-            <div class="hub-mission-box">
-              <p class="hub-mission-label">Heutige Mission</p>
-              <p class="hub-mission-title" id="hubMissionTitle">${ui.escapeHtml(missionLabel)}</p>
-              <div class="hub-progress-track">
-                <div class="hub-progress-fill hub-progress-fill-purple" id="hubMissionBar" style="width:${missionPct}%"></div>
+          <aside class="hub-xp-panel">
+            <p class="hub-xp-panel-label">XP-Fortschritt</p>
+            <div class="hub-xp-panel-row">
+              <div class="hub-xp-panel-copy">
+                <p class="hub-xp-value">
+                  <span id="hubXpCurrent">${Number(p.xp || 0).toLocaleString("de-DE")}</span>
+                  <span class="hub-xp-value-sub" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</span>
+                </p>
+                <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
+                <div class="hub-progress-track hub-progress-track-lg">
+                  <div class="hub-progress-fill hub-progress-fill-xp" id="hubXpBar" style="width:${xpPct}%"></div>
+                </div>
               </div>
-              <p class="hub-mission-meta" id="hubMissionMeta">${missionDone} / ${stats.total || 0} erledigt</p>
+              <div class="hub-level-badge-wrap">
+                <img class="hub-level-badge-img" src="/icons/student/hero/level-badge-hero.png" alt="" onerror="this.classList.add('is-hidden')">
+                <p class="hub-level-badge-name" id="hubLevelBadgeName">${ui.escapeHtml(p.levelName || "–")}</p>
+              </div>
             </div>
           </aside>
         </section>
@@ -282,6 +289,22 @@
 
         <section class="hub-status-grid">
           <div class="hub-status-card">
+            <p class="hub-block-label">Tages-Streak & Mission</p>
+            <div class="hub-focus-row">
+              <div class="hub-focus-ring" id="hubStreakDays">${stats.done}</div>
+              <div class="hub-focus-copy">
+                <p class="hub-focus-text" id="hubMissionTitle">${ui.escapeHtml(missionLabel)}</p>
+                <div class="hub-streak-flames" id="hubStreakFlames">${streakFlames(stats.done, stats.total)}</div>
+                <div class="hub-progress-track hub-progress-track-lg">
+                  <div class="hub-progress-fill hub-progress-fill-purple" id="hubMissionBar" style="width:${missionPct}%"></div>
+                </div>
+                <p class="hub-focus-meta" id="hubMissionMeta">${missionDone} / ${stats.total || 0} erledigt · Fokus ${stats.done}/${stats.total || 0}</p>
+              </div>
+              <button type="button" class="hub-btn-ghost hub-btn-compact" data-hub-section="today">Weiter machen →</button>
+            </div>
+          </div>
+
+          <div class="hub-status-card hub-status-card-xp">
             <p class="hub-block-label">Täglicher Fokus</p>
             <div class="hub-focus-row">
               <div class="hub-focus-ring" id="hubFocusLabel">${stats.done}/${stats.total || 0}</div>
@@ -296,26 +319,6 @@
                 </div>
                 <p class="hub-focus-meta">${remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft"}</p>
               </div>
-              <button type="button" class="hub-btn-ghost hub-btn-compact" data-hub-section="today">Weiter machen →</button>
-            </div>
-          </div>
-
-          <div class="hub-status-card hub-status-card-xp">
-            <p class="hub-block-label">XP-Fortschritt</p>
-            <div class="hub-xp-row">
-              <div>
-                <p class="hub-xp-value">
-                  <span id="hubXpCurrent">${Number(p.xp || 0).toLocaleString("de-DE")}</span>
-                  <span class="hub-xp-value-sub" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</span>
-                </p>
-                <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
-              </div>
-              <div class="hub-xp-emblem" aria-hidden="true">
-                <img class="hub-level-badge-img" src="/icons/student/hero/level-badge-hero.png" alt="">
-              </div>
-            </div>
-            <div class="hub-progress-track hub-progress-track-lg">
-              <div class="hub-progress-fill hub-progress-fill-xp" id="hubXpBar" style="width:${xpPct}%"></div>
             </div>
           </div>
         </section>
@@ -368,8 +371,11 @@
       if (el) el.textContent = val;
     };
 
+    const firstName = firstNameFromProfile(p);
+    set("hubGreetingTitle", `Hey ${firstName}!`);
     set("topbarXp", String(p.xp ?? "–"));
     set("topbarLevel", p.levelName || "–");
+    set("hubLevelBadgeName", p.levelName || "–");
     set("hubHeroNext", p.nextLevelLabel || "–");
     set("hubXpCurrent", Number(p.xp || 0).toLocaleString("de-DE"));
     set("hubXpMeta", p.xpProgressLabel || "–");

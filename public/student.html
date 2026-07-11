@@ -287,23 +287,36 @@ body.student-app .mobile-header {
   color: #94a3b8;
   font-size: 12px;
   letter-spacing: 0.04em;
-  padding: 7px 14px;
-  border-radius: 999px;
+  padding: 8px 14px 10px;
+  border-radius: 0;
   cursor: pointer;
-  transition: 0.15s ease;
+  transition: color 0.15s ease, background 0.15s ease;
+  position: relative;
 }
 
 .student-topnav-item:hover,
 .student-topnav-mehr:hover {
   color: #e2e8f0;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(15, 23, 42, 0.45);
 }
 
 .student-topnav-item.active {
-  background: linear-gradient(90deg, #f97316, #d946ef);
-  color: #000;
+  background: transparent;
+  color: #fff;
   font-weight: 700;
-  box-shadow: 0 0 22px rgba(249, 115, 22, 0.35);
+  box-shadow: none;
+}
+
+.student-topnav-item.active::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f97316, #d946ef);
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.45);
 }
 
 .student-topnav-mehr.active {
@@ -673,13 +686,70 @@ body.student-app .notif-panel {
   text-shadow: 0 0 18px rgba(249, 115, 22, 0.35);
 }
 
-.hub-hero-title {
+.hub-hero-greeting-title {
   margin: 0;
   font-family: "Bangers", system-ui;
-  font-size: clamp(32px, 5vw, 56px);
+  font-size: clamp(2rem, 4vw, 3rem);
   line-height: 1.05;
   letter-spacing: 0.02em;
   color: #fff;
+  text-shadow: 0 0 24px rgba(168, 85, 247, 0.25);
+}
+
+.hub-xp-panel {
+  border-radius: 28px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.96));
+  padding: 22px 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 0 32px rgba(124, 58, 237, 0.1);
+  backdrop-filter: blur(12px);
+}
+
+.hub-xp-panel-label {
+  margin: 0 0 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #c4b5fd;
+}
+
+.hub-xp-panel-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hub-xp-panel-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.hub-level-badge-wrap {
+  flex-shrink: 0;
+  text-align: center;
+  width: 72px;
+}
+
+.hub-level-badge-wrap .hub-level-badge-img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 14px rgba(249, 115, 22, 0.35));
+}
+
+.hub-level-badge-wrap .hub-level-badge-img.is-hidden {
+  display: none;
+}
+
+.hub-level-badge-name {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fdba74;
 }
 
 .hub-hero-sub {
@@ -861,19 +931,25 @@ body.student-app .notif-panel {
   width: 100%;
   overflow: hidden;
   border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 28px;
+  border: 1px solid color-mix(in srgb, var(--accent, #fff) 45%, transparent);
   background:
     radial-gradient(circle at 85% 35%, var(--accent-soft, rgba(255, 255, 255, 0.08)), transparent 35%),
-    linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.96));
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.98));
   color: #fff;
   cursor: pointer;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.35),
+    0 0 35px color-mix(in srgb, var(--accent, #fff) 18%, transparent);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
 .hub-tile:hover {
   transform: translateY(-3px);
-  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45);
+  border-color: color-mix(in srgb, var(--accent, #fff) 75%, transparent);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.45),
+    0 0 48px color-mix(in srgb, var(--accent, #fff) 28%, transparent);
 }
 
 .hub-tile-content {
@@ -882,28 +958,28 @@ body.student-app .notif-panel {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  max-width: 62%;
+  max-width: 58%;
   min-height: 100%;
 }
 
 .hub-tile-hero {
   position: absolute;
-  right: 20px;
-  bottom: 8px;
-  width: 45%;
-  max-width: 230px;
+  right: 12px;
+  bottom: 6px;
+  width: 48%;
+  max-width: 250px;
   height: auto;
   object-fit: contain;
-  opacity: 0.26;
+  opacity: 0.3;
   pointer-events: none;
   z-index: 1;
-  filter: drop-shadow(0 0 28px rgba(255, 255, 255, 0.12));
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  filter: drop-shadow(0 0 30px color-mix(in srgb, var(--accent, #fff) 30%, transparent));
+  transition: transform 180ms ease, opacity 180ms ease;
 }
 
 .hub-tile:hover .hub-tile-hero {
-  opacity: 0.34;
-  transform: scale(1.035);
+  opacity: 0.42;
+  transform: scale(1.035) translateY(-2px);
 }
 
 .hub-tile-glow {
@@ -928,12 +1004,11 @@ body.student-app .notif-panel {
 }
 
 .hub-tile-lg {
-  min-height: 230px;
-  padding: 28px;
+  min-height: 250px;
 }
 
 .hub-tile-sm {
-  min-height: 150px;
+  min-height: 160px;
   padding: 18px;
 }
 
@@ -992,10 +1067,10 @@ body.student-app .notif-panel {
 
 .hub-tile-icon-img {
   display: block;
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   object-fit: contain;
-  filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.25));
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent, #fff) 50%, transparent));
 }
 
 .hub-tile-lg .hub-tile-icon {
@@ -1156,6 +1231,26 @@ body.student-app .notif-panel {
 .hub-accent-gold .hub-tile-icon { background: rgba(245, 158, 11, 0.1); }
 .hub-accent-gold .hub-tile-cta { border-color: rgba(252, 211, 77, 0.22); color: #fde68a; }
 .hub-accent-gold:hover { border-color: rgba(252, 211, 77, 0.5); box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45), 0 0 24px rgba(245, 158, 11, 0.16); }
+
+.hub-accent-violet {
+  --accent: #8b5cf6;
+  --accent-soft: rgba(139, 92, 246, 0.22);
+  --tile-glow: rgba(139, 92, 246, 0.32);
+  --tile-glow-strong: rgba(139, 92, 246, 0.42);
+}
+.hub-accent-violet .hub-tile-title { color: #c4b5fd; }
+.hub-accent-violet .hub-tile-icon { background: rgba(139, 92, 246, 0.1); }
+.hub-accent-violet .hub-tile-cta { border-color: rgba(196, 181, 253, 0.22); color: #ddd6fe; }
+
+.hub-accent-magenta {
+  --accent: #d946ef;
+  --accent-soft: rgba(217, 70, 239, 0.22);
+  --tile-glow: rgba(217, 70, 239, 0.32);
+  --tile-glow-strong: rgba(217, 70, 239, 0.42);
+}
+.hub-accent-magenta .hub-tile-title { color: #f0abfc; }
+.hub-accent-magenta .hub-tile-icon { background: rgba(217, 70, 239, 0.1); }
+.hub-accent-magenta .hub-tile-cta { border-color: rgba(240, 171, 252, 0.22); color: #f5d0fe; }
 
 .hub-tile-featured {
   background:
@@ -1376,24 +1471,100 @@ body.student-app #hub-section {
 }
 
 body.student-app .card.section:not(#hub-section) {
+  position: relative;
+  overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 20px;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(8px);
+  border-radius: 24px;
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.94));
+  backdrop-filter: blur(10px);
   padding: 18px 20px 22px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.32);
+}
+
+.student-screen--orange { --accent: #ff8a1f; --accent-soft: rgba(255, 138, 31, 0.22); }
+.student-screen--purple { --accent: #a855f7; --accent-soft: rgba(168, 85, 247, 0.22); }
+.student-screen--cyan { --accent: #22d3ee; --accent-soft: rgba(34, 211, 238, 0.22); }
+.student-screen--green { --accent: #22c55e; --accent-soft: rgba(34, 197, 94, 0.22); }
+.student-screen--pink { --accent: #ec4899; --accent-soft: rgba(236, 72, 153, 0.26); }
+.student-screen--blue { --accent: #3b82f6; --accent-soft: rgba(59, 130, 246, 0.22); }
+.student-screen--gold { --accent: #f59e0b; --accent-soft: rgba(245, 158, 11, 0.22); }
+.student-screen--violet { --accent: #8b5cf6; --accent-soft: rgba(139, 92, 246, 0.22); }
+.student-screen--magenta { --accent: #d946ef; --accent-soft: rgba(217, 70, 239, 0.22); }
+
+.student-screen-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -18px -20px 20px;
+  padding: 18px 20px 16px;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent, #fff) 25%, transparent);
+  background:
+    radial-gradient(circle at 88% 40%, var(--accent-soft, rgba(255, 255, 255, 0.08)), transparent 42%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.98));
+}
+
+.student-screen-head-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  flex: 1;
+}
+
+.student-screen-icon {
+  width: 52px;
+  height: 52px;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent, #fff) 26%, transparent);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.student-screen-head h2 {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 17px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #f1f5f9;
+  padding: 0;
+  border: none;
+}
+
+.student-screen-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.student-screen-hero {
+  position: relative;
+  z-index: 1;
+  width: 130px;
+  max-width: 36%;
+  height: auto;
+  opacity: 0.28;
+  object-fit: contain;
+  filter: drop-shadow(0 0 24px color-mix(in srgb, var(--accent, #fff) 28%, transparent));
+  pointer-events: none;
+}
+
+@media (max-width: 639px) {
+  .student-screen-hero {
+    width: 96px;
+    opacity: 0.2;
+  }
 }
 
 body.student-app .card.section > h2 {
-  margin-top: 0;
-  font-family: "Orbitron", system-ui;
-  font-size: 18px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #e2e8f0;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-  margin-bottom: 16px;
+  display: none;
 }
 
 @media (max-width: 900px) {
@@ -4189,8 +4360,17 @@ h2 {
   </div>
 
   <!-- MEIN TAG -->
-  <div id="today-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Mein Tag</h2>
+  <div id="today-section" class="card section logbuch-screen student-screen student-screen--orange" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/mein-tag.svg" alt="">
+        <div>
+          <h2>Mein Tag</h2>
+          <p class="student-screen-sub">Deine heutigen Aufgaben auf einen Blick.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/mein-tag-hero.png" alt="">
+    </header>
     <div id="today-status-panel" class="today-status-panel">
       <div id="userCard" class="today-status-user"></div>
       <div id="levelBar" class="today-status-level"></div>
@@ -4203,56 +4383,137 @@ h2 {
   </div>
 
   <!-- WOCHE -->
-  <div id="week-section" class="card section logbuch-screen logbuch-phase-week" style="display:none;">
-    <h2>Meine Woche</h2>
+  <div id="week-section" class="card section logbuch-screen logbuch-phase-week student-screen student-screen--purple" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/meine-woche.svg" alt="">
+        <div>
+          <h2>Meine Woche</h2>
+          <p class="student-screen-sub">Dein Lernplan für diese Woche.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/meine-woche-hero.png" alt="">
+    </header>
     <div id="week-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- ZIELSETZUNG -->
-  <div id="zielsetzung-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Zielsetzung</h2>
+  <div id="zielsetzung-section" class="card section logbuch-screen student-screen student-screen--cyan" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/zielsetzung.svg" alt="">
+        <div>
+          <h2>Zielsetzung</h2>
+          <p class="student-screen-sub">Setze Ziele und verfolge deinen Fortschritt.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/zielsetzung-hero.png" alt="">
+    </header>
     <div id="zielsetzung-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- LEVELPLAN -->
-  <div id="levelplan-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Mein Lernstand</h2>
+  <div id="levelplan-section" class="card section logbuch-screen student-screen student-screen--green" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/lernstand.svg" alt="">
+        <div>
+          <h2>Mein Lernstand</h2>
+          <p class="student-screen-sub">Sieh deine Entwicklung und was du schon sicher kannst.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/lernstand-hero.png" alt="">
+    </header>
     <div id="levelplan-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- TAKTIK-DECK -->
-  <div id="taktik-deck-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Taktik-Deck</h2>
+  <div id="taktik-deck-section" class="card section logbuch-screen student-screen student-screen--pink" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/taktik-deck.svg" alt="">
+        <div>
+          <h2>Taktik-Deck</h2>
+          <p class="student-screen-sub">Deine Strategien für jede Lernherausforderung.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/taktik-deck-hero.png" alt="">
+    </header>
     <div id="taktik-deck-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- CHECKPOINT-PLAN -->
-  <div id="checkpoint-plan-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Meine Checks</h2>
+  <div id="checkpoint-plan-section" class="card section logbuch-screen student-screen student-screen--cyan" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/meine-checks.svg" alt="">
+        <div>
+          <h2>Meine Checks</h2>
+          <p class="student-screen-sub">Tests, Klassenarbeiten und wichtige Termine im Blick.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/meine-checks-hero.png" alt="">
+    </header>
     <div id="checkpoint-plan-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- PLANEN -->
-  <div id="plan-section" class="card section logbuch-screen logbuch-phase-plan" style="display:none;">
-    <h2>Planen</h2>
+  <div id="plan-section" class="card section logbuch-screen logbuch-phase-plan student-screen student-screen--orange" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/mein-tag.svg" alt="">
+        <div>
+          <h2>Planen</h2>
+          <p class="student-screen-sub">Lege dein Tagesziel für diese Stunde fest.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/mein-tag-hero.png" alt="">
+    </header>
     <div id="plan-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- ZWISCHEN-CHECK -->
-  <div id="check-section" class="card section logbuch-screen logbuch-phase-check" style="display:none;">
-    <h2>Zwischen-Check</h2>
+  <div id="check-section" class="card section logbuch-screen logbuch-phase-check student-screen student-screen--orange" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/mein-tag.svg" alt="">
+        <div>
+          <h2>Zwischen-Check</h2>
+          <p class="student-screen-sub">Wie läuft's gerade in deiner Stunde?</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/mein-tag-hero.png" alt="">
+    </header>
     <div id="check-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- TAGESABSCHLUSS -->
-  <div id="reflect-section" class="card section logbuch-screen logbuch-phase-reflect" style="display:none;">
-    <h2>Tagesabschluss</h2>
+  <div id="reflect-section" class="card section logbuch-screen logbuch-phase-reflect student-screen student-screen--orange" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/mein-tag.svg" alt="">
+        <div>
+          <h2>Tagesabschluss</h2>
+          <p class="student-screen-sub">Reflektiere, was du gelernt hast.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/mein-tag-hero.png" alt="">
+    </header>
     <div id="reflect-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- CHARAKTER -->
-  <div id="charakter-section" class="card section" style="display:none;">
-    <h2>Charakter</h2>
+  <div id="charakter-section" class="card section student-screen student-screen--blue" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/charakter.svg" alt="">
+        <div>
+          <h2>Charakter</h2>
+          <p class="student-screen-sub">Passe deinen Charakter an und zeig deinen Style.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/charakter-hero.png" alt="">
+    </header>
     <div class="character-wrapper">
       <div class="char-img-wrapper"><div id="characterInfo"></div></div>
       <div id="traitsItemsCard" class="char-traits"></div>
@@ -4260,14 +4521,32 @@ h2 {
   </div>
 
   <!-- MISSIONEN -->
-  <div id="missionen-section" class="card section" style="display:none;">
-    <h2>Missionen</h2>
+  <div id="missionen-section" class="card section student-screen student-screen--violet" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/missionen.svg" alt="">
+        <div>
+          <h2>Missionen</h2>
+          <p class="student-screen-sub">Nimm Herausforderungen an und sammle XP.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/missionen-hero.png" alt="">
+    </header>
     <div id="missionCarousel"></div>
   </div>
 
   <!-- BELOHNUNGEN -->
-  <div id="belohnungen-section" class="card section" style="display:none;">
-    <h2>Belohnungen</h2>
+  <div id="belohnungen-section" class="card section student-screen student-screen--gold" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/belohnungen.svg" alt="">
+        <div>
+          <h2>Belohnungen</h2>
+          <p class="student-screen-sub">Schalte Extras frei und feiere Erfolge.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/belohnungen-hero.png" alt="">
+    </header>
     <div style="margin-bottom:16px;font-size:13px;opacity:0.85;">
       <b>Deine Bonuskarten</b> – Belohnungen, die du mit deinen persönlichen XP einlösen kannst.
     </div>
@@ -4275,8 +4554,17 @@ h2 {
   </div>
 
   <!-- XP HISTORIE -->
-  <div id="xp-section" class="card section" style="display:none;">
-    <h2>XP-Historie</h2>
+  <div id="xp-section" class="card section student-screen student-screen--magenta" style="display:none;">
+    <header class="student-screen-head">
+      <div class="student-screen-head-main">
+        <img class="student-screen-icon" src="/icons/student/xp-historie.svg" alt="">
+        <div>
+          <h2>XP-Historie</h2>
+          <p class="student-screen-sub">Verfolge deine XP und Lernstatistiken.</p>
+        </div>
+      </div>
+      <img class="student-screen-hero" src="/icons/student/hero/xp-historie-hero.png" alt="">
+    </header>
     <div id="xpLog"></div>
   </div>
 </div>
@@ -4340,7 +4628,7 @@ h2 {
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-hub.js?v=10"></script>
+<script src="/js/logbuch-hub.js?v=11"></script>
 <script src="/js/logbuch-plan.js?v=13"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>
@@ -4351,7 +4639,7 @@ h2 {
 <script src="/js/logbuch-taktik-deck.js?v=4"></script>
 <script src="/js/logbuch-zielsetzung.js?v=9"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=2"></script>
-<script src="/js/logbuch-screens.js?v=3"></script>
+<script src="/js/logbuch-screens.js?v=4"></script>
 
 <script>
 /* ============================================
