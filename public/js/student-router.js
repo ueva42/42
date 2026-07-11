@@ -3,6 +3,7 @@
  */
 (function () {
   const SECTION_ROUTES = {
+    hub: "/student/hub",
     today: "/student/today",
     week: "/student/week",
     levelplan: "/student/levelplan",
@@ -21,6 +22,7 @@
   };
 
   const ROUTE_SECTIONS = {
+    "/student/hub": "hub",
     "/student/today": "today",
     "/student/week": "week",
     "/student/levelplan": "levelplan",
@@ -32,18 +34,15 @@
     "/student/plan": "plan",
     "/student/check": "check",
     "/student/reflect": "reflect",
-    "/student/status": "today",
+    "/student/status": "hub",
     "/student/missionen": "missionen",
     "/student/belohnungen": "belohnungen",
     "/student/charakter": "charakter",
     "/student/xp": "xp"
   };
 
-  function normalizeSection(section) {
-    return section === "levelcheck" ? "zielsetzung" : section;
-  }
-
-  const SIDEBAR_SECTIONS = new Set([
+  const NAV_SECTIONS = new Set([
+    "hub",
     "today",
     "week",
     "levelplan",
@@ -57,7 +56,13 @@
     "xp"
   ]);
 
-  const DEFAULT_SECTION = "today";
+  const FLOW_SECTIONS = new Set(["plan", "check", "reflect"]);
+
+  const DEFAULT_SECTION = "hub";
+
+  function normalizeSection(section) {
+    return section === "levelcheck" ? "zielsetzung" : section;
+  }
 
   function routeForSection(section) {
     const key = normalizeSection(section);
@@ -65,7 +70,7 @@
   }
 
   function sectionFromPath(pathname, search) {
-    const base = pathname.replace(/\/+$/, "") || "/student/today";
+    const base = pathname.replace(/\/+$/, "") || "/student/hub";
     let section = ROUTE_SECTIONS[base];
 
     if (base === "/student/plan" || base === "/student/check" || base === "/student/reflect") {
@@ -85,14 +90,26 @@
     return `${path}?${query.toString()}`;
   }
 
-  function setSidebarActive(section) {
-    document.querySelectorAll(".menu-item").forEach((item) => {
-      const itemSection = item.dataset.section;
-      item.classList.toggle(
-        "active",
-        SIDEBAR_SECTIONS.has(section) && itemSection === section
-      );
+  function setNavActive(section) {
+    document.querySelectorAll(".student-bottomnav-item").forEach((item) => {
+      item.classList.toggle("active", item.dataset.section === section);
     });
+  }
+
+  function updateStudentChrome(section) {
+    section = normalizeSection(section);
+    document.body.dataset.studentSection = section;
+
+    const backBtn = document.getElementById("topbarBackBtn");
+    if (backBtn) backBtn.hidden = section === "hub" || FLOW_SECTIONS.has(section);
+
+    document.body.classList.toggle("student-on-hub", section === "hub");
+
+    if (NAV_SECTIONS.has(section)) {
+      setNavActive(section === "levelcheck" ? "zielsetzung" : section);
+    } else if (FLOW_SECTIONS.has(section)) {
+      setNavActive("today");
+    }
   }
 
   function showSectionOnly(section) {
@@ -104,19 +121,21 @@
     const el = document.getElementById(`${section}-section`);
     if (el) el.style.display = "block";
 
-    setSidebarActive(section);
+    updateStudentChrome(section);
 
     if (window.LogbuchScreens && typeof window.LogbuchScreens.init === "function") {
       const query = new URLSearchParams(location.search);
       window.LogbuchScreens.init(section, query);
     }
 
-    if (window.innerWidth <= 900) {
-      document.body.classList.remove("menu-open");
-    }
+    document.body.classList.remove("menu-open");
 
     if (section === "today" && typeof window.refreshTodayStatus === "function") {
       window.refreshTodayStatus();
+    }
+
+    if (section === "hub" && window.LogbuchHub) {
+      window.LogbuchHub.refreshStats();
     }
   }
 
@@ -128,9 +147,7 @@
 
     if (replace) {
       history.replaceState(state, "", url);
-    } else if (
-      location.pathname + location.search !== url
-    ) {
+    } else if (location.pathname + location.search !== url) {
       history.pushState(state, "", url);
     }
 
@@ -139,15 +156,31 @@
 
   function initFromPath() {
     const { section, query } = sectionFromPath(location.pathname, location.search);
-    const normalizedPath = location.pathname.replace(/\/+$/, "") || "/student/today";
+    const normalizedPath = location.pathname.replace(/\/+$/, "") || "/student/hub";
     const url = buildUrl(section, query);
 
     history.replaceState(
       { section, query: query.toString() },
       "",
-      normalizedPath === "/student/status" ? "/student/today" + (query.toString() ? `?${query}` : "") : url
+      normalizedPath === "/student/status" ? "/student/hub" : url
     );
     showSectionOnly(section);
+  }
+
+  function bindBottomNav() {
+    document.querySelectorAll(".student-bottomnav-item").forEach((item) => {
+      item.addEventListener("click", () => {
+        navigateToSection(item.dataset.section);
+      });
+    });
+
+    document.getElementById("topbarBackBtn")?.addEventListener("click", () => {
+      navigateToSection("hub");
+    });
+
+    document.getElementById("topbarBrand")?.addEventListener("click", () => {
+      navigateToSection("hub");
+    });
   }
 
   window.StudentRouter = {
@@ -157,6 +190,7 @@
     navigateToSection,
     showSectionOnly,
     initFromPath,
+    bindBottomNav,
     DEFAULT_SECTION
   };
 
@@ -164,4 +198,10 @@
     const section = e.state?.section || sectionFromPath(location.pathname, location.search).section;
     showSectionOnly(section);
   });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindBottomNav);
+  } else {
+    bindBottomNav();
+  }
 })();

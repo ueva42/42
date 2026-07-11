@@ -163,6 +163,411 @@ a { color: inherit; }
   text-shadow: 0 0 6px rgba(255,255,255,0.25);
 }
 
+body.student-app {
+  display: block;
+  overflow: hidden;
+}
+
+body.student-app .sidebar,
+body.student-app .mobile-header {
+  display: none !important;
+}
+
+.student-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+}
+
+.student-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(2, 6, 23, 0.92);
+  backdrop-filter: blur(10px);
+  z-index: 30;
+}
+
+.student-topbar-back {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.8);
+  color: #e5e7eb;
+  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.student-topbar-brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.student-topbar-title {
+  font-family: "Bangers", system-ui;
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fef9c3;
+}
+
+.student-topbar-sub {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.student-topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.student-topbar-pill {
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  background: rgba(15, 23, 42, 0.85);
+  white-space: nowrap;
+}
+
+.student-topbar-level {
+  border-color: rgba(168, 85, 247, 0.45);
+}
+
+.student-topbar-profile {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  max-width: 120px;
+}
+
+.student-topbar-profile img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #f97316;
+}
+
+.student-topbar-logout {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: transparent;
+  color: #cbd5e1;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.student-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 20px 24px;
+}
+
+body.student-app .notif-wrap {
+  position: relative;
+  top: auto;
+  right: auto;
+}
+
+body.student-app .notif-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  margin-top: 0;
+}
+
+.student-bottomnav {
+  flex-shrink: 0;
+  display: none;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(2, 6, 23, 0.96);
+  z-index: 30;
+}
+
+.student-bottomnav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.student-bottomnav-item.active {
+  color: #fbbf24;
+  background: rgba(249, 115, 22, 0.12);
+}
+
+.student-bottomnav-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.hub-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.hub-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.85));
+}
+
+@media (min-width: 768px) {
+  .hub-hero {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+  .student-topbar-profile {
+    display: flex;
+  }
+}
+
+.hub-hero-kicker {
+  margin: 0 0 6px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fbbf24;
+}
+
+.hub-hero-title {
+  margin: 0 0 8px;
+  font-family: "Orbitron", system-ui;
+  font-size: clamp(22px, 4vw, 28px);
+  color: #f9fafb;
+}
+
+.hub-hero-sub {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0.8;
+  max-width: 520px;
+}
+
+.hub-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: min(100%, 260px);
+}
+
+.hub-stat {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(2, 6, 23, 0.55);
+}
+
+.hub-stat-wide {
+  grid-column: 1 / -1;
+}
+
+.hub-stat-label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-bottom: 4px;
+}
+
+.hub-stat-value {
+  font-family: "Bebas Neue", system-ui;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  color: #fef3c7;
+}
+
+.hub-stat-small {
+  font-size: 14px;
+  line-height: 1.35;
+  font-family: inherit;
+  letter-spacing: normal;
+}
+
+.hub-section-title {
+  margin: 0 0 12px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.hub-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.hub-grid-main {
+  grid-template-columns: 1fr;
+}
+
+.hub-grid-secondary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 720px) {
+  .hub-grid-main {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .hub-grid-main {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .hub-grid-secondary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.hub-tile {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+  width: 100%;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.72);
+  color: #f9fafb;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.hub-tile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(249, 115, 22, 0.45);
+}
+
+.hub-tile-main {
+  min-height: 130px;
+}
+
+.hub-tile-secondary {
+  min-height: 96px;
+}
+
+.hub-tile-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  background: rgba(2, 6, 23, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.hub-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hub-tile-title {
+  font-family: "Orbitron", system-ui;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.hub-tile-text {
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.75;
+}
+
+.hub-tile-cta {
+  margin-top: auto;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fbbf24;
+}
+
+.hub-accent-orange { border-color: rgba(249, 115, 22, 0.35); }
+.hub-accent-blue { border-color: rgba(59, 130, 246, 0.35); }
+.hub-accent-green { border-color: rgba(34, 197, 94, 0.35); }
+.hub-accent-purple { border-color: rgba(168, 85, 247, 0.4); }
+.hub-accent-muted { border-color: rgba(148, 163, 184, 0.2); }
+
+.hub-tile-featured {
+  background: linear-gradient(145deg, rgba(76, 29, 149, 0.22), rgba(15, 23, 42, 0.85));
+}
+
+body.student-app .main-area > h1 {
+  display: none;
+}
+
+body.student-app .card.section {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+
+body.student-app .card.section > h2 {
+  margin-top: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 20px;
+}
+
+@media (max-width: 900px) {
+  body.student-app .student-bottomnav {
+    display: grid;
+  }
+  body.student-app .student-main {
+    padding: 16px 14px 20px;
+  }
+  body.student-app .student-topbar-logout {
+    display: none;
+  }
+}
+
 /* ============================================
    SIDEBAR – GTA Comic Style
 ============================================ */
@@ -2761,9 +3166,9 @@ h2 {
    RESPONSIVE
 ============================================ */
 @media (max-width: 900px) {
-  body { flex-direction: column; }
+  body:not(.student-app) { flex-direction: column; }
 
-  .sidebar {
+  body:not(.student-app) .sidebar {
     position: fixed;
     top: 0;
     left: -290px;
@@ -2772,9 +3177,9 @@ h2 {
     transition: left 0.3s ease;
   }
 
-  body.menu-open .sidebar { left: 0; }
+  body:not(.student-app).menu-open .sidebar { left: 0; }
 
-  .mobile-header { display: flex; }
+  body:not(.student-app) .mobile-header { display: flex; }
 
   .main-area { padding: 72px 16px 20px 16px; }
 
@@ -2803,7 +3208,7 @@ h2 {
   </style>
 </head>
 
-<body>
+<body class="student-app">
 
 <!-- LOADING OVERLAY -->
 <div id="loadingOverlay" class="loading-overlay">
@@ -2814,7 +3219,7 @@ h2 {
   </div>
 </div>
 
-<!-- MOBILE HEADER -->
+<!-- MOBILE HEADER (legacy, hidden in hub layout) -->
 <div class="mobile-header">
   <div class="burger" onclick="toggleMenu()">
     <span></span><span></span><span></span>
@@ -2823,7 +3228,7 @@ h2 {
   <button class="mobile-logout-btn" onclick="logout()">Logout</button>
 </div>
 
-<!-- SIDEBAR -->
+<!-- SIDEBAR (legacy, hidden in hub layout) -->
 <div class="sidebar">
   <div class="sidebar-header">
     <div class="sidebar-avatar">
@@ -2879,26 +3284,46 @@ h2 {
   <button class="logout-btn" onclick="logout()">Logout</button>
 </div>
 
+<div class="student-shell">
+  <header class="student-topbar">
+    <button type="button" class="student-topbar-back" id="topbarBackBtn" hidden aria-label="Zurück zum Hub">‹</button>
+    <div class="student-topbar-brand" id="topbarBrand">
+      <span class="student-topbar-title">Streets of Logic</span>
+      <span class="student-topbar-sub">XP Edition</span>
+    </div>
+    <div class="student-topbar-right">
+      <span class="student-topbar-pill"><span id="topbarXp">–</span> XP</span>
+      <span class="student-topbar-pill student-topbar-level" id="topbarLevel">–</span>
+      <div id="notifWrap" class="notif-wrap">
+        <button id="notifBell" class="notif-bell" type="button" aria-label="Benachrichtigungen">
+          🔔
+          <span id="notifBadge" class="notif-badge" style="display:none;">0</span>
+        </button>
+        <div id="notifPanel" class="notif-panel" style="display:none;">
+          <div class="notif-head">
+            <div class="notif-title">Benachrichtigungen</div>
+            <button id="notifClose" class="notif-close" type="button">✕</button>
+          </div>
+          <div id="notifList" class="notif-list">
+            <div class="notif-empty">Keine neuen Nachrichten</div>
+          </div>
+        </div>
+      </div>
+      <div class="student-topbar-profile">
+        <img id="topbarAvatar" src="" alt="" style="display:none;">
+        <span id="topbarName"></span>
+      </div>
+      <button type="button" class="student-topbar-logout" onclick="logout()">Logout</button>
+    </div>
+  </header>
+
 <!-- MAIN AREA -->
-<div class="main-area">
+<div class="main-area student-main">
   <h1>STREETS OF LOGIC – XP EDITION</h1>
 
-  <!-- NOTIFICATIONS -->
-  <div id="notifWrap" class="notif-wrap">
-    <button id="notifBell" class="notif-bell" type="button" aria-label="Benachrichtigungen">
-      🔔
-      <span id="notifBadge" class="notif-badge" style="display:none;">0</span>
-    </button>
-
-    <div id="notifPanel" class="notif-panel" style="display:none;">
-      <div class="notif-head">
-        <div class="notif-title">Benachrichtigungen</div>
-        <button id="notifClose" class="notif-close" type="button">✕</button>
-      </div>
-      <div id="notifList" class="notif-list">
-        <div class="notif-empty">Keine neuen Nachrichten</div>
-      </div>
-    </div>
+  <!-- HUB / KONTROLLZENTRUM -->
+  <div id="hub-section" class="card section logbuch-screen" style="display:none;">
+    <div id="hub-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- MEIN TAG -->
@@ -2929,7 +3354,7 @@ h2 {
 
   <!-- LEVELPLAN -->
   <div id="levelplan-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Levelstatus</h2>
+    <h2>Mein Lernstand</h2>
     <div id="levelplan-screen-root" class="logbuch-root"></div>
   </div>
 
@@ -2941,7 +3366,7 @@ h2 {
 
   <!-- CHECKPOINT-PLAN -->
   <div id="checkpoint-plan-section" class="card section logbuch-screen" style="display:none;">
-    <h2>Checkpoint-Plan</h2>
+    <h2>Meine Checks</h2>
     <div id="checkpoint-plan-screen-root" class="logbuch-root"></div>
   </div>
 
@@ -2994,6 +3419,30 @@ h2 {
   </div>
 </div>
 
+<nav class="student-bottomnav" aria-label="Hauptnavigation">
+  <button type="button" class="student-bottomnav-item active" data-section="hub">
+    <span class="student-bottomnav-icon">⌂</span>
+    <span>Home</span>
+  </button>
+  <button type="button" class="student-bottomnav-item" data-section="today">
+    <span class="student-bottomnav-icon">☀</span>
+    <span>Heute</span>
+  </button>
+  <button type="button" class="student-bottomnav-item" data-section="week">
+    <span class="student-bottomnav-icon">W</span>
+    <span>Woche</span>
+  </button>
+  <button type="button" class="student-bottomnav-item" data-section="zielsetzung">
+    <span class="student-bottomnav-icon">Z</span>
+    <span>Ziele</span>
+  </button>
+  <button type="button" class="student-bottomnav-item" data-section="taktik-deck">
+    <span class="student-bottomnav-icon">⚡</span>
+    <span>Taktik</span>
+  </button>
+</nav>
+</div>
+
 <!-- CHARACTER SELECT OVERLAY -->
 <div id="characterOverlay" class="character-overlay">
   <div class="character-overlay-inner">
@@ -3008,7 +3457,8 @@ h2 {
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/student-router.js?v=3"></script>
+<script src="/js/student-router.js?v=4"></script>
+<script src="/js/logbuch-hub.js?v=1"></script>
 <script src="/js/logbuch-plan.js?v=13"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>
@@ -3019,7 +3469,7 @@ h2 {
 <script src="/js/logbuch-taktik-deck.js?v=4"></script>
 <script src="/js/logbuch-zielsetzung.js?v=9"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=2"></script>
-<script src="/js/logbuch-screens.js?v=2"></script>
+<script src="/js/logbuch-screens.js?v=3"></script>
 
 <script>
 /* ============================================
@@ -3236,6 +3686,43 @@ initNotifUI();
 ============================================ */
 let xpPerMission = {};
 
+function updateStudentProfile(u, levels, character) {
+  let nextLevelLabel = "Max. Level erreicht";
+  for (const l of levels || []) {
+    if (Number(l.min_xp) > Number(u.xp)) {
+      nextLevelLabel = `${l.name} ab ${l.min_xp} XP`;
+      break;
+    }
+  }
+
+  window.__studentProfile = {
+    name: u.name,
+    xp: u.xp,
+    levelName: u.level_name || "—",
+    nextLevelLabel
+  };
+
+  const topName = document.getElementById("topbarName");
+  if (topName) topName.textContent = u.name || "";
+
+  const topAvatar = document.getElementById("topbarAvatar");
+  if (topAvatar) {
+    if (character?.image_url) {
+      topAvatar.src = character.image_url;
+      topAvatar.style.display = "block";
+    } else {
+      topAvatar.style.display = "none";
+    }
+  }
+
+  const topXp = document.getElementById("topbarXp");
+  const topLevel = document.getElementById("topbarLevel");
+  if (topXp) topXp.textContent = String(u.xp ?? "–");
+  if (topLevel) topLevel.textContent = u.level_name || "—";
+
+  if (window.LogbuchHub) window.LogbuchHub.refreshStats();
+}
+
 window.loadMe = async function loadMe() {
   const r = await fetch("/api/student/me", { credentials: "same-origin" });
   if (r.status === 401 || r.status === 403) {
@@ -3299,6 +3786,7 @@ window.loadMe = async function loadMe() {
   });
 
   renderLevelBar(data.levels || [], u.xp);
+  updateStudentProfile(u, data.levels || [], data.character);
 
   if (!data.character) openCharacterOverlay();
   else if (window.LogbuchStartBriefing) window.LogbuchStartBriefing.openAuto();

@@ -83,6 +83,11 @@
       return;
     }
 
+    if (section === "hub" && window.LogbuchHub) {
+      window.LogbuchHub.init();
+      return;
+    }
+
     if (section === "today" && window.LogbuchToday) {
       window.LogbuchToday.init();
       return;

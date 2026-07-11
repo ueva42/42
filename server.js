@@ -9737,10 +9737,11 @@ for (const route of teacherSpaPaths) {
 }
 
 app.get("/student", isStudent, (_req, res) => {
-  res.redirect(302, "/student/today");
+  res.redirect(302, "/student/hub");
 });
 
 const studentSpaPaths = [
+  "/student/hub",
   "/student/today",
   "/student/plan",
   "/student/check",
