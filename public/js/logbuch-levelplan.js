@@ -1,5 +1,5 @@
 /**
- * SRL-Logbuch – Levelplan / Levelstatus (importierte Kompetenzraster).
+ * SRL-Logbuch – Levelplan / Mein Lernstand (App-Layout wie Mein Tag).
  */
 (function () {
   const TIER_META = [
@@ -28,9 +28,10 @@
   let initGeneration = 0;
   let loadRequestId = 0;
 
+  const V = () => window.LogbuchVisuals;
+
   async function fetchJson(url, options = {}, retries = 1) {
     let lastErr = null;
-
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const res = await fetch(url, options);
@@ -51,12 +52,7 @@
         }
       }
     }
-
     throw lastErr || new Error("Anfrage fehlgeschlagen");
-  }
-
-  function isLevelplanPayload(data) {
-    return data && typeof data.hasClass === "boolean" && Array.isArray(data.grouped);
   }
 
   function escapeHtml(str) {
@@ -86,8 +82,9 @@
 
   function selectedThema() {
     if (!state.selectedThemaId) return null;
-    const checks = levelChecksForSubject(state.selectedSubject);
-    return checks.find((lc) => String(lc.id) === String(state.selectedThemaId)) || null;
+    return levelChecksForSubject(state.selectedSubject).find(
+      (lc) => String(lc.id) === String(state.selectedThemaId)
+    );
   }
 
   function tierGoalText(goal, tier) {
@@ -103,6 +100,12 @@
     return "sicher";
   }
 
+  function statusBadgeClass(status) {
+    if (status === "sicher") return "status-badge--ok";
+    if (status === "in_arbeit") return "status-badge--part";
+    return "status-badge--open";
+  }
+
   function ensureSelection() {
     const subjects = subjectsWithData();
     if (!subjects.length) {
@@ -110,17 +113,14 @@
       state.selectedThemaId = null;
       return;
     }
-
     if (!state.selectedSubject || !subjects.some((g) => g.subject === state.selectedSubject)) {
       state.selectedSubject = subjects[0].subject;
     }
-
     const themen = levelChecksForSubject(state.selectedSubject);
     if (!themen.length) {
       state.selectedThemaId = null;
       return;
     }
-
     if (!state.selectedThemaId || !themen.some((t) => String(t.id) === String(state.selectedThemaId))) {
       state.selectedThemaId = themen[0].id;
     }
@@ -142,27 +142,11 @@
         }
       }
     }
-    const pct = total ? Math.round((sicher / total) * 100) : 0;
-    return { total, sicher, inArbeit, pct };
-  }
-
-  function renderProgressPanel() {
-    const V = window.LogbuchVisuals;
-    if (!V) return "";
-    const { total, sicher, inArbeit, pct } = computeProgress();
-    return V.progressPanel({
-      radial: V.radialProgress(pct, `${pct}%`, "Gesamt"),
-      stats: V.statCards([
-        { value: sicher, label: "Sicher", accent: true },
-        { value: inArbeit, label: "In Arbeit" },
-        { value: Math.max(0, total - sicher - inArbeit), label: "Offen" },
-        { value: total, label: "Level gesamt" }
-      ])
-    });
+    return { total, sicher, inArbeit, pct: total ? Math.round((sicher / total) * 100) : 0 };
   }
 
   function renderSubtopicCard(goal) {
-    const rows = TIER_META.map((tier) => {
+    const tiers = TIER_META.map((tier) => {
       const key = `${goal.id}_${tier.id}`;
       const busy = state.saving === key;
       const currentStatus = tierStatus(goal, tier.id);
@@ -174,124 +158,128 @@
         .join("");
 
       return `
-        <div class="lp-tier-row">
-          <div class="lp-tier-label">${escapeHtml(tier.label)}</div>
-          <div class="lp-tier-text">${escapeHtml(tierGoalText(goal, tier))}</div>
-          <select
-            class="lp-tier-status"
-            data-goal-id="${escapeHtml(goal.id)}"
-            data-tier="${escapeHtml(tier.id)}"
-            aria-label="Status ${escapeHtml(tier.label)} – ${escapeHtml(goal.text)}"
-            ${busy ? "disabled" : ""}
-          >${options}</select>
+        <div class="lp-tier-compact">
+          <span class="status-badge ${statusBadgeClass(currentStatus)}">${escapeHtml(tier.label)}</span>
+          <p class="goal-card__what">${escapeHtml(tierGoalText(goal, tier))}</p>
+          <select class="logbuch-select lp-tier-status" data-goal-id="${escapeHtml(goal.id)}" data-tier="${escapeHtml(tier.id)}" ${busy ? "disabled" : ""}>${options}</select>
         </div>`;
     }).join("");
 
     return `
-      <article class="lp-subtopic-card student-card app-card">
+      <article class="student-card goal-card">
         <div class="card-content">
-        <h4 class="lp-subtopic-title">${escapeHtml(goal.text)}</h4>
-        <div class="lp-tier-list">${rows}</div>
+          <p class="goal-card__subject">${escapeHtml(goal.text)}</p>
+          <div class="lp-tier-compact-list">${tiers}</div>
         </div>
       </article>`;
   }
 
   function renderContent() {
+    const visuals = V();
     if (!state.data?.hasClass) {
-      return `<div class="lc-empty"><p>Dir ist noch keine Klasse zugeordnet.</p></div>`;
+      return visuals?.emptyState({
+        title: "Dir ist noch keine Klasse zugeordnet.",
+        text: "Bitte wende dich an deine Lehrkraft.",
+        heroSrc: "/icons/student/hero/lernstand-hero.png"
+      }) || "";
     }
 
     const subjects = subjectsWithData();
     if (!subjects.length) {
-      return `
-        <div class="lc-empty">
-          <p>Für deine Klasse wurde noch kein Levelplan importiert.</p>
-          <p class="lc-empty-hint">Deine Lehrkraft legt den Plan im Admin-Bereich unter „Levelplan importieren“ an.</p>
-        </div>`;
+      return visuals?.emptyState({
+        title: "Noch kein Levelplan importiert.",
+        text: "Deine Lehrkraft legt den Plan im Admin-Bereich an.",
+        heroSrc: "/icons/student/hero/lernstand-hero.png"
+      }) || "";
     }
 
     ensureSelection();
-
     const themen = levelChecksForSubject(state.selectedSubject);
     const thema = selectedThema();
 
-    const subjectOptions = subjects
-      .map(
-        (g) =>
-          `<option value="${escapeHtml(g.subject)}" ${g.subject === state.selectedSubject ? "selected" : ""}>${escapeHtml(g.subject)}</option>`
-      )
-      .join("");
+    const subjectChips = visuals?.chipBar(
+      subjects.map((g) => ({ value: g.subject, label: g.subject })),
+      state.selectedSubject,
+      "data-lp-subject"
+    );
 
-    const themaOptions = themen
-      .map(
-        (t) =>
-          `<option value="${escapeHtml(t.id)}" ${String(t.id) === String(state.selectedThemaId) ? "selected" : ""}>${escapeHtml(t.name)}</option>`
-      )
-      .join("");
+    const themaChips = themen.length
+      ? visuals.chipBar(
+          themen.map((t) => ({ value: String(t.id), label: t.name })),
+          String(state.selectedThemaId),
+          "data-lp-thema"
+        )
+      : "";
 
     let body = "";
-    if (!thema) {
-      body = `<div class="lc-empty"><p>Für dieses Fach wurden noch keine Themen gefunden.</p></div>`;
-    } else if (!thema.goals?.length) {
-      body = `<div class="lc-empty"><p>Für dieses Thema wurden noch keine Unterthemen gefunden.</p></div>`;
+    if (!thema?.goals?.length) {
+      body = visuals?.emptyState({
+        title: "Noch keine Unterthemen.",
+        text: "Für dieses Thema wurden noch keine Ziele angelegt."
+      }) || "";
     } else {
-      body = `<div class="lp-subtopic-list">${thema.goals.map(renderSubtopicCard).join("")}</div>`;
+      body = `<div class="goal-card-grid">${thema.goals.map(renderSubtopicCard).join("")}</div>`;
     }
 
-    return `
-      <div class="lp-filters">
-        <label class="lp-filter">
-          <span>Fach</span>
-          <select id="lpSubjectSelect">${subjectOptions}</select>
-        </label>
-        <label class="lp-filter">
-          <span>Thema</span>
-          <select id="lpThemaSelect" ${themen.length ? "" : "disabled"}>${themaOptions}</select>
-        </label>
-      </div>
-      ${body}`;
+    return `${subjectChips || ""}${themaChips || ""}${visuals?.sectionBlock("Deine Unterthemen", body) || body}`;
   }
 
   function render() {
     const root = document.getElementById("levelplan-screen-root");
     if (!root) return;
+    const visuals = V();
 
     if (state.loading && !state.data) {
       root.innerHTML = `<div class="logbuch-loading">Lade Levelplan…</div>`;
       return;
     }
-
     if (!state.data) {
       root.innerHTML = `<div class="logbuch-msg logbuch-msg-error">Levelplan konnte nicht geladen werden.</div>`;
       return;
     }
 
-    root.innerHTML = `
-      <div class="student-page lc-shell">
-        ${renderProgressPanel()}
-        ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
-        ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
-        ${renderContent()}
-      </div>`;
+    const { total, sicher, inArbeit, pct } = computeProgress();
+    const kpi = visuals?.pageKpi(
+      [
+        { value: sicher, label: "Sicher", accent: true },
+        { value: inArbeit, label: "In Arbeit" },
+        { value: Math.max(0, total - sicher - inArbeit), label: "Offen" },
+        { value: total, label: "Level gesamt" }
+      ],
+      pct,
+      `${pct}%`,
+      "Fortschritt"
+    );
+
+    root.innerHTML = visuals?.pageShell(`
+      ${kpi || ""}
+      ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
+      ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
+      ${renderContent()}
+    `) || "";
 
     bindHandlers(root);
   }
 
   function bindHandlers(root) {
-    root.querySelector("#lpSubjectSelect")?.addEventListener("change", (e) => {
-      state.selectedSubject = e.target.value;
-      state.selectedThemaId = null;
-      state.message = "";
-      state.error = "";
-      ensureSelection();
-      render();
+    root.querySelectorAll("[data-lp-subject]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.selectedSubject = btn.dataset.lpSubject;
+        state.selectedThemaId = null;
+        state.message = "";
+        state.error = "";
+        ensureSelection();
+        render();
+      });
     });
 
-    root.querySelector("#lpThemaSelect")?.addEventListener("change", (e) => {
-      state.selectedThemaId = e.target.value;
-      state.message = "";
-      state.error = "";
-      render();
+    root.querySelectorAll("[data-lp-thema]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.selectedThemaId = btn.dataset.lpThema;
+        state.message = "";
+        state.error = "";
+        render();
+      });
     });
 
     root.querySelectorAll(".lp-tier-status").forEach((select) => {
@@ -315,17 +303,12 @@
       });
       const data = await res.json();
       state.saving = null;
-
       if (!data.success) {
         state.error = data.message || "Speichern fehlgeschlagen.";
         render();
         return;
       }
-
-      state.message = data.statusLabel
-        ? `Status gespeichert: ${data.statusLabel}.`
-        : "Status gespeichert.";
-
+      state.message = data.statusLabel ? `Status gespeichert: ${data.statusLabel}.` : "Status gespeichert.";
       await loadData(initGeneration);
     } catch (err) {
       console.error(err);
@@ -337,12 +320,12 @@
 
   async function loadData(generation = initGeneration) {
     const requestId = ++loadRequestId;
-
     try {
       const data = await fetchJson("/api/student/levelplan");
       if (requestId !== loadRequestId || generation !== initGeneration) return;
-      if (!isLevelplanPayload(data)) throw new Error("Ungültige Levelplan-Antwort");
-
+      if (!data || typeof data.hasClass !== "boolean" || !Array.isArray(data.grouped)) {
+        throw new Error("Ungültige Levelplan-Antwort");
+      }
       state.data = data;
       state.loading = false;
       ensureSelection();
@@ -362,10 +345,8 @@
     state.saving = null;
     state.message = "";
     state.error = "";
-
     const root = document.getElementById("levelplan-screen-root");
     if (root) root.innerHTML = `<div class="logbuch-loading">Lade Levelplan…</div>`;
-
     await loadData(generation);
   }
 

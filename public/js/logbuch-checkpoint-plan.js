@@ -1,5 +1,5 @@
 /**
- * SRL-Logbuch – Checkpoint-Plan (Kalender & anstehende Termine).
+ * SRL-Logbuch – Checkpoint-Plan / Meine Checks (App-Layout wie Mein Tag).
  */
 (function () {
   const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -16,6 +16,8 @@
   let initPromise = null;
   let initGeneration = 0;
 
+  const V = () => window.LogbuchVisuals;
+
   function escapeHtml(str) {
     return String(str ?? "")
       .replace(/&/g, "&amp;")
@@ -30,10 +32,7 @@
 
   function monthLabel(month) {
     const [y, m] = month.split("-").map(Number);
-    return new Date(y, m - 1, 1).toLocaleDateString("de-DE", {
-      month: "long",
-      year: "numeric"
-    });
+    return new Date(y, m - 1, 1).toLocaleDateString("de-DE", { month: "long", year: "numeric" });
   }
 
   function shiftMonth(month, delta) {
@@ -48,11 +47,9 @@
     const lastDay = new Date(y, m, 0).getDate();
     const startOffset = (first.getDay() + 6) % 7;
     const cells = [];
-
     for (let i = 0; i < startOffset; i++) cells.push(null);
     for (let day = 1; day <= lastDay; day++) {
-      const iso = `${month}-${String(day).padStart(2, "0")}`;
-      cells.push(iso);
+      cells.push(`${month}-${String(day).padStart(2, "0")}`);
     }
     while (cells.length % 7 !== 0) cells.push(null);
     return cells;
@@ -75,6 +72,19 @@
       </div>`;
   }
 
+  function renderMonthNav() {
+    const month = state.month || state.data?.month || currentMonth();
+    return `
+      <div class="student-card day-nav-card">
+        <button type="button" class="today-arrow" id="cpPrevMonth" aria-label="Vorheriger Monat">‹</button>
+        <div class="day-nav-card__center">
+          <h3 class="day-nav-card__title">${escapeHtml(monthLabel(month))}</h3>
+          <p class="day-nav-card__sub">Deine Checks & Termine</p>
+        </div>
+        <button type="button" class="today-arrow" id="cpNextMonth" aria-label="Nächster Monat">›</button>
+      </div>`;
+  }
+
   function renderCalendar() {
     const month = state.month || state.data?.month || currentMonth();
     const byDate = state.data?.eventsByDate || {};
@@ -83,152 +93,132 @@
     const typeOptions = state.data?.checkpointTypeOptions || [];
 
     return `
-      <section class="cp-calendar">
-        <div class="cp-calendar-head">
-          <button type="button" class="cp-nav-btn" id="cpPrevMonth" aria-label="Vorheriger Monat">‹</button>
-          <h3 class="cp-calendar-title">${escapeHtml(monthLabel(month))}</h3>
-          <button type="button" class="cp-nav-btn" id="cpNextMonth" aria-label="Nächster Monat">›</button>
-        </div>
-        <div class="cp-calendar-grid cp-calendar-weekdays">
-          ${WEEKDAYS.map((d) => `<div class="cp-weekday">${d}</div>`).join("")}
-        </div>
-        <div class="cp-calendar-grid">
-          ${cells
-            .map((iso) => {
-              if (!iso) return `<div class="cp-day cp-day-empty"></div>`;
-              const events = byDate[iso] || [];
-              const isToday = iso === today;
-              return `
-                <div class="cp-day ${isToday ? "cp-day-today" : ""} ${events.length ? "cp-day-has-events" : ""}">
-                  <div class="cp-day-num">${Number(iso.slice(8, 10))}</div>
-                  <div class="cp-day-events">
-                    ${events.map(renderEventChip).join("")}
-                  </div>
-                </div>`;
-            })
-            .join("")}
-        </div>
-        <div class="cp-legend">
-          ${
-            typeOptions.length
-              ? typeOptions
-                  .map(
-                    (o) =>
-                      `<span><i class="cp-legend-dot cp-legend-${escapeHtml(o.value)}"></i> ${escapeHtml(o.label)}</span>`
-                  )
-                  .join("")
-              : `<span><i class="cp-legend-dot cp-legend-klassenarbeit"></i> Klassenarbeit</span>`
-          }
-        </div>
-      </section>`;
+      <div class="cp-calendar-grid cp-calendar-weekdays">
+        ${WEEKDAYS.map((d) => `<div class="cp-weekday">${d}</div>`).join("")}
+      </div>
+      <div class="cp-calendar-grid">
+        ${cells
+          .map((iso) => {
+            if (!iso) return `<div class="cp-day cp-day-empty"></div>`;
+            const events = byDate[iso] || [];
+            const isToday = iso === today;
+            return `
+              <div class="cp-day ${isToday ? "cp-day-today" : ""} ${events.length ? "cp-day-has-events" : ""}">
+                <div class="cp-day-num">${Number(iso.slice(8, 10))}</div>
+                <div class="cp-day-events">${events.map(renderEventChip).join("")}</div>
+              </div>`;
+          })
+          .join("")}
+      </div>
+      <div class="cp-legend">
+        ${
+          typeOptions.length
+            ? typeOptions
+                .map((o) => `<span><i class="cp-legend-dot cp-legend-${escapeHtml(o.value)}"></i> ${escapeHtml(o.label)}</span>`)
+                .join("")
+            : `<span><i class="cp-legend-dot cp-legend-klassenarbeit"></i> Klassenarbeit</span>`
+        }
+      </div>`;
   }
 
-  function renderCheckpointStats() {
-    const V = window.LogbuchVisuals;
-    if (!V || !state.data) return "";
-    const upcoming = state.data.upcoming || [];
-    const allEvents = Object.values(state.data.eventsByDate || {}).flat();
-    const total = allEvents.length;
-    const soon = upcoming.length;
-    const pct = total ? Math.round(((total - soon) / total) * 100) : 0;
-
-    return V.progressPanel({
-      radial: V.radialProgress(Math.max(0, pct), `${soon}`, "Anstehend"),
-      stats: V.statCards([
-        { value: total, label: "Termine", accent: true },
-        { value: soon, label: "Demnächst" },
-        { value: state.selectedSubject || "Alle", label: "Fachfilter" }
-      ])
-    });
-  }
-
-  function renderUpcoming() {
+  function renderUpcomingCards() {
     const upcoming = state.data?.upcoming || [];
+    const visuals = V();
     if (!upcoming.length) {
-      return `
-        <section class="cp-upcoming">
-          <h3 class="cp-section-title">Was ansteht</h3>
-          <p class="cp-empty">Keine anstehenden Termine${state.selectedSubject ? " für dieses Fach" : ""}.</p>
-          <p class="cp-empty cp-empty-hint">Deine Lehrkraft trägt Termine im Levelstatus ein.</p>
-        </section>`;
+      return visuals?.emptyState({
+        title: "Keine anstehenden Termine.",
+        text: state.selectedSubject
+          ? `Für ${state.selectedSubject} steht gerade nichts an.`
+          : "Deine Lehrkraft trägt Termine im Levelstatus ein.",
+        heroSrc: "/icons/student/hero/meine-checks-hero.png"
+      });
     }
 
-    return `
-      <section class="cp-upcoming student-card app-card">
+    return `<div class="goal-card-grid">${upcoming
+      .map(
+        (event) => `
+      <article class="student-card goal-card goal-card--open">
         <div class="card-content">
-        <h3 class="section-block__title">Was ansteht</h3>
-        <div class="checkpoint-card-grid">
-          ${upcoming
-            .map(
-              (event) => `
-            <article class="student-card checkpoint-card cp-upcoming-item cp-upcoming-${escapeHtml(event.type)}">
-              <div class="card-content">
-                <span class="cp-upcoming-date">${escapeHtml(event.dateLabel || event.date)}</span>
-                <span class="cp-upcoming-subject">${escapeHtml(event.subject)} · ${escapeHtml(event.typeLabel || "")}</span>
-                <strong class="cp-upcoming-title">${escapeHtml(event.title)}</strong>
-                <span class="status-badge status-badge--open">${escapeHtml(event.typeLabel || "Checkpoint")}</span>
-              </div>
-            </article>`
-            )
-            .join("")}
+          <p class="goal-card__subject">${escapeHtml(event.subject)}</p>
+          <p class="goal-card__what">${escapeHtml(event.title)}</p>
+          <div class="goal-card__meta">
+            <span class="status-badge status-badge--open">${escapeHtml(event.typeLabel || "Checkpoint")}</span>
+            <span>${escapeHtml(event.dateLabel || event.date)}</span>
+          </div>
         </div>
-        </div>
-      </section>`;
+      </article>`
+      )
+      .join("")}</div>`;
   }
 
-  function renderSubjectToolbar() {
+  function renderSubjectChips() {
     const subjects = state.data?.subjects || [];
-    return `
-      <div class="cp-toolbar">
-        <label>
-          Fach
-          <select id="cpSubjectSelect" class="cp-subject-select">
-            <option value="">Alle Fächer</option>
-            ${subjects
-              .map(
-                (s) =>
-                  `<option value="${escapeHtml(s)}" ${state.selectedSubject === s ? "selected" : ""}>${escapeHtml(s)}</option>`
-              )
-              .join("")}
-          </select>
-        </label>
-      </div>`;
+    const visuals = V();
+    if (!subjects.length || !visuals) return "";
+    return visuals.chipBar(
+      [{ value: "", label: "Alle" }].concat(subjects.map((s) => ({ value: s, label: s }))),
+      state.selectedSubject,
+      "data-cp-subject"
+    );
   }
 
   function render() {
     const root = document.getElementById("checkpoint-plan-screen-root");
     if (!root) return;
+    const visuals = V();
 
     if (state.loading && !state.data) {
-      root.innerHTML = `<div class="logbuch-loading">Lade Checkpoint-Plan…</div>`;
+      root.innerHTML = `<div class="logbuch-loading">Lade Checks…</div>`;
       return;
     }
 
     if (!state.data?.hasClass) {
-      root.innerHTML = `<div class="lc-empty"><p>Dir ist noch keine Klasse zugeordnet.</p></div>`;
+      root.innerHTML =
+        visuals?.pageShell(
+          visuals.emptyState({
+            title: "Dir ist noch keine Klasse zugeordnet.",
+            text: "Bitte wende dich an deine Lehrkraft."
+          })
+        ) || "";
       return;
     }
 
-    root.innerHTML = `
-      <div class="student-page lc-shell cp-shell">
-        ${renderCheckpointStats()}
-        ${renderSubjectToolbar()}
-        ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
-        ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
-        <div class="cp-layout">
-          <div class="cp-main student-card app-card"><div class="card-content">${renderCalendar()}</div></div>
-          <aside class="cp-aside">${renderUpcoming()}</aside>
-        </div>
-      </div>`;
+    const upcoming = state.data.upcoming || [];
+    const allEvents = Object.values(state.data.eventsByDate || {}).flat();
+    const total = allEvents.length;
+    const soon = upcoming.length;
+
+    const kpi = visuals?.pageKpi(
+      [
+        { value: total, label: "Termine", accent: true },
+        { value: soon, label: "Demnächst" },
+        { value: state.selectedSubject || "Alle", label: "Fach" }
+      ],
+      total ? Math.round(((total - soon) / total) * 100) : 0,
+      String(soon),
+      "Anstehend"
+    );
+
+    root.innerHTML = visuals?.pageShell(`
+      ${renderMonthNav()}
+      ${kpi || ""}
+      ${renderSubjectChips()}
+      ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
+      ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
+      ${visuals.sectionBlock("Kalender", `<div class="student-card"><div class="card-content">${renderCalendar()}</div></div>`)}
+      ${visuals.sectionBlock("Was ansteht", renderUpcomingCards())}
+    `) || "";
 
     bindHandlers(root);
   }
 
   function bindHandlers(root) {
-    root.querySelector("#cpSubjectSelect")?.addEventListener("change", (e) => {
-      state.selectedSubject = e.target.value;
-      state.message = "";
-      loadData(initGeneration);
+    root.querySelectorAll("[data-cp-subject]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.selectedSubject = btn.dataset.cpSubject;
+        state.message = "";
+        loadData(initGeneration);
+      });
     });
 
     root.querySelector("#cpPrevMonth")?.addEventListener("click", () => {
@@ -256,7 +246,6 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (generation !== initGeneration) return;
-
       state.data = data;
       state.month = data.month || state.month || currentMonth();
       state.loading = false;
@@ -276,10 +265,8 @@
     state.message = "";
     state.error = "";
     if (!state.month) state.month = currentMonth();
-
     const root = document.getElementById("checkpoint-plan-screen-root");
-    if (root) root.innerHTML = `<div class="logbuch-loading">Lade Checkpoint-Plan…</div>`;
-
+    if (root) root.innerHTML = `<div class="logbuch-loading">Lade Checks…</div>`;
     await loadData(generation);
   }
 

@@ -270,24 +270,22 @@
       hasTarget ? Math.min(100, Math.round((recommended / totalGoals) * 100)) : null;
     const statusClass = hasTarget
       ? tier.onTrack
-        ? "zs-tier-ontrack"
-        : "zs-tier-behind"
-      : "zs-tier-info";
+        ? "goal-card--ok"
+        : "goal-card--open"
+      : "";
 
     const countLabel = hasTarget
       ? `${current} / ${recommended} von ${totalGoals}${tier.remaining > 0 ? ` · noch ${tier.remaining}` : " · ✓"}`
       : `${current} von ${totalGoals}`;
 
     return `
-      <div class="zs-tier-row ${statusClass}">
-        <div class="zs-tier-head">
-          <span class="zs-tier-label">${escapeHtml(tier.label)}</span>
-          <span class="zs-tier-count">${countLabel}</span>
+      <div class="lp-tier-compact ${statusClass}">
+        <div class="goal-card__meta">
+          <span class="status-badge ${hasTarget && tier.onTrack ? "status-badge--ok" : "status-badge--open"}">${escapeHtml(tier.label)}</span>
+          <span>${countLabel}</span>
         </div>
-        <div class="zs-tier-bar">
-          <div class="zs-tier-fill" style="width:${pct}%"></div>
-          ${recPct != null ? `<div class="zs-tier-marker" style="left:${recPct}%"></div>` : ""}
-        </div>
+        ${window.LogbuchVisuals?.xpBar(pct) || `<div class="xp-bar"><div class="xp-bar__fill" style="width:${pct}%"></div></div>`}
+        ${recPct != null ? `<span class="zs-tier-marker-hint" style="left:${recPct}%">Ziel</span>` : ""}
       </div>`;
   }
 
@@ -333,20 +331,17 @@
       : "";
 
     return `
-      <article class="zs-topic-card zs-topic-card-archived" data-topic-id="${escapeHtml(topic.id)}">
-        <div class="zs-topic-head">
-          <div>
-            <span class="zs-archived-badge">Vergangen</span>
-            <h4 class="zs-topic-title">${escapeHtml(topic.name)}</h4>
-            <p class="zs-topic-meta">${typePart}${datePart} · ${topic.totalGoals} Unterthemen</p>
+      <article class="student-card goal-card goal-card--ok" data-topic-id="${escapeHtml(topic.id)}">
+        <div class="card-content">
+          <p class="goal-card__subject">${escapeHtml(topic.name)}</p>
+          <p class="goal-card__what">${typePart}${datePart} · ${topic.totalGoals} Unterthemen</p>
+          <div class="goal-card__meta">
+            <span class="status-badge status-badge--part">Vergangen</span>
+            <span>Ziel: ${escapeHtml(topic.targetGradeLabel || "–")} · Erreicht: ${escapeHtml(topic.achievedGradeLabel || "–")}</span>
           </div>
-          <div class="zs-archived-grades">
-            <div><span class="zs-archived-grade-label">Zielnote</span> ${escapeHtml(topic.targetGradeLabel || "–")}</div>
-            <div><span class="zs-archived-grade-label">Erreicht</span> ${escapeHtml(topic.achievedGradeLabel || "–")}</div>
-            ${renderGoalResultBadge(topic)}
-          </div>
+          ${renderGoalResultBadge(topic)}
+          ${renderArchivedFeedback(topic)}
         </div>
-        ${renderArchivedFeedback(topic)}
       </article>`;
   }
 
@@ -357,33 +352,29 @@
       topic.achievedGrade != null ? String(topic.achievedGrade) : "";
 
     return `
-      <article class="zs-topic-card" data-topic-id="${escapeHtml(topic.id)}">
-        <div class="zs-topic-head">
-          <div>
-            <h4 class="zs-topic-title">${escapeHtml(topic.name)}</h4>
-            <p class="zs-topic-meta">${topic.totalGoals} Unterthemen</p>
-          </div>
+      <article class="student-card goal-card ${topic.targetGrade ? "goal-card--open" : ""}" data-topic-id="${escapeHtml(topic.id)}">
+        <div class="card-content">
+          <p class="goal-card__subject">${escapeHtml(topic.name)}</p>
+          <p class="goal-card__what">${topic.totalGoals} Unterthemen</p>
           <div class="zs-grade-row">
             ${renderGradeSelect(topic.id, "target", targetSelected, saving)}
             ${renderGradeSelect(topic.id, "achieved", achievedSelected, saving)}
           </div>
+
+          ${
+            topic.targetGrade
+              ? `<div class="lp-tier-compact-list">${(topic.tiers || []).map((tier) => renderTierBar(tier, topic.totalGoals)).join("")}</div>`
+              : `<p class="goal-card__what">Wähle deine Zielnote – die Balken zeigen Rookie, Operator und Street Legend.</p>`
+          }
+
+          ${renderFeedbackSection(topic)}
+
+          ${
+            topic.unmarked
+              ? `<p class="goal-card__what">${topic.unmarked} Unterthema${topic.unmarked === 1 ? "" : "n"} noch ohne Markierung im Levelplan</p>`
+              : ""
+          }
         </div>
-
-        ${
-          topic.targetGrade
-            ? `<div class="zs-tiers">
-                ${(topic.tiers || []).map((tier) => renderTierBar(tier, topic.totalGoals)).join("")}
-              </div>`
-            : `<p class="zs-topic-hint zs-topic-hint-muted">Wähle deine Zielnote – die Balken zeigen Rookie, Operator und Street Legend.</p>`
-        }
-
-        ${renderFeedbackSection(topic)}
-
-        ${
-          topic.unmarked
-            ? `<p class="zs-unmarked">${topic.unmarked} Unterthema${topic.unmarked === 1 ? "" : "n"} noch ohne Markierung im Levelplan</p>`
-            : ""
-        }
       </article>`;
   }
 
@@ -391,17 +382,20 @@
     if (!state.selectedSubject) return "";
     const upcoming = upcomingTopicMeta();
     if (!upcoming) {
-      return `<div class="zs-upcoming-banner zs-upcoming-banner-muted">Für ${escapeHtml(state.selectedSubject)} ist noch keine anstehende Klassenarbeit hinterlegt.</div>`;
+      return `<div class="student-card"><div class="card-content"><p class="goal-card__what">Für ${escapeHtml(state.selectedSubject)} ist noch keine anstehende Klassenarbeit hinterlegt.</p></div></div>`;
     }
     const datePart = upcoming.checkpointDateLabel
       ? ` · ${escapeHtml(upcoming.checkpointDateLabel)}`
       : " · Termin folgt";
     const typePart = upcoming.checkpointTypeLabel
-      ? `<span class="zs-upcoming-type">${escapeHtml(upcoming.checkpointTypeLabel)}</span> · `
+      ? `${escapeHtml(upcoming.checkpointTypeLabel)} · `
       : "";
     return `
-      <div class="zs-upcoming-banner">
-        ${typePart}Anstehend: <strong>${escapeHtml(upcoming.name)}</strong>${datePart}
+      <div class="student-card day-nav-card">
+        <div class="day-nav-card__center">
+          <h3 class="day-nav-card__title">${typePart}${escapeHtml(upcoming.name)}</h3>
+          <p class="day-nav-card__sub">Anstehende Klassenarbeit${datePart}</p>
+        </div>
       </div>`;
   }
 
@@ -423,101 +417,91 @@
 
     const pct = topics ? Math.round((withTarget / topics) * 100) : 0;
 
-    return V.progressPanel({
-      radial: V.radialProgress(pct, `${withTarget}/${topics}`, "Ziele gesetzt"),
-      stats: V.statCards([
+    return V.pageKpi(
+      [
         { value: topics, label: "Themen", accent: true },
         { value: withTarget, label: "Mit Zielnote" },
         { value: onTrack, label: "On Track" },
         { value: state.selectedSubject || "–", label: "Fach" }
-      ])
-    });
+      ],
+      pct,
+      `${withTarget}/${topics}`,
+      "Ziele gesetzt"
+    );
   }
 
   function renderSubjectToolbar() {
     const subjects = availableSubjects();
-    if (!subjects.length) return "";
+    const V = window.LogbuchVisuals;
+    if (!subjects.length || !V) return "";
 
-    return `
-      <div class="zs-toolbar">
-        <label>
-          Fach <span class="zs-required">*</span>
-          <select id="zsSubjectSelect" class="zs-subject-select" required>
-            <option value="" ${!state.selectedSubject ? "selected" : ""}>– Fach wählen –</option>
-            ${subjects
-              .map(
-                (s) =>
-                  `<option value="${escapeHtml(s)}" ${state.selectedSubject === s ? "selected" : ""}>${escapeHtml(s)}</option>`
-              )
-              .join("")}
-          </select>
-        </label>
-      </div>`;
+    return V.chipBar(
+      subjects.map((s) => ({ value: s, label: s })),
+      state.selectedSubject,
+      "data-zs-subject"
+    );
   }
 
   function renderLoadError() {
-    return `
-      <div class="lc-empty">
-        <p>Zielsetzung konnte nicht geladen werden.</p>
-        <p class="lc-empty-hint">Bitte erneut versuchen – manchmal hilft ein kurzer Moment oder Tab-Wechsel.</p>
-        <button type="button" class="btn-primary zs-retry-btn" id="zsRetryBtn">Erneut laden</button>
-      </div>`;
+    const V = window.LogbuchVisuals;
+    return (
+      V?.pageShell(
+        V.emptyState({
+          title: "Zielsetzung konnte nicht geladen werden.",
+          text: "Bitte erneut versuchen – manchmal hilft ein kurzer Moment oder Tab-Wechsel.",
+          hint: "Erneut laden"
+        })
+      ) || ""
+    );
   }
 
   function renderGrouped() {
+    const V = window.LogbuchVisuals;
     if (!state.data?.hasClass) {
-      return `<div class="lc-empty"><p>Dir ist noch keine Klasse zugeordnet.</p></div>`;
+      return V?.emptyState({
+        title: "Dir ist noch keine Klasse zugeordnet.",
+        text: "Bitte wende dich an deine Lehrkraft."
+      }) || "";
     }
 
     if (!state.selectedSubject) {
-      return `
-        <div class="lc-empty">
-          <p>Bitte wähle zuerst ein Fach.</p>
-          <p class="lc-empty-hint">Danach siehst du die anstehende Klassenarbeit und darunter vergangene Arbeiten.</p>
-        </div>`;
+      return V?.emptyState({
+        title: "Bitte wähle zuerst ein Fach.",
+        text: "Danach siehst du die anstehende Klassenarbeit und darunter vergangene Arbeiten.",
+        heroSrc: "/icons/student/hero/zielsetzung-hero.png"
+      }) || "";
     }
 
     const groups = visibleGroups();
     if (!state.data?.grouped?.length) {
-      return `
-        <div class="lc-empty">
-          <p>Noch keine Themen.</p>
-          <p class="lc-empty-hint">Sobald deine Lehrkraft im Levelstatus Themen anlegt, kannst du hier deine Zielnote setzen.</p>
-        </div>`;
+      return V?.emptyState({
+        title: "Noch keine Themen.",
+        text: "Sobald deine Lehrkraft im Levelstatus Themen anlegt, kannst du hier deine Zielnote setzen."
+      }) || "";
     }
 
     const group = groups[0];
     if (!group) {
-      return `
-        <div class="lc-empty">
-          <p>Für ${escapeHtml(state.selectedSubject)} gibt es noch kein Klassenarbeit-Thema.</p>
-          <p class="lc-empty-hint">Deine Lehrkraft legt Themen im Levelstatus an – Termine im Checkpoint-Plan.</p>
-        </div>`;
+      return V?.emptyState({
+        title: `Für ${state.selectedSubject} gibt es noch kein Klassenarbeit-Thema.`,
+        text: "Deine Lehrkraft legt Themen im Levelstatus an – Termine im Checkpoint-Plan."
+      }) || "";
     }
 
     const { upcoming, past } = splitTopicsForSubject(group);
     if (!upcoming && !past.length) {
-      return `
-        <div class="lc-empty">
-          <p>Für ${escapeHtml(state.selectedSubject)} gibt es noch kein Klassenarbeit-Thema.</p>
-          <p class="lc-empty-hint">Deine Lehrkraft legt Themen im Levelstatus an – Termine im Checkpoint-Plan.</p>
-        </div>`;
+      return V?.emptyState({
+        title: `Für ${state.selectedSubject} gibt es noch kein Klassenarbeit-Thema.`,
+        text: "Deine Lehrkraft legt Themen im Levelstatus an – Termine im Checkpoint-Plan."
+      }) || "";
     }
 
     const upcomingHtml = upcoming
-      ? `<section class="zs-section zs-section-upcoming">
-          <h3 class="zs-section-title">Anstehende Klassenarbeit</h3>
-          ${renderTopicCard(upcoming)}
-        </section>`
+      ? V.sectionBlock("Anstehende Klassenarbeit", renderTopicCard(upcoming))
       : "";
 
     const pastHtml = past.length
-      ? `<section class="zs-section zs-section-past">
-          <h3 class="zs-section-title">Vergangene Arbeiten</h3>
-          <div class="zs-topics">
-            ${past.map(renderArchivedTopicCard).join("")}
-          </div>
-        </section>`
+      ? V.sectionBlock("Vergangene Arbeiten", `<div class="goal-card-grid">${past.map(renderArchivedTopicCard).join("")}</div>`)
       : "";
 
     return `${upcomingHtml}${pastHtml}`;
@@ -526,6 +510,7 @@
   function render() {
     const root = document.getElementById("zielsetzung-screen-root");
     if (!root) return;
+    const V = window.LogbuchVisuals;
 
     if (state.loading && !state.data) {
       root.innerHTML = `<div class="logbuch-loading">Lade Zielsetzung…</div>`;
@@ -534,31 +519,32 @@
 
     if (!state.data) {
       root.innerHTML = renderLoadError();
-      root.querySelector("#zsRetryBtn")?.addEventListener("click", () => {
+      root.querySelector(".empty-state-card")?.addEventListener("click", () => {
         state.error = "";
         loadData(initGeneration);
       });
       return;
     }
 
-    root.innerHTML = `
-      <div class="student-page lc-shell zs-shell">
+    root.innerHTML = V?.pageShell(`
         ${renderSummaryPanel()}
         ${renderSubjectToolbar()}
         ${renderUpcomingBanner()}
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
         ${renderGrouped()}
-      </div>`;
+      `) || "";
 
     bindHandlers(root);
   }
 
   function bindHandlers(root) {
-    root.querySelector("#zsSubjectSelect")?.addEventListener("change", (e) => {
-      state.selectedSubject = e.target.value;
-      state.message = "";
-      render();
+    root.querySelectorAll("[data-zs-subject]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.selectedSubject = btn.dataset.zsSubject;
+        state.message = "";
+        render();
+      });
     });
 
     root.querySelectorAll(".zs-grade-select, .zs-achieved-select").forEach((sel) => {
@@ -706,6 +692,9 @@
       const subjects = availableSubjects();
       if (state.selectedSubject && !subjects.includes(state.selectedSubject)) {
         state.selectedSubject = "";
+      }
+      if (!state.selectedSubject && subjects.length) {
+        state.selectedSubject = subjects[0];
       }
       state.loading = false;
       render();

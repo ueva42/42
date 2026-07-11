@@ -2057,6 +2057,110 @@ body.student-app {
   color: #94a3b8;
 }
 
+.lp-tier-compact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.lp-tier-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lp-tier-compact .logbuch-select {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.zs-grade-row {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+@media (min-width: 520px) {
+  .zs-grade-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.zs-feedback {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.zs-feedback-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.zs-feedback-field {
+  margin-bottom: 10px;
+}
+
+.zs-feedback-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.zs-feedback-hint {
+  display: block;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.zs-feedback-select,
+.zs-feedback-custom,
+.zs-grade-select,
+.zs-achieved-select {
+  width: 100%;
+}
+
+.zs-feedback-custom-hidden {
+  display: none;
+}
+
+.zs-xp-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  background: rgba(168, 85, 247, 0.2);
+  color: #d8b4fe;
+}
+
+.zs-xp-done {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+}
+
+.zs-goal-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.zs-goal-badge-met {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+}
+
+.zs-goal-badge-missed {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
 .lesson-card__head {
   display: flex;
   justify-content: space-between;
@@ -5287,13 +5391,7 @@ h2 {
       </div>
       <img class="student-screen-hero" src="/icons/student/hero/charakter-hero.png" alt="">
     </header>
-    <div class="character-wrapper character-app-grid">
-      <div class="student-card character-profile-card char-img-wrapper"><div id="characterInfo"></div></div>
-      <div class="student-card character-stats-panel">
-        <div id="characterStatsPanel"></div>
-        <div id="traitsItemsCard" class="char-traits char-traits-app"></div>
-      </div>
-    </div>
+    <div id="charakter-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- MISSIONEN -->
@@ -5400,7 +5498,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=6"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js"></script>
-<script src="/js/logbuch-visuals.js?v=1"></script>
+<script src="/js/logbuch-visuals.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
 <script src="/js/logbuch-hub.js?v=12"></script>
@@ -5409,11 +5507,11 @@ h2 {
 <script src="/js/logbuch-reflect.js?v=3"></script>
 <script src="/js/logbuch-today.js?v=19"></script>
 <script src="/js/logbuch-week.js?v=4"></script>
-<script src="/js/logbuch-levelplan.js?v=11"></script>
+<script src="/js/logbuch-levelplan.js?v=12"></script>
 <script src="/js/logbuch-start-briefing.js?v=1"></script>
-<script src="/js/logbuch-taktik-deck.js?v=5"></script>
-<script src="/js/logbuch-zielsetzung.js?v=10"></script>
-<script src="/js/logbuch-checkpoint-plan.js?v=3"></script>
+<script src="/js/logbuch-taktik-deck.js?v=6"></script>
+<script src="/js/logbuch-zielsetzung.js?v=11"></script>
+<script src="/js/logbuch-checkpoint-plan.js?v=4"></script>
 <script src="/js/logbuch-screens.js?v=4"></script>
 
 <script>
@@ -5726,20 +5824,6 @@ window.loadMe = async function loadMe() {
     initials.textContent = u.name.split(" ").map(x => x[0]).join("").toUpperCase();
   }
 
-  if (data.character) {
-    document.getElementById("characterInfo").innerHTML = `
-      ${data.character.image_url ? `<img class="char-img" src="${data.character.image_url}">` : ""}
-      <div class="char-name">${data.character.name}</div>
-    `;
-  }
-
-  document.getElementById("traitsItemsCard").innerHTML = `
-    <b>Eigenschaften:</b><br>
-    ${(data.traits || []).map(t => "• "+t).join("<br>")}<br><br>
-    <b>Items:</b><br>
-    ${(data.items || []).map(i => "• "+i).join("<br>")}
-  `;
-
   xpPerMission = data.xp_per_mission || {};
 
   __latestXpLog = data.xp_log || [];
@@ -5765,7 +5849,13 @@ window.loadMe = async function loadMe() {
   if (window.LogbuchVisuals && xpDiv) {
     window.LogbuchVisuals.renderXpDashboard(xpDiv, __latestXpLog, window.__studentProfile);
   }
-  renderCharacterStats(u, data);
+
+  if (data.character) {
+    const charRoot = document.getElementById("charakter-screen-root");
+    if (window.LogbuchVisuals && charRoot) {
+      window.LogbuchVisuals.renderCharacterPage(charRoot, u, data, window.__studentProfile);
+    }
+  }
 
   if (!data.character) openCharacterOverlay();
   else if (window.LogbuchStartBriefing) window.LogbuchStartBriefing.openAuto();
@@ -5832,24 +5922,6 @@ async function loadRewards() {
   } else {
     renderCarousel("rewardCarousel", items, "reward");
   }
-}
-
-function renderCharacterStats(u, data) {
-  const panel = document.getElementById("characterStatsPanel");
-  if (!panel || !window.LogbuchVisuals) return;
-  const V = window.LogbuchVisuals;
-  const xp = Number(u?.xp || 0);
-  const traitCount = (data.traits || []).length;
-  const itemCount = (data.items || []).length;
-  panel.innerHTML = V.progressPanel({
-    radial: V.radialProgress(window.__studentProfile?.xpPct ?? 0, u.level_name || "–", "Level"),
-    stats: V.statCards([
-      { value: xp.toLocaleString("de-DE"), label: "XP", accent: true },
-      { value: traitCount, label: "Eigenschaften" },
-      { value: itemCount, label: "Items" },
-      { value: u.level_name || "–", label: "Rang", accent: true }
-    ])
-  }) + `<div style="margin-top:10px">${V.xpBar(window.__studentProfile?.xpPct ?? 0)}</div>`;
 }
 
 /* ============================================
