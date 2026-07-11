@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <title>Mein Tag</title>
+  <defs>
+    <linearGradient id="g" x1="48" y1="32" x2="210" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FACC15"/><stop offset="1" stop-color="#F97316"/>
+    </linearGradient>
+    <radialGradient id="r" cx="50%" cy="42%" r="62%">
+      <stop offset="0" stop-color="#FACC15" stop-opacity=".36"/>
+      <stop offset=".55" stop-color="#F97316" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#r)" opacity=".75"/>
+  <rect x="31" y="31" width="194" height="194" rx="42" stroke="url(#g)" stroke-width="4" opacity=".55"/>
+  <g filter="url(#glow)" stroke="url(#g)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M128 52v22"/><path d="M128 182v22"/><path d="M52 128h22"/><path d="M182 128h22"/>
+    <path d="M75 75l16 16"/><path d="M165 165l16 16"/><path d="M181 75l-16 16"/><path d="M91 165l-16 16"/>
+    <circle cx="128" cy="128" r="42"/><path d="M141 93l-37 46h31l-20 31 43-52h-33l16-25z" fill="url(#g)" stroke-width="5"/>
+  </g>
+</svg>

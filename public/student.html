@@ -916,32 +916,40 @@ body.student-app .notif-panel {
   z-index: 1;
   display: grid;
   place-items: center;
-  border-radius: 16px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
-  color: #fff;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(5, 8, 22, 0.72);
   margin-bottom: 14px;
-  box-shadow: 0 0 20px var(--tile-glow-strong, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 0 18px var(--tile-glow-strong, rgba(255, 255, 255, 0.1));
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.hub-tile-icon svg {
-  width: 28px;
-  height: 28px;
+.hub-tile:hover .hub-tile-icon {
+  box-shadow: 0 0 26px var(--tile-glow-strong, rgba(255, 255, 255, 0.16));
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.hub-tile-icon-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .hub-tile-lg .hub-tile-icon {
-  width: 56px;
-  height: 56px;
+  width: 60px;
+  height: 60px;
+  padding: 2px;
 }
 
 .hub-tile-sm .hub-tile-icon {
   width: 44px;
   height: 44px;
+  padding: 2px;
   margin-bottom: 10px;
-}
-
-.hub-tile-sm .hub-tile-icon svg {
-  width: 22px;
-  height: 22px;
+  border-radius: 16px;
 }
 
 .hub-tile-title {
@@ -1004,27 +1012,27 @@ body.student-app .notif-panel {
 
 .hub-accent-orange { --tile-glow: rgba(249, 115, 22, 0.35); --tile-glow-strong: rgba(249, 115, 22, 0.45); border-color: rgba(251, 146, 60, 0.32); }
 .hub-accent-orange .hub-tile-title { color: #fdba74; }
-.hub-accent-orange .hub-tile-icon { color: #fdba74; background: rgba(249, 115, 22, 0.14); }
+.hub-accent-orange .hub-tile-icon { background: rgba(249, 115, 22, 0.1); }
 .hub-accent-orange:hover { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 28px rgba(249, 115, 22, 0.18); border-color: rgba(251, 146, 60, 0.55); }
 
 .hub-accent-purple { --tile-glow: rgba(168, 85, 247, 0.35); --tile-glow-strong: rgba(168, 85, 247, 0.45); border-color: rgba(167, 139, 250, 0.32); }
 .hub-accent-purple .hub-tile-title { color: #c4b5fd; }
-.hub-accent-purple .hub-tile-icon { color: #c4b5fd; background: rgba(168, 85, 247, 0.14); }
+.hub-accent-purple .hub-tile-icon { background: rgba(168, 85, 247, 0.1); }
 .hub-accent-purple:hover { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 28px rgba(168, 85, 247, 0.2); border-color: rgba(196, 181, 253, 0.55); }
 
 .hub-accent-blue { --tile-glow: rgba(56, 189, 248, 0.3); --tile-glow-strong: rgba(56, 189, 248, 0.4); border-color: rgba(56, 189, 248, 0.28); }
 .hub-accent-blue .hub-tile-title { color: #7dd3fc; }
-.hub-accent-blue .hub-tile-icon { color: #7dd3fc; background: rgba(56, 189, 248, 0.12); }
+.hub-accent-blue .hub-tile-icon { background: rgba(56, 189, 248, 0.08); }
 .hub-accent-blue:hover { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 24px rgba(14, 165, 233, 0.16); border-color: rgba(125, 211, 252, 0.5); }
 
 .hub-accent-green { --tile-glow: rgba(52, 211, 153, 0.28); --tile-glow-strong: rgba(52, 211, 153, 0.38); border-color: rgba(52, 211, 153, 0.28); }
 .hub-accent-green .hub-tile-title { color: #6ee7b7; }
-.hub-accent-green .hub-tile-icon { color: #6ee7b7; background: rgba(52, 211, 153, 0.12); }
+.hub-accent-green .hub-tile-icon { background: rgba(52, 211, 153, 0.08); }
 .hub-accent-green:hover { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 24px rgba(16, 185, 129, 0.14); border-color: rgba(110, 231, 183, 0.5); }
 
 .hub-accent-cyan { --tile-glow: rgba(34, 211, 238, 0.28); --tile-glow-strong: rgba(34, 211, 238, 0.38); border-color: rgba(34, 211, 238, 0.28); }
 .hub-accent-cyan .hub-tile-title { color: #67e8f9; }
-.hub-accent-cyan .hub-tile-icon { color: #67e8f9; background: rgba(34, 211, 238, 0.12); }
+.hub-accent-cyan .hub-tile-icon { background: rgba(34, 211, 238, 0.08); }
 .hub-accent-cyan:hover { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 24px rgba(6, 182, 212, 0.14); border-color: rgba(103, 232, 249, 0.5); }
 
 .hub-tile-featured {
@@ -4182,7 +4190,7 @@ h2 {
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-hub.js?v=8"></script>
+<script src="/js/logbuch-hub.js?v=9"></script>
 <script src="/js/logbuch-plan.js?v=13"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>
