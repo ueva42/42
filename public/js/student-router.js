@@ -91,7 +91,7 @@
   }
 
   function setNavActive(section) {
-    document.querySelectorAll(".student-bottomnav-item").forEach((item) => {
+    document.querySelectorAll(".student-bottomnav-item, .student-nav-rail-item[data-section]").forEach((item) => {
       item.classList.toggle("active", item.dataset.section === section);
     });
   }
@@ -168,7 +168,7 @@
   }
 
   function bindBottomNav() {
-    document.querySelectorAll(".student-bottomnav-item").forEach((item) => {
+    document.querySelectorAll(".student-bottomnav-item, .student-nav-rail-item[data-section]").forEach((item) => {
       item.addEventListener("click", () => {
         navigateToSection(item.dataset.section);
       });
