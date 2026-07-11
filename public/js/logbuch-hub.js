@@ -4,6 +4,19 @@
 (function () {
   const UI = () => window.LogbuchUI;
 
+  const HUB_ICONS = {
+    today: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    week: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16v-5"/><path d="M12 16V8"/><path d="M17 16v-3"/></svg>',
+    cards: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="16" rx="2"/><path d="M8 4v16"/><path d="M18 8h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/></svg>',
+    flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4"/><path d="M4 4h12l-2 4 2 4H4"/></svg>',
+    mission: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M5 5H3v1a3 3 0 0 0 3 3"/><path d="M19 5h2v1a3 3 0 0 1-3 3"/></svg>',
+    user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 6-6 8-6s6.5 2 8 6"/></svg>',
+    xp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>'
+  };
+
   const MAIN_TILES = [
     {
       section: "today",
@@ -11,7 +24,7 @@
       text: "Deine Aufgaben für heute. Fokus. Fortschritt. Erfolg.",
       cta: "Heute starten",
       accent: "orange",
-      icon: "☀️"
+      iconKey: "today"
     },
     {
       section: "week",
@@ -19,15 +32,15 @@
       text: "Dein Wochenplan im Überblick. Bleib dran und baue Momentum auf.",
       cta: "Woche ansehen",
       accent: "blue",
-      icon: "📅"
+      iconKey: "week"
     },
     {
       section: "zielsetzung",
       title: "Zielsetzung",
       text: "Setze klare Ziele und verfolge deinen Fortschritt.",
       cta: "Ziele ansehen",
-      accent: "green",
-      icon: "🎯"
+      accent: "cyan",
+      iconKey: "target"
     },
     {
       section: "levelplan",
@@ -35,24 +48,24 @@
       text: "Sieh, woran du arbeitest und was du schon sicher kannst.",
       cta: "Lernstand öffnen",
       accent: "green",
-      icon: "📈"
+      iconKey: "chart"
     },
     {
       section: "taktik-deck",
       title: "Taktik-Deck",
-      text: "Strategien, die dir helfen, wenn du beim Lernen festhängst.",
+      text: "Strategien, die dir helfen, wenn du festhängst.",
       cta: "Deck öffnen",
-      accent: "pink",
+      accent: "purple",
       featured: true,
-      icon: "⚡"
+      iconKey: "cards"
     },
     {
       section: "checkpoint-plan",
       title: "Meine Checks",
       text: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
       cta: "Plan öffnen",
-      accent: "cyan",
-      icon: "🚩"
+      accent: "blue",
+      iconKey: "flag"
     }
   ];
 
@@ -63,7 +76,7 @@
       text: "Nimm Herausforderungen an und sammle XP.",
       cta: "Ansehen",
       accent: "purple",
-      icon: "🎯"
+      iconKey: "mission"
     },
     {
       section: "belohnungen",
@@ -71,7 +84,7 @@
       text: "Schalte Extras frei und feiere Erfolge.",
       cta: "Ansehen",
       accent: "orange",
-      icon: "🏆"
+      iconKey: "trophy"
     },
     {
       section: "charakter",
@@ -79,7 +92,7 @@
       text: "Passe deinen Charakter an.",
       cta: "Anpassen",
       accent: "blue",
-      icon: "🧍"
+      iconKey: "user"
     },
     {
       section: "xp",
@@ -87,7 +100,7 @@
       text: "Sieh deine Entwicklung und XP.",
       cta: "Ansehen",
       accent: "purple",
-      icon: "XP"
+      iconKey: "xp"
     }
   ];
 
@@ -189,13 +202,15 @@
 
   function renderTile(ui, tile, size) {
     const large = size === "large";
+    const svg = HUB_ICONS[tile.iconKey] || HUB_ICONS.today;
     return `
       <button type="button"
         class="hub-tile hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
         data-hub-section="${ui.escapeHtml(tile.section)}">
         <span class="hub-tile-glow" aria-hidden="true"></span>
+        <span class="hub-tile-shine" aria-hidden="true"></span>
         ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
-        <span class="hub-tile-icon" aria-hidden="true">${tile.icon}</span>
+        <span class="hub-tile-icon" aria-hidden="true">${svg}</span>
         <span class="hub-tile-title">${ui.escapeHtml(tile.title)}</span>
         <span class="hub-tile-text">${ui.escapeHtml(tile.text)}</span>
         <span class="hub-tile-cta">${ui.escapeHtml(tile.cta)} <span class="hub-tile-arrow">→</span></span>
@@ -230,7 +245,7 @@
             </p>
             <div class="hub-hero-actions">
               <button type="button" class="hub-btn-primary" id="hubNextBtn" data-hub-action="next">
-                ${ui.escapeHtml(step.label)} →
+                ${ui.escapeHtml(step.label === "Heute starten" || step.label === "Mein Tag ansehen" ? "Heute starten" : step.label)} →
               </button>
               <button type="button" class="hub-btn-ghost" id="hubBriefingBtn">
                 Start-Briefing ansehen
@@ -372,7 +387,12 @@
     if (step) {
       set("hubNextHint", step.hint);
       const btn = document.getElementById("hubNextBtn");
-      if (btn) btn.textContent = `${step.label} →`;
+      if (btn) {
+        const label = step.label === "Heute starten" || step.label === "Mein Tag ansehen"
+          ? "Heute starten"
+          : step.label;
+        btn.textContent = `${label} →`;
+      }
       set("hubMissionTitle", step.label === "Tagesziel setzen" ? "5-Minuten-Start" : step.label);
     }
 

@@ -166,7 +166,8 @@ a { color: inherit; }
 body.student-app {
   display: block;
   overflow: hidden;
-  background: #050816;
+  overflow-x: hidden;
+  background-color: #050816;
   color: #fff;
 }
 
@@ -177,9 +178,10 @@ body.student-app::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at top left, rgba(168, 85, 247, 0.18), transparent 32%),
-    radial-gradient(circle at top right, rgba(249, 115, 22, 0.12), transparent 28%),
-    linear-gradient(135deg, #050816 0%, #0b1024 48%, #070817 100%);
+    linear-gradient(180deg, rgba(5, 8, 22, 0.68) 0%, rgba(5, 8, 22, 0.82) 45%, rgba(5, 8, 22, 0.92) 100%),
+    radial-gradient(circle at 10% 6%, rgba(168, 85, 247, 0.18), transparent 38%),
+    radial-gradient(circle at 90% 8%, rgba(249, 115, 22, 0.14), transparent 34%),
+    url("/assets/logic-bg.png") center top / cover no-repeat fixed;
 }
 
 body.student-app::after {
@@ -188,7 +190,7 @@ body.student-app::after {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.3;
+  opacity: 0.18;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
@@ -223,18 +225,23 @@ body.student-app .mobile-header {
   position: sticky;
   top: 0;
   z-index: 40;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(5, 8, 22, 0.82);
-  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(167, 139, 250, 0.15);
+  background: rgba(5, 8, 22, 0.78);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    0 0 40px rgba(124, 58, 237, 0.06);
 }
 
 .student-topbar-inner {
-  max-width: 1280px;
+  max-width: 1440px;
   margin: 0 auto;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 20px;
+  padding: 12px 20px;
+  min-height: 68px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -431,13 +438,14 @@ body.student-app .mobile-header {
 
 .student-topbar-pill {
   display: none;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 8px 14px;
+  padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
   white-space: nowrap;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 @media (min-width: 640px) {
@@ -449,13 +457,15 @@ body.student-app .mobile-header {
 }
 
 .student-topbar-pill-xp {
-  border-color: rgba(167, 139, 250, 0.3);
+  border-color: rgba(167, 139, 250, 0.35);
   color: #ddd6fe;
+  box-shadow: 0 0 14px rgba(124, 58, 237, 0.12);
 }
 
 .student-topbar-level {
-  border-color: rgba(251, 146, 60, 0.3);
+  border-color: rgba(251, 146, 60, 0.35);
   color: #fed7aa;
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.1);
 }
 
 .student-topbar-profile {
@@ -463,9 +473,10 @@ body.student-app .mobile-header {
   align-items: center;
   gap: 8px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);
   padding: 4px 4px 4px 12px;
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.2);
 }
 
 @media (min-width: 640px) {
@@ -519,11 +530,18 @@ body.student-app .mobile-header {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 24px 20px 28px;
-  max-width: 1280px;
+  overflow-x: hidden;
+  padding: 24px 16px 28px;
+  max-width: 1440px;
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .student-main {
+    padding: 28px 32px 36px;
+  }
 }
 
 body.student-app .notif-wrap {
@@ -605,11 +623,15 @@ body.student-app .notif-panel {
 .hub-hero-card {
   position: relative;
   overflow: hidden;
-  border-radius: 32px;
-  border: 1px solid rgba(167, 139, 250, 0.3);
-  background: rgba(255, 255, 255, 0.05);
-  padding: 32px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  border-radius: 28px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: rgba(15, 23, 42, 0.55);
+  padding: 28px 32px;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.45),
+    0 0 48px rgba(124, 58, 237, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
 }
 
 .hub-hero-card-bg {
@@ -617,8 +639,8 @@ body.student-app .notif-panel {
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(circle at 25% 20%, rgba(168, 85, 247, 0.28), transparent 35%),
-    radial-gradient(circle at 75% 25%, rgba(14, 165, 233, 0.16), transparent 32%);
+    linear-gradient(115deg, rgba(5, 8, 22, 0.82) 0%, rgba(76, 29, 149, 0.28) 42%, rgba(5, 8, 22, 0.88) 100%),
+    url("/assets/logic-bg.png") center 30% / cover no-repeat;
   pointer-events: none;
 }
 
@@ -628,12 +650,13 @@ body.student-app .notif-panel {
 }
 
 .hub-hero-kicker {
-  margin: 0 0 12px;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0.22em;
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: #c4b5fd;
+  color: #fb923c;
+  text-shadow: 0 0 18px rgba(249, 115, 22, 0.35);
 }
 
 .hub-hero-title {
@@ -714,11 +737,14 @@ body.student-app .notif-panel {
 }
 
 .hub-streak-card {
-  border-radius: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.62);
   padding: 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.4),
+    0 0 32px rgba(249, 115, 22, 0.06);
+  backdrop-filter: blur(12px);
 }
 
 .hub-streak-label {
@@ -822,115 +848,150 @@ body.student-app .notif-panel {
   text-align: left;
   width: 100%;
   overflow: hidden;
-  border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.045);
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.06) 0%, rgba(15, 23, 42, 0.88) 38%, rgba(5, 8, 22, 0.95) 100%);
   color: #fff;
   cursor: pointer;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .hub-tile:hover {
-  transform: translateY(-4px);
+  transform: translateY(-3px);
 }
 
 .hub-tile-glow {
   position: absolute;
-  right: -48px;
-  top: -48px;
-  width: 160px;
-  height: 160px;
+  right: -32px;
+  top: -32px;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.035);
-  filter: blur(24px);
+  background: var(--tile-glow, rgba(255, 255, 255, 0.08));
+  filter: blur(32px);
   pointer-events: none;
+  opacity: 0.55;
+}
+
+.hub-tile-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, transparent 42%);
+  opacity: 0.7;
 }
 
 .hub-tile-lg {
-  min-height: 220px;
-  padding: 28px;
+  min-height: 210px;
+  padding: 24px;
 }
 
 .hub-tile-sm {
-  min-height: 140px;
-  padding: 20px;
+  min-height: 130px;
+  padding: 18px;
 }
 
 .hub-tile-badge {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
-  margin-bottom: 12px;
-  padding: 4px 10px;
+  margin-bottom: 10px;
+  padding: 3px 9px;
   border-radius: 999px;
-  border: 1px solid rgba(251, 207, 232, 0.3);
-  background: rgba(236, 72, 153, 0.1);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.18em;
+  border: 1px solid rgba(196, 181, 253, 0.35);
+  background: rgba(124, 58, 237, 0.18);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #fbcfe8;
+  color: #e9d5ff;
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.2);
 }
 
 .hub-tile-icon {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
-  border-radius: 24px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
-  font-size: 28px;
-  margin-bottom: 18px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
+  color: #fff;
+  margin-bottom: 14px;
+  box-shadow: 0 0 20px var(--tile-glow-strong, rgba(255, 255, 255, 0.12));
+}
+
+.hub-tile-icon svg {
+  width: 28px;
+  height: 28px;
 }
 
 .hub-tile-lg .hub-tile-icon {
-  width: 80px;
-  height: 80px;
+  width: 56px;
+  height: 56px;
 }
 
 .hub-tile-sm .hub-tile-icon {
-  width: 56px;
-  height: 56px;
-  font-size: 20px;
-  margin-bottom: 14px;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 10px;
+}
+
+.hub-tile-sm .hub-tile-icon svg {
+  width: 22px;
+  height: 22px;
 }
 
 .hub-tile-title {
+  position: relative;
+  z-index: 1;
   font-family: "Orbitron", system-ui;
-  font-weight: 900;
-  letter-spacing: 0.12em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .hub-tile-lg .hub-tile-title {
-  font-size: 22px;
-}
-
-.hub-tile-sm .hub-tile-title {
   font-size: 16px;
 }
 
+.hub-tile-sm .hub-tile-title {
+  font-size: 13px;
+}
+
 .hub-tile-text {
-  margin-top: 10px;
+  position: relative;
+  z-index: 1;
+  margin-top: 8px;
   max-width: 320px;
   font-size: 13px;
-  line-height: 1.55;
-  color: #cbd5e1;
+  line-height: 1.5;
+  color: #94a3b8;
   flex: 1;
 }
 
 .hub-tile-cta {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 20px;
-  padding: 8px 14px;
+  margin-top: auto;
+  padding: 7px 12px;
   border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.06);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  color: #fff;
-  transition: background 0.15s ease;
+  color: #e2e8f0;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .hub-tile:hover .hub-tile-cta {
   background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .hub-tile-arrow {
@@ -941,32 +1002,55 @@ body.student-app .notif-panel {
   transform: translateX(3px);
 }
 
-.hub-accent-orange { border-color: rgba(251, 146, 60, 0.35); }
+.hub-accent-orange { --tile-glow: rgba(249, 115, 22, 0.35); --tile-glow-strong: rgba(249, 115, 22, 0.45); border-color: rgba(251, 146, 60, 0.32); }
 .hub-accent-orange .hub-tile-title { color: #fdba74; }
-.hub-accent-orange:hover { box-shadow: 0 0 30px rgba(249, 115, 22, 0.22); border-color: rgba(251, 146, 60, 0.7); }
+.hub-accent-orange .hub-tile-icon { color: #fdba74; background: rgba(249, 115, 22, 0.14); }
+.hub-accent-orange:hover { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 28px rgba(249, 115, 22, 0.18); border-color: rgba(251, 146, 60, 0.55); }
 
-.hub-accent-purple { border-color: rgba(167, 139, 250, 0.35); }
+.hub-accent-purple { --tile-glow: rgba(168, 85, 247, 0.35); --tile-glow-strong: rgba(168, 85, 247, 0.45); border-color: rgba(167, 139, 250, 0.32); }
 .hub-accent-purple .hub-tile-title { color: #c4b5fd; }
-.hub-accent-purple:hover { box-shadow: 0 0 30px rgba(168, 85, 247, 0.25); border-color: rgba(196, 181, 253, 0.7); }
+.hub-accent-purple .hub-tile-icon { color: #c4b5fd; background: rgba(168, 85, 247, 0.14); }
+.hub-accent-purple:hover { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 28px rgba(168, 85, 247, 0.2); border-color: rgba(196, 181, 253, 0.55); }
 
-.hub-accent-blue { border-color: rgba(56, 189, 248, 0.35); }
+.hub-accent-blue { --tile-glow: rgba(56, 189, 248, 0.3); --tile-glow-strong: rgba(56, 189, 248, 0.4); border-color: rgba(56, 189, 248, 0.28); }
 .hub-accent-blue .hub-tile-title { color: #7dd3fc; }
-.hub-accent-blue:hover { box-shadow: 0 0 30px rgba(14, 165, 233, 0.2); border-color: rgba(125, 211, 252, 0.7); }
+.hub-accent-blue .hub-tile-icon { color: #7dd3fc; background: rgba(56, 189, 248, 0.12); }
+.hub-accent-blue:hover { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 24px rgba(14, 165, 233, 0.16); border-color: rgba(125, 211, 252, 0.5); }
 
-.hub-accent-green { border-color: rgba(52, 211, 153, 0.35); }
+.hub-accent-green { --tile-glow: rgba(52, 211, 153, 0.28); --tile-glow-strong: rgba(52, 211, 153, 0.38); border-color: rgba(52, 211, 153, 0.28); }
 .hub-accent-green .hub-tile-title { color: #6ee7b7; }
-.hub-accent-green:hover { box-shadow: 0 0 30px rgba(16, 185, 129, 0.18); border-color: rgba(110, 231, 183, 0.7); }
+.hub-accent-green .hub-tile-icon { color: #6ee7b7; background: rgba(52, 211, 153, 0.12); }
+.hub-accent-green:hover { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 24px rgba(16, 185, 129, 0.14); border-color: rgba(110, 231, 183, 0.5); }
 
-.hub-accent-cyan { border-color: rgba(34, 211, 238, 0.35); }
+.hub-accent-cyan { --tile-glow: rgba(34, 211, 238, 0.28); --tile-glow-strong: rgba(34, 211, 238, 0.38); border-color: rgba(34, 211, 238, 0.28); }
 .hub-accent-cyan .hub-tile-title { color: #67e8f9; }
-.hub-accent-cyan:hover { box-shadow: 0 0 30px rgba(6, 182, 212, 0.18); border-color: rgba(103, 232, 249, 0.7); }
-
-.hub-accent-pink { border-color: rgba(244, 114, 182, 0.35); }
-.hub-accent-pink .hub-tile-title { color: #f9a8d4; }
-.hub-accent-pink:hover { box-shadow: 0 0 30px rgba(236, 72, 153, 0.22); border-color: rgba(249, 168, 212, 0.7); }
+.hub-accent-cyan .hub-tile-icon { color: #67e8f9; background: rgba(34, 211, 238, 0.12); }
+.hub-accent-cyan:hover { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 24px rgba(6, 182, 212, 0.14); border-color: rgba(103, 232, 249, 0.5); }
 
 .hub-tile-featured {
-  background: rgba(236, 72, 153, 0.075);
+  background: linear-gradient(155deg, rgba(124, 58, 237, 0.18) 0%, rgba(15, 23, 42, 0.9) 45%, rgba(5, 8, 22, 0.95) 100%);
+  border-color: rgba(196, 181, 253, 0.4);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.35),
+    0 0 32px rgba(124, 58, 237, 0.14);
+}
+
+.hub-tile-featured:hover {
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4), 0 0 36px rgba(124, 58, 237, 0.22);
+}
+
+.hub-status-card {
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.05) 0%, rgba(15, 23, 42, 0.82) 100%);
+  padding: 22px 24px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(10px);
+}
+
+.hub-status-card-xp {
+  border-color: rgba(167, 139, 250, 0.28);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32), 0 0 28px rgba(124, 58, 237, 0.08);
 }
 
 .hub-status-grid {
@@ -978,17 +1062,6 @@ body.student-app .notif-panel {
   .hub-status-grid {
     grid-template-columns: 1fr 1fr;
   }
-}
-
-.hub-status-card {
-  border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.045);
-  padding: 24px;
-}
-
-.hub-status-card-xp {
-  border-color: rgba(167, 139, 250, 0.2);
 }
 
 .hub-focus-row {
@@ -4109,7 +4182,7 @@ h2 {
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-hub.js?v=4"></script>
+<script src="/js/logbuch-hub.js?v=8"></script>
 <script src="/js/logbuch-plan.js?v=13"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>
