@@ -265,31 +265,30 @@
   }
 
   function renderProgressStrip(blockList) {
+    const V = window.LogbuchVisuals;
     const total = blockList.length;
     const planned = blockList.filter((b) => b.entry).length;
     const checked = blockList.filter((b) => b.entry?.hasCheck).length;
     const reflected = blockList.filter((b) => b.entry?.hasReflection).length;
     const p = window.__studentProfile || {};
+    const dayPct = total ? Math.round((reflected / total) * 100) : 0;
+
+    const stats = V
+      ? V.statCards([
+          { value: `${planned}/${total || 0}`, label: "Ziele gesetzt", accent: true },
+          { value: `${checked}/${total || 0}`, label: "Checks" },
+          { value: `${reflected}/${total || 0}`, label: "Reflexionen" },
+          { value: Number(p.xp || 0).toLocaleString("de-DE"), label: "XP gesamt", accent: true }
+        ])
+      : "";
+
+    if (!V) return stats;
 
     return `
-      <div class="stat-row stat-row--4">
-        <div class="stat-card stat-card--accent">
-          <span class="stat-card__value">${planned}/${total || 0}</span>
-          <span class="stat-card__label">Ziele gesetzt</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-card__value">${checked}/${total || 0}</span>
-          <span class="stat-card__label">Checks</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-card__value">${reflected}/${total || 0}</span>
-          <span class="stat-card__label">Reflexionen</span>
-        </div>
-        <div class="stat-card stat-card--accent">
-          <span class="stat-card__value">${Number(p.xp || 0).toLocaleString("de-DE")}</span>
-          <span class="stat-card__label">XP gesamt</span>
-        </div>
-      </div>`;
+      ${V.progressPanel({
+        radial: V.radialProgress(dayPct, `${dayPct}%`, "Tagesfortschritt"),
+        stats
+      })}`;
   }
 
   function renderEmptyState(d, editable) {

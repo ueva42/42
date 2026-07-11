@@ -6,18 +6,30 @@
   const STRATEGIES = () => window.LogbuchStrategies?.list() || window.LOGBUCH_STRATEGIES || [];
 
   const state = {
-    modalStrategyId: null
+    modalStrategyId: null,
+    selectedCategory: "all"
   };
+
+  function categories(strategies) {
+    return [...new Set(strategies.map((s) => s.category).filter(Boolean))];
+  }
+
+  function filteredStrategies(strategies) {
+    if (state.selectedCategory === "all") return strategies;
+    return strategies.filter((s) => s.category === state.selectedCategory);
+  }
 
   function renderStrategyCard(ui, strategy) {
     return `
-      <article class="taktik-card">
-        <p class="taktik-card-category">${ui.escapeHtml(strategy.category)}</p>
-        <h3 class="taktik-card-title">${ui.escapeHtml(strategy.name)}</h3>
-        <p class="taktik-card-when">${ui.escapeHtml(strategy.whenHelps)}</p>
-        <button type="button" class="logbuch-btn-ghost taktik-card-btn" data-strategy-id="${ui.escapeHtml(strategy.id)}">
-          Taktik ansehen
-        </button>
+      <article class="student-card taktik-card app-card">
+        <div class="card-content">
+          <p class="taktik-card-category">${ui.escapeHtml(strategy.category)}</p>
+          <h3 class="taktik-card-title">${ui.escapeHtml(strategy.name)}</h3>
+          <p class="taktik-card-when">${ui.escapeHtml(strategy.whenHelps)}</p>
+          <button type="button" class="logbuch-btn-ghost taktik-card-btn" data-strategy-id="${ui.escapeHtml(strategy.id)}">
+            Taktik ansehen →
+          </button>
+        </div>
       </article>`;
   }
 
@@ -91,29 +103,72 @@
     document.getElementById("taktikDeckOverlay")?.remove();
   }
 
+  function renderCategoryBar(ui, cats) {
+    const chips = [
+      `<button type="button" class="day-chip ${state.selectedCategory === "all" ? "is-active" : ""}" data-taktik-cat="all">Alle</button>`
+    ]
+      .concat(
+        cats.map(
+          (cat) =>
+            `<button type="button" class="day-chip ${state.selectedCategory === cat ? "is-active" : ""}" data-taktik-cat="${ui.escapeHtml(cat)}">${ui.escapeHtml(cat)}</button>`
+        )
+      )
+      .join("");
+
+    return `<div class="taktik-category-bar">${chips}</div>`;
+  }
+
   function render() {
     const root = document.getElementById("taktik-deck-screen-root");
     if (!root) return;
     const ui = UI();
     const strategies = STRATEGIES();
+    const cats = categories(strategies);
+    const visible = filteredStrategies(strategies);
+    const V = window.LogbuchVisuals;
+    const pct = strategies.length
+      ? Math.round((visible.length / strategies.length) * 100)
+      : 100;
+
+    const header = V
+      ? V.progressPanel({
+          radial: V.radialProgress(pct, `${strategies.length}`, "Taktiken"),
+          stats: V.statCards([
+            { value: strategies.length, label: "Strategien", accent: true },
+            { value: cats.length, label: "Kategorien" },
+            { value: visible.length, label: "Sichtbar" }
+          ])
+        })
+      : "";
 
     root.innerHTML = `
-      <div class="taktik-deck-shell">
-        <div class="taktik-deck-intro-card">
-          <p class="taktik-deck-intro">
-            Hier findest du Strategien, die dir helfen, wenn du beim Lernen festhängst.
-          </p>
-          <button type="button" class="logbuch-btn-ghost taktik-briefing-replay" id="taktikBriefingReplayBtn">
-            Start-Briefing nochmal ansehen
-          </button>
+      <div class="student-page taktik-deck-shell">
+        ${header}
+        <div class="student-card app-card">
+          <div class="card-content">
+            <p class="taktik-deck-intro">
+              Deine Strategien für jede Lernherausforderung – wähle eine Kategorie oder stöbere durch alle Taktiken.
+            </p>
+            <button type="button" class="logbuch-btn-ghost taktik-briefing-replay" id="taktikBriefingReplayBtn">
+              Start-Briefing nochmal ansehen
+            </button>
+          </div>
         </div>
+        ${renderCategoryBar(ui, cats)}
         <div class="taktik-deck-grid">
-          ${strategies.map((s) => renderStrategyCard(ui, s)).join("")}
+          ${visible.map((s) => renderStrategyCard(ui, s)).join("")}
         </div>
       </div>`;
 
     root.querySelector("#taktikBriefingReplayBtn")?.addEventListener("click", () => {
       window.LogbuchStartBriefing?.openReview();
+    });
+
+    root.querySelectorAll("[data-taktik-cat]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.selectedCategory = btn.dataset.taktikCat;
+        render();
+      });
     });
 
     root.querySelectorAll(".taktik-card-btn").forEach((btn) => {

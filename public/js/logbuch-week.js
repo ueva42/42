@@ -103,30 +103,35 @@
     }
   }
 
-  function renderStats(stats, xp) {
-    return `
-      <div class="stat-row stat-row--5">
-        <div class="stat-card stat-card--accent">
-          <span class="stat-card__value">${stats.gesetzt}</span>
-          <span class="stat-card__label">Ziele gesetzt</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-card__value">${stats.erreicht}</span>
-          <span class="stat-card__label">Erreicht</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-card__value">${stats.teilweise}</span>
-          <span class="stat-card__label">Teilweise</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-card__value">${stats.offen}</span>
-          <span class="stat-card__label">Offen</span>
-        </div>
-        <div class="stat-card stat-card--accent">
-          <span class="stat-card__value">${xp}</span>
-          <span class="stat-card__label">XP Woche</span>
-        </div>
-      </div>`;
+  function renderStats(stats, xp, rows) {
+    const V = window.LogbuchVisuals;
+    const total = stats.gesetzt || 0;
+    const done = (stats.erreicht || 0) + (stats.teilweise || 0);
+    const weekPct = total ? Math.round((done / total) * 100) : 0;
+
+    const statHtml = V
+      ? V.statCards([
+          { value: stats.gesetzt, label: "Ziele gesetzt", accent: true },
+          { value: stats.erreicht, label: "Erreicht" },
+          { value: stats.teilweise, label: "Teilweise" },
+          { value: stats.offen, label: "Offen" },
+          { value: xp, label: "XP Woche", accent: true }
+        ])
+      : "";
+
+    if (!V) return statHtml;
+
+    const byDay = ["Mo", "Di", "Mi", "Do", "Fr"].map((day) => ({
+      label: day,
+      value: (rows || []).filter((r) => r.weekday === day).length
+    }));
+
+    return V.progressPanel({
+      radial: V.radialProgress(weekPct, `${weekPct}%`, "Wochenfortschritt"),
+      stats: statHtml,
+      chartTitle: "Ziele pro Tag",
+      chart: V.miniBarChart(byDay)
+    });
   }
 
   function renderWeekNav(d) {
@@ -456,7 +461,7 @@
     root.innerHTML = `
       <div class="student-page week-shell" id="weekSwipeArea">
         ${renderWeekNav(d)}
-        ${renderStats(d.stats, d.xpThisWeek)}
+        ${renderStats(d.stats, d.xpThisWeek, d.rows)}
 
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="weekSlidePanel">

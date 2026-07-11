@@ -405,6 +405,35 @@
       </div>`;
   }
 
+  function renderSummaryPanel() {
+    const V = window.LogbuchVisuals;
+    if (!V || !state.data?.grouped?.length) return "";
+
+    let topics = 0;
+    let withTarget = 0;
+    let onTrack = 0;
+
+    for (const group of state.data.grouped) {
+      for (const topic of group.topics || []) {
+        topics++;
+        if (topic.targetGrade) withTarget++;
+        if ((topic.tiers || []).some((t) => t.onTrack)) onTrack++;
+      }
+    }
+
+    const pct = topics ? Math.round((withTarget / topics) * 100) : 0;
+
+    return V.progressPanel({
+      radial: V.radialProgress(pct, `${withTarget}/${topics}`, "Ziele gesetzt"),
+      stats: V.statCards([
+        { value: topics, label: "Themen", accent: true },
+        { value: withTarget, label: "Mit Zielnote" },
+        { value: onTrack, label: "On Track" },
+        { value: state.selectedSubject || "–", label: "Fach" }
+      ])
+    });
+  }
+
   function renderSubjectToolbar() {
     const subjects = availableSubjects();
     if (!subjects.length) return "";
@@ -513,12 +542,8 @@
     }
 
     root.innerHTML = `
-      <div class="lc-shell zs-shell">
-        <p class="lc-intro">
-          <strong>Zielsetzung:</strong> Wähle dein Fach – oben siehst du die anstehende Klassenarbeit,
-          darunter bleiben vergangene Arbeiten mit Grow, Glow und Zielnote stehen.
-          So kannst du nachvollziehen, was du erreicht hast und woran du als Nächstes arbeitest.
-        </p>
+      <div class="student-page lc-shell zs-shell">
+        ${renderSummaryPanel()}
         ${renderSubjectToolbar()}
         ${renderUpcomingBanner()}
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}

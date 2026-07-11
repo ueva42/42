@@ -123,6 +123,25 @@
       </section>`;
   }
 
+  function renderCheckpointStats() {
+    const V = window.LogbuchVisuals;
+    if (!V || !state.data) return "";
+    const upcoming = state.data.upcoming || [];
+    const allEvents = Object.values(state.data.eventsByDate || {}).flat();
+    const total = allEvents.length;
+    const soon = upcoming.length;
+    const pct = total ? Math.round(((total - soon) / total) * 100) : 0;
+
+    return V.progressPanel({
+      radial: V.radialProgress(Math.max(0, pct), `${soon}`, "Anstehend"),
+      stats: V.statCards([
+        { value: total, label: "Termine", accent: true },
+        { value: soon, label: "Demnächst" },
+        { value: state.selectedSubject || "Alle", label: "Fachfilter" }
+      ])
+    });
+  }
+
   function renderUpcoming() {
     const upcoming = state.data?.upcoming || [];
     if (!upcoming.length) {
@@ -135,23 +154,25 @@
     }
 
     return `
-      <section class="cp-upcoming">
-        <h3 class="cp-section-title">Was ansteht</h3>
-        <ul class="cp-upcoming-list">
+      <section class="cp-upcoming student-card app-card">
+        <div class="card-content">
+        <h3 class="section-block__title">Was ansteht</h3>
+        <div class="checkpoint-card-grid">
           ${upcoming
             .map(
               (event) => `
-            <li class="cp-upcoming-item cp-upcoming-${escapeHtml(event.type)}">
-              <div class="cp-upcoming-main">
+            <article class="student-card checkpoint-card cp-upcoming-item cp-upcoming-${escapeHtml(event.type)}">
+              <div class="card-content">
                 <span class="cp-upcoming-date">${escapeHtml(event.dateLabel || event.date)}</span>
                 <span class="cp-upcoming-subject">${escapeHtml(event.subject)} · ${escapeHtml(event.typeLabel || "")}</span>
                 <strong class="cp-upcoming-title">${escapeHtml(event.title)}</strong>
+                <span class="status-badge status-badge--open">${escapeHtml(event.typeLabel || "Checkpoint")}</span>
               </div>
-              <span class="cp-upcoming-badge">${escapeHtml(event.typeLabel || "Checkpoint")}</span>
-            </li>`
+            </article>`
             )
             .join("")}
-        </ul>
+        </div>
+        </div>
       </section>`;
   }
 
@@ -189,16 +210,13 @@
     }
 
     root.innerHTML = `
-      <div class="lc-shell cp-shell">
-        <p class="lc-intro">
-          <strong>Checkpoint-Plan:</strong> Termine von deiner Lehrkraft – Klassenarbeiten, Tests, Präsentationen und mehr.
-          Wähle ein Fach, um Kalender und anstehende Checkpoints zu sehen.
-        </p>
+      <div class="student-page lc-shell cp-shell">
+        ${renderCheckpointStats()}
         ${renderSubjectToolbar()}
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
         <div class="cp-layout">
-          <div class="cp-main">${renderCalendar()}</div>
+          <div class="cp-main student-card app-card"><div class="card-content">${renderCalendar()}</div></div>
           <aside class="cp-aside">${renderUpcoming()}</aside>
         </div>
       </div>`;

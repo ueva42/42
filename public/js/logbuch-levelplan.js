@@ -126,6 +126,41 @@
     }
   }
 
+  function computeProgress() {
+    let total = 0;
+    let sicher = 0;
+    let inArbeit = 0;
+    for (const group of state.data?.grouped || []) {
+      for (const lc of group.levelChecks || []) {
+        for (const goal of lc.goals || []) {
+          for (const tier of TIER_META) {
+            total++;
+            const st = tierStatus(goal, tier.id);
+            if (st === "sicher") sicher++;
+            else if (st === "in_arbeit") inArbeit++;
+          }
+        }
+      }
+    }
+    const pct = total ? Math.round((sicher / total) * 100) : 0;
+    return { total, sicher, inArbeit, pct };
+  }
+
+  function renderProgressPanel() {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+    const { total, sicher, inArbeit, pct } = computeProgress();
+    return V.progressPanel({
+      radial: V.radialProgress(pct, `${pct}%`, "Gesamt"),
+      stats: V.statCards([
+        { value: sicher, label: "Sicher", accent: true },
+        { value: inArbeit, label: "In Arbeit" },
+        { value: Math.max(0, total - sicher - inArbeit), label: "Offen" },
+        { value: total, label: "Level gesamt" }
+      ])
+    });
+  }
+
   function renderSubtopicCard(goal) {
     const rows = TIER_META.map((tier) => {
       const key = `${goal.id}_${tier.id}`;
@@ -153,9 +188,11 @@
     }).join("");
 
     return `
-      <article class="lp-subtopic-card">
+      <article class="lp-subtopic-card student-card app-card">
+        <div class="card-content">
         <h4 class="lp-subtopic-title">${escapeHtml(goal.text)}</h4>
         <div class="lp-tier-list">${rows}</div>
+        </div>
       </article>`;
   }
 
@@ -230,12 +267,8 @@
     }
 
     root.innerHTML = `
-      <div class="lc-shell">
-        <p class="lc-intro">
-          Dein <strong>Levelplan</strong>: Wähle Fach und Thema, dann siehst du die Unterthemen
-          mit Rookie-, Operator- und Street-Legend-Zielen aus dem importierten Kompetenzraster.
-          Setze pro Level deinen Status: offen, in Arbeit oder sicher.
-        </p>
+      <div class="student-page lc-shell">
+        ${renderProgressPanel()}
         ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
         ${renderContent()}

@@ -1496,14 +1496,14 @@ body.student-app .card.section:not(#hub-section) {
 
 .student-screen--orange { --accent: #ff8a1f; --accent-soft: rgba(255, 138, 31, 0.22); --accent-glow: rgba(255, 138, 31, 0.45); }
 .student-screen--purple { --accent: #a855f7; --accent-soft: rgba(168, 85, 247, 0.22); --accent-glow: rgba(168, 85, 247, 0.45); }
-.student-screen--cyan { --accent: #22d3ee; --accent-soft: rgba(34, 211, 238, 0.22); }
-.student-screen--teal { --accent: #06b6d4; --accent-soft: rgba(6, 182, 212, 0.22); }
-.student-screen--green { --accent: #22c55e; --accent-soft: rgba(34, 197, 94, 0.22); }
-.student-screen--pink { --accent: #ec4899; --accent-soft: rgba(236, 72, 153, 0.26); }
-.student-screen--blue { --accent: #3b82f6; --accent-soft: rgba(59, 130, 246, 0.22); }
-.student-screen--gold { --accent: #f59e0b; --accent-soft: rgba(245, 158, 11, 0.22); }
-.student-screen--violet { --accent: #8b5cf6; --accent-soft: rgba(139, 92, 246, 0.22); }
-.student-screen--magenta { --accent: #d946ef; --accent-soft: rgba(217, 70, 239, 0.22); }
+.student-screen--cyan { --accent: #22d3ee; --accent-soft: rgba(34, 211, 238, 0.22); --accent-glow: rgba(34, 211, 238, 0.45); }
+.student-screen--teal { --accent: #06b6d4; --accent-soft: rgba(6, 182, 212, 0.22); --accent-glow: rgba(6, 182, 212, 0.45); }
+.student-screen--green { --accent: #22c55e; --accent-soft: rgba(34, 197, 94, 0.22); --accent-glow: rgba(34, 197, 94, 0.45); }
+.student-screen--pink { --accent: #ec4899; --accent-soft: rgba(236, 72, 153, 0.26); --accent-glow: rgba(236, 72, 153, 0.48); }
+.student-screen--blue { --accent: #3b82f6; --accent-soft: rgba(59, 130, 246, 0.22); --accent-glow: rgba(59, 130, 246, 0.45); }
+.student-screen--gold { --accent: #f59e0b; --accent-soft: rgba(245, 158, 11, 0.22); --accent-glow: rgba(245, 158, 11, 0.45); }
+.student-screen--violet { --accent: #8b5cf6; --accent-soft: rgba(139, 92, 246, 0.22); --accent-glow: rgba(139, 92, 246, 0.45); }
+.student-screen--magenta { --accent: #d946ef; --accent-soft: rgba(217, 70, 239, 0.22); --accent-glow: rgba(217, 70, 239, 0.45); }
 
 body.student-app {
   overflow-x: hidden;
@@ -1533,19 +1533,313 @@ body.student-app {
   }
 }
 
-.student-card {
+.student-card,
+.app-card {
   position: relative;
   overflow: hidden;
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--accent, #94a3b8) 22%, transparent);
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--accent, #94a3b8) 28%, transparent);
   background:
-    radial-gradient(circle at 92% 18%, var(--accent-soft, rgba(255, 255, 255, 0.06)), transparent 38%),
-    linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.96));
-  padding: 16px 18px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28);
+    radial-gradient(circle at 85% 35%, var(--accent-soft, rgba(255, 255, 255, 0.06)), transparent 36%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.98));
+  padding: 18px 20px;
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.32),
+    0 0 28px color-mix(in srgb, var(--accent, #fff) 12%, transparent);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
-.student-card .card-content {
+.app-card:hover,
+.student-card:hover {
+  border-color: color-mix(in srgb, var(--accent, #fff) 55%, transparent);
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.4),
+    0 0 40px color-mix(in srgb, var(--accent, #fff) 20%, transparent);
+}
+
+.hero-art,
+.page-hero__art {
+  position: absolute;
+  right: 18px;
+  bottom: 8px;
+  width: 38%;
+  max-width: 260px;
+  height: auto;
+  object-fit: contain;
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 28px var(--accent-glow, rgba(255, 255, 255, 0.2))) saturate(1.1) contrast(1.05);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.app-card:hover .hero-art {
+  opacity: 0.32;
+  transform: scale(1.03);
+}
+
+/* Radial progress */
+.radial-progress-wrap {
+  position: relative;
+  width: var(--rp-size, 112px);
+  height: var(--rp-size, 112px);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.radial-progress {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: conic-gradient(var(--accent, #a855f7) calc(var(--progress, 0) * 1%), rgba(255, 255, 255, 0.1) 0);
+  box-shadow: 0 0 28px var(--accent-glow, rgba(168, 85, 247, 0.35)), inset 0 0 24px rgba(0, 0, 0, 0.45);
+}
+
+.radial-progress::after {
+  content: "";
+  position: absolute;
+  inset: calc((var(--rp-size, 112px) - var(--rp-inner, 78px)) / 2);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.92);
+}
+
+.radial-progress__value {
+  position: relative;
+  z-index: 2;
+  font-family: "Orbitron", system-ui;
+  font-size: 15px;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.radial-progress__label {
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* XP bar */
+.xp-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.xp-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent, #a855f7), #ec4899, #f59e0b);
+  box-shadow: 0 0 18px var(--accent-glow, rgba(168, 85, 247, 0.4));
+  transition: width 0.35s ease;
+}
+
+/* Charts */
+.progress-panel__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+}
+
+.progress-panel__radial {
+  padding-bottom: 18px;
+}
+
+.progress-panel__main {
+  flex: 1;
+  min-width: 200px;
+}
+
+.progress-panel__chart-title {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.mini-bar-chart,
+.mini-line-chart {
+  display: block;
+  max-width: 100%;
+}
+
+.mini-chart-label {
+  fill: #64748b;
+  font-size: 9px;
+}
+
+.mini-line-chart-line {
+  fill: none;
+  stroke: var(--accent, #d946ef);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 8px var(--accent-glow, rgba(217, 70, 239, 0.45)));
+}
+
+.mini-line-chart-area {
+  fill: color-mix(in srgb, var(--accent, #d946ef) 18%, transparent);
+}
+
+.mini-line-chart-dot {
+  fill: var(--accent, #d946ef);
+}
+
+.mini-chart-empty {
+  font-size: 12px;
+  color: #64748b;
+  padding: 12px 0;
+}
+
+/* Mission / Reward grids */
+.mission-card-grid,
+.reward-card-grid,
+.xp-activity-grid {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .mission-card-grid,
+  .reward-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .xp-activity-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mission-card__title,
+.reward-card__title {
+  margin: 0 0 6px;
+  font-family: "Orbitron", system-ui;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: #f1f5f9;
+}
+
+.mission-card__xp,
+.reward-card__cost {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.mission-card__img,
+.reward-card__img {
+  width: 100%;
+  max-height: 120px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+
+.mission-card .status-badge,
+.reward-card .btn-primary {
+  margin-top: 10px;
+}
+
+.mission-card__upload {
+  margin-top: 12px;
+}
+
+.xp-activity-card__amount {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 16px;
+  color: color-mix(in srgb, var(--accent, #d946ef) 80%, #fff);
+}
+
+.xp-activity-card__source {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #e2e8f0;
+}
+
+.xp-activity-card__date {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* Character profile */
+.character-app-grid {
+  display: grid;
+  gap: 14px;
+}
+
+@media (min-width: 720px) {
+  .character-app-grid {
+    grid-template-columns: 280px 1fr;
+  }
+}
+
+.character-profile-card {
+  text-align: center;
+}
+
+.character-profile-card .char-img {
+  max-width: 180px;
+  border-radius: 18px;
+  margin-bottom: 10px;
+}
+
+.character-profile-card .char-name {
+  font-family: "Orbitron", system-ui;
+  font-size: 16px;
+  letter-spacing: 0.05em;
+  color: #f1f5f9;
+}
+
+.character-stats-panel .stat-row {
+  margin-bottom: 12px;
+}
+
+.char-traits-app {
+  margin-top: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #cbd5e1;
+}
+
+.taktik-category-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.lp-subtopic-card,
+.zs-topic-card {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(2, 6, 23, 0.65);
+  padding: 16px 18px;
+}
+
+.checkpoint-card-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.week-form-card .logbuch-field-wide {
+  grid-column: 1 / -1;
+}
+
+.card-content,
+.page-hero__content {
   position: relative;
   z-index: 2;
 }
@@ -4993,9 +5287,12 @@ h2 {
       </div>
       <img class="student-screen-hero" src="/icons/student/hero/charakter-hero.png" alt="">
     </header>
-    <div class="character-wrapper">
-      <div class="char-img-wrapper"><div id="characterInfo"></div></div>
-      <div id="traitsItemsCard" class="char-traits"></div>
+    <div class="character-wrapper character-app-grid">
+      <div class="student-card character-profile-card char-img-wrapper"><div id="characterInfo"></div></div>
+      <div class="student-card character-stats-panel">
+        <div id="characterStatsPanel"></div>
+        <div id="traitsItemsCard" class="char-traits char-traits-app"></div>
+      </div>
     </div>
   </div>
 
@@ -5026,9 +5323,7 @@ h2 {
       </div>
       <img class="student-screen-hero" src="/icons/student/hero/belohnungen-hero.png" alt="">
     </header>
-    <div style="margin-bottom:16px;font-size:13px;opacity:0.85;">
-      <b>Deine Bonuskarten</b> – Belohnungen, die du mit deinen persönlichen XP einlösen kannst.
-    </div>
+    <div style="margin-bottom:16px;font-size:13px;opacity:0.85;display:none;"></div>
     <div id="rewardCarousel"></div>
   </div>
 
@@ -5105,19 +5400,20 @@ h2 {
 <script src="/js/logbuch-constants.js?v=6"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js"></script>
+<script src="/js/logbuch-visuals.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
 <script src="/js/logbuch-hub.js?v=12"></script>
 <script src="/js/logbuch-plan.js?v=13"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>
-<script src="/js/logbuch-today.js?v=18"></script>
-<script src="/js/logbuch-week.js?v=3"></script>
-<script src="/js/logbuch-levelplan.js?v=10"></script>
+<script src="/js/logbuch-today.js?v=19"></script>
+<script src="/js/logbuch-week.js?v=4"></script>
+<script src="/js/logbuch-levelplan.js?v=11"></script>
 <script src="/js/logbuch-start-briefing.js?v=1"></script>
-<script src="/js/logbuch-taktik-deck.js?v=4"></script>
-<script src="/js/logbuch-zielsetzung.js?v=9"></script>
-<script src="/js/logbuch-checkpoint-plan.js?v=2"></script>
+<script src="/js/logbuch-taktik-deck.js?v=5"></script>
+<script src="/js/logbuch-zielsetzung.js?v=10"></script>
+<script src="/js/logbuch-checkpoint-plan.js?v=3"></script>
 <script src="/js/logbuch-screens.js?v=4"></script>
 
 <script>
@@ -5450,20 +5746,26 @@ window.loadMe = async function loadMe() {
   renderNotifBadge(__latestXpLog);
 
   const xpDiv = document.getElementById("xpLog");
-  xpDiv.innerHTML = "";
-
-  (__latestXpLog || []).forEach(e => {
-    const d = new Date(e.created_at).toLocaleString("de-DE");
-    xpDiv.innerHTML += `
-      <div class="xp-entry">
-        <b>${e.amount} XP</b> – ${e.mission_name || e.source}<br>
-        <span style="opacity:0.7;">${d}</span>
-      </div>`;
-  });
+  if (!window.LogbuchVisuals && xpDiv) {
+    xpDiv.innerHTML = "";
+    (__latestXpLog || []).forEach(e => {
+      const d = new Date(e.created_at).toLocaleString("de-DE");
+      xpDiv.innerHTML += `
+        <div class="xp-entry">
+          <b>${e.amount} XP</b> – ${e.mission_name || e.source}<br>
+          <span style="opacity:0.7;">${d}</span>
+        </div>`;
+    });
+  }
 
   renderLevelBar(data.levels || [], u.xp);
   updateStudentProfile(u, data.levels || [], data.character);
   renderLevelBar(data.levels || [], u.xp);
+
+  if (window.LogbuchVisuals && xpDiv) {
+    window.LogbuchVisuals.renderXpDashboard(xpDiv, __latestXpLog, window.__studentProfile);
+  }
+  renderCharacterStats(u, data);
 
   if (!data.character) openCharacterOverlay();
   else if (window.LogbuchStartBriefing) window.LogbuchStartBriefing.openAuto();
@@ -5513,12 +5815,41 @@ function renderLevelBar(levels, xp) {
 ============================================ */
 async function loadMissions() {
   const r = await fetch("/api/student/missions");
-  renderCarousel("missionCarousel", await r.json(), "mission");
+  const items = await r.json();
+  if (window.LogbuchVisuals) {
+    window.LogbuchVisuals.renderMissionGrid(document.getElementById("missionCarousel"), items, xpPerMission);
+  } else {
+    renderCarousel("missionCarousel", items, "mission");
+  }
 }
 
 async function loadRewards() {
   const r = await fetch("/api/student/rewards");
-  renderCarousel("rewardCarousel", await r.json(), "reward");
+  const items = await r.json();
+  const xp = window.__studentProfile?.xp ?? 0;
+  if (window.LogbuchVisuals) {
+    window.LogbuchVisuals.renderRewardGrid(document.getElementById("rewardCarousel"), items, xp);
+  } else {
+    renderCarousel("rewardCarousel", items, "reward");
+  }
+}
+
+function renderCharacterStats(u, data) {
+  const panel = document.getElementById("characterStatsPanel");
+  if (!panel || !window.LogbuchVisuals) return;
+  const V = window.LogbuchVisuals;
+  const xp = Number(u?.xp || 0);
+  const traitCount = (data.traits || []).length;
+  const itemCount = (data.items || []).length;
+  panel.innerHTML = V.progressPanel({
+    radial: V.radialProgress(window.__studentProfile?.xpPct ?? 0, u.level_name || "–", "Level"),
+    stats: V.statCards([
+      { value: xp.toLocaleString("de-DE"), label: "XP", accent: true },
+      { value: traitCount, label: "Eigenschaften" },
+      { value: itemCount, label: "Items" },
+      { value: u.level_name || "–", label: "Rang", accent: true }
+    ])
+  }) + `<div style="margin-top:10px">${V.xpBar(window.__studentProfile?.xpPct ?? 0)}</div>`;
 }
 
 /* ============================================
@@ -5722,7 +6053,7 @@ async function uploadMission(id) {
   const r = await fetch("/api/student/uploadForMission", { method: "POST", body: form });
   const data = await r.json();
 
-  if (data.success) { alert("Upload erfolgreich!"); loadMe(); }
+  if (data.success) { alert("Upload erfolgreich!"); await loadMe(); loadMissions(); }
   else alert("Upload fehlgeschlagen.");
 }
 
