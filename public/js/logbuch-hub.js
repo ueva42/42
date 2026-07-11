@@ -8,51 +8,57 @@
     {
       section: "today",
       title: "Mein Tag",
-      text: "Deine Aufgaben für heute. Fokus. Fortschritt. Erfolg.",
-      cta: "Heute starten",
+      text: "Deine heutigen Aufgaben auf einen Blick.",
+      cta: "Los geht's",
       accent: "orange",
-      iconSrc: "/icons/student/mein-tag.svg"
+      iconSrc: "/icons/student/mein-tag.svg",
+      heroSrc: "/icons/student/hero/mein-tag-hero.png"
     },
     {
       section: "week",
       title: "Meine Woche",
-      text: "Dein Wochenplan im Überblick. Bleib dran und baue Momentum auf.",
-      cta: "Woche ansehen",
-      accent: "blue",
-      iconSrc: "/icons/student/meine-woche.svg"
+      text: "Dein Lernplan für diese Woche.",
+      cta: "Plan ansehen",
+      accent: "purple",
+      iconSrc: "/icons/student/meine-woche.svg",
+      heroSrc: "/icons/student/hero/meine-woche-hero.png"
     },
     {
       section: "zielsetzung",
       title: "Zielsetzung",
-      text: "Setze klare Ziele und verfolge deinen Fortschritt.",
+      text: "Setze Ziele und verfolge deinen Fortschritt.",
       cta: "Ziele ansehen",
       accent: "cyan",
-      iconSrc: "/icons/student/zielsetzung.svg"
+      iconSrc: "/icons/student/zielsetzung.svg",
+      heroSrc: "/icons/student/hero/zielsetzung-hero.png"
     },
     {
       section: "levelplan",
       title: "Mein Lernstand",
-      text: "Sieh, woran du arbeitest und was du schon sicher kannst.",
-      cta: "Lernstand öffnen",
+      text: "Sieh deine Entwicklung und was du schon sicher kannst.",
+      cta: "Fortschritt ansehen",
       accent: "green",
-      iconSrc: "/icons/student/lernstand.svg"
+      iconSrc: "/icons/student/lernstand.svg",
+      heroSrc: "/icons/student/hero/lernstand-hero.png"
     },
     {
       section: "taktik-deck",
       title: "Taktik-Deck",
-      text: "Strategien, die dir helfen, wenn du festhängst.",
+      text: "Deine Strategien für jede Lernherausforderung.",
       cta: "Deck öffnen",
-      accent: "purple",
+      accent: "pink",
       featured: true,
-      iconSrc: "/icons/student/taktik-deck.svg"
+      iconSrc: "/icons/student/taktik-deck.svg",
+      heroSrc: "/icons/student/hero/taktik-deck-hero.png"
     },
     {
       section: "checkpoint-plan",
       title: "Meine Checks",
       text: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
       cta: "Plan öffnen",
-      accent: "blue",
-      iconSrc: "/icons/student/meine-checks.svg"
+      accent: "cyan",
+      iconSrc: "/icons/student/meine-checks.svg",
+      heroSrc: "/icons/student/hero/meine-checks-hero.png"
     }
   ];
 
@@ -63,31 +69,35 @@
       text: "Nimm Herausforderungen an und sammle XP.",
       cta: "Ansehen",
       accent: "purple",
-      iconSrc: "/icons/student/missionen.svg"
+      iconSrc: "/icons/student/missionen.svg",
+      heroSrc: "/icons/student/hero/missionen-hero.png"
     },
     {
       section: "belohnungen",
       title: "Belohnungen",
       text: "Schalte Extras frei und feiere Erfolge.",
       cta: "Ansehen",
-      accent: "orange",
-      iconSrc: "/icons/student/belohnungen.svg"
+      accent: "gold",
+      iconSrc: "/icons/student/belohnungen.svg",
+      heroSrc: "/icons/student/hero/belohnungen-hero.png"
     },
     {
       section: "charakter",
       title: "Charakter",
-      text: "Passe deinen Charakter an.",
+      text: "Passe deinen Charakter an und zeig deinen Style.",
       cta: "Anpassen",
       accent: "blue",
-      iconSrc: "/icons/student/charakter.svg"
+      iconSrc: "/icons/student/charakter.svg",
+      heroSrc: "/icons/student/hero/charakter-hero.png"
     },
     {
       section: "xp",
       title: "XP-Historie",
-      text: "Sieh deine Entwicklung und XP.",
+      text: "Verfolge deine XP und Lernstatistiken.",
       cta: "Ansehen",
-      accent: "purple",
-      iconSrc: "/icons/student/xp-historie.svg"
+      accent: "pink",
+      iconSrc: "/icons/student/xp-historie.svg",
+      heroSrc: "/icons/student/hero/xp-historie-hero.png"
     }
   ];
 
@@ -195,13 +205,16 @@
         data-hub-section="${ui.escapeHtml(tile.section)}">
         <span class="hub-tile-glow" aria-hidden="true"></span>
         <span class="hub-tile-shine" aria-hidden="true"></span>
-        ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
-        <span class="hub-tile-icon" aria-hidden="true">
-          <img class="hub-tile-icon-img" src="${tile.iconSrc}" alt="" loading="lazy" decoding="async">
-        </span>
-        <span class="hub-tile-title">${ui.escapeHtml(tile.title)}</span>
-        <span class="hub-tile-text">${ui.escapeHtml(tile.text)}</span>
-        <span class="hub-tile-cta">${ui.escapeHtml(tile.cta)} <span class="hub-tile-arrow">→</span></span>
+        <img class="hub-tile-hero" src="${tile.heroSrc}" alt="" loading="lazy" decoding="async" aria-hidden="true">
+        <div class="hub-tile-content">
+          ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
+          <span class="hub-tile-icon" aria-hidden="true">
+            <img class="hub-tile-icon-img" src="${tile.iconSrc}" alt="" loading="lazy" decoding="async">
+          </span>
+          <span class="hub-tile-title">${ui.escapeHtml(tile.title)}</span>
+          <span class="hub-tile-text">${ui.escapeHtml(tile.text)}</span>
+          <span class="hub-tile-cta">${ui.escapeHtml(tile.cta)} <span class="hub-tile-arrow">→</span></span>
+        </div>
       </button>`;
   }
 
@@ -297,7 +310,9 @@
                 </p>
                 <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
               </div>
-              <div class="hub-xp-emblem">XP</div>
+              <div class="hub-xp-emblem" aria-hidden="true">
+                <img class="hub-level-badge-img" src="/icons/student/hero/level-badge-hero.png" alt="">
+              </div>
             </div>
             <div class="hub-progress-track hub-progress-track-lg">
               <div class="hub-progress-fill hub-progress-fill-xp" id="hubXpBar" style="width:${xpPct}%"></div>
