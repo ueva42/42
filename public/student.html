@@ -486,7 +486,8 @@ body.student-app .mobile-header {
   width: 22px;
   height: 22px;
   object-fit: contain;
-  filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.35));
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.35)) saturate(1.1) contrast(1.05);
   flex-shrink: 0;
 }
 
@@ -736,7 +737,8 @@ body.student-app .notif-panel {
   width: 56px;
   height: 56px;
   object-fit: contain;
-  filter: drop-shadow(0 0 14px rgba(249, 115, 22, 0.35));
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 14px rgba(249, 115, 22, 0.35)) saturate(1.1) contrast(1.05);
 }
 
 .hub-level-badge-wrap .hub-level-badge-img.is-hidden {
@@ -964,22 +966,82 @@ body.student-app .notif-panel {
 
 .hub-tile-hero {
   position: absolute;
-  right: 12px;
-  bottom: 6px;
+  right: 10px;
+  bottom: 4px;
   width: 48%;
   max-width: 250px;
   height: auto;
   object-fit: contain;
-  opacity: 0.3;
+  opacity: 0.24;
   pointer-events: none;
   z-index: 1;
-  filter: drop-shadow(0 0 30px color-mix(in srgb, var(--accent, #fff) 30%, transparent));
+  mix-blend-mode: screen;
+  filter:
+    drop-shadow(0 0 28px var(--accent-glow, rgba(255, 255, 255, 0.2)))
+    saturate(1.1)
+    contrast(1.05);
   transition: transform 180ms ease, opacity 180ms ease;
 }
 
 .hub-tile:hover .hub-tile-hero {
-  opacity: 0.42;
+  opacity: 0.34;
   transform: scale(1.035) translateY(-2px);
+}
+
+.hub-png-art {
+  background: transparent;
+}
+
+.hub-tile-icon,
+.hub-card-icon-wrap {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  margin-bottom: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 24px var(--accent-glow, rgba(255, 255, 255, 0.15));
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.hub-tile:hover .hub-tile-icon {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 32px var(--accent-glow, rgba(255, 255, 255, 0.22));
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.hub-tile-icon-img {
+  display: block;
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  mix-blend-mode: screen;
+  filter:
+    drop-shadow(0 0 12px var(--accent-glow, rgba(255, 255, 255, 0.25)))
+    saturate(1.1)
+    contrast(1.05);
+}
+
+.hub-tile-sm .hub-tile-icon,
+.hub-tile-sm .hub-card-icon-wrap {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 12px;
+  border-radius: 18px;
+}
+
+.hub-tile-sm .hub-tile-icon-img {
+  width: 44px;
+  height: 44px;
 }
 
 .hub-tile-glow {
@@ -1045,51 +1107,6 @@ body.student-app .notif-panel {
   box-shadow: 0 0 12px rgba(124, 58, 237, 0.2);
 }
 
-.hub-tile-icon {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.06);
-  margin-bottom: 20px;
-  box-shadow: 0 0 18px var(--tile-glow-strong, rgba(255, 255, 255, 0.1));
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.hub-tile:hover .hub-tile-icon {
-  box-shadow: 0 0 26px var(--tile-glow-strong, rgba(255, 255, 255, 0.16));
-  border-color: rgba(255, 255, 255, 0.14);
-}
-
-.hub-tile-icon-img {
-  display: block;
-  width: 46px;
-  height: 46px;
-  object-fit: contain;
-  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent, #fff) 50%, transparent));
-}
-
-.hub-tile-lg .hub-tile-icon {
-  width: 72px;
-  height: 72px;
-}
-
-.hub-tile-sm .hub-tile-icon {
-  width: 52px;
-  height: 52px;
-  margin-bottom: 12px;
-  border-radius: 16px;
-}
-
-.hub-tile-sm .hub-tile-icon-img {
-  width: 36px;
-  height: 36px;
-}
-
 .hub-tile-title {
   position: relative;
   z-index: 1;
@@ -1150,106 +1167,102 @@ body.student-app .notif-panel {
 
 .hub-accent-orange {
   --accent: #ff8a1f;
-  --accent-soft: rgba(255, 138, 31, 0.25);
+  --accent-soft: rgba(255, 138, 31, 0.22);
+  --accent-glow: rgba(255, 138, 31, 0.45);
   --tile-glow: rgba(249, 115, 22, 0.35);
   --tile-glow-strong: rgba(249, 115, 22, 0.45);
-  border-color: rgba(251, 146, 60, 0.32);
 }
 .hub-accent-orange .hub-tile-title { color: #fdba74; }
-.hub-accent-orange .hub-tile-icon { background: rgba(249, 115, 22, 0.1); }
 .hub-accent-orange .hub-tile-cta { border-color: rgba(251, 146, 60, 0.25); color: #fed7aa; }
-.hub-accent-orange:hover { border-color: rgba(251, 146, 60, 0.55); box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45), 0 0 28px rgba(249, 115, 22, 0.18); }
 
 .hub-accent-purple {
   --accent: #a855f7;
-  --accent-soft: rgba(168, 85, 247, 0.25);
+  --accent-soft: rgba(168, 85, 247, 0.22);
+  --accent-glow: rgba(168, 85, 247, 0.45);
   --tile-glow: rgba(168, 85, 247, 0.35);
   --tile-glow-strong: rgba(168, 85, 247, 0.45);
-  border-color: rgba(167, 139, 250, 0.32);
 }
 .hub-accent-purple .hub-tile-title { color: #c4b5fd; }
-.hub-accent-purple .hub-tile-icon { background: rgba(168, 85, 247, 0.1); }
 .hub-accent-purple .hub-tile-cta { border-color: rgba(196, 181, 253, 0.25); color: #ddd6fe; }
-.hub-accent-purple:hover { border-color: rgba(196, 181, 253, 0.55); box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45), 0 0 28px rgba(168, 85, 247, 0.2); }
 
 .hub-accent-blue {
   --accent: #3b82f6;
   --accent-soft: rgba(59, 130, 246, 0.22);
+  --accent-glow: rgba(59, 130, 246, 0.45);
   --tile-glow: rgba(56, 189, 248, 0.3);
   --tile-glow-strong: rgba(56, 189, 248, 0.4);
-  border-color: rgba(56, 189, 248, 0.28);
 }
 .hub-accent-blue .hub-tile-title { color: #7dd3fc; }
-.hub-accent-blue .hub-tile-icon { background: rgba(56, 189, 248, 0.08); }
 .hub-accent-blue .hub-tile-cta { border-color: rgba(125, 211, 252, 0.22); color: #bae6fd; }
-.hub-accent-blue:hover { border-color: rgba(125, 211, 252, 0.5); box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45), 0 0 24px rgba(14, 165, 233, 0.16); }
 
 .hub-accent-green {
   --accent: #22c55e;
-  --accent-soft: rgba(34, 197, 94, 0.25);
+  --accent-soft: rgba(34, 197, 94, 0.22);
+  --accent-glow: rgba(34, 197, 94, 0.45);
   --tile-glow: rgba(52, 211, 153, 0.28);
   --tile-glow-strong: rgba(52, 211, 153, 0.38);
-  border-color: rgba(52, 211, 153, 0.28);
 }
 .hub-accent-green .hub-tile-title { color: #6ee7b7; }
-.hub-accent-green .hub-tile-icon { background: rgba(52, 211, 153, 0.08); }
 .hub-accent-green .hub-tile-cta { border-color: rgba(110, 231, 183, 0.22); color: #a7f3d0; }
-.hub-accent-green:hover { border-color: rgba(110, 231, 183, 0.5); box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45), 0 0 24px rgba(16, 185, 129, 0.14); }
 
 .hub-accent-cyan {
-  --accent: #06b6d4;
-  --accent-soft: rgba(6, 182, 212, 0.25);
+  --accent: #22d3ee;
+  --accent-soft: rgba(34, 211, 238, 0.22);
+  --accent-glow: rgba(34, 211, 238, 0.45);
   --tile-glow: rgba(34, 211, 238, 0.28);
   --tile-glow-strong: rgba(34, 211, 238, 0.38);
-  border-color: rgba(34, 211, 238, 0.28);
 }
 .hub-accent-cyan .hub-tile-title { color: #67e8f9; }
-.hub-accent-cyan .hub-tile-icon { background: rgba(34, 211, 238, 0.08); }
 .hub-accent-cyan .hub-tile-cta { border-color: rgba(103, 232, 249, 0.22); color: #a5f3fc; }
-.hub-accent-cyan:hover { border-color: rgba(103, 232, 249, 0.5); box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45), 0 0 24px rgba(6, 182, 212, 0.14); }
+
+.hub-accent-teal {
+  --accent: #06b6d4;
+  --accent-soft: rgba(6, 182, 212, 0.22);
+  --accent-glow: rgba(6, 182, 212, 0.45);
+  --tile-glow: rgba(6, 182, 212, 0.28);
+  --tile-glow-strong: rgba(6, 182, 212, 0.38);
+}
+.hub-accent-teal .hub-tile-title { color: #67e8f9; }
+.hub-accent-teal .hub-tile-cta { border-color: rgba(103, 232, 249, 0.22); color: #a5f3fc; }
 
 .hub-accent-pink {
   --accent: #ec4899;
-  --accent-soft: rgba(236, 72, 153, 0.28);
+  --accent-soft: rgba(236, 72, 153, 0.26);
+  --accent-glow: rgba(236, 72, 153, 0.48);
   --tile-glow: rgba(236, 72, 153, 0.32);
   --tile-glow-strong: rgba(236, 72, 153, 0.42);
-  border-color: rgba(244, 114, 182, 0.32);
 }
 .hub-accent-pink .hub-tile-title { color: #f9a8d4; }
-.hub-accent-pink .hub-tile-icon { background: rgba(236, 72, 153, 0.1); }
 .hub-accent-pink .hub-tile-cta { border-color: rgba(249, 168, 212, 0.25); color: #fbcfe8; }
-.hub-accent-pink:hover { border-color: rgba(249, 168, 212, 0.55); box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45), 0 0 28px rgba(236, 72, 153, 0.18); }
 
 .hub-accent-gold {
   --accent: #f59e0b;
-  --accent-soft: rgba(245, 158, 11, 0.25);
+  --accent-soft: rgba(245, 158, 11, 0.22);
+  --accent-glow: rgba(245, 158, 11, 0.45);
   --tile-glow: rgba(245, 158, 11, 0.3);
   --tile-glow-strong: rgba(245, 158, 11, 0.4);
-  border-color: rgba(251, 191, 36, 0.28);
 }
 .hub-accent-gold .hub-tile-title { color: #fcd34d; }
-.hub-accent-gold .hub-tile-icon { background: rgba(245, 158, 11, 0.1); }
 .hub-accent-gold .hub-tile-cta { border-color: rgba(252, 211, 77, 0.22); color: #fde68a; }
-.hub-accent-gold:hover { border-color: rgba(252, 211, 77, 0.5); box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45), 0 0 24px rgba(245, 158, 11, 0.16); }
 
 .hub-accent-violet {
   --accent: #8b5cf6;
   --accent-soft: rgba(139, 92, 246, 0.22);
+  --accent-glow: rgba(139, 92, 246, 0.45);
   --tile-glow: rgba(139, 92, 246, 0.32);
   --tile-glow-strong: rgba(139, 92, 246, 0.42);
 }
 .hub-accent-violet .hub-tile-title { color: #c4b5fd; }
-.hub-accent-violet .hub-tile-icon { background: rgba(139, 92, 246, 0.1); }
 .hub-accent-violet .hub-tile-cta { border-color: rgba(196, 181, 253, 0.22); color: #ddd6fe; }
 
 .hub-accent-magenta {
   --accent: #d946ef;
   --accent-soft: rgba(217, 70, 239, 0.22);
+  --accent-glow: rgba(217, 70, 239, 0.45);
   --tile-glow: rgba(217, 70, 239, 0.32);
   --tile-glow-strong: rgba(217, 70, 239, 0.42);
 }
 .hub-accent-magenta .hub-tile-title { color: #f0abfc; }
-.hub-accent-magenta .hub-tile-icon { background: rgba(217, 70, 239, 0.1); }
 .hub-accent-magenta .hub-tile-cta { border-color: rgba(240, 171, 252, 0.22); color: #f5d0fe; }
 
 .hub-tile-featured {
@@ -1484,6 +1497,7 @@ body.student-app .card.section:not(#hub-section) {
 .student-screen--orange { --accent: #ff8a1f; --accent-soft: rgba(255, 138, 31, 0.22); }
 .student-screen--purple { --accent: #a855f7; --accent-soft: rgba(168, 85, 247, 0.22); }
 .student-screen--cyan { --accent: #22d3ee; --accent-soft: rgba(34, 211, 238, 0.22); }
+.student-screen--teal { --accent: #06b6d4; --accent-soft: rgba(6, 182, 212, 0.22); }
 .student-screen--green { --accent: #22c55e; --accent-soft: rgba(34, 197, 94, 0.22); }
 .student-screen--pink { --accent: #ec4899; --accent-soft: rgba(236, 72, 153, 0.26); }
 .student-screen--blue { --accent: #3b82f6; --accent-soft: rgba(59, 130, 246, 0.22); }
@@ -1518,12 +1532,30 @@ body.student-app .card.section:not(#hub-section) {
 .student-screen-icon {
   width: 52px;
   height: 52px;
-  padding: 8px;
+  padding: 6px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--accent, #fff) 26%, transparent);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 20px color-mix(in srgb, var(--accent, #fff) 30%, transparent);
   object-fit: contain;
   flex-shrink: 0;
+  mix-blend-mode: screen;
+  filter: saturate(1.1) contrast(1.05) drop-shadow(0 0 10px color-mix(in srgb, var(--accent, #fff) 40%, transparent));
+}
+
+.student-screen-hero {
+  position: relative;
+  z-index: 1;
+  width: 130px;
+  max-width: 36%;
+  height: auto;
+  opacity: 0.22;
+  object-fit: contain;
+  mix-blend-mode: screen;
+  filter: saturate(1.1) contrast(1.05) drop-shadow(0 0 24px color-mix(in srgb, var(--accent, #fff) 28%, transparent));
+  pointer-events: none;
 }
 
 .student-screen-head h2 {
@@ -1542,18 +1574,6 @@ body.student-app .card.section:not(#hub-section) {
   font-size: 13px;
   line-height: 1.45;
   color: #94a3b8;
-}
-
-.student-screen-hero {
-  position: relative;
-  z-index: 1;
-  width: 130px;
-  max-width: 36%;
-  height: auto;
-  opacity: 0.28;
-  object-fit: contain;
-  filter: drop-shadow(0 0 24px color-mix(in srgb, var(--accent, #fff) 28%, transparent));
-  pointer-events: none;
 }
 
 @media (max-width: 639px) {
@@ -4363,7 +4383,7 @@ h2 {
   <div id="today-section" class="card section logbuch-screen student-screen student-screen--orange" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/mein-tag.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/mein-tag-hero.png" alt="">
         <div>
           <h2>Mein Tag</h2>
           <p class="student-screen-sub">Deine heutigen Aufgaben auf einen Blick.</p>
@@ -4386,7 +4406,7 @@ h2 {
   <div id="week-section" class="card section logbuch-screen logbuch-phase-week student-screen student-screen--purple" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/meine-woche.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/meine-woche-hero.png" alt="">
         <div>
           <h2>Meine Woche</h2>
           <p class="student-screen-sub">Dein Lernplan für diese Woche.</p>
@@ -4401,7 +4421,7 @@ h2 {
   <div id="zielsetzung-section" class="card section logbuch-screen student-screen student-screen--cyan" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/zielsetzung.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/zielsetzung-hero.png" alt="">
         <div>
           <h2>Zielsetzung</h2>
           <p class="student-screen-sub">Setze Ziele und verfolge deinen Fortschritt.</p>
@@ -4416,7 +4436,7 @@ h2 {
   <div id="levelplan-section" class="card section logbuch-screen student-screen student-screen--green" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/lernstand.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/lernstand-hero.png" alt="">
         <div>
           <h2>Mein Lernstand</h2>
           <p class="student-screen-sub">Sieh deine Entwicklung und was du schon sicher kannst.</p>
@@ -4431,7 +4451,7 @@ h2 {
   <div id="taktik-deck-section" class="card section logbuch-screen student-screen student-screen--pink" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/taktik-deck.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/taktik-deck-hero.png" alt="">
         <div>
           <h2>Taktik-Deck</h2>
           <p class="student-screen-sub">Deine Strategien für jede Lernherausforderung.</p>
@@ -4443,10 +4463,10 @@ h2 {
   </div>
 
   <!-- CHECKPOINT-PLAN -->
-  <div id="checkpoint-plan-section" class="card section logbuch-screen student-screen student-screen--cyan" style="display:none;">
+  <div id="checkpoint-plan-section" class="card section logbuch-screen student-screen student-screen--teal" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/meine-checks.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/meine-checks-hero.png" alt="">
         <div>
           <h2>Meine Checks</h2>
           <p class="student-screen-sub">Tests, Klassenarbeiten und wichtige Termine im Blick.</p>
@@ -4461,7 +4481,7 @@ h2 {
   <div id="plan-section" class="card section logbuch-screen logbuch-phase-plan student-screen student-screen--orange" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/mein-tag.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/mein-tag-hero.png" alt="">
         <div>
           <h2>Planen</h2>
           <p class="student-screen-sub">Lege dein Tagesziel für diese Stunde fest.</p>
@@ -4476,7 +4496,7 @@ h2 {
   <div id="check-section" class="card section logbuch-screen logbuch-phase-check student-screen student-screen--orange" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/mein-tag.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/mein-tag-hero.png" alt="">
         <div>
           <h2>Zwischen-Check</h2>
           <p class="student-screen-sub">Wie läuft's gerade in deiner Stunde?</p>
@@ -4491,7 +4511,7 @@ h2 {
   <div id="reflect-section" class="card section logbuch-screen logbuch-phase-reflect student-screen student-screen--orange" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/mein-tag.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/mein-tag-hero.png" alt="">
         <div>
           <h2>Tagesabschluss</h2>
           <p class="student-screen-sub">Reflektiere, was du gelernt hast.</p>
@@ -4506,7 +4526,7 @@ h2 {
   <div id="charakter-section" class="card section student-screen student-screen--blue" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/charakter.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/charakter-hero.png" alt="">
         <div>
           <h2>Charakter</h2>
           <p class="student-screen-sub">Passe deinen Charakter an und zeig deinen Style.</p>
@@ -4524,7 +4544,7 @@ h2 {
   <div id="missionen-section" class="card section student-screen student-screen--violet" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/missionen.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/missionen-hero.png" alt="">
         <div>
           <h2>Missionen</h2>
           <p class="student-screen-sub">Nimm Herausforderungen an und sammle XP.</p>
@@ -4539,7 +4559,7 @@ h2 {
   <div id="belohnungen-section" class="card section student-screen student-screen--gold" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/belohnungen.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/belohnungen-hero.png" alt="">
         <div>
           <h2>Belohnungen</h2>
           <p class="student-screen-sub">Schalte Extras frei und feiere Erfolge.</p>
@@ -4557,7 +4577,7 @@ h2 {
   <div id="xp-section" class="card section student-screen student-screen--magenta" style="display:none;">
     <header class="student-screen-head">
       <div class="student-screen-head-main">
-        <img class="student-screen-icon" src="/icons/student/xp-historie.svg" alt="">
+        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/xp-historie-hero.png" alt="">
         <div>
           <h2>XP-Historie</h2>
           <p class="student-screen-sub">Verfolge deine XP und Lernstatistiken.</p>
@@ -4628,7 +4648,7 @@ h2 {
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-hub.js?v=11"></script>
+<script src="/js/logbuch-hub.js?v=12"></script>
 <script src="/js/logbuch-plan.js?v=13"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>

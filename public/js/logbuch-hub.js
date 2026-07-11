@@ -11,7 +11,6 @@
       text: "Deine heutigen Aufgaben auf einen Blick.",
       cta: "Los geht's",
       accent: "orange",
-      iconSrc: "/icons/student/mein-tag.svg",
       heroSrc: "/icons/student/hero/mein-tag-hero.png"
     },
     {
@@ -20,7 +19,6 @@
       text: "Dein Lernplan für diese Woche.",
       cta: "Plan ansehen",
       accent: "purple",
-      iconSrc: "/icons/student/meine-woche.svg",
       heroSrc: "/icons/student/hero/meine-woche-hero.png"
     },
     {
@@ -29,7 +27,6 @@
       text: "Setze Ziele und verfolge deinen Fortschritt.",
       cta: "Ziele ansehen",
       accent: "cyan",
-      iconSrc: "/icons/student/zielsetzung.svg",
       heroSrc: "/icons/student/hero/zielsetzung-hero.png"
     },
     {
@@ -38,7 +35,6 @@
       text: "Sieh deine Entwicklung und was du schon sicher kannst.",
       cta: "Fortschritt ansehen",
       accent: "green",
-      iconSrc: "/icons/student/lernstand.svg",
       heroSrc: "/icons/student/hero/lernstand-hero.png"
     },
     {
@@ -48,7 +44,6 @@
       cta: "Deck öffnen",
       accent: "pink",
       featured: true,
-      iconSrc: "/icons/student/taktik-deck.svg",
       heroSrc: "/icons/student/hero/taktik-deck-hero.png"
     },
     {
@@ -56,8 +51,7 @@
       title: "Meine Checks",
       text: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
       cta: "Plan öffnen",
-      accent: "cyan",
-      iconSrc: "/icons/student/meine-checks.svg",
+      accent: "teal",
       heroSrc: "/icons/student/hero/meine-checks-hero.png"
     }
   ];
@@ -69,7 +63,6 @@
       text: "Nimm Herausforderungen an und sammle XP.",
       cta: "Ansehen",
       accent: "violet",
-      iconSrc: "/icons/student/missionen.svg",
       heroSrc: "/icons/student/hero/missionen-hero.png"
     },
     {
@@ -78,7 +71,6 @@
       text: "Schalte Extras frei und feiere Erfolge.",
       cta: "Ansehen",
       accent: "gold",
-      iconSrc: "/icons/student/belohnungen.svg",
       heroSrc: "/icons/student/hero/belohnungen-hero.png"
     },
     {
@@ -87,7 +79,6 @@
       text: "Passe deinen Charakter an und zeig deinen Style.",
       cta: "Anpassen",
       accent: "blue",
-      iconSrc: "/icons/student/charakter.svg",
       heroSrc: "/icons/student/hero/charakter-hero.png"
     },
     {
@@ -96,7 +87,6 @@
       text: "Verfolge deine XP und Lernstatistiken.",
       cta: "Ansehen",
       accent: "magenta",
-      iconSrc: "/icons/student/xp-historie.svg",
       heroSrc: "/icons/student/hero/xp-historie-hero.png"
     }
   ];
@@ -209,11 +199,11 @@
         data-hub-section="${ui.escapeHtml(tile.section)}">
         <span class="hub-tile-glow" aria-hidden="true"></span>
         <span class="hub-tile-shine" aria-hidden="true"></span>
-        <img class="hub-tile-hero" src="${tile.heroSrc}" alt="" loading="lazy" decoding="async" aria-hidden="true">
+        <img class="hub-tile-hero hub-png-art" src="${tile.heroSrc}" alt="" loading="lazy" decoding="async" aria-hidden="true">
         <div class="hub-tile-content">
           ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
-          <span class="hub-tile-icon" aria-hidden="true">
-            <img class="hub-tile-icon-img" src="${tile.iconSrc}" alt="" loading="lazy" decoding="async">
+          <span class="hub-tile-icon hub-card-icon-wrap" aria-hidden="true">
+            <img class="hub-tile-icon-img hub-png-art" src="${tile.heroSrc}" alt="" loading="lazy" decoding="async">
           </span>
           <span class="hub-tile-title">${ui.escapeHtml(tile.title)}</span>
           <span class="hub-tile-text">${ui.escapeHtml(tile.text)}</span>
