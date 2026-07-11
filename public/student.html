@@ -167,7 +167,16 @@ body.student-app {
   display: block;
   overflow: hidden;
   overflow-x: hidden;
-  background: #050816;
+  background-color: #050816;
+  background-image:
+    linear-gradient(to bottom, rgba(5, 8, 22, 0.55), rgba(5, 8, 22, 0.82)),
+    radial-gradient(circle at 12% 8%, rgba(168, 85, 247, 0.22), transparent 42%),
+    radial-gradient(circle at 88% 12%, rgba(249, 115, 22, 0.18), transparent 38%),
+    url("/assets/logic-bg.png");
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: #fff;
 }
 
@@ -178,9 +187,8 @@ body.student-app::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at top left, rgba(168, 85, 247, 0.18), transparent 32%),
-    radial-gradient(circle at top right, rgba(249, 115, 22, 0.12), transparent 28%),
-    linear-gradient(135deg, #050816 0%, #0b1024 48%, #070817 100%);
+    radial-gradient(circle at top left, rgba(168, 85, 247, 0.14), transparent 38%),
+    radial-gradient(circle at top right, rgba(249, 115, 22, 0.12), transparent 34%);
 }
 
 body.student-app::after {
@@ -189,10 +197,10 @@ body.student-app::after {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.3;
+  opacity: 0.12;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   background-size: 64px 64px;
 }
 
@@ -608,9 +616,13 @@ body.student-app .notif-panel {
 
 @media (min-width: 1024px) {
   .hub-hero-grid {
-    grid-template-columns: minmax(0, 1fr) 280px;
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
   }
+}
+
+.hub-greeting {
+  padding: 4px 2px 8px;
 }
 
 .hub-hero-card {
@@ -623,51 +635,79 @@ body.student-app .notif-panel {
   box-shadow: none;
 }
 
-@media (min-width: 1024px) {
-  .hub-hero-card {
-    min-height: 0;
-    max-height: 280px;
-  }
+.hub-hero-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.hub-hero-card-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background:
-    radial-gradient(circle at 20% 15%, rgba(168, 85, 247, 0.18), transparent 40%),
-    radial-gradient(circle at 80% 20%, rgba(14, 165, 233, 0.1), transparent 35%);
-  pointer-events: none;
+.hub-xp-hero-card {
+  border-radius: 18px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(10px);
+  padding: 16px 18px;
+  box-shadow: 0 0 24px rgba(168, 85, 247, 0.12);
 }
 
-.hub-hero-card > *:not(.hub-hero-card-bg) {
-  position: relative;
-  z-index: 1;
-}
-
-.hub-hero-kicker {
-  margin: 0 0 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+.hub-xp-hero-label {
+  margin: 0 0 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #c4b5fd;
+  color: #f0abfc;
+}
+
+.hub-xp-hero-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hub-level-hex {
+  flex-shrink: 0;
+  min-width: 64px;
+  padding: 10px 8px;
+  border-radius: 14px;
+  border: 2px solid rgba(249, 115, 22, 0.55);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.25), rgba(168, 85, 247, 0.2));
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.25);
+  text-align: center;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fef3c7;
+  line-height: 1.3;
+}
+
+.hub-level-hex strong {
+  display: block;
+  font-family: "Bebas Neue", system-ui;
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  color: #fff;
+  font-weight: 400;
 }
 
 .hub-hero-title {
   margin: 0;
-  font-family: "Bangers", system-ui;
-  font-size: clamp(2rem, 4vw, 4rem);
-  line-height: 1.05;
-  letter-spacing: 0.02em;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.75rem, 3vw, 2.75rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   color: #fff;
+  text-shadow: 0 0 24px rgba(168, 85, 247, 0.2);
 }
 
 .hub-hero-sub {
   margin: 8px 0 0;
   max-width: 560px;
-  font-size: clamp(1rem, 1.5vw, 1.25rem);
-  line-height: 1.4;
+  font-size: clamp(1rem, 1.5vw, 1.125rem);
+  line-height: 1.45;
   color: #cbd5e1;
 }
 
@@ -742,17 +782,12 @@ body.student-app .notif-panel {
 }
 
 .hub-streak-card {
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(8px);
+  padding: 14px 16px;
   box-shadow: none;
-}
-
-@media (min-width: 1024px) {
-  .hub-streak-card {
-    max-height: 280px;
-  }
 }
 
 .hub-streak-label {
@@ -852,8 +887,9 @@ body.student-app .notif-panel {
   width: 100%;
   overflow: hidden;
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(8px);
   color: #fff;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
@@ -861,11 +897,42 @@ body.student-app .notif-panel {
 
 .hub-tile:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.hub-tile-watermark {
+  position: absolute;
+  right: 4px;
+  bottom: -10px;
+  font-size: 88px;
+  line-height: 1;
+  opacity: 0.12;
+  pointer-events: none;
+  user-select: none;
+  filter: saturate(1.4);
+}
+
+.hub-tile-lg .hub-tile-watermark {
+  font-size: 104px;
+}
+
+.hub-tile-sm .hub-tile-watermark {
+  font-size: 72px;
+  right: 0;
+  bottom: -8px;
 }
 
 .hub-tile-glow {
-  display: none;
+  position: absolute;
+  left: -20%;
+  top: -30%;
+  width: 55%;
+  height: 80%;
+  border-radius: 50%;
+  background: var(--tile-glow, rgba(255, 255, 255, 0.06));
+  filter: blur(28px);
+  pointer-events: none;
+  opacity: 0.9;
 }
 
 .hub-tile-lg {
@@ -895,13 +962,16 @@ body.student-app .notif-panel {
 }
 
 .hub-tile-icon {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   font-size: 22px;
   margin-bottom: 10px;
   flex-shrink: 0;
+  box-shadow: 0 0 18px var(--tile-glow-strong, rgba(255, 255, 255, 0.15));
 }
 
 .hub-tile-lg .hub-tile-icon {
@@ -918,9 +988,11 @@ body.student-app .notif-panel {
 }
 
 .hub-tile-title {
+  position: relative;
+  z-index: 1;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -933,6 +1005,8 @@ body.student-app .notif-panel {
 }
 
 .hub-tile-text {
+  position: relative;
+  z-index: 1;
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.45;
@@ -945,6 +1019,8 @@ body.student-app .notif-panel {
 }
 
 .hub-tile-cta {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -970,31 +1046,50 @@ body.student-app .notif-panel {
   transform: translateX(2px);
 }
 
+.hub-accent-orange { --tile-glow: rgba(249, 115, 22, 0.22); --tile-glow-strong: rgba(249, 115, 22, 0.45); border-color: rgba(251, 146, 60, 0.35); }
 .hub-accent-orange .hub-tile-title { color: #fdba74; }
+.hub-accent-orange .hub-tile-icon { background: rgba(249, 115, 22, 0.18); }
+.hub-accent-orange:hover { box-shadow: 0 0 28px rgba(249, 115, 22, 0.2); border-color: rgba(251, 146, 60, 0.55); }
+
+.hub-accent-purple { --tile-glow: rgba(168, 85, 247, 0.22); --tile-glow-strong: rgba(168, 85, 247, 0.45); border-color: rgba(167, 139, 250, 0.35); }
 .hub-accent-purple .hub-tile-title { color: #c4b5fd; }
+.hub-accent-purple .hub-tile-icon { background: rgba(168, 85, 247, 0.18); }
+.hub-accent-purple:hover { box-shadow: 0 0 28px rgba(168, 85, 247, 0.22); border-color: rgba(196, 181, 253, 0.55); }
+
+.hub-accent-blue { --tile-glow: rgba(56, 189, 248, 0.2); --tile-glow-strong: rgba(56, 189, 248, 0.42); border-color: rgba(56, 189, 248, 0.35); }
 .hub-accent-blue .hub-tile-title { color: #7dd3fc; }
+.hub-accent-blue .hub-tile-icon { background: rgba(56, 189, 248, 0.16); }
+.hub-accent-blue:hover { box-shadow: 0 0 28px rgba(14, 165, 233, 0.18); border-color: rgba(125, 211, 252, 0.55); }
+
+.hub-accent-green { --tile-glow: rgba(52, 211, 153, 0.18); --tile-glow-strong: rgba(52, 211, 153, 0.4); border-color: rgba(52, 211, 153, 0.35); }
 .hub-accent-green .hub-tile-title { color: #6ee7b7; }
+.hub-accent-green .hub-tile-icon { background: rgba(52, 211, 153, 0.14); }
+.hub-accent-green:hover { box-shadow: 0 0 28px rgba(16, 185, 129, 0.16); border-color: rgba(110, 231, 183, 0.55); }
+
+.hub-accent-cyan { --tile-glow: rgba(34, 211, 238, 0.18); --tile-glow-strong: rgba(34, 211, 238, 0.4); border-color: rgba(34, 211, 238, 0.35); }
 .hub-accent-cyan .hub-tile-title { color: #67e8f9; }
+.hub-accent-cyan .hub-tile-icon { background: rgba(34, 211, 238, 0.14); }
+.hub-accent-cyan:hover { box-shadow: 0 0 28px rgba(6, 182, 212, 0.16); border-color: rgba(103, 232, 249, 0.55); }
+
+.hub-accent-pink { --tile-glow: rgba(244, 114, 182, 0.22); --tile-glow-strong: rgba(244, 114, 182, 0.45); border-color: rgba(244, 114, 182, 0.38); }
 .hub-accent-pink .hub-tile-title { color: #f9a8d4; }
+.hub-accent-pink .hub-tile-icon { background: rgba(236, 72, 153, 0.18); }
+.hub-accent-pink:hover { box-shadow: 0 0 28px rgba(236, 72, 153, 0.2); border-color: rgba(249, 168, 212, 0.55); }
 
 .hub-tile-featured {
-  border-color: rgba(236, 72, 153, 0.28);
-  background: rgba(236, 72, 153, 0.04);
+  border-color: rgba(236, 72, 153, 0.45);
+  background: rgba(236, 72, 153, 0.08);
+  box-shadow: 0 0 24px rgba(236, 72, 153, 0.14);
 }
 
 .hub-tile-featured:hover {
-  box-shadow: 0 0 18px rgba(236, 72, 153, 0.12);
+  box-shadow: 0 0 32px rgba(236, 72, 153, 0.22);
 }
 
 .hub-status-grid {
   display: grid;
   gap: 14px;
-}
-
-@media (min-width: 1024px) {
-  .hub-status-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+  grid-template-columns: 1fr;
 }
 
 .hub-status-card {
@@ -4129,7 +4224,7 @@ h2 {
 <script src="/js/logbuch-ui.js"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-hub.js?v=5"></script>
+<script src="/js/logbuch-hub.js?v=6"></script>
 <script src="/js/logbuch-plan.js?v=13"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>

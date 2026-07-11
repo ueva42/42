@@ -11,7 +11,8 @@
       text: "Deine Aufgaben für heute. Fokus. Fortschritt. Erfolg.",
       cta: "Heute starten",
       accent: "orange",
-      icon: "☀️"
+      icon: "⚡",
+      watermark: "📋"
     },
     {
       section: "week",
@@ -19,7 +20,8 @@
       text: "Dein Wochenplan im Überblick. Bleib dran und baue Momentum auf.",
       cta: "Woche ansehen",
       accent: "blue",
-      icon: "📅"
+      icon: "📅",
+      watermark: "📅"
     },
     {
       section: "zielsetzung",
@@ -27,7 +29,8 @@
       text: "Setze klare Ziele und verfolge deinen Fortschritt.",
       cta: "Ziele ansehen",
       accent: "green",
-      icon: "🎯"
+      icon: "🎯",
+      watermark: "🎯"
     },
     {
       section: "levelplan",
@@ -35,7 +38,8 @@
       text: "Sieh, woran du arbeitest und was du schon sicher kannst.",
       cta: "Lernstand öffnen",
       accent: "green",
-      icon: "📈"
+      icon: "📈",
+      watermark: "📊"
     },
     {
       section: "taktik-deck",
@@ -44,7 +48,8 @@
       cta: "Deck öffnen",
       accent: "pink",
       featured: true,
-      icon: "⚡"
+      icon: "⚡",
+      watermark: "🃏"
     },
     {
       section: "checkpoint-plan",
@@ -52,7 +57,8 @@
       text: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
       cta: "Plan öffnen",
       accent: "cyan",
-      icon: "🚩"
+      icon: "🚩",
+      watermark: "✓"
     }
   ];
 
@@ -63,7 +69,8 @@
       text: "Nimm Herausforderungen an und sammle XP.",
       cta: "Ansehen",
       accent: "purple",
-      icon: "🎯"
+      icon: "🎯",
+      watermark: "◎"
     },
     {
       section: "belohnungen",
@@ -71,7 +78,8 @@
       text: "Schalte Extras frei und feiere Erfolge.",
       cta: "Ansehen",
       accent: "orange",
-      icon: "🏆"
+      icon: "🏆",
+      watermark: "🏆"
     },
     {
       section: "charakter",
@@ -79,7 +87,8 @@
       text: "Passe deinen Charakter an.",
       cta: "Anpassen",
       accent: "blue",
-      icon: "🧍"
+      icon: "🧍",
+      watermark: "👤"
     },
     {
       section: "xp",
@@ -87,7 +96,8 @@
       text: "Sieh deine Entwicklung und XP.",
       cta: "Ansehen",
       accent: "purple",
-      icon: "XP"
+      icon: "XP",
+      watermark: "XP"
     }
   ];
 
@@ -100,6 +110,17 @@
   function todayIso() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function firstNameFromProfile(p) {
+    return (p?.name || "").split(/\s+/)[0] || "du";
+  }
+
+  function levelHexLabel(levelName) {
+    const match = String(levelName || "").match(/\d+/);
+    if (match) return match[0];
+    const short = String(levelName || "–").trim();
+    return short.length > 6 ? short.slice(0, 6) : short;
   }
 
   function visibleBlocks(blocks) {
@@ -194,6 +215,7 @@
         class="hub-tile hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
         data-hub-section="${ui.escapeHtml(tile.section)}">
         <span class="hub-tile-glow" aria-hidden="true"></span>
+        <span class="hub-tile-watermark" aria-hidden="true">${tile.watermark || tile.icon}</span>
         ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
         <span class="hub-tile-icon" aria-hidden="true">${tile.icon}</span>
         <span class="hub-tile-title">${ui.escapeHtml(tile.title)}</span>
@@ -207,6 +229,7 @@
     if (!root) return;
     const ui = UI();
     const p = window.__studentProfile || {};
+    const firstName = firstNameFromProfile(p);
     const stats = todayStats(state.blocks);
     const step = state.nextStep || computeNextStep(state.blocks, state.todayDate);
     const focusPct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
@@ -220,11 +243,9 @@
     root.innerHTML = `
       <div class="hub-page">
         <section class="hub-hero-grid">
-          <div class="hub-hero-card">
-            <div class="hub-hero-card-bg" aria-hidden="true"></div>
-            <p class="hub-hero-kicker">Mein Tag</p>
-            <h1 class="hub-hero-title">Dein Tag. Dein Plan.</h1>
-            <p class="hub-hero-sub">Starte mit deinem nächsten Lernschritt.</p>
+          <div class="hub-greeting">
+            <h1 class="hub-hero-title" id="hubHeroTitle">Hey ${ui.escapeHtml(firstName)}!</h1>
+            <p class="hub-hero-sub">Bereit, heute etwas zu lernen und XP zu sammeln?</p>
             <div class="hub-hero-actions">
               <button type="button" class="hub-btn-primary" id="hubNextBtn" data-hub-action="next">
                 ${ui.escapeHtml(step.label)} →
@@ -236,20 +257,42 @@
             <p class="hub-hero-hint" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
           </div>
 
-          <aside class="hub-streak-card">
-            <p class="hub-streak-label">Tages-Streak</p>
-            <div class="hub-streak-value-row">
-              <span class="hub-streak-value" id="hubStreakDays">${stats.done}</span>
-              <span class="hub-streak-unit">Tage</span>
-            </div>
-            <div class="hub-streak-flames" id="hubStreakFlames">${streakFlames(stats.done, stats.total)}</div>
-            <div class="hub-mission-box">
-              <p class="hub-mission-label">Heutige Mission</p>
-              <p class="hub-mission-title" id="hubMissionTitle">${ui.escapeHtml(missionLabel)}</p>
-              <div class="hub-progress-track">
-                <div class="hub-progress-fill hub-progress-fill-purple" id="hubMissionBar" style="width:${missionPct}%"></div>
+          <aside class="hub-hero-aside">
+            <div class="hub-xp-hero-card">
+              <p class="hub-xp-hero-label">XP-Fortschritt</p>
+              <div class="hub-xp-hero-row">
+                <div>
+                  <p class="hub-xp-value">
+                    <span id="hubXpCurrent">${Number(p.xp || 0).toLocaleString("de-DE")}</span>
+                    <span class="hub-xp-value-sub" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</span>
+                  </p>
+                  <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
+                  <div class="hub-progress-track hub-progress-track-lg">
+                    <div class="hub-progress-fill hub-progress-fill-xp" id="hubXpBar" style="width:${xpPct}%"></div>
+                  </div>
+                </div>
+                <div class="hub-level-hex">
+                  Level
+                  <strong id="hubLevelHex">${ui.escapeHtml(levelHexLabel(p.levelName))}</strong>
+                </div>
               </div>
-              <p class="hub-mission-meta" id="hubMissionMeta">${missionDone} / ${stats.total || 0} erledigt</p>
+            </div>
+
+            <div class="hub-streak-card">
+              <p class="hub-streak-label">Tages-Streak</p>
+              <div class="hub-streak-value-row">
+                <span class="hub-streak-value" id="hubStreakDays">${stats.done}</span>
+                <span class="hub-streak-unit">Tage</span>
+              </div>
+              <div class="hub-streak-flames" id="hubStreakFlames">${streakFlames(stats.done, stats.total)}</div>
+              <div class="hub-mission-box">
+                <p class="hub-mission-label">Heutige Mission</p>
+                <p class="hub-mission-title" id="hubMissionTitle">${ui.escapeHtml(missionLabel)}</p>
+                <div class="hub-progress-track">
+                  <div class="hub-progress-fill hub-progress-fill-purple" id="hubMissionBar" style="width:${missionPct}%"></div>
+                </div>
+                <p class="hub-mission-meta" id="hubMissionMeta">${missionDone} / ${stats.total || 0} erledigt</p>
+              </div>
             </div>
           </aside>
         </section>
@@ -278,23 +321,6 @@
                 <p class="hub-focus-meta">${remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft"}</p>
               </div>
               <button type="button" class="hub-btn-ghost hub-btn-compact" data-hub-section="today">Weiter machen →</button>
-            </div>
-          </div>
-
-          <div class="hub-status-card hub-status-card-xp">
-            <p class="hub-block-label">XP-Fortschritt</p>
-            <div class="hub-xp-row">
-              <div>
-                <p class="hub-xp-value">
-                  <span id="hubXpCurrent">${Number(p.xp || 0).toLocaleString("de-DE")}</span>
-                  <span class="hub-xp-value-sub" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</span>
-                </p>
-                <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
-              </div>
-              <div class="hub-xp-emblem">XP</div>
-            </div>
-            <div class="hub-progress-track hub-progress-track-lg">
-              <div class="hub-progress-fill hub-progress-fill-xp" id="hubXpBar" style="width:${xpPct}%"></div>
             </div>
           </div>
         </section>
@@ -347,11 +373,14 @@
       if (el) el.textContent = val;
     };
 
+    const firstName = firstNameFromProfile(p);
+    set("hubHeroTitle", `Hey ${firstName}!`);
     set("topbarXp", String(p.xp ?? "–"));
     set("topbarLevel", p.levelName || "–");
     set("hubHeroNext", p.nextLevelLabel || "–");
     set("hubXpCurrent", Number(p.xp || 0).toLocaleString("de-DE"));
     set("hubXpMeta", p.xpProgressLabel || "–");
+    set("hubLevelHex", levelHexLabel(p.levelName));
 
     const xpBar = document.getElementById("hubXpBar");
     if (xpBar) xpBar.style.width = `${p.xpPct ?? 0}%`;
@@ -380,7 +409,7 @@
     if (missionBar) missionBar.style.width = `${Math.round((missionDone / missionTotal) * 100)}%`;
 
     const nameEl = document.getElementById("topbarName");
-    if (nameEl) nameEl.textContent = (p.name || "").split(/\s+/)[0] || "";
+    if (nameEl) nameEl.textContent = firstName;
   }
 
   async function init() {
