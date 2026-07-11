@@ -224,10 +224,7 @@
             <div class="hub-hero-card-bg" aria-hidden="true"></div>
             <p class="hub-hero-kicker">Mein Tag</p>
             <h1 class="hub-hero-title">Dein Tag. Dein Plan.</h1>
-            <p class="hub-hero-sub">
-              Starte mit deinem nächsten Lernschritt. Plane dein Lernen, nutze
-              Taktiken und sammle XP.
-            </p>
+            <p class="hub-hero-sub">Starte mit deinem nächsten Lernschritt.</p>
             <div class="hub-hero-actions">
               <button type="button" class="hub-btn-primary" id="hubNextBtn" data-hub-action="next">
                 ${ui.escapeHtml(step.label)} →
