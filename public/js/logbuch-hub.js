@@ -1,5 +1,5 @@
 /**
- * Schüler-Hub – Kontrollzentrum (Game-Hub, ohne Sidebar).
+ * Schüler-Hub – Kontrollzentrum (App-Hub Layout).
  */
 (function () {
   const UI = () => window.LogbuchUI;
@@ -10,15 +10,15 @@
       title: "Mein Tag",
       text: "Deine Aufgaben für heute. Fokus. Fortschritt. Erfolg.",
       cta: "Heute starten",
-      tone: "orange",
-      icon: "☀"
+      accent: "orange",
+      icon: "☀️"
     },
     {
       section: "week",
       title: "Meine Woche",
-      text: "Dein Wochenplan im Überblick.",
+      text: "Dein Wochenplan im Überblick. Bleib dran und baue Momentum auf.",
       cta: "Woche ansehen",
-      tone: "blue",
+      accent: "blue",
       icon: "📅"
     },
     {
@@ -26,7 +26,7 @@
       title: "Zielsetzung",
       text: "Setze klare Ziele und verfolge deinen Fortschritt.",
       cta: "Ziele ansehen",
-      tone: "green",
+      accent: "green",
       icon: "🎯"
     },
     {
@@ -34,15 +34,15 @@
       title: "Mein Lernstand",
       text: "Sieh, woran du arbeitest und was du schon sicher kannst.",
       cta: "Lernstand öffnen",
-      tone: "green",
-      icon: "📊"
+      accent: "green",
+      icon: "📈"
     },
     {
       section: "taktik-deck",
       title: "Taktik-Deck",
-      text: "Strategien, die dir helfen, wenn du festhängst.",
+      text: "Strategien, die dir helfen, wenn du beim Lernen festhängst.",
       cta: "Deck öffnen",
-      tone: "purple",
+      accent: "pink",
       featured: true,
       icon: "⚡"
     },
@@ -51,8 +51,8 @@
       title: "Meine Checks",
       text: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
       cta: "Plan öffnen",
-      tone: "blue",
-      icon: "✓"
+      accent: "cyan",
+      icon: "🚩"
     }
   ];
 
@@ -61,28 +61,32 @@
       section: "missionen",
       title: "Missionen",
       text: "Nimm Herausforderungen an und sammle XP.",
-      tone: "muted",
-      icon: "◎"
+      cta: "Ansehen",
+      accent: "purple",
+      icon: "🎯"
     },
     {
       section: "belohnungen",
       title: "Belohnungen",
       text: "Schalte Extras frei und feiere Erfolge.",
-      tone: "muted",
+      cta: "Ansehen",
+      accent: "orange",
       icon: "🏆"
     },
     {
       section: "charakter",
       title: "Charakter",
       text: "Passe deinen Charakter an.",
-      tone: "muted",
-      icon: "👤"
+      cta: "Anpassen",
+      accent: "blue",
+      icon: "🧍"
     },
     {
       section: "xp",
       title: "XP-Historie",
       text: "Sieh deine Entwicklung und XP.",
-      tone: "muted",
+      cta: "Ansehen",
+      accent: "purple",
       icon: "XP"
     }
   ];
@@ -109,7 +113,7 @@
 
     if (visible.length === 0) {
       return {
-        label: "Mein Tag öffnen",
+        label: "Heute starten",
         hint: "Schau, was heute ansteht.",
         section: "today",
         query: null
@@ -170,6 +174,11 @@
     };
   }
 
+  function streakFlames(done, total) {
+    const lit = Math.min(7, Math.max(0, done));
+    return "🔥".repeat(lit) + "⚫".repeat(Math.max(0, 7 - lit));
+  }
+
   function navigate(section, query) {
     if (query) {
       window.StudentRouter?.navigateToSection(section, { query });
@@ -178,28 +187,18 @@
     }
   }
 
-  function renderMainTile(ui, tile) {
+  function renderTile(ui, tile, size) {
+    const large = size === "large";
     return `
-      <button type="button" class="hub-card hub-card-main hub-tone-${tile.tone} ${tile.featured ? "hub-card-featured" : ""}"
+      <button type="button"
+        class="hub-tile hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
         data-hub-section="${ui.escapeHtml(tile.section)}">
-        ${tile.featured ? `<span class="hub-card-badge">Empfohlen</span>` : ""}
-        <span class="hub-card-icon" aria-hidden="true">${tile.icon}</span>
-        <span class="hub-card-title">${ui.escapeHtml(tile.title)}</span>
-        <span class="hub-card-text">${ui.escapeHtml(tile.text)}</span>
-        <span class="hub-card-btn">${ui.escapeHtml(tile.cta)} →</span>
-      </button>`;
-  }
-
-  function renderSecondaryTile(ui, tile) {
-    return `
-      <button type="button" class="hub-card hub-card-mini hub-tone-${tile.tone}"
-        data-hub-section="${ui.escapeHtml(tile.section)}">
-        <span class="hub-card-mini-icon">${tile.icon}</span>
-        <span class="hub-card-mini-body">
-          <span class="hub-card-mini-title">${ui.escapeHtml(tile.title)}</span>
-          <span class="hub-card-mini-text">${ui.escapeHtml(tile.text)}</span>
-        </span>
-        <span class="hub-card-mini-chevron">›</span>
+        <span class="hub-tile-glow" aria-hidden="true"></span>
+        ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
+        <span class="hub-tile-icon" aria-hidden="true">${tile.icon}</span>
+        <span class="hub-tile-title">${ui.escapeHtml(tile.title)}</span>
+        <span class="hub-tile-text">${ui.escapeHtml(tile.text)}</span>
+        <span class="hub-tile-cta">${ui.escapeHtml(tile.cta)} <span class="hub-tile-arrow">→</span></span>
       </button>`;
   }
 
@@ -211,65 +210,107 @@
     const stats = todayStats(state.blocks);
     const step = state.nextStep || computeNextStep(state.blocks, state.todayDate);
     const focusPct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
-    const firstName = (p.name || "").split(/\s+/)[0] || "du";
+    const xpPct = p.xpPct ?? 0;
+    const remaining = Math.max(0, stats.total - stats.done);
+    const missionLabel = step.label === "Tagesziel setzen" ? "5-Minuten-Start" : step.label;
+    const missionDone = stats.planned;
+    const missionTotal = Math.max(stats.total, 1);
+    const missionPct = Math.round((missionDone / missionTotal) * 100);
 
     root.innerHTML = `
       <div class="hub-page">
-        <section class="hub-hero">
-          <div class="hub-hero-main">
-            <p class="hub-hero-kicker">Dein Tag. Dein Plan.</p>
-            <h1 class="hub-hero-title">Hey ${ui.escapeHtml(firstName)}!</h1>
-            <p class="hub-hero-sub">Starte mit deinem nächsten Lernschritt.</p>
-            <div class="hub-hero-next">
-              <span class="hub-hero-next-label">Nächster Schritt</span>
-              <p class="hub-hero-next-text" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
-              <button type="button" class="hub-hero-cta" id="hubNextBtn" data-hub-action="next">
+        <section class="hub-hero-grid">
+          <div class="hub-hero-card">
+            <div class="hub-hero-card-bg" aria-hidden="true"></div>
+            <p class="hub-hero-kicker">Mein Tag</p>
+            <h1 class="hub-hero-title">Dein Tag. Dein Plan.</h1>
+            <p class="hub-hero-sub">
+              Starte mit deinem nächsten Lernschritt. Plane dein Lernen, nutze
+              Taktiken und sammle XP.
+            </p>
+            <div class="hub-hero-actions">
+              <button type="button" class="hub-btn-primary" id="hubNextBtn" data-hub-action="next">
                 ${ui.escapeHtml(step.label)} →
               </button>
+              <button type="button" class="hub-btn-ghost" id="hubBriefingBtn">
+                Start-Briefing ansehen
+              </button>
             </div>
+            <p class="hub-hero-hint" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
           </div>
-          <aside class="hub-hero-aside">
-            <div class="hub-hero-stat">
-              <span class="hub-hero-stat-label">Heute</span>
-              <span class="hub-hero-stat-value" id="hubFocusLabel">${stats.done}/${stats.total || 0}</span>
-              <span class="hub-hero-stat-sub">Stunden abgeschlossen</span>
-              <div class="hub-hero-stat-bar">
-                <div class="hub-hero-stat-bar-fill" id="hubFocusBar" style="width:${focusPct}%"></div>
-              </div>
+
+          <aside class="hub-streak-card">
+            <p class="hub-streak-label">Tages-Streak</p>
+            <div class="hub-streak-value-row">
+              <span class="hub-streak-value" id="hubStreakDays">${stats.done}</span>
+              <span class="hub-streak-unit">Tage</span>
             </div>
-            <div class="hub-hero-stat hub-hero-stat-xp">
-              <span class="hub-hero-stat-label">Level</span>
-              <span class="hub-hero-stat-value" id="hubHeroLevel">${ui.escapeHtml(p.levelName || "–")}</span>
-              <span class="hub-hero-stat-sub" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</span>
+            <div class="hub-streak-flames" id="hubStreakFlames">${streakFlames(stats.done, stats.total)}</div>
+            <div class="hub-mission-box">
+              <p class="hub-mission-label">Heutige Mission</p>
+              <p class="hub-mission-title" id="hubMissionTitle">${ui.escapeHtml(missionLabel)}</p>
+              <div class="hub-progress-track">
+                <div class="hub-progress-fill hub-progress-fill-purple" id="hubMissionBar" style="width:${missionPct}%"></div>
+              </div>
+              <p class="hub-mission-meta" id="hubMissionMeta">${missionDone} / ${stats.total || 0} erledigt</p>
             </div>
           </aside>
         </section>
 
-        <header class="hub-section-head">
-          <div>
-            <h2 class="hub-section-head-title">Dein Kontrollzentrum</h2>
-            <p class="hub-section-head-sub">Plane dein Lernen, nutze Taktiken und sammle XP.</p>
-          </div>
-          <button type="button" class="hub-intro-briefing" id="hubBriefingBtn">
-            Start-Briefing ansehen →
-          </button>
-        </header>
-
-        <section class="hub-section">
+        <section class="hub-block">
+          <h2 class="hub-block-label">Dein Kontrollzentrum</h2>
           <div class="hub-grid-main">
-            ${MAIN_TILES.map((t) => renderMainTile(ui, t)).join("")}
+            ${MAIN_TILES.map((t) => renderTile(ui, t, "large")).join("")}
           </div>
         </section>
 
-        <section class="hub-section hub-section-secondary" id="hubSecondary">
-          <h3 class="hub-section-title">Weitere Bereiche</h3>
+        <section class="hub-status-grid">
+          <div class="hub-status-card">
+            <p class="hub-block-label">Täglicher Fokus</p>
+            <div class="hub-focus-row">
+              <div class="hub-focus-ring" id="hubFocusLabel">${stats.done}/${stats.total || 0}</div>
+              <div class="hub-focus-copy">
+                <p class="hub-focus-text">
+                  ${remaining > 0
+                    ? "Bleib fokussiert. Schließe deine heutigen Aufgaben ab."
+                    : "Stark! Deine heutigen Schritte sind erledigt."}
+                </p>
+                <div class="hub-progress-track hub-progress-track-lg">
+                  <div class="hub-progress-fill hub-progress-fill-purple" id="hubFocusBar" style="width:${focusPct}%"></div>
+                </div>
+                <p class="hub-focus-meta">${remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft"}</p>
+              </div>
+              <button type="button" class="hub-btn-ghost hub-btn-compact" data-hub-section="today">Weiter machen →</button>
+            </div>
+          </div>
+
+          <div class="hub-status-card hub-status-card-xp">
+            <p class="hub-block-label">XP-Fortschritt</p>
+            <div class="hub-xp-row">
+              <div>
+                <p class="hub-xp-value">
+                  <span id="hubXpCurrent">${Number(p.xp || 0).toLocaleString("de-DE")}</span>
+                  <span class="hub-xp-value-sub" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</span>
+                </p>
+                <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
+              </div>
+              <div class="hub-xp-emblem">XP</div>
+            </div>
+            <div class="hub-progress-track hub-progress-track-lg">
+              <div class="hub-progress-fill hub-progress-fill-xp" id="hubXpBar" style="width:${xpPct}%"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="hub-block">
+          <h2 class="hub-block-label">Weitere Bereiche</h2>
           <div class="hub-grid-secondary">
-            ${SECONDARY_TILES.map((t) => renderSecondaryTile(ui, t)).join("")}
+            ${SECONDARY_TILES.map((t) => renderTile(ui, t, "small")).join("")}
           </div>
         </section>
 
-        <footer class="hub-footer">
-          <p>Logik bringt dich vom Punkt A zum Punkt B. Strategie entscheidet, welchen Weg du nimmst.</p>
+        <footer class="hub-quote">
+          „Logik bringt dich von Punkt A zu Punkt B. Strategie entscheidet, welchen Weg du nimmst.“
         </footer>
       </div>`;
 
@@ -309,14 +350,21 @@
       if (el) el.textContent = val;
     };
 
-    set("hubHeroLevel", p.levelName || "–");
-    set("hubHeroNext", p.nextLevelLabel || "–");
     set("topbarXp", String(p.xp ?? "–"));
     set("topbarLevel", p.levelName || "–");
+    set("hubHeroNext", p.nextLevelLabel || "–");
+    set("hubXpCurrent", Number(p.xp || 0).toLocaleString("de-DE"));
+    set("hubXpMeta", p.xpProgressLabel || "–");
+
+    const xpBar = document.getElementById("hubXpBar");
+    if (xpBar) xpBar.style.width = `${p.xpPct ?? 0}%`;
 
     const stats = todayStats(state.blocks);
     const focusPct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
     set("hubFocusLabel", `${stats.done}/${stats.total || 0}`);
+    set("hubStreakDays", String(stats.done));
+    set("hubStreakFlames", streakFlames(stats.done, stats.total));
+
     const focusBar = document.getElementById("hubFocusBar");
     if (focusBar) focusBar.style.width = `${focusPct}%`;
 
@@ -325,10 +373,17 @@
       set("hubNextHint", step.hint);
       const btn = document.getElementById("hubNextBtn");
       if (btn) btn.textContent = `${step.label} →`;
+      set("hubMissionTitle", step.label === "Tagesziel setzen" ? "5-Minuten-Start" : step.label);
     }
 
+    const missionDone = stats.planned;
+    const missionTotal = Math.max(stats.total, 1);
+    set("hubMissionMeta", `${missionDone} / ${stats.total || 0} erledigt`);
+    const missionBar = document.getElementById("hubMissionBar");
+    if (missionBar) missionBar.style.width = `${Math.round((missionDone / missionTotal) * 100)}%`;
+
     const nameEl = document.getElementById("topbarName");
-    if (nameEl) nameEl.textContent = p.name || "";
+    if (nameEl) nameEl.textContent = (p.name || "").split(/\s+/)[0] || "";
   }
 
   async function init() {
@@ -348,7 +403,7 @@
     refresh,
     refreshStats,
     scrollToSecondary: () => {
-      document.getElementById("hubSecondary")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.querySelector(".hub-grid-secondary")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 })();
