@@ -221,15 +221,104 @@
       </button>`;
   }
 
-  function renderLevelBadge(ui, levelName) {
+  function renderStatusPanel(ui, stats, step) {
+    const V = window.LogbuchVisuals;
+    const missionLabel = step.label === "Tagesziel setzen" ? "5-Minuten-Start" : step.label;
+    const missionDone = stats.planned;
+    const missionTotal = stats.total || 0;
+    const remaining = Math.max(0, stats.total - stats.done);
+
+    const missionCircle = V
+      ? V.circularProgress({
+          completed: missionDone,
+          total: missionTotal,
+          label: "Tages-Mission",
+          sublabel: missionTotal ? `${missionDone} von ${missionTotal} geplant` : "Noch keine Stunden heute",
+          size: 104,
+          accent: "#a855f7"
+        })
+      : "";
+
+    const focusCircle = V
+      ? V.circularProgress({
+          completed: stats.done,
+          total: missionTotal,
+          label: "Tagesfokus",
+          sublabel: remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft!",
+          size: 104,
+          accent: stats.done >= missionTotal && missionTotal > 0 ? "#22c55e" : "#f97316"
+        })
+      : "";
+
     return `
-      <div class="level-badge">
-        <img src="/icons/student/hero/level-badge-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
-        <div class="level-badge__content">
-          <span class="level-badge__label">Level</span>
-          <strong class="level-badge__value" id="hubLevelBadgeName">${ui.escapeHtml(levelName || "–")}</strong>
+      <section class="hub-status-grid">
+        <div class="hub-status-card dashboard-card hub-accent-purple">
+          <img class="page-hero__image dashboard-card__hero hub-status-card__hero" src="${hero("mein-tag")}" alt="" aria-hidden="true">
+          <div class="hub-status-card__content dashboard-card__content">
+            <p class="hub-block-label">Tages-Mission</p>
+            <div class="hub-status-card__body">
+              ${missionCircle}
+              <div class="hub-status-card__copy">
+                <p class="hub-status-card__title" id="hubMissionTitle">${ui.escapeHtml(missionLabel)}</p>
+                <p class="hub-status-card__meta" id="hubMissionMeta">${missionTotal ? `${missionDone} von ${missionTotal} geplant` : "Keine Stunden eingetragen"}</p>
+                <div class="hub-streak-dots" id="hubStreakFlames">${streakDots(stats.done)}</div>
+                <button type="button" class="hub-btn-ghost hub-btn-compact" data-hub-section="today">Weiter machen →</button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>`;
+
+        <div class="hub-status-card dashboard-card hub-accent-orange">
+          <img class="page-hero__image dashboard-card__hero hub-status-card__hero" src="${hero("meine-woche")}" alt="" aria-hidden="true">
+          <div class="hub-status-card__content dashboard-card__content">
+            <p class="hub-block-label">Täglicher Fokus</p>
+            <div class="hub-status-card__body">
+              ${focusCircle}
+              <div class="hub-status-card__copy">
+                <p class="hub-status-card__title" id="hubFocusText">
+                  ${remaining > 0
+                    ? "Bleib fokussiert und schließe deine heutigen Schritte ab."
+                    : "Stark! Deine heutigen Schritte sind erledigt."}
+                </p>
+                <p class="hub-status-card__meta" id="hubFocusMeta">${remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft"} · ${stats.done}/${missionTotal || 0} Reflexionen</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>`;
+  }
+
+  function renderXpPanel(ui, p) {
+    const V = window.LogbuchVisuals;
+    const xpPct = p.xpPct ?? 0;
+    const levelCircle = V
+      ? V.circularProgress({
+          value: xpPct,
+          label: p.levelName || "Level",
+          sublabel: p.xpProgressLabel || "",
+          size: 112,
+          accent: "#d946ef"
+        })
+      : "";
+
+    return `
+      <aside class="hub-xp-panel dashboard-card hub-accent-violet">
+        <img class="page-hero__image dashboard-card__hero hub-xp-panel__hero" src="${hero("xp-historie")}" alt="" aria-hidden="true">
+        <div class="hub-xp-panel__content dashboard-card__content">
+          <p class="hub-xp-panel-label">XP-Fortschritt</p>
+          <div class="hub-xp-panel-body">
+            ${levelCircle}
+            <div class="hub-xp-panel-copy">
+              <p class="hub-xp-value">
+                <span id="hubXpCurrent">${Number(p.xp || 0).toLocaleString("de-DE")}</span>
+                <span class="hub-xp-value-sub"> XP gesamt</span>
+              </p>
+              <p class="hub-xp-meta" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</p>
+              <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
+            </div>
+          </div>
+        </div>
+      </aside>`;
   }
 
   function render() {
@@ -239,52 +328,35 @@
     const p = window.__studentProfile || {};
     const stats = todayStats(state.blocks);
     const step = state.nextStep || computeNextStep(state.blocks, state.todayDate);
-    const focusPct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
-    const xpPct = p.xpPct ?? 0;
-    const remaining = Math.max(0, stats.total - stats.done);
-    const missionLabel = step.label === "Tagesziel setzen" ? "5-Minuten-Start" : step.label;
-    const missionDone = stats.planned;
-    const missionTotal = Math.max(stats.total, 1);
-    const missionPct = Math.round((missionDone / missionTotal) * 100);
 
     const firstName = firstNameFromProfile(p);
 
     root.innerHTML = `
       <div class="hub-page">
         <section class="hub-hero-grid">
-          <div class="hub-hero-card hub-hero-greeting">
-            <div class="hub-hero-card-bg" aria-hidden="true"></div>
-            <h1 class="hub-hero-greeting-title" id="hubGreetingTitle">Hey ${ui.escapeHtml(firstName)}!</h1>
-            <p class="hub-hero-sub">
-              Bereit, heute etwas zu lernen und XP zu sammeln?
-            </p>
-            <div class="hub-hero-actions">
-              <button type="button" class="hub-btn-primary" id="hubNextBtn" data-hub-action="next">
-                ${ui.escapeHtml(step.label === "Heute starten" || step.label === "Mein Tag ansehen" ? "Heute starten" : step.label)} →
-              </button>
-              <button type="button" class="hub-btn-ghost" id="hubBriefingBtn">
-                Start-Briefing ansehen
-              </button>
+          <div class="hub-hero-card hub-hero-greeting dashboard-card hub-accent-orange">
+            <img class="page-hero__image dashboard-card__hero" src="${hero("mein-tag")}" alt="" aria-hidden="true">
+            <div class="hub-hero-card-inner dashboard-card__content">
+              <div class="student-section-icon" aria-hidden="true">
+                <img src="${icon("mein-tag")}" alt="" aria-hidden="true">
+              </div>
+              <h1 class="hub-hero-greeting-title" id="hubGreetingTitle">Hey ${ui.escapeHtml(firstName)}!</h1>
+              <p class="hub-hero-sub">
+                Bereit, heute etwas zu lernen und XP zu sammeln?
+              </p>
+              <div class="hub-hero-actions">
+                <button type="button" class="hub-btn-primary" id="hubNextBtn" data-hub-action="next">
+                  ${ui.escapeHtml(step.label === "Heute starten" || step.label === "Mein Tag ansehen" ? "Heute starten" : step.label)} →
+                </button>
+                <button type="button" class="hub-btn-ghost" id="hubBriefingBtn">
+                  Start-Briefing ansehen
+                </button>
+              </div>
+              <p class="hub-hero-hint" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
             </div>
-            <p class="hub-hero-hint" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
           </div>
 
-          <aside class="hub-xp-panel">
-            <p class="hub-xp-panel-label">XP-Fortschritt</p>
-            <div class="hub-xp-panel-row">
-              <div class="hub-xp-panel-copy">
-                <p class="hub-xp-value">
-                  <span id="hubXpCurrent">${Number(p.xp || 0).toLocaleString("de-DE")}</span>
-                  <span class="hub-xp-value-sub" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</span>
-                </p>
-                <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
-                <div class="hub-progress-track hub-progress-track-lg">
-                  <div class="hub-progress-fill hub-progress-fill-xp" id="hubXpBar" style="width:${xpPct}%"></div>
-                </div>
-              </div>
-              ${renderLevelBadge(ui, p.levelName)}
-            </div>
-          </aside>
+          ${renderXpPanel(ui, p)}
         </section>
 
         <section class="hub-block">
@@ -294,41 +366,7 @@
           </div>
         </section>
 
-        <section class="hub-status-grid">
-          <div class="hub-status-card">
-            <p class="hub-block-label">Tages-Streak & Mission</p>
-            <div class="hub-focus-row">
-              <div class="hub-focus-ring" id="hubStreakDays">${stats.done}</div>
-              <div class="hub-focus-copy">
-                <p class="hub-focus-text" id="hubMissionTitle">${ui.escapeHtml(missionLabel)}</p>
-                <div class="hub-streak-dots" id="hubStreakFlames">${streakDots(stats.done)}</div>
-                <div class="hub-progress-track hub-progress-track-lg">
-                  <div class="hub-progress-fill hub-progress-fill-purple" id="hubMissionBar" style="width:${missionPct}%"></div>
-                </div>
-                <p class="hub-focus-meta" id="hubMissionMeta">${missionDone} / ${stats.total || 0} erledigt · Fokus ${stats.done}/${stats.total || 0}</p>
-              </div>
-              <button type="button" class="hub-btn-ghost hub-btn-compact" data-hub-section="today">Weiter machen →</button>
-            </div>
-          </div>
-
-          <div class="hub-status-card hub-status-card-xp">
-            <p class="hub-block-label">Täglicher Fokus</p>
-            <div class="hub-focus-row">
-              <div class="hub-focus-ring" id="hubFocusLabel">${stats.done}/${stats.total || 0}</div>
-              <div class="hub-focus-copy">
-                <p class="hub-focus-text">
-                  ${remaining > 0
-                    ? "Bleib fokussiert. Schließe deine heutigen Aufgaben ab."
-                    : "Stark! Deine heutigen Schritte sind erledigt."}
-                </p>
-                <div class="hub-progress-track hub-progress-track-lg">
-                  <div class="hub-progress-fill hub-progress-fill-purple" id="hubFocusBar" style="width:${focusPct}%"></div>
-                </div>
-                <p class="hub-focus-meta">${remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft"}</p>
-              </div>
-            </div>
-          </div>
-        </section>
+        ${renderStatusPanel(ui, stats, step)}
 
         <section class="hub-block">
           <h2 class="hub-block-label">Weitere Bereiche</h2>
@@ -382,24 +420,23 @@
     set("hubGreetingTitle", `Hey ${firstName}!`);
     set("topbarXp", String(p.xp ?? "–"));
     set("topbarLevel", p.levelName || "–");
-    set("hubLevelBadgeName", p.levelName || "–");
     set("hubHeroNext", p.nextLevelLabel || "–");
     set("hubXpCurrent", Number(p.xp || 0).toLocaleString("de-DE"));
     set("hubXpMeta", p.xpProgressLabel || "–");
 
-    const xpBar = document.getElementById("hubXpBar");
-    if (xpBar) xpBar.style.width = `${p.xpPct ?? 0}%`;
-
     const stats = todayStats(state.blocks);
-    const focusPct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
-    set("hubFocusLabel", `${stats.done}/${stats.total || 0}`);
-    set("hubStreakDays", String(stats.done));
+    const remaining = Math.max(0, stats.total - stats.done);
+    set("hubFocusMeta", `${remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft"} · ${stats.done}/${stats.total || 0} Reflexionen`);
+
+    const focusText = document.getElementById("hubFocusText");
+    if (focusText) {
+      focusText.textContent = remaining > 0
+        ? "Bleib fokussiert und schließe deine heutigen Schritte ab."
+        : "Stark! Deine heutigen Schritte sind erledigt.";
+    }
 
     const streakEl = document.getElementById("hubStreakFlames");
     if (streakEl) streakEl.innerHTML = streakDots(stats.done);
-
-    const focusBar = document.getElementById("hubFocusBar");
-    if (focusBar) focusBar.style.width = `${focusPct}%`;
 
     const step = state.nextStep;
     if (step) {
@@ -415,10 +452,7 @@
     }
 
     const missionDone = stats.planned;
-    const missionTotal = Math.max(stats.total, 1);
-    set("hubMissionMeta", `${missionDone} / ${stats.total || 0} erledigt`);
-    const missionBar = document.getElementById("hubMissionBar");
-    if (missionBar) missionBar.style.width = `${Math.round((missionDone / missionTotal) * 100)}%`;
+    set("hubMissionMeta", stats.total ? `${missionDone} von ${stats.total} geplant` : "Keine Stunden eingetragen");
 
     const nameEl = document.getElementById("topbarName");
     if (nameEl) nameEl.textContent = (p.name || "").split(/\s+/)[0] || "";

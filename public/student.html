@@ -660,30 +660,25 @@ body.student-app .notif-panel {
 .hub-hero-card {
   position: relative;
   overflow: hidden;
+  isolation: isolate;
   border-radius: 28px;
   border: 1px solid rgba(167, 139, 250, 0.35);
-  background: rgba(15, 23, 42, 0.55);
-  padding: 28px 32px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+  padding: 0;
+  min-height: 220px;
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.45),
     0 0 48px rgba(124, 58, 237, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(12px);
+}
+
+.hub-hero-card-inner {
+  padding: 28px 32px;
+  max-width: 58%;
 }
 
 .hub-hero-card-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background:
-    linear-gradient(115deg, rgba(5, 8, 22, 0.82) 0%, rgba(76, 29, 149, 0.28) 42%, rgba(5, 8, 22, 0.88) 100%),
-    url("/assets/logic-bg.png") center 30% / cover no-repeat;
-  pointer-events: none;
-}
-
-.hub-hero-card > *:not(.hub-hero-card-bg) {
-  position: relative;
-  z-index: 1;
+  display: none;
 }
 
 .hub-hero-kicker {
@@ -707,12 +702,33 @@ body.student-app .notif-panel {
 }
 
 .hub-xp-panel {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   border-radius: 28px;
   border: 1px solid rgba(167, 139, 250, 0.28);
-  background: linear-gradient(160deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.96));
-  padding: 22px 24px;
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+  padding: 0;
+  min-height: 220px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 0 32px rgba(124, 58, 237, 0.1);
-  backdrop-filter: blur(12px);
+}
+
+.hub-xp-panel__content {
+  padding: 22px 24px;
+  max-width: 100%;
+}
+
+.hub-xp-panel-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+}
+
+.hub-xp-meta {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: #e2e8f0;
 }
 
 .hub-xp-panel-label {
@@ -796,13 +812,15 @@ body.student-app .notif-panel {
   max-width: 640px;
   font-size: 17px;
   line-height: 1.55;
-  color: #cbd5e1;
+  color: #f1f5f9;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
 }
 
 .hub-hero-hint {
   margin: 14px 0 0;
-  font-size: 13px;
-  color: #94a3b8;
+  font-size: 14px;
+  color: #e2e8f0;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.4);
 }
 
 .hub-hero-actions {
@@ -943,7 +961,7 @@ body.student-app .notif-panel {
   font-weight: 900;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #cbd5e1;
 }
 
 .hub-grid-main {
@@ -1051,17 +1069,17 @@ body.student-app .notif-panel {
   background:
     linear-gradient(
       90deg,
-      rgba(3, 7, 18, 0.98) 0%,
-      rgba(3, 7, 18, 0.88) 38%,
-      rgba(3, 7, 18, 0.38) 66%,
-      rgba(3, 7, 18, 0.08) 100%
+      rgba(3, 7, 18, 0.72) 0%,
+      rgba(3, 7, 18, 0.45) 44%,
+      rgba(3, 7, 18, 0.12) 58%,
+      transparent 72%
     );
 }
 
 .dashboard-card__content,
 .hub-tile-content {
   position: relative;
-  z-index: 3;
+  z-index: 4;
   max-width: 56%;
 }
 
@@ -1174,13 +1192,26 @@ body.student-app .notif-panel {
   box-shadow: 0 0 12px rgba(124, 58, 237, 0.2);
 }
 
+.hub-tile-text {
+  position: relative;
+  z-index: 4;
+  margin-top: 8px;
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #f1f5f9;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
+  flex: 1;
+}
+
 .hub-tile-title {
   position: relative;
-  z-index: 1;
+  z-index: 4;
   font-family: "Orbitron", system-ui;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
 }
 
 .hub-tile-lg .hub-tile-title {
@@ -1191,20 +1222,9 @@ body.student-app .notif-panel {
   font-size: 13px;
 }
 
-.hub-tile-text {
-  position: relative;
-  z-index: 1;
-  margin-top: 8px;
-  max-width: 100%;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #94a3b8;
-  flex: 1;
-}
-
 .hub-tile-cta {
   position: relative;
-  z-index: 1;
+  z-index: 4;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1240,6 +1260,7 @@ body.student-app .notif-panel {
   --tile-glow-strong: rgba(249, 115, 22, 0.45);
 }
 .hub-accent-orange .hub-tile-title { color: #fdba74; }
+.hub-accent-orange .hub-tile-text { color: #fff7ed; }
 .hub-accent-orange .hub-tile-cta { border-color: rgba(251, 146, 60, 0.25); color: #fed7aa; }
 
 .hub-accent-purple {
@@ -1362,12 +1383,49 @@ body.student-app .notif-panel {
 }
 
 .hub-status-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.05) 0%, rgba(15, 23, 42, 0.82) 100%);
-  padding: 22px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+  padding: 0;
+  min-height: 180px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(10px);
+}
+
+.hub-status-card__content {
+  padding: 22px 24px;
+  max-width: 100%;
+}
+
+.hub-status-card__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+.hub-status-card__copy {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.hub-status-card__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #f8fafc;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
+}
+
+.hub-status-card__meta {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #e2e8f0;
 }
 
 .hub-status-card-xp {
@@ -2656,10 +2714,16 @@ body.student-app {
     background:
       linear-gradient(
         90deg,
-        rgba(3, 7, 18, 0.98) 0%,
-        rgba(3, 7, 18, 0.88) 70%,
-        rgba(3, 7, 18, 0.56) 100%
+        rgba(3, 7, 18, 0.88) 0%,
+        rgba(3, 7, 18, 0.62) 62%,
+        rgba(3, 7, 18, 0.28) 100%
       );
+  }
+
+  .hub-hero-card-inner,
+  .hub-xp-panel__content,
+  .hub-status-card__content {
+    max-width: 100%;
   }
 
   .student-section-icon,
@@ -5858,7 +5922,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=6"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js"></script>
-<script src="/js/logbuch-hub.js?v=14"></script>
+<script src="/js/logbuch-hub.js?v=15"></script>
 <script src="/js/logbuch-visuals.js?v=4"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
