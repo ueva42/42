@@ -355,14 +355,14 @@
           ${renderXpPanel(ui, p)}
         </section>
 
+        ${renderStatusPanel(ui, stats, step)}
+
         <section class="hub-block">
           <h2 class="hub-block-label">Dein Kontrollzentrum</h2>
           <div class="hub-grid-main">
             ${MAIN_TILES.map((t) => renderTile(ui, t, "large")).join("")}
           </div>
         </section>
-
-        ${renderStatusPanel(ui, stats, step)}
 
         <section class="hub-block">
           <h2 class="hub-block-label">Weitere Bereiche</h2>
