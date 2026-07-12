@@ -7,6 +7,27 @@
   const icon = (slug) => `/icons/student/png/${slug}.png`;
   const hero = (slug) => `/icons/student/hero/${slug}-hero.png`;
 
+  const DASHBOARD_HERO = {
+    hub: "/icons/student/hero/dein-hub-hero.png",
+    xp: "/icons/student/hero/xp-fortschritt-hero.png",
+    mission: "/icons/student/hero/tages-mission-hero.png",
+    focus: "/icons/student/hero/taeglicher-fokus-hero.png"
+  };
+
+  function featureVisual(src) {
+    return `
+      <div class="dashboard-feature-card__visual">
+        <img
+          src="${src}"
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          decoding="async"
+          onerror="this.closest('.dashboard-feature-card')?.classList.add('dashboard-feature-card--no-visual'); this.closest('.dashboard-feature-card__visual')?.remove();"
+        />
+      </div>`;
+  }
+
   const MAIN_TILES = [
     {
       section: "today",
@@ -252,9 +273,8 @@
 
     return `
       <section class="hub-status-grid">
-        <div class="hub-status-card dashboard-card hub-accent-purple">
-          <img class="page-hero__image dashboard-card__hero hub-status-card__hero" src="${hero("mein-tag")}" alt="" aria-hidden="true">
-          <div class="hub-status-card__content dashboard-card__content">
+        <div class="dashboard-feature-card dashboard-feature-card--mission hub-accent-purple">
+          <div class="dashboard-feature-card__content hub-status-card__content">
             <p class="hub-block-label">Tages-Mission</p>
             <div class="hub-status-card__body">
               ${missionCircle}
@@ -266,11 +286,11 @@
               </div>
             </div>
           </div>
+          ${featureVisual(DASHBOARD_HERO.mission)}
         </div>
 
-        <div class="hub-status-card dashboard-card hub-accent-orange">
-          <img class="page-hero__image dashboard-card__hero hub-status-card__hero" src="${hero("meine-woche")}" alt="" aria-hidden="true">
-          <div class="hub-status-card__content dashboard-card__content">
+        <div class="dashboard-feature-card dashboard-feature-card--focus hub-accent-orange">
+          <div class="dashboard-feature-card__content hub-status-card__content">
             <p class="hub-block-label">Täglicher Fokus</p>
             <div class="hub-status-card__body">
               ${focusCircle}
@@ -284,6 +304,7 @@
               </div>
             </div>
           </div>
+          ${featureVisual(DASHBOARD_HERO.focus)}
         </div>
       </section>`;
   }
@@ -301,9 +322,8 @@
       : "";
 
     return `
-      <aside class="hub-xp-panel dashboard-card hub-accent-violet">
-        <img class="page-hero__image dashboard-card__hero hub-xp-panel__hero" src="${hero("xp-historie")}" alt="" aria-hidden="true">
-        <div class="hub-xp-panel__content dashboard-card__content">
+      <aside class="dashboard-feature-card dashboard-feature-card--xp hub-accent-violet">
+        <div class="dashboard-feature-card__content hub-xp-panel__content">
           <p class="hub-xp-panel-label">XP-Fortschritt</p>
           <div class="hub-xp-panel-body hub-xp-panel-body--compact">
             ${levelCircle}
@@ -313,6 +333,7 @@
             </div>
           </div>
         </div>
+        ${featureVisual(DASHBOARD_HERO.xp)}
       </aside>`;
   }
 
@@ -329,9 +350,8 @@
     root.innerHTML = `
       <div class="hub-page">
         <section class="hub-hero-grid">
-          <div class="hub-hero-card hub-hero-greeting dashboard-card hub-accent-orange">
-            <img class="page-hero__image dashboard-card__hero" src="${hero("mein-tag")}" alt="" aria-hidden="true">
-            <div class="hub-hero-card-inner dashboard-card__content">
+          <div class="dashboard-feature-card dashboard-feature-card--hub hub-accent-orange">
+            <div class="dashboard-feature-card__content hub-hero-card-inner">
               <div class="student-section-icon hub-hero-card__icon" aria-hidden="true">
                 <img src="${icon("mein-tag")}" alt="" aria-hidden="true">
               </div>
@@ -350,6 +370,7 @@
               </div>
               <p class="hub-hero-hint" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
             </div>
+            ${featureVisual(DASHBOARD_HERO.hub)}
           </div>
 
           ${renderXpPanel(ui, p)}

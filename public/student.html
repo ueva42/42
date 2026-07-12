@@ -688,24 +688,123 @@ body.student-app .notif-panel {
   }
 }
 
-.hub-hero-card {
+.dashboard-feature-card {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 56%) minmax(260px, 44%);
   overflow: hidden;
   isolation: isolate;
+  min-height: 280px;
   border-radius: 28px;
-  border: 1px solid rgba(167, 139, 250, 0.35);
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
-  padding: 0;
-  min-height: 220px;
+  background: rgba(3, 7, 18, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.22);
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.45),
     0 0 48px rgba(124, 58, 237, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
+.dashboard-feature-card--hub {
+  border-color: rgba(167, 139, 250, 0.35);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+}
+
+.dashboard-feature-card--xp {
+  grid-template-columns: minmax(0, 62%) minmax(220px, 38%);
+  min-height: 220px;
+  border-color: rgba(167, 139, 250, 0.28);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 0 32px rgba(124, 58, 237, 0.1);
+}
+
+.dashboard-feature-card--mission,
+.dashboard-feature-card--focus {
+  min-height: 220px;
+  border-radius: 22px;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+}
+
+.dashboard-feature-card--no-visual {
+  grid-template-columns: 1fr;
+}
+
+.dashboard-feature-card__content {
+  position: relative;
+  z-index: 3;
+  min-width: 0;
+}
+
+.dashboard-feature-card__visual {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dashboard-feature-card__visual img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+.dashboard-feature-card__visual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(3, 7, 18, 0.94) 0%,
+      rgba(3, 7, 18, 0.40) 30%,
+      rgba(3, 7, 18, 0.04) 70%
+    );
+}
+
+@media (max-width: 1023px) and (min-width: 761px) {
+  .dashboard-feature-card {
+    grid-template-columns: minmax(0, 65%) minmax(200px, 35%);
+  }
+
+  .dashboard-feature-card--xp {
+    grid-template-columns: minmax(0, 68%) minmax(180px, 32%);
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-feature-card {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .dashboard-feature-card__content {
+    min-height: 220px;
+  }
+
+  .dashboard-feature-card__visual {
+    position: absolute;
+    inset: 0;
+    opacity: 0.34;
+  }
+
+  .dashboard-feature-card__visual::before {
+    background:
+      linear-gradient(
+        90deg,
+        rgba(3, 7, 18, 0.97) 0%,
+        rgba(3, 7, 18, 0.80) 65%,
+        rgba(3, 7, 18, 0.48) 100%
+      );
+  }
+}
+
 .hub-hero-card-inner {
-  padding: 24px 28px;
-  max-width: 58%;
+  padding: 30px;
+  max-width: none;
 }
 
 .hub-hero-card__icon {
@@ -726,31 +825,14 @@ body.student-app .notif-panel {
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
 }
 
-.hub-hero-card .page-eyebrow {
+.dashboard-feature-card--hub .page-eyebrow {
   margin-bottom: 6px;
   color: color-mix(in srgb, #fb923c 75%, #e2e8f0);
 }
 
-.hub-xp-panel {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  border-radius: 28px;
-  border: 1px solid rgba(167, 139, 250, 0.28);
-  background: linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
-  padding: 0;
-  min-height: 180px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 0 32px rgba(124, 58, 237, 0.1);
-}
-
-.hub-xp-panel__hero {
-  width: 42%;
-  opacity: 0.5;
-}
-
 .hub-xp-panel__content {
   padding: 18px 20px;
-  max-width: 72%;
+  max-width: none;
 }
 
 .hub-xp-panel-body {
@@ -1488,21 +1570,9 @@ body.student-app .notif-panel {
   }
 }
 
-.hub-status-card {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
-  padding: 0;
-  min-height: 180px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
-}
-
 .hub-status-card__content {
   padding: 22px 24px;
-  max-width: 100%;
+  max-width: none;
 }
 
 .hub-status-card__body {
@@ -2828,7 +2898,8 @@ body.student-app {
 
   .hub-hero-card-inner,
   .hub-xp-panel__content,
-  .hub-status-card__content {
+  .hub-status-card__content,
+  .dashboard-feature-card__content {
     max-width: 100%;
   }
 
@@ -6023,7 +6094,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=6"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js"></script>
-<script src="/js/logbuch-hub.js?v=17"></script>
+<script src="/js/logbuch-hub.js?v=18"></script>
 <script src="/js/logbuch-visuals.js?v=4"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
