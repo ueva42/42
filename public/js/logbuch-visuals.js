@@ -162,7 +162,7 @@ window.LogbuchVisuals = {
   emptyState({ eyebrow, title, text, hint, heroSrc }) {
     return `
       <div class="student-card empty-state-card">
-        ${heroSrc ? `<img class="card-hero-art" src="${this.escape(heroSrc)}" alt="" aria-hidden="true">` : ""}
+        ${heroSrc ? `<img class="hero-art card-hero-art" src="${this.escape(heroSrc)}" alt="" aria-hidden="true" onerror="this.style.display='none'">` : ""}
         <div class="card-content">
           ${eyebrow ? `<p class="empty-state-card__eyebrow">${this.escape(eyebrow)}</p>` : ""}
           <h3 class="empty-state-card__title">${this.escape(title)}</h3>

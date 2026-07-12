@@ -4,92 +4,97 @@
 (function () {
   const UI = () => window.LogbuchUI;
 
+  const icon = (slug) => `/icons/student/png/${slug}.png`;
+  const hero = (slug) => `/icons/student/hero/${slug}-hero.png`;
+
   const MAIN_TILES = [
     {
       section: "today",
+      slug: "mein-tag",
       title: "Mein Tag",
       text: "Deine heutigen Aufgaben auf einen Blick.",
       cta: "Los geht's",
-      accent: "orange",
-      heroSrc: "/icons/student/hero/mein-tag-hero.png"
+      accent: "orange"
     },
     {
       section: "week",
+      slug: "meine-woche",
       title: "Meine Woche",
       text: "Dein Lernplan für diese Woche.",
       cta: "Plan ansehen",
-      accent: "purple",
-      heroSrc: "/icons/student/hero/meine-woche-hero.png"
+      accent: "purple"
     },
     {
       section: "zielsetzung",
+      slug: "zielsetzung",
       title: "Zielsetzung",
       text: "Setze Ziele und verfolge deinen Fortschritt.",
       cta: "Ziele ansehen",
-      accent: "cyan",
-      heroSrc: "/icons/student/hero/zielsetzung-hero.png"
+      accent: "cyan"
     },
     {
       section: "levelplan",
+      slug: "lernstand",
       title: "Mein Lernstand",
       text: "Sieh deine Entwicklung und was du schon sicher kannst.",
       cta: "Fortschritt ansehen",
-      accent: "green",
-      heroSrc: "/icons/student/hero/lernstand-hero.png"
+      accent: "green"
     },
     {
       section: "taktik-deck",
+      slug: "taktik-deck",
       title: "Taktik-Deck",
       text: "Deine Strategien für jede Lernherausforderung.",
       cta: "Deck öffnen",
       accent: "pink",
-      featured: true,
-      heroSrc: "/icons/student/hero/taktik-deck-hero.png"
+      featured: true
     },
     {
       section: "checkpoint-plan",
+      slug: "meine-checks",
       title: "Meine Checks",
       text: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
       cta: "Plan öffnen",
-      accent: "teal",
-      heroSrc: "/icons/student/hero/meine-checks-hero.png"
+      accent: "teal"
     }
   ];
 
   const SECONDARY_TILES = [
     {
       section: "missionen",
+      slug: "missionen",
       title: "Missionen",
       text: "Nimm Herausforderungen an und sammle XP.",
       cta: "Ansehen",
-      accent: "violet",
-      heroSrc: "/icons/student/hero/missionen-hero.png"
+      accent: "violet"
     },
     {
       section: "belohnungen",
+      slug: "belohnungen",
       title: "Belohnungen",
       text: "Schalte Extras frei und feiere Erfolge.",
       cta: "Ansehen",
-      accent: "gold",
-      heroSrc: "/icons/student/hero/belohnungen-hero.png"
+      accent: "gold"
     },
     {
       section: "charakter",
+      slug: "charakter",
       title: "Charakter",
       text: "Passe deinen Charakter an und zeig deinen Style.",
       cta: "Anpassen",
-      accent: "blue",
-      heroSrc: "/icons/student/hero/charakter-hero.png"
+      accent: "blue"
     },
     {
       section: "xp",
+      slug: "xp-historie",
       title: "XP-Historie",
       text: "Verfolge deine XP und Lernstatistiken.",
       cta: "Ansehen",
-      accent: "magenta",
-      heroSrc: "/icons/student/hero/xp-historie-hero.png"
+      accent: "magenta"
     }
   ];
+
+  window.StudentAssets = { icon, hero };
 
   const state = {
     todayDate: null,
@@ -174,9 +179,11 @@
     };
   }
 
-  function streakFlames(done, total) {
+  function streakDots(done) {
     const lit = Math.min(7, Math.max(0, done));
-    return "🔥".repeat(lit) + "⚫".repeat(Math.max(0, 7 - lit));
+    return Array.from({ length: 7 }, (_, i) =>
+      `<span class="hub-streak-dot${i < lit ? " is-lit" : ""}" aria-hidden="true"></span>`
+    ).join("");
   }
 
   function firstNameFromProfile(p) {
@@ -193,23 +200,36 @@
 
   function renderTile(ui, tile, size) {
     const large = size === "large";
+    const iconSrc = icon(tile.slug);
+    const heroSrc = hero(tile.slug);
     return `
       <button type="button"
-        class="hub-tile hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
+        class="hub-tile app-card hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
         data-hub-section="${ui.escapeHtml(tile.section)}">
         <span class="hub-tile-glow" aria-hidden="true"></span>
         <span class="hub-tile-shine" aria-hidden="true"></span>
-        <img class="hub-tile-hero hub-png-art" src="${tile.heroSrc}" alt="" loading="lazy" decoding="async" aria-hidden="true">
-        <div class="hub-tile-content">
+        <img class="hero-art hub-tile-hero" src="${heroSrc}" alt="" loading="lazy" decoding="async" aria-hidden="true" onerror="this.style.display='none'">
+        <div class="hub-tile-content card-content">
           ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
-          <span class="hub-tile-icon hub-card-icon-wrap" aria-hidden="true">
-            <img class="hub-tile-icon-img hub-png-art" src="${tile.heroSrc}" alt="" loading="lazy" decoding="async">
-          </span>
+          <div class="student-icon" aria-hidden="true">
+            <img src="${iconSrc}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">
+          </div>
           <span class="hub-tile-title">${ui.escapeHtml(tile.title)}</span>
           <span class="hub-tile-text">${ui.escapeHtml(tile.text)}</span>
           <span class="hub-tile-cta">${ui.escapeHtml(tile.cta)} <span class="hub-tile-arrow">→</span></span>
         </div>
       </button>`;
+  }
+
+  function renderLevelBadge(ui, levelName) {
+    return `
+      <div class="level-badge">
+        <img src="/icons/student/hero/level-badge-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+        <div class="level-badge__content">
+          <span class="level-badge__label">Level</span>
+          <strong class="level-badge__value" id="hubLevelBadgeName">${ui.escapeHtml(levelName || "–")}</strong>
+        </div>
+      </div>`;
   }
 
   function render() {
@@ -262,10 +282,7 @@
                   <div class="hub-progress-fill hub-progress-fill-xp" id="hubXpBar" style="width:${xpPct}%"></div>
                 </div>
               </div>
-              <div class="hub-level-badge-wrap">
-                <img class="hub-level-badge-img" src="/icons/student/hero/level-badge-hero.png" alt="" onerror="this.classList.add('is-hidden')">
-                <p class="hub-level-badge-name" id="hubLevelBadgeName">${ui.escapeHtml(p.levelName || "–")}</p>
-              </div>
+              ${renderLevelBadge(ui, p.levelName)}
             </div>
           </aside>
         </section>
@@ -284,7 +301,7 @@
               <div class="hub-focus-ring" id="hubStreakDays">${stats.done}</div>
               <div class="hub-focus-copy">
                 <p class="hub-focus-text" id="hubMissionTitle">${ui.escapeHtml(missionLabel)}</p>
-                <div class="hub-streak-flames" id="hubStreakFlames">${streakFlames(stats.done, stats.total)}</div>
+                <div class="hub-streak-dots" id="hubStreakFlames">${streakDots(stats.done)}</div>
                 <div class="hub-progress-track hub-progress-track-lg">
                   <div class="hub-progress-fill hub-progress-fill-purple" id="hubMissionBar" style="width:${missionPct}%"></div>
                 </div>
@@ -377,7 +394,9 @@
     const focusPct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
     set("hubFocusLabel", `${stats.done}/${stats.total || 0}`);
     set("hubStreakDays", String(stats.done));
-    set("hubStreakFlames", streakFlames(stats.done, stats.total));
+
+    const streakEl = document.getElementById("hubStreakFlames");
+    if (streakEl) streakEl.innerHTML = streakDots(stats.done);
 
     const focusBar = document.getElementById("hubFocusBar");
     if (focusBar) focusBar.style.width = `${focusPct}%`;

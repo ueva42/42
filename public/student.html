@@ -475,25 +475,24 @@ body.student-app .mobile-header {
   box-shadow: 0 0 14px rgba(124, 58, 237, 0.12);
 }
 
-.student-topbar-level {
-  border-color: rgba(251, 146, 60, 0.35);
-  color: #fed7aa;
-  box-shadow: 0 0 14px rgba(249, 115, 22, 0.1);
-  gap: 6px;
+.level-badge--compact {
+  width: 34px;
+  height: 34px;
 }
 
-.student-level-badge-img {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-  mix-blend-mode: screen;
-  filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.35)) saturate(1.1) contrast(1.05);
-  flex-shrink: 0;
+.level-badge--compact .level-badge__label {
+  font-size: 6px;
 }
 
-.student-level-badge-img[src=""],
-.student-level-badge-img:not([src]) {
-  display: none;
+.level-badge--compact .level-badge__value {
+  font-size: 8px;
+}
+
+.student-bottomnav-icon-more {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #cbd5e1;
 }
 
 .student-topbar-profile {
@@ -626,8 +625,18 @@ body.student-app .notif-panel {
 }
 
 .student-bottomnav-icon {
-  font-size: 16px;
-  line-height: 1;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+}
+
+.student-bottomnav-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.15));
 }
 
 .hub-page {
@@ -729,29 +738,57 @@ body.student-app .notif-panel {
 
 .hub-level-badge-wrap {
   flex-shrink: 0;
-  text-align: center;
+}
+
+.level-badge {
+  position: relative;
   width: 72px;
+  height: 72px;
+  flex-shrink: 0;
 }
 
-.hub-level-badge-wrap .hub-level-badge-img {
-  width: 56px;
-  height: 56px;
+.level-badge > img,
+.student-topbar-level .level-badge > img {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  mix-blend-mode: screen;
-  filter: drop-shadow(0 0 14px rgba(249, 115, 22, 0.35)) saturate(1.1) contrast(1.05);
+  display: block;
+  pointer-events: none;
 }
 
-.hub-level-badge-wrap .hub-level-badge-img.is-hidden {
-  display: none;
+.level-badge__content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+  padding: 0 6px;
 }
 
-.hub-level-badge-name {
-  margin: 6px 0 0;
-  font-size: 11px;
+.level-badge__label {
+  font-size: 8px;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #fdba74;
+  line-height: 1;
+}
+
+.level-badge__value {
+  font-family: "Orbitron", system-ui;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff7ed;
+  line-height: 1.1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hub-hero-sub {
@@ -964,84 +1001,80 @@ body.student-app .notif-panel {
   min-height: 100%;
 }
 
-.hub-tile-hero {
+.hub-tile-hero,
+.hero-art,
+.page-hero__art {
   position: absolute;
-  right: 10px;
-  bottom: 4px;
-  width: 48%;
-  max-width: 250px;
+  right: 0;
+  bottom: 0;
+  width: 46%;
+  max-width: 320px;
   height: auto;
   object-fit: contain;
-  opacity: 0.24;
   pointer-events: none;
+  user-select: none;
   z-index: 1;
-  mix-blend-mode: screen;
-  filter:
-    drop-shadow(0 0 28px var(--accent-glow, rgba(255, 255, 255, 0.2)))
-    saturate(1.1)
-    contrast(1.05);
-  transition: transform 180ms ease, opacity 180ms ease;
+  opacity: 0.65;
+  transform: translate(4%, 4%);
+  -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 65%, rgba(0, 0, 0, 0.85) 80%, rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 65%, rgba(0, 0, 0, 0.85) 80%, rgba(0, 0, 0, 0) 100%);
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
-.hub-tile:hover .hub-tile-hero {
-  opacity: 0.34;
-  transform: scale(1.035) translateY(-2px);
+.hub-tile:hover .hub-tile-hero,
+.app-card:hover .hero-art {
+  opacity: 0.78;
+  transform: translate(2%, 2%) scale(1.02);
 }
 
-.hub-png-art {
-  background: transparent;
-}
-
-.hub-tile-icon,
-.hub-card-icon-wrap {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  overflow: hidden;
+.student-icon {
   width: 72px;
   height: 72px;
-  border-radius: 22px;
-  margin-bottom: 20px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 0 24px var(--accent-glow, rgba(255, 255, 255, 0.15));
-  transition: box-shadow 180ms ease, border-color 180ms ease;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  margin-bottom: 16px;
+  padding: 6px;
+  border-radius: 18px;
+  background: rgba(5, 10, 25, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent-glow, rgba(255, 255, 255, 0.2)) 35%, transparent);
 }
 
-.hub-tile:hover .hub-tile-icon {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 32px var(--accent-glow, rgba(255, 255, 255, 0.22));
-  border-color: rgba(255, 255, 255, 0.14);
-}
-
-.hub-tile-icon-img {
-  display: block;
-  width: 58px;
-  height: 58px;
+.student-icon img {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  mix-blend-mode: screen;
-  filter:
-    drop-shadow(0 0 12px var(--accent-glow, rgba(255, 255, 255, 0.25)))
-    saturate(1.1)
-    contrast(1.05);
+  display: block;
+  filter: drop-shadow(0 0 14px var(--accent-glow, rgba(255, 255, 255, 0.25)));
 }
 
-.hub-tile-sm .hub-tile-icon,
-.hub-tile-sm .hub-card-icon-wrap {
+.hub-tile-sm .student-icon {
   width: 56px;
   height: 56px;
   margin-bottom: 12px;
-  border-radius: 18px;
+  padding: 5px;
+  border-radius: 16px;
 }
 
-.hub-tile-sm .hub-tile-icon-img {
-  width: 44px;
-  height: 44px;
+.hub-streak-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.hub-streak-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.hub-streak-dot.is-lit {
+  background: linear-gradient(180deg, #f97316, #facc15);
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.45);
 }
 
 .hub-tile-glow {
@@ -1079,15 +1112,14 @@ body.student-app .notif-panel {
 }
 
 .hub-tile-sm .hub-tile-hero {
-  width: 38%;
-  max-width: 120px;
-  opacity: 0.2;
-  right: 8px;
-  bottom: 6px;
+  width: 48%;
+  max-width: 180px;
+  opacity: 0.55;
+  right: -8px;
 }
 
 .hub-tile-sm:hover .hub-tile-hero {
-  opacity: 0.26;
+  opacity: 0.68;
 }
 
 .hub-tile-badge {
@@ -1537,7 +1569,7 @@ body.student-app {
 .app-card {
   position: relative;
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: 28px;
   border: 1px solid color-mix(in srgb, var(--accent, #94a3b8) 28%, transparent);
   background:
     radial-gradient(circle at 85% 35%, var(--accent-soft, rgba(255, 255, 255, 0.06)), transparent 36%),
@@ -1560,23 +1592,88 @@ body.student-app {
 .hero-art,
 .page-hero__art {
   position: absolute;
-  right: 18px;
-  bottom: 8px;
-  width: 38%;
-  max-width: 260px;
+  right: 0;
+  bottom: 0;
+  width: 46%;
+  max-width: 320px;
   height: auto;
   object-fit: contain;
-  opacity: 0.22;
   pointer-events: none;
+  user-select: none;
   z-index: 1;
-  mix-blend-mode: screen;
-  filter: drop-shadow(0 0 28px var(--accent-glow, rgba(255, 255, 255, 0.2))) saturate(1.1) contrast(1.05);
+  opacity: 0.65;
+  transform: translate(4%, 4%);
+  -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 65%, rgba(0, 0, 0, 0.85) 80%, rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 65%, rgba(0, 0, 0, 0.85) 80%, rgba(0, 0, 0, 0) 100%);
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
 .app-card:hover .hero-art {
-  opacity: 0.32;
-  transform: scale(1.03);
+  opacity: 0.78;
+  transform: translate(2%, 2%) scale(1.02);
+}
+
+.card-content,
+.page-hero__content,
+.hub-tile-content {
+  position: relative;
+  z-index: 2;
+}
+
+.page-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -18px -20px 20px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent, #fff) 25%, transparent);
+  background:
+    radial-gradient(circle at 88% 40%, var(--accent-soft, rgba(255, 255, 255, 0.08)), transparent 42%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.98));
+}
+
+.page-hero__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  min-width: 0;
+  max-width: 58%;
+}
+
+.page-hero__content .student-icon {
+  margin-bottom: 12px;
+}
+
+.page-eyebrow {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent, #fff) 70%, #e2e8f0);
+}
+
+.page-hero__title,
+.page-hero__content h2 {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 17px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #f1f5f9;
+}
+
+.page-hero__sub,
+.page-hero__content .student-screen-sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #94a3b8;
 }
 
 /* Radial progress */
@@ -1846,17 +1943,19 @@ body.student-app {
 
 .card-hero-art {
   position: absolute;
-  right: 12px;
-  bottom: 6px;
-  width: 34%;
-  max-width: 220px;
+  right: 0;
+  bottom: 0;
+  width: 46%;
+  max-width: 320px;
   height: auto;
-  opacity: 0.2;
   object-fit: contain;
   pointer-events: none;
+  user-select: none;
   z-index: 1;
-  mix-blend-mode: screen;
-  filter: drop-shadow(0 0 28px var(--accent-glow, rgba(255, 255, 255, 0.2))) saturate(1.1) contrast(1.05);
+  opacity: 0.65;
+  transform: translate(4%, 4%);
+  -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 65%, rgba(0, 0, 0, 0.85) 80%, rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 65%, rgba(0, 0, 0, 0.85) 80%, rgba(0, 0, 0, 0) 100%);
 }
 
 .stat-card {
@@ -2346,15 +2445,39 @@ body.student-app {
   grid-column: 1 / -1;
 }
 
-@media (max-width: 639px) {
-  .card-hero-art,
-  .student-screen-hero {
-    width: 38%;
-    opacity: 0.14;
+@media (max-width: 700px) {
+  .hero-art,
+  .page-hero__art,
+  .hub-tile-hero {
+    width: 48%;
+    max-width: 180px;
+    opacity: 0.42;
+    right: -20px;
+  }
+
+  .card-content,
+  .page-hero__content,
+  .hub-tile-content {
+    max-width: 72%;
+  }
+
+  .student-icon {
+    width: 58px;
+    height: 58px;
   }
 }
 
-.student-screen-head {
+@media (max-width: 639px) {
+  .card-hero-art {
+    width: 48%;
+    max-width: 180px;
+    opacity: 0.42;
+    right: -20px;
+  }
+}
+
+.student-screen-head,
+.page-hero {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -5222,10 +5345,15 @@ h2 {
       <button type="button" class="student-topnav-mehr">Mehr</button>
     </nav>
     <div class="student-topbar-right">
-      <span class="student-topbar-pill student-topbar-pill-xp">⚡ <span id="topbarXp">–</span> XP</span>
+      <span class="student-topbar-pill student-topbar-pill-xp"><span id="topbarXp">–</span> XP</span>
       <span class="student-topbar-pill student-topbar-level">
-        <img class="student-level-badge-img" src="/icons/student/hero/level-badge-hero.png" alt="" onerror="this.remove()">
-        <span id="topbarLevel">–</span>
+        <span class="level-badge level-badge--compact">
+          <img src="/icons/student/hero/level-badge-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+          <span class="level-badge__content">
+            <span class="level-badge__label">Level</span>
+            <strong class="level-badge__value" id="topbarLevel">–</strong>
+          </span>
+        </span>
       </span>
       <div id="notifWrap" class="notif-wrap">
         <button id="notifBell" class="notif-bell" type="button" aria-label="Benachrichtigungen">
@@ -5265,15 +5393,16 @@ h2 {
 
   <!-- MEIN TAG -->
   <div id="today-section" class="card section logbuch-screen student-screen student-screen--orange" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/mein-tag-hero.png" alt="">
-        <div>
-          <h2>Mein Tag</h2>
-          <p class="student-screen-sub">Deine heutigen Aufgaben auf einen Blick.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Mein Tag</p>
+        <h2 class="page-hero__title">Mein Tag</h2>
+        <p class="page-hero__sub">Deine heutigen Aufgaben auf einen Blick.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/mein-tag-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="today-status-panel" class="today-status-panel">
       <div id="userCard" class="today-status-user"></div>
@@ -5288,165 +5417,176 @@ h2 {
 
   <!-- WOCHE -->
   <div id="week-section" class="card section logbuch-screen logbuch-phase-week student-screen student-screen--purple" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/meine-woche-hero.png" alt="">
-        <div>
-          <h2>Meine Woche</h2>
-          <p class="student-screen-sub">Dein Lernplan für diese Woche.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/meine-woche.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Meine Woche</p>
+        <h2 class="page-hero__title">Meine Woche</h2>
+        <p class="page-hero__sub">Dein Lernplan für diese Woche.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/meine-woche-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/meine-woche-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="week-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- ZIELSETZUNG -->
   <div id="zielsetzung-section" class="card section logbuch-screen student-screen student-screen--cyan" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/zielsetzung-hero.png" alt="">
-        <div>
-          <h2>Zielsetzung</h2>
-          <p class="student-screen-sub">Setze Ziele und verfolge deinen Fortschritt.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/zielsetzung.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Zielsetzung</p>
+        <h2 class="page-hero__title">Zielsetzung</h2>
+        <p class="page-hero__sub">Setze Ziele und verfolge deinen Fortschritt.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/zielsetzung-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/zielsetzung-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="zielsetzung-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- LEVELPLAN -->
   <div id="levelplan-section" class="card section logbuch-screen student-screen student-screen--green" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/lernstand-hero.png" alt="">
-        <div>
-          <h2>Mein Lernstand</h2>
-          <p class="student-screen-sub">Sieh deine Entwicklung und was du schon sicher kannst.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/lernstand.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Mein Lernstand</p>
+        <h2 class="page-hero__title">Mein Lernstand</h2>
+        <p class="page-hero__sub">Sieh deine Entwicklung und was du schon sicher kannst.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/lernstand-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/lernstand-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="levelplan-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- TAKTIK-DECK -->
   <div id="taktik-deck-section" class="card section logbuch-screen student-screen student-screen--pink" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/taktik-deck-hero.png" alt="">
-        <div>
-          <h2>Taktik-Deck</h2>
-          <p class="student-screen-sub">Deine Strategien für jede Lernherausforderung.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/taktik-deck.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Taktik-Deck</p>
+        <h2 class="page-hero__title">Taktik-Deck</h2>
+        <p class="page-hero__sub">Deine Strategien für jede Lernherausforderung.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/taktik-deck-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/taktik-deck-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="taktik-deck-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- CHECKPOINT-PLAN -->
   <div id="checkpoint-plan-section" class="card section logbuch-screen student-screen student-screen--teal" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/meine-checks-hero.png" alt="">
-        <div>
-          <h2>Meine Checks</h2>
-          <p class="student-screen-sub">Tests, Klassenarbeiten und wichtige Termine im Blick.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/meine-checks.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Meine Checks</p>
+        <h2 class="page-hero__title">Meine Checks</h2>
+        <p class="page-hero__sub">Tests, Klassenarbeiten und wichtige Termine im Blick.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/meine-checks-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/meine-checks-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="checkpoint-plan-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- PLANEN -->
   <div id="plan-section" class="card section logbuch-screen logbuch-phase-plan student-screen student-screen--orange" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/mein-tag-hero.png" alt="">
-        <div>
-          <h2>Planen</h2>
-          <p class="student-screen-sub">Lege dein Tagesziel für diese Stunde fest.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Planen</p>
+        <h2 class="page-hero__title">Tagesziel setzen</h2>
+        <p class="page-hero__sub">Lege dein Tagesziel für diese Stunde fest.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/mein-tag-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="plan-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- ZWISCHEN-CHECK -->
   <div id="check-section" class="card section logbuch-screen logbuch-phase-check student-screen student-screen--orange" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/mein-tag-hero.png" alt="">
-        <div>
-          <h2>Zwischen-Check</h2>
-          <p class="student-screen-sub">Wie läuft's gerade in deiner Stunde?</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Check</p>
+        <h2 class="page-hero__title">Zwischen-Check</h2>
+        <p class="page-hero__sub">Wie läuft's gerade in deiner Stunde?</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/mein-tag-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="check-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- TAGESABSCHLUSS -->
   <div id="reflect-section" class="card section logbuch-screen logbuch-phase-reflect student-screen student-screen--orange" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/mein-tag-hero.png" alt="">
-        <div>
-          <h2>Tagesabschluss</h2>
-          <p class="student-screen-sub">Reflektiere, was du gelernt hast.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Reflexion</p>
+        <h2 class="page-hero__title">Tagesabschluss</h2>
+        <p class="page-hero__sub">Reflektiere, was du gelernt hast.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/mein-tag-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="reflect-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- CHARAKTER -->
   <div id="charakter-section" class="card section student-screen student-screen--blue" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/charakter-hero.png" alt="">
-        <div>
-          <h2>Charakter</h2>
-          <p class="student-screen-sub">Passe deinen Charakter an und zeig deinen Style.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/charakter.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Charakter</p>
+        <h2 class="page-hero__title">Charakter</h2>
+        <p class="page-hero__sub">Passe deinen Charakter an und zeig deinen Style.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/charakter-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/charakter-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="charakter-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- MISSIONEN -->
   <div id="missionen-section" class="card section student-screen student-screen--violet" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/missionen-hero.png" alt="">
-        <div>
-          <h2>Missionen</h2>
-          <p class="student-screen-sub">Nimm Herausforderungen an und sammle XP.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/missionen.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Missionen</p>
+        <h2 class="page-hero__title">Missionen</h2>
+        <p class="page-hero__sub">Nimm Herausforderungen an und sammle XP.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/missionen-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/missionen-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="missionCarousel"></div>
   </div>
 
   <!-- BELOHNUNGEN -->
   <div id="belohnungen-section" class="card section student-screen student-screen--gold" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/belohnungen-hero.png" alt="">
-        <div>
-          <h2>Belohnungen</h2>
-          <p class="student-screen-sub">Schalte Extras frei und feiere Erfolge.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/belohnungen.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">Belohnungen</p>
+        <h2 class="page-hero__title">Belohnungen</h2>
+        <p class="page-hero__sub">Schalte Extras frei und feiere Erfolge.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/belohnungen-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/belohnungen-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div style="margin-bottom:16px;font-size:13px;opacity:0.85;display:none;"></div>
     <div id="rewardCarousel"></div>
@@ -5454,15 +5594,16 @@ h2 {
 
   <!-- XP HISTORIE -->
   <div id="xp-section" class="card section student-screen student-screen--magenta" style="display:none;">
-    <header class="student-screen-head">
-      <div class="student-screen-head-main">
-        <img class="student-screen-icon hub-png-art" src="/icons/student/hero/xp-historie-hero.png" alt="">
-        <div>
-          <h2>XP-Historie</h2>
-          <p class="student-screen-sub">Verfolge deine XP und Lernstatistiken.</p>
+    <header class="page-hero">
+      <div class="page-hero__content">
+        <div class="student-icon">
+          <img src="/icons/student/png/xp-historie.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
+        <p class="page-eyebrow">XP-Historie</p>
+        <h2 class="page-hero__title">XP-Historie</h2>
+        <p class="page-hero__sub">Verfolge deine XP und Lernstatistiken.</p>
       </div>
-      <img class="student-screen-hero" src="/icons/student/hero/xp-historie-hero.png" alt="">
+      <img class="page-hero__art" src="/icons/student/hero/xp-historie-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
     </header>
     <div id="xpLog"></div>
   </div>
@@ -5470,23 +5611,23 @@ h2 {
 
 <nav class="student-bottomnav" aria-label="Hauptnavigation">
   <button type="button" class="student-bottomnav-item" data-section="today">
-    <span class="student-bottomnav-icon">☀</span>
+    <span class="student-bottomnav-icon"><img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true" onerror="this.style.display='none'"></span>
     <span>Heute</span>
   </button>
   <button type="button" class="student-bottomnav-item" data-section="week">
-    <span class="student-bottomnav-icon">W</span>
+    <span class="student-bottomnav-icon"><img src="/icons/student/png/meine-woche.png" alt="" aria-hidden="true" onerror="this.style.display='none'"></span>
     <span>Woche</span>
   </button>
   <button type="button" class="student-bottomnav-item" data-section="zielsetzung">
-    <span class="student-bottomnav-icon">◎</span>
+    <span class="student-bottomnav-icon"><img src="/icons/student/png/zielsetzung.png" alt="" aria-hidden="true" onerror="this.style.display='none'"></span>
     <span>Ziele</span>
   </button>
   <button type="button" class="student-bottomnav-item" data-section="taktik-deck">
-    <span class="student-bottomnav-icon">⚡</span>
+    <span class="student-bottomnav-icon"><img src="/icons/student/png/taktik-deck.png" alt="" aria-hidden="true" onerror="this.style.display='none'"></span>
     <span>Taktiken</span>
   </button>
   <button type="button" class="student-bottomnav-item student-bottomnav-mehr">
-    <span class="student-bottomnav-icon">⋯</span>
+    <span class="student-bottomnav-icon student-bottomnav-icon-more">···</span>
     <span>Mehr</span>
   </button>
 </nav>
@@ -5525,10 +5666,10 @@ h2 {
 <script src="/js/logbuch-constants.js?v=6"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js"></script>
-<script src="/js/logbuch-visuals.js?v=2"></script>
+<script src="/js/logbuch-hub.js?v=13"></script>
+<script src="/js/logbuch-visuals.js?v=3"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-hub.js?v=12"></script>
 <script src="/js/logbuch-plan.js?v=13"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>
