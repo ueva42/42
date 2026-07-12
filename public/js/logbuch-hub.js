@@ -204,14 +204,14 @@
     const heroSrc = hero(tile.slug);
     return `
       <button type="button"
-        class="hub-tile app-card hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
+        class="hub-tile dashboard-card app-card hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
         data-hub-section="${ui.escapeHtml(tile.section)}">
         <span class="hub-tile-glow" aria-hidden="true"></span>
         <span class="hub-tile-shine" aria-hidden="true"></span>
-        <img class="hero-art hub-tile-hero" src="${heroSrc}" alt="" loading="lazy" decoding="async" aria-hidden="true" onerror="this.style.display='none'">
-        <div class="hub-tile-content card-content">
+        <img class="page-hero__image dashboard-card__hero" src="${heroSrc}" alt="" loading="lazy" decoding="async" aria-hidden="true" onerror="this.style.display='none'">
+        <div class="hub-tile-content dashboard-card__content card-content">
           ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
-          <div class="student-icon" aria-hidden="true">
+          <div class="student-section-icon" aria-hidden="true">
             <img src="${iconSrc}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">
           </div>
           <span class="hub-tile-title">${ui.escapeHtml(tile.title)}</span>

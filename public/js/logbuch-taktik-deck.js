@@ -113,19 +113,20 @@
     const strategies = STRATEGIES();
     const cats = categories(strategies);
     const visible = filteredStrategies(strategies);
-    const pct = strategies.length
-      ? Math.round((visible.length / strategies.length) * 100)
-      : 100;
+    const remembered = window.LogbuchStrategies?.rememberedPlanB() ? 1 : 0;
 
     const kpi = V?.pageKpi(
       [
         { value: strategies.length, label: "Strategien", accent: true },
         { value: cats.length, label: "Kategorien" },
-        { value: visible.length, label: "Sichtbar" }
+        { value: remembered, label: "Plan B gemerkt" }
       ],
-      pct,
-      String(strategies.length),
-      "Taktiken"
+      {
+        completed: visible.length,
+        total: strategies.length,
+        label: "Taktiken im Filter",
+        accent: "#ec4899"
+      }
     );
 
     const chipItems = [{ value: "all", label: "Alle" }].concat(

@@ -194,9 +194,7 @@
         { value: soon, label: "Demnächst" },
         { value: state.selectedSubject || "Alle", label: "Fach" }
       ],
-      total ? Math.round(((total - soon) / total) * 100) : 0,
-      String(soon),
-      "Anstehend"
+      { completed: soon, total: total || soon, label: "Anstehende Checks", accent: "#14b8a6" }
     );
 
     root.innerHTML = visuals?.pageShell(`

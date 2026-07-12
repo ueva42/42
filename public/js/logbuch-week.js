@@ -106,8 +106,6 @@
   function renderStats(stats, xp, rows) {
     const V = window.LogbuchVisuals;
     const total = stats.gesetzt || 0;
-    const done = (stats.erreicht || 0) + (stats.teilweise || 0);
-    const weekPct = total ? Math.round((done / total) * 100) : 0;
 
     const statHtml = V
       ? V.statCards([
@@ -126,12 +124,30 @@
       value: (rows || []).filter((r) => r.weekday === day).length
     }));
 
-    return V.progressPanel({
-      radial: V.radialProgress(weekPct, `${weekPct}%`, "Wochenfortschritt"),
-      stats: statHtml,
-      chartTitle: "Ziele pro Tag",
-      chart: V.miniBarChart(byDay)
-    });
+    const erreicht = stats.erreicht || 0;
+    const teilweise = stats.teilweise || 0;
+    const offen = stats.offen || 0;
+
+    return (
+      V.progressPanel({
+        radial: V.circularProgress({
+          completed: erreicht,
+          total,
+          label: "Wochenfortschritt",
+          sublabel: `${erreicht} von ${total || 0} Zielen erreicht`,
+          accent: "#a855f7",
+          size: 128
+        }),
+        stats: statHtml,
+        chartTitle: "Ziele pro Tag",
+        chart: V.miniBarChart(byDay)
+      }) +
+      `<div class="week-status-circles">
+        ${V.circularProgress({ completed: erreicht, total, label: "Erreicht", size: 92, accent: "#22c55e" })}
+        ${V.circularProgress({ completed: teilweise, total, label: "Teilweise", size: 92, accent: "#f59e0b" })}
+        ${V.circularProgress({ completed: offen, total, label: "Offen", size: 92, accent: "#64748b" })}
+      </div>`
+    );
   }
 
   function renderWeekNav(d) {
@@ -194,9 +210,9 @@
 
     if (!rows.length) {
       return `
-        <div class="student-card empty-state-card">
-          <img class="card-hero-art" src="/icons/student/hero/meine-woche-hero.png" alt="" aria-hidden="true">
-          <div class="card-content">
+        <div class="student-card empty-state-card dashboard-card">
+          <img class="page-hero__image dashboard-card__hero" src="/icons/student/hero/meine-woche-hero.png" alt="" aria-hidden="true">
+          <div class="card-content dashboard-card__content">
             <p class="empty-state-card__eyebrow">Keine Ziele</p>
             <h3 class="empty-state-card__title">Noch keine Ziele in dieser Woche.</h3>
             <p class="empty-state-card__text">Setze in „Mein Tag“ Tagesziele – sie erscheinen hier in deiner Wochenübersicht.</p>

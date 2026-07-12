@@ -10,16 +10,96 @@ window.LogbuchVisuals = {
     return window.LogbuchUI?.escapeHtml(str) ?? String(str ?? "");
   },
 
+  progressPct(completed, total) {
+    const t = Number(total) || 0;
+    const c = Number(completed) || 0;
+    return t > 0 ? Math.round((c / t) * 100) : 0;
+  },
+
+  circularProgress(opts = {}) {
+    const {
+      completed,
+      total,
+      label,
+      sublabel,
+      accent,
+      size,
+      emptyHint,
+      value
+    } = opts;
+
+    const t = total != null ? Number(total) : null;
+    const c = completed != null ? Number(completed) : null;
+    let pct;
+    let ratioText;
+    let ariaLabel;
+
+    if (value != null) {
+      pct = this.clamp(value, 0, 100);
+      ratioText = sublabel || "";
+      ariaLabel = label ? `${label}: ${pct} %` : `${pct} %`;
+    } else if (t != null) {
+      pct = this.progressPct(c, t);
+      ratioText = `${c ?? 0} / ${t}`;
+      ariaLabel =
+        t > 0
+          ? `${c ?? 0} von ${t} ${label || "erledigt"}`.trim()
+          : emptyHint || "Noch keine Aufgaben eingetragen.";
+    } else {
+      pct = 0;
+      ratioText = "0 / 0";
+      ariaLabel = emptyHint || "Noch keine Aufgaben eingetragen.";
+    }
+
+    const doneAll = t != null && t > 0 && (c ?? 0) >= t;
+    let hintText = "";
+    if (t === 0) {
+      hintText = emptyHint || "Noch keine Aufgaben eingetragen.";
+    } else if (sublabel) {
+      hintText = sublabel;
+    } else if (doneAll) {
+      hintText = "Alles geschafft!";
+    } else if (label) {
+      hintText = `${c ?? 0} von ${t} ${label}`.trim();
+    }
+
+    const sizeStyle = size ? `--cp-size:${size}px;` : "";
+    const accentColor = accent || "var(--accent, #22d3ee)";
+
+    return `
+      <div class="circular-progress-wrap">
+        <div
+          class="circular-progress"
+          style="--progress:${pct}; --accent:${accentColor}; ${sizeStyle}"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="${pct}"
+          aria-label="${this.escape(ariaLabel)}"
+        >
+          <div class="circular-progress__inner">
+            <strong>${this.escape(`${pct} %`)}</strong>
+            ${ratioText ? `<span>${this.escape(ratioText)}</span>` : ""}
+          </div>
+        </div>
+        ${label ? `<p class="circular-progress__label">${this.escape(label)}</p>` : ""}
+        ${hintText ? `<p class="circular-progress__hint">${this.escape(hintText)}</p>` : ""}
+      </div>`;
+  },
+
+  /** @deprecated Use circularProgress */
   radialProgress(percent, valueText, labelText, opts = {}) {
     const pct = this.clamp(percent, 0, 100);
-    const size = opts.size || 112;
-    const inner = Math.round(size * 0.7);
-    return `
-      <div class="radial-progress-wrap" style="--progress:${pct}; --rp-size:${size}px; --rp-inner:${inner}px;">
-        <div class="radial-progress" aria-hidden="true"></div>
-        <div class="radial-progress__value">${this.escape(valueText)}</div>
-        ${labelText ? `<div class="radial-progress__label">${this.escape(labelText)}</div>` : ""}
-      </div>`;
+    const parts = String(valueText || "").split("/");
+    const completed = parts.length === 2 ? Number(parts[0]) : pct;
+    const total = parts.length === 2 ? Number(parts[1]) : 100;
+    return this.circularProgress({
+      completed,
+      total,
+      label: labelText,
+      value: parts.length === 1 ? pct : undefined,
+      size: opts.size
+    });
   },
 
   xpBar(percent, extraClass = "") {
@@ -123,12 +203,12 @@ window.LogbuchVisuals = {
       </div>`;
   },
 
-  /** KPI-Zeile wie Mein Tag / Meine Woche */
-  pageKpi(cards, radialPct, radialCenter, radialLabel, chart, chartTitle) {
+  /** KPI-Zeile mit Kreis-Fortschritt: progress = { completed, total, label, accent, emptyHint, value, sublabel } */
+  pageKpi(cards, progress, chart, chartTitle) {
     const stats = this.statCards(cards);
-    if (radialPct == null) return stats;
+    if (!progress) return stats;
     return this.progressPanel({
-      radial: this.radialProgress(radialPct, radialCenter, radialLabel),
+      radial: this.circularProgress(progress),
       stats,
       chart,
       chartTitle
@@ -161,9 +241,9 @@ window.LogbuchVisuals = {
 
   emptyState({ eyebrow, title, text, hint, heroSrc }) {
     return `
-      <div class="student-card empty-state-card">
-        ${heroSrc ? `<img class="hero-art card-hero-art" src="${this.escape(heroSrc)}" alt="" aria-hidden="true" onerror="this.style.display='none'">` : ""}
-        <div class="card-content">
+      <div class="student-card empty-state-card dashboard-card">
+        ${heroSrc ? `<img class="page-hero__image dashboard-card__hero" src="${this.escape(heroSrc)}" alt="" aria-hidden="true" onerror="this.style.display='none'">` : ""}
+        <div class="card-content dashboard-card__content">
           ${eyebrow ? `<p class="empty-state-card__eyebrow">${this.escape(eyebrow)}</p>` : ""}
           <h3 class="empty-state-card__title">${this.escape(title)}</h3>
           <p class="empty-state-card__text">${this.escape(text)}</p>
@@ -202,7 +282,12 @@ window.LogbuchVisuals = {
     const todayXp = weekData[weekData.length - 1]?.value || 0;
 
     const panel = V.progressPanel({
-      radial: V.radialProgress(profile?.xpPct ?? 0, `${profile?.xpPct ?? 0}%`, "Level"),
+      radial: V.circularProgress({
+        value: profile?.xpPct ?? 0,
+        label: "Level-Fortschritt",
+        sublabel: profile?.xpProgressLabel || "",
+        accent: "var(--accent, #a855f7)"
+      }),
       stats: V.statCards([
         { value: total.toLocaleString("de-DE"), label: "XP gesamt", accent: true },
         { value: weekXp, label: "XP diese Woche" },
@@ -212,14 +297,6 @@ window.LogbuchVisuals = {
       chartTitle: "XP der letzten 7 Tage",
       chart: V.miniBarChart(weekData)
     });
-
-    const xpBarBlock = `
-      <div class="student-card">
-        <div class="card-content">
-          ${V.xpBar(profile?.xpPct ?? 0)}
-          <p class="today-xp-bar__meta"><span>${V.escape(profile?.xpProgressLabel || "")}</span><span>${V.escape(profile?.nextLevelLabel || "")}</span></p>
-        </div>
-      </div>`;
 
     const activities =
       log.length > 0
@@ -240,7 +317,6 @@ window.LogbuchVisuals = {
 
     container.innerHTML = this.pageShell(`
         ${panel}
-        ${xpBarBlock}
         ${this.sectionBlock("Letzte Aktivitäten", `<div class="goal-card-grid">${activities}</div>`)}
       `);
   },
@@ -249,33 +325,44 @@ window.LogbuchVisuals = {
     if (!container) return;
     const V = this;
     if (!items?.length) {
-      container.innerHTML = this.pageShell(this.emptyState({
-        title: "Keine Missionen verfügbar.",
-        text: "Deine Lehrkraft kann Missionen im Admin-Bereich anlegen."
-      }));
+      container.innerHTML = this.pageShell(
+        this.emptyState({
+          title: "Keine Missionen verfügbar.",
+          text: "Deine Lehrkraft kann Missionen im Admin-Bereich anlegen.",
+          heroSrc: "/icons/student/hero/missionen-hero.png"
+        })
+      );
       return;
     }
 
     const earned = items.reduce((a, m) => a + Number(xpPerMission?.[m.id] || 0), 0);
     const totalXp = items.reduce((a, m) => a + Number(m.xp || 0), 0);
     const done = items.filter((m) => Number(xpPerMission?.[m.id] || 0) >= Number(m.xp || 0)).length;
-    const pct = items.length ? Math.round((done / items.length) * 100) : 0;
 
     const cards = items
       .map((item) => {
         const got = Number(xpPerMission?.[item.id] || 0);
         const goal = Math.max(1, Number(item.xp || 0));
-        const prog = Math.min(100, Math.round((got / goal) * 100));
         const doneMission = got >= goal;
+        const stepsDone = doneMission ? goal : got;
         return `
           <article class="student-card goal-card ${doneMission ? "goal-card--ok" : "goal-card--open"}">
             <div class="card-content">
               ${item.image_url ? `<img class="mission-card__img" src="${V.escape(item.image_url)}" alt="">` : ""}
               <p class="goal-card__subject">${V.escape(item.name)}</p>
-              <p class="goal-card__what">${goal} XP · ${got} erhalten</p>
-              ${V.xpBar(prog)}
+              <p class="goal-card__what">${goal} XP Belohnung</p>
+              <div class="goal-card__progress">
+                ${V.circularProgress({
+                  completed: stepsDone,
+                  total: goal,
+                  label: "Mission",
+                  size: 88,
+                  accent: doneMission ? "#22c55e" : "var(--accent, #a855f7)"
+                })}
+              </div>
               <div class="goal-card__meta">
                 <span class="status-badge ${doneMission ? "status-badge--ok" : "status-badge--open"}">${doneMission ? "Abgeschlossen" : "Aktiv"}</span>
+                <span>${got} / ${goal} XP</span>
               </div>
               ${
                 item.require_upload
@@ -300,9 +387,7 @@ window.LogbuchVisuals = {
             { value: earned, label: "XP erhalten" },
             { value: totalXp, label: "XP möglich" }
           ],
-          pct,
-          `${done}/${items.length}`,
-          "Fortschritt"
+          { completed: done, total: items.length, label: "Missionen erledigt" }
         )}
         ${V.sectionBlock("Deine Missionen", `<div class="goal-card-grid">${cards}</div>`)}
       `);
@@ -312,29 +397,40 @@ window.LogbuchVisuals = {
     if (!container) return;
     const V = this;
     if (!items?.length) {
-      container.innerHTML = this.pageShell(this.emptyState({
-        title: "Keine Belohnungen verfügbar.",
-        text: "Belohnungen werden von deiner Lehrkraft freigeschaltet."
-      }));
+      container.innerHTML = this.pageShell(
+        this.emptyState({
+          title: "Keine Belohnungen verfügbar.",
+          text: "Belohnungen werden von deiner Lehrkraft freigeschaltet.",
+          heroSrc: "/icons/student/hero/belohnungen-hero.png"
+        })
+      );
       return;
     }
 
     const xp = Number(userXp || 0);
     const affordable = items.filter((r) => xp >= Number(r.xp || 0)).length;
-    const pct = items.length ? Math.round((affordable / items.length) * 100) : 0;
 
     const cards = items
       .map((item) => {
         const cost = Number(item.xp || 0);
         const can = xp >= cost;
-        const prog = cost ? Math.min(100, Math.round((xp / cost) * 100)) : 100;
+        const progXp = can ? cost : Math.min(xp, cost);
         return `
           <article class="student-card goal-card ${can ? "goal-card--ok" : "goal-card--open"}">
             <div class="card-content">
               ${item.image_url ? `<img class="reward-card__img" src="${V.escape(item.image_url)}" alt="">` : ""}
               <p class="goal-card__subject">${V.escape(item.name)}</p>
               <p class="goal-card__what">${cost} XP</p>
-              ${V.xpBar(prog)}
+              <div class="goal-card__progress">
+                ${V.circularProgress({
+                  completed: can ? cost : progXp,
+                  total: cost || 1,
+                  label: can ? "Freigeschaltet" : "XP gesammelt",
+                  size: 88,
+                  accent: can ? "#22c55e" : "#f59e0b",
+                  emptyHint: "Noch keine XP für diese Belohnung."
+                })}
+              </div>
               <div class="lesson-card__actions">
                 <button class="btn-primary" type="button" onclick="redeemReward(${item.id})" ${can ? "" : "disabled"}>${can ? "Einlösen →" : "Noch nicht genug XP"}</button>
               </div>
@@ -350,9 +446,7 @@ window.LogbuchVisuals = {
             { value: items.length, label: "Belohnungen" },
             { value: affordable, label: "Einlösbar" }
           ],
-          pct,
-          `${affordable}/${items.length}`,
-          "Freischaltbar"
+          { completed: affordable, total: items.length, label: "Belohnungen freischaltbar" }
         )}
         ${V.sectionBlock("Bonuskarten", `<div class="goal-card-grid">${cards}</div>`)}
       `);
@@ -374,9 +468,12 @@ window.LogbuchVisuals = {
           { value: (data.traits || []).length, label: "Eigenschaften" },
           { value: (data.items || []).length, label: "Items" }
         ],
-        profile?.xpPct ?? 0,
-        `${profile?.xpPct ?? 0}%`,
-        "Level"
+        {
+          value: profile?.xpPct ?? 0,
+          label: "Level-Fortschritt",
+          sublabel: profile?.xpProgressLabel || "",
+          accent: "var(--accent, #3b82f6)"
+        }
       )}
       <div class="character-app-grid">
         <div class="student-card character-profile-card">

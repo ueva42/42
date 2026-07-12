@@ -262,34 +262,162 @@
       </div>`;
   }
 
-  function renderTierBar(tier, totalGoals) {
+  function topicTaskProgress(topic) {
+    const tiers = (topic.tiers || []).filter((t) => t.recommended != null);
+    if (!tiers.length) {
+      return { completed: 0, total: topic.totalGoals || 0 };
+    }
+    const total = tiers.reduce((a, t) => a + t.recommended, 0);
+    const completed = tiers.reduce((a, t) => a + Math.min(t.current ?? 0, t.recommended), 0);
+    return { completed, total };
+  }
+
+  function reflectionProgress(topic) {
+    if (!topic.achievedGrade) return { completed: 0, total: 3 };
+    const fields = [topic.grow, topic.glow, topic.nextGoal].filter((v) => String(v ?? "").trim());
+    return { completed: fields.length, total: 3 };
+  }
+
+  function markingProgress(topic) {
+    const total = topic.totalGoals || 0;
+    const completed = Math.max(0, total - (topic.unmarked || 0));
+    return { completed, total };
+  }
+
+  function renderTierCircle(tier, totalGoals) {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
     const current = tier.current ?? 0;
     const recommended = tier.recommended;
     const hasTarget = recommended != null && totalGoals > 0;
-    const pct = totalGoals ? Math.min(100, Math.round((current / totalGoals) * 100)) : 0;
-    const recPct =
-      hasTarget ? Math.min(100, Math.round((recommended / totalGoals) * 100)) : null;
-    const statusClass = hasTarget
-      ? tier.onTrack
-        ? "zs-tier-ontrack"
-        : "zs-tier-behind"
-      : "zs-tier-info";
+    const total = hasTarget ? recommended : totalGoals;
+    const accents = { Rookie: "#22d3ee", Operator: "#a855f7", "Street Legend": "#f59e0b" };
 
-    const countLabel = hasTarget
-      ? `${current} / ${recommended} von ${totalGoals}${tier.remaining > 0 ? ` · noch ${tier.remaining}` : " · ✓"}`
-      : `${current} von ${totalGoals}`;
+    return V.circularProgress({
+      completed: current,
+      total,
+      label: tier.label,
+      size: 96,
+      accent: accents[tier.label] || (tier.onTrack ? "#22c55e" : "#f97316"),
+      sublabel: hasTarget
+        ? tier.remaining > 0
+          ? `noch ${tier.remaining} offen`
+          : "Ziel erreicht"
+        : `${current} markiert`
+    });
+  }
+
+  function renderSubProgressCircles(topic) {
+    const V = window.LogbuchVisuals;
+    if (!V || !topic.targetGrade) return "";
+
+    const tasks = topicTaskProgress(topic);
+    const marks = markingProgress(topic);
+    const refl = reflectionProgress(topic);
+
+    const circles = [
+      { ...tasks, label: "Aufgaben", accent: "#22d3ee" },
+      { ...marks, label: "Markierungen", accent: "#a855f7" }
+    ];
+
+    if (topic.achievedGrade) {
+      circles.push({ ...refl, label: "Reflexion", accent: "#f59e0b" });
+    }
 
     return `
-      <div class="zs-tier-row ${statusClass}">
-        <div class="zs-tier-head">
-          <span class="zs-tier-label">${escapeHtml(tier.label)}</span>
-          <span class="zs-tier-count">${countLabel}</span>
-        </div>
-        <div class="zs-tier-bar">
-          <div class="zs-tier-fill" style="width:${pct}%"></div>
-          ${recPct != null ? `<div class="zs-tier-marker" style="left:${recPct}%"></div>` : ""}
+      <div class="zs-sub-progress">
+        ${circles
+          .map((c) =>
+            V.circularProgress({
+              completed: c.completed,
+              total: c.total,
+              label: c.label,
+              size: 92,
+              accent: c.accent,
+              emptyHint: "Noch keine Daten."
+            })
+          )
+          .join("")}
+      </div>`;
+  }
+
+  function renderWhatsMissing(topic) {
+    if (!topic.targetGrade) return "";
+
+    const openItems = (topic.workItems || []).filter((i) => i.status !== "sicher");
+    const openTasks = openItems.length;
+    const prog = topicTaskProgress(topic);
+    const openSteps = Math.max(0, prog.total - prog.completed);
+
+    const lines = [];
+    if (openTasks > 0) {
+      lines.push(`${openTasks} Aufgabe${openTasks === 1 ? "" : "n"} noch offen`);
+    } else if (openSteps > 0) {
+      lines.push(`Noch ${openSteps} Lernschritt${openSteps === 1 ? "" : "e"} bis zur Zielnote`);
+    }
+    if (topic.unmarked > 0) {
+      lines.push(`${topic.unmarked} Unterthema${topic.unmarked === 1 ? "" : "n"} ohne Markierung im Lernstand`);
+    }
+    if (topic.summary && !topic.onTrack) {
+      lines.push(topic.summary);
+    }
+
+    if (!lines.length) {
+      return `<div class="zs-missing zs-missing-ok"><h5 class="zs-feedback-title">Was fehlt noch?</h5><p class="goal-card__what">Du bist on track – weiter so!</p></div>`;
+    }
+
+    const nextItem = openItems[0];
+    const nextHint = nextItem
+      ? `Nächster Schritt: ${nextItem.tierLabel} – ${nextItem.taskText}`
+      : "Markiere deinen Fortschritt im Mein Lernstand.";
+
+    return `
+      <div class="zs-missing">
+        <h5 class="zs-feedback-title">Was fehlt noch?</h5>
+        <ul class="zs-missing-list">
+          ${lines.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}
+        </ul>
+        <p class="goal-card__what zs-missing-next">${escapeHtml(nextHint)}</p>
+        <div class="lesson-card__actions">
+          <button type="button" class="btn-primary" data-zs-goto-levelplan>Mein Lernstand öffnen →</button>
         </div>
       </div>`;
+  }
+
+  function renderMainGoalCard(topic) {
+    const V = window.LogbuchVisuals;
+    if (!topic.targetGrade || !V) return "";
+
+    const prog = topicTaskProgress(topic);
+    const openCount = Math.max(0, prog.total - prog.completed);
+    const datePart = topic.checkpointDateLabel
+      ? `Nächster Check: ${topic.checkpointDateLabel}`
+      : "";
+    const typePart = topic.checkpointTypeLabel ? `${topic.checkpointTypeLabel} · ` : "";
+
+    return `
+      <div class="student-card zs-main-goal-card">
+        <div class="card-content zs-main-goal-grid">
+          <div class="zs-main-goal-copy">
+            <p class="goal-card__subject">${escapeHtml(topic.name)}</p>
+            <p class="goal-card__what">${typePart}${escapeHtml(topic.targetGradeLabel || topic.targetGrade)} als Zielnote</p>
+            ${datePart ? `<p class="goal-card__what">${escapeHtml(datePart)}</p>` : ""}
+            <p class="zs-goal-statement"><strong>Mein Ziel:</strong> Sicher ${escapeHtml(topic.targetGradeLabel || topic.targetGrade)} in ${escapeHtml(topic.name)}.</p>
+            ${openCount > 0 ? `<p class="goal-card__what zs-open-count">Noch offen: ${openCount} Aufgabe${openCount === 1 ? "" : "n"}</p>` : `<p class="goal-card__what zs-open-count">Alles geschafft!</p>`}
+          </div>
+          ${V.circularProgress({
+            completed: prog.completed,
+            total: prog.total,
+            label: "Gesamtfortschritt",
+            size: 128,
+            accent: topic.onTrack ? "#22c55e" : "#f97316"
+          })}
+        </div>
+      </div>`;
+  }
+
+  function renderTierBar(tier, totalGoals) {
+    return renderTierCircle(tier, totalGoals);
   }
 
   function renderTargetSummary(topic) {
@@ -331,6 +459,7 @@
 
     return `
       <div class="zs-work-list">
+        <h5 class="zs-feedback-title">Aufgaben zum Ziel</h5>
         ${LEVEL_CHECK_TIER_ORDER.filter((tier) => byTier[tier])
           .map((tier) => {
             const group = byTier[tier];
@@ -341,12 +470,16 @@
                   ${group.items
                     .map(
                       (item) => `
-                    <article class="student-card goal-card goal-card--open">
+                    <article class="student-card goal-card goal-card--${item.status === "sicher" ? "ok" : item.status === "in_arbeit" ? "part" : "open"}">
                       <div class="card-content">
                         <p class="goal-card__subject">${escapeHtml(item.goalText)}</p>
                         <p class="goal-card__what">${escapeHtml(item.taskText)}</p>
                         <div class="goal-card__meta">
                           <span class="status-badge ${statusBadgeForGoal(item.status)}">${escapeHtml(statusLabelForGoal(item.status))}</span>
+                          <span class="status-badge status-badge--open">${escapeHtml(item.tierLabel)}</span>
+                        </div>
+                        <div class="lesson-card__actions">
+                          <button type="button" class="btn-primary" data-zs-goto-levelplan>Aufgabe öffnen →</button>
                         </div>
                       </div>
                     </article>`
@@ -424,28 +557,33 @@
     return `
       <article class="student-card goal-card ${topic.targetGrade ? "goal-card--open" : ""}" data-topic-id="${escapeHtml(topic.id)}">
         <div class="card-content">
-          <p class="goal-card__subject">${escapeHtml(topic.name)}</p>
-          <p class="goal-card__what">${topic.totalGoals} Unterthemen</p>
-          <div class="zs-grade-row">
-            ${renderGradeSelect(topic.id, "target", targetSelected, saving)}
-            ${renderGradeSelect(topic.id, "achieved", achievedSelected, saving)}
-          </div>
+          ${
+            topic.targetGrade
+              ? `${renderMainGoalCard(topic)}
+                 <div class="zs-tier-circles">${(topic.tiers || []).map((tier) => renderTierBar(tier, topic.totalGoals)).join("")}</div>
+                 ${renderSubProgressCircles(topic)}
+                 ${renderTargetSummary(topic)}
+                 ${renderWorkItems(topic)}
+                 ${renderWhatsMissing(topic)}`
+              : `<p class="goal-card__subject">${escapeHtml(topic.name)}</p>
+                 <p class="goal-card__what">${topic.totalGoals} Unterthemen</p>
+                 <div class="zs-grade-row">
+                   ${renderGradeSelect(topic.id, "target", targetSelected, saving)}
+                   ${renderGradeSelect(topic.id, "achieved", achievedSelected, saving)}
+                 </div>
+                 <p class="goal-card__what">Wähle deine Zielnote – dann siehst du, welche Aufgaben du auf Rookie-, Operator- und Street-Legend-Level bearbeiten solltest.</p>`
+          }
 
           ${
             topic.targetGrade
-              ? `<div class="zs-tiers">${(topic.tiers || []).map((tier) => renderTierBar(tier, topic.totalGoals)).join("")}</div>
-                 ${renderTargetSummary(topic)}
-                 ${renderWorkItems(topic)}`
-              : `<p class="goal-card__what">Wähle deine Zielnote – dann siehst du, welche Aufgaben du auf Rookie-, Operator- und Street-Legend-Level bearbeiten solltest.</p>`
+              ? `<div class="zs-grade-row zs-grade-row-compact">
+                   ${renderGradeSelect(topic.id, "target", targetSelected, saving)}
+                   ${renderGradeSelect(topic.id, "achieved", achievedSelected, saving)}
+                 </div>`
+              : ""
           }
 
           ${renderFeedbackSection(topic)}
-
-          ${
-            topic.unmarked
-              ? `<p class="goal-card__what">${topic.unmarked} Unterthema${topic.unmarked === 1 ? "" : "n"} noch ohne Markierung im Levelplan</p>`
-              : ""
-          }
         </div>
       </article>`;
   }
@@ -487,7 +625,6 @@
       }
     }
 
-    const pct = topics ? Math.round((withTarget / topics) * 100) : 0;
 
     return V.pageKpi(
       [
@@ -496,9 +633,7 @@
         { value: onTrack, label: "On Track" },
         { value: state.selectedSubject || "–", label: "Fach" }
       ],
-      pct,
-      `${withTarget}/${topics}`,
-      "Ziele gesetzt"
+      { completed: withTarget, total: topics, label: "Ziele gesetzt", accent: "#22d3ee" }
     );
   }
 
@@ -656,6 +791,12 @@
       input.addEventListener("blur", () => {
         if (input.disabled || input.classList.contains("zs-feedback-custom-hidden")) return;
         saveField(input.dataset.topicId, mapFeedbackField(input.dataset.field), input.value.trim());
+      });
+    });
+
+    root.querySelectorAll("[data-zs-goto-levelplan]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        window.StudentRouter?.navigateToSection("levelplan");
       });
     });
   }

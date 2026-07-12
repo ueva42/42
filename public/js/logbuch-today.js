@@ -271,7 +271,6 @@
     const checked = blockList.filter((b) => b.entry?.hasCheck).length;
     const reflected = blockList.filter((b) => b.entry?.hasReflection).length;
     const p = window.__studentProfile || {};
-    const dayPct = total ? Math.round((reflected / total) * 100) : 0;
 
     const stats = V
       ? V.statCards([
@@ -284,11 +283,43 @@
 
     if (!V) return stats;
 
+    const checkOpen = total - checked;
+    const reflectOpen = total - reflected;
+
     return `
       ${V.progressPanel({
-        radial: V.radialProgress(dayPct, `${dayPct}%`, "Tagesfortschritt"),
+        radial: V.circularProgress({
+          completed: reflected,
+          total,
+          label: "Tagesfortschritt",
+          sublabel: `${reflected} von ${total || 0} Aufgaben`,
+          accent: "#f97316"
+        }),
         stats
-      })}`;
+      })}
+      <div class="today-status-circles">
+        ${V.circularProgress({
+          completed: planned,
+          total,
+          label: "Ziele gesetzt",
+          size: 92,
+          accent: "#22d3ee"
+        })}
+        ${V.circularProgress({
+          completed: checked,
+          total,
+          label: "Zwischen-Check",
+          size: 92,
+          accent: checkOpen > 0 ? "#f59e0b" : "#22c55e"
+        })}
+        ${V.circularProgress({
+          completed: reflected,
+          total,
+          label: "Tagesabschluss",
+          size: 92,
+          accent: reflectOpen > 0 ? "#a855f7" : "#22c55e"
+        })}
+      </div>`;
   }
 
   function renderEmptyState(d, editable) {
@@ -305,9 +336,9 @@
     }
 
     return `
-      <div class="student-card empty-state-card">
-        <img class="card-hero-art" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true">
-        <div class="card-content">
+      <div class="student-card empty-state-card dashboard-card">
+        <img class="page-hero__image dashboard-card__hero" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true">
+        <div class="card-content dashboard-card__content">
           <p class="empty-state-card__eyebrow">Keine Stunden</p>
           <h3 class="empty-state-card__title">Heute ist noch nichts eingetragen.</h3>
           <p class="empty-state-card__text">

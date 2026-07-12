@@ -145,6 +145,41 @@
     return { total, sicher, inArbeit, pct: total ? Math.round((sicher / total) * 100) : 0 };
   }
 
+  function computeTierProgressForThema(thema) {
+    return TIER_META.map((tier) => {
+      let total = 0;
+      let sicher = 0;
+      for (const goal of thema?.goals || []) {
+        total++;
+        if (tierStatus(goal, tier.id) === "sicher") sicher++;
+      }
+      return { tier: tier.id, label: tier.label, completed: sicher, total };
+    });
+  }
+
+  function renderTierProgressPanel(thema) {
+    const visuals = V();
+    if (!thema?.goals?.length || !visuals) return "";
+    const tiers = computeTierProgressForThema(thema);
+    const accents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f59e0b" };
+    return `
+      <div class="student-card">
+        <div class="card-content lp-tier-circles">
+          ${tiers
+            .map((t) =>
+              visuals.circularProgress({
+                completed: t.completed,
+                total: t.total,
+                label: t.label,
+                size: 100,
+                accent: accents[t.tier] || "var(--accent, #22d3ee)"
+              })
+            )
+            .join("")}
+        </div>
+      </div>`;
+  }
+
   function renderSubtopicCard(goal) {
     const tiers = TIER_META.map((tier) => {
       const key = `${goal.id}_${tier.id}`;
@@ -221,7 +256,7 @@
       body = `<div class="goal-card-grid">${thema.goals.map(renderSubtopicCard).join("")}</div>`;
     }
 
-    return `${subjectChips || ""}${themaChips || ""}${visuals?.sectionBlock("Deine Unterthemen", body) || body}`;
+    return `${subjectChips || ""}${themaChips || ""}${thema ? renderTierProgressPanel(thema) : ""}${visuals?.sectionBlock("Deine Unterthemen", body) || body}`;
   }
 
   function render() {
@@ -238,7 +273,7 @@
       return;
     }
 
-    const { total, sicher, inArbeit, pct } = computeProgress();
+    const { total, sicher, inArbeit } = computeProgress();
     const kpi = visuals?.pageKpi(
       [
         { value: sicher, label: "Sicher", accent: true },
@@ -246,9 +281,7 @@
         { value: Math.max(0, total - sicher - inArbeit), label: "Offen" },
         { value: total, label: "Level gesamt" }
       ],
-      pct,
-      `${pct}%`,
-      "Fortschritt"
+      { completed: sicher, total, label: "Kompetenzen sicher", accent: "#22c55e" }
     );
 
     root.innerHTML = visuals?.pageShell(`
