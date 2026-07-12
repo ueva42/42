@@ -295,8 +295,7 @@
       ? V.circularProgress({
           value: xpPct,
           label: p.levelName || "Level",
-          sublabel: p.xpProgressLabel || "",
-          size: 112,
+          size: 88,
           accent: "#d946ef"
         })
       : "";
@@ -306,13 +305,9 @@
         <img class="page-hero__image dashboard-card__hero hub-xp-panel__hero" src="${hero("xp-historie")}" alt="" aria-hidden="true">
         <div class="hub-xp-panel__content dashboard-card__content">
           <p class="hub-xp-panel-label">XP-Fortschritt</p>
-          <div class="hub-xp-panel-body">
+          <div class="hub-xp-panel-body hub-xp-panel-body--compact">
             ${levelCircle}
             <div class="hub-xp-panel-copy">
-              <p class="hub-xp-value">
-                <span id="hubXpCurrent">${Number(p.xp || 0).toLocaleString("de-DE")}</span>
-                <span class="hub-xp-value-sub"> XP gesamt</span>
-              </p>
               <p class="hub-xp-meta" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</p>
               <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
             </div>
@@ -337,18 +332,19 @@
           <div class="hub-hero-card hub-hero-greeting dashboard-card hub-accent-orange">
             <img class="page-hero__image dashboard-card__hero" src="${hero("mein-tag")}" alt="" aria-hidden="true">
             <div class="hub-hero-card-inner dashboard-card__content">
-              <div class="student-section-icon" aria-hidden="true">
+              <div class="student-section-icon hub-hero-card__icon" aria-hidden="true">
                 <img src="${icon("mein-tag")}" alt="" aria-hidden="true">
               </div>
-              <h1 class="hub-hero-greeting-title" id="hubGreetingTitle">Hey ${ui.escapeHtml(firstName)}!</h1>
-              <p class="hub-hero-sub">
+              <p class="page-eyebrow">Dein Hub</p>
+              <h2 class="page-hero__title hub-hero-greeting-title" id="hubGreetingTitle">Hey ${ui.escapeHtml(firstName)}!</h2>
+              <p class="page-hero__sub hub-hero-sub">
                 Bereit, heute etwas zu lernen und XP zu sammeln?
               </p>
               <div class="hub-hero-actions">
-                <button type="button" class="hub-btn-primary" id="hubNextBtn" data-hub-action="next">
-                  ${ui.escapeHtml(step.label === "Heute starten" || step.label === "Mein Tag ansehen" ? "Heute starten" : step.label)} →
+                <button type="button" class="hub-hero-btn hub-hero-btn--primary" id="hubNextBtn" data-hub-action="next">
+                  ${ui.escapeHtml(step.label === "Heute starten" || step.label === "Mein Tag ansehen" ? "Heute starten" : step.label)} <span aria-hidden="true">→</span>
                 </button>
-                <button type="button" class="hub-btn-ghost" id="hubBriefingBtn">
+                <button type="button" class="hub-hero-btn hub-hero-btn--secondary" id="hubBriefingBtn">
                   Start-Briefing ansehen
                 </button>
               </div>
@@ -421,7 +417,6 @@
     set("topbarXp", String(p.xp ?? "–"));
     set("topbarLevel", p.levelName || "–");
     set("hubHeroNext", p.nextLevelLabel || "–");
-    set("hubXpCurrent", Number(p.xp || 0).toLocaleString("de-DE"));
     set("hubXpMeta", p.xpProgressLabel || "–");
 
     const stats = todayStats(state.blocks);

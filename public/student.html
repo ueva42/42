@@ -673,32 +673,31 @@ body.student-app .notif-panel {
 }
 
 .hub-hero-card-inner {
-  padding: 28px 32px;
+  padding: 24px 28px;
   max-width: 58%;
 }
 
-.hub-hero-card-bg {
-  display: none;
-}
-
-.hub-hero-kicker {
-  margin: 0 0 10px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: #fb923c;
-  text-shadow: 0 0 18px rgba(249, 115, 22, 0.35);
+.hub-hero-card__icon {
+  width: 56px;
+  height: 56px;
+  flex-basis: 56px;
+  margin-bottom: 10px;
 }
 
 .hub-hero-greeting-title {
   margin: 0;
-  font-family: "Bangers", system-ui;
-  font-size: clamp(2rem, 4vw, 3rem);
-  line-height: 1.05;
-  letter-spacing: 0.02em;
-  color: #fff;
-  text-shadow: 0 0 24px rgba(168, 85, 247, 0.25);
+  font-family: "Orbitron", system-ui;
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  line-height: 1.25;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #f1f5f9;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
+}
+
+.hub-hero-card .page-eyebrow {
+  margin-bottom: 6px;
+  color: color-mix(in srgb, #fb923c 75%, #e2e8f0);
 }
 
 .hub-xp-panel {
@@ -709,26 +708,62 @@ body.student-app .notif-panel {
   border: 1px solid rgba(167, 139, 250, 0.28);
   background: linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
   padding: 0;
-  min-height: 220px;
+  min-height: 180px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 0 32px rgba(124, 58, 237, 0.1);
 }
 
+.hub-xp-panel__hero {
+  width: 42%;
+  opacity: 0.5;
+}
+
 .hub-xp-panel__content {
-  padding: 22px 24px;
-  max-width: 100%;
+  padding: 18px 20px;
+  max-width: 72%;
 }
 
 .hub-xp-panel-body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
+}
+
+.hub-xp-panel-body--compact {
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.hub-xp-panel-body--compact .circular-progress-wrap {
+  transform: scale(0.92);
+  transform-origin: top left;
+}
+
+.hub-xp-panel-body--compact .circular-progress__inner strong {
+  font-size: 1.05rem;
+}
+
+.hub-xp-panel-body--compact .circular-progress__label,
+.hub-xp-panel-body--compact .circular-progress__hint {
+  font-size: 9px;
+}
+
+.hub-xp-panel-copy {
+  padding-top: 4px;
 }
 
 .hub-xp-meta {
+  margin: 0;
+  font-size: 13px;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.hub-xp-next {
   margin: 6px 0 0;
-  font-size: 14px;
-  color: #e2e8f0;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
 }
 
 .hub-xp-panel-label {
@@ -807,13 +842,17 @@ body.student-app .notif-panel {
   white-space: nowrap;
 }
 
+.hub-hero-card-bg {
+  display: none;
+}
+
 .hub-hero-sub {
-  margin: 16px 0 0;
-  max-width: 640px;
-  font-size: 17px;
-  line-height: 1.55;
-  color: #f1f5f9;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
+  margin: 8px 0 0;
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #94a3b8;
+  text-shadow: none;
 }
 
 .hub-hero-hint {
@@ -825,15 +864,51 @@ body.student-app .notif-panel {
 
 .hub-hero-actions {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 28px;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.hub-hero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.hub-hero-btn--primary {
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  background: rgba(249, 115, 22, 0.14);
+  color: #fed7aa;
+  box-shadow: 0 0 18px rgba(249, 115, 22, 0.12);
+}
+
+.hub-hero-btn--primary:hover {
+  background: rgba(249, 115, 22, 0.22);
+  border-color: rgba(251, 146, 60, 0.5);
+  transform: translateY(-1px);
+}
+
+.hub-hero-btn--secondary {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+}
+
+.hub-hero-btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 @media (min-width: 640px) {
   .hub-hero-actions {
     flex-direction: row;
-    flex-wrap: wrap;
   }
 }
 
@@ -5922,7 +5997,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=6"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js"></script>
-<script src="/js/logbuch-hub.js?v=15"></script>
+<script src="/js/logbuch-hub.js?v=16"></script>
 <script src="/js/logbuch-visuals.js?v=4"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
