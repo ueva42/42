@@ -239,9 +239,9 @@ body.student-app .mobile-header {
   margin: 0 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  min-height: 68px;
+  gap: 10px;
+  padding: 8px 16px;
+  min-height: 52px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -251,10 +251,10 @@ body.student-app .mobile-header {
   background: rgba(15, 23, 42, 0.8);
   color: #e5e7eb;
   border-radius: 10px;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .student-topbar-brand {
@@ -285,9 +285,9 @@ body.student-app .mobile-header {
   border: 1px solid transparent;
   background: transparent;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.04em;
-  padding: 8px 14px 10px;
+  padding: 6px 12px 8px;
   border-radius: 0;
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease;
@@ -426,16 +426,16 @@ body.student-app .mobile-header {
 
 .student-topbar-title {
   font-family: "Bangers", system-ui;
-  font-size: 18px;
-  letter-spacing: 0.14em;
+  font-size: 15px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #fff;
   text-shadow: 0 0 14px rgba(255, 255, 255, 0.25);
 }
 
 .student-topbar-sub {
-  font-size: 10px;
-  letter-spacing: 0.32em;
+  font-size: 9px;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: #c4b5fd;
 }
@@ -444,48 +444,48 @@ body.student-app .mobile-header {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
   justify-content: flex-end;
 }
 
 .student-topbar-pill {
   display: none;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  padding: 6px 12px;
+  padding: 5px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);
   white-space: nowrap;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  line-height: 1.2;
 }
 
 @media (min-width: 640px) {
   .student-topbar-pill {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
   }
 }
 
 .student-topbar-pill-xp {
   border-color: rgba(167, 139, 250, 0.35);
-  color: #ddd6fe;
-  box-shadow: 0 0 14px rgba(124, 58, 237, 0.12);
+  color: #e9d5ff;
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.1);
 }
 
-.level-badge--compact {
-  width: 34px;
-  height: 34px;
+.student-topbar-pill__sep {
+  opacity: 0.45;
+  font-weight: 400;
 }
 
-.level-badge--compact .level-badge__label {
-  font-size: 6px;
-}
-
-.level-badge--compact .level-badge__value {
-  font-size: 8px;
+.student-topbar-pill__level {
+  color: #fdba74;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 9px;
 }
 
 .student-bottomnav-icon-more {
@@ -498,12 +498,12 @@ body.student-app .mobile-header {
 .student-topbar-profile {
   display: none;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);
-  padding: 4px 4px 4px 12px;
-  box-shadow: 0 0 16px rgba(0, 0, 0, 0.2);
+  padding: 3px 3px 3px 10px;
+  box-shadow: none;
 }
 
 @media (min-width: 640px) {
@@ -513,17 +513,17 @@ body.student-app .mobile-header {
 }
 
 .student-topbar-greeting {
-  font-size: 13px;
+  font-size: 11px;
   color: #cbd5e1;
-  max-width: 100px;
+  max-width: 84px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .student-topbar-avatar {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   overflow: hidden;
   display: grid;
@@ -531,7 +531,7 @@ body.student-app .mobile-header {
   background: linear-gradient(135deg, #f97316, #d946ef);
   font-weight: 900;
   color: #000;
-  font-size: 14px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 
@@ -542,15 +542,16 @@ body.student-app .mobile-header {
 }
 
 .student-topbar-logout {
-  border: 1px solid rgba(148, 163, 184, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.28);
   background: transparent;
-  color: #cbd5e1;
+  color: #94a3b8;
   border-radius: 999px;
-  padding: 5px 10px;
-  font-size: 10px;
-  letter-spacing: 0.1em;
+  padding: 5px 9px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
+  line-height: 1;
 }
 
 .student-main {
@@ -575,6 +576,36 @@ body.student-app .notif-wrap {
   position: relative;
   top: auto;
   right: auto;
+  flex-shrink: 0;
+}
+
+body.student-app .notif-bell {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: none;
+  font-size: 0;
+}
+
+body.student-app .notif-bell svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: currentColor;
+  opacity: 0.9;
+}
+
+body.student-app .notif-bell:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #f1f5f9;
 }
 
 body.student-app .notif-panel {
@@ -5676,19 +5707,14 @@ h2 {
       <button type="button" class="student-topnav-mehr">Mehr</button>
     </nav>
     <div class="student-topbar-right">
-      <span class="student-topbar-pill student-topbar-pill-xp"><span id="topbarXp">–</span> XP</span>
-      <span class="student-topbar-pill student-topbar-level">
-        <span class="level-badge level-badge--compact">
-          <img src="/icons/student/hero/level-badge-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
-          <span class="level-badge__content">
-            <span class="level-badge__label">Level</span>
-            <strong class="level-badge__value" id="topbarLevel">–</strong>
-          </span>
-        </span>
+      <span class="student-topbar-pill student-topbar-pill-xp">
+        <span class="student-topbar-pill__xp"><span id="topbarXp">–</span> XP</span>
+        <span class="student-topbar-pill__sep" aria-hidden="true">·</span>
+        <span class="student-topbar-pill__level" id="topbarLevel">–</span>
       </span>
       <div id="notifWrap" class="notif-wrap">
         <button id="notifBell" class="notif-bell" type="button" aria-label="Benachrichtigungen">
-          🔔
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a5 5 0 0 0-5 5v2.1c0 .5-.2 1-.5 1.4L4.6 13.2A1 1 0 0 0 5.5 15H18.5a1 1 0 0 0 .9-1.4l-1.9-2.7c-.3-.4-.5-.9-.5-1.4V7a5 5 0 0 0-5-5Zm0 20a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Z"/></svg>
           <span id="notifBadge" class="notif-badge" style="display:none;">0</span>
         </button>
         <div id="notifPanel" class="notif-panel" style="display:none;">
