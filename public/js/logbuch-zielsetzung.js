@@ -3,6 +3,7 @@
  */
 (function () {
   const CUSTOM_OPTION = "__custom__";
+  const LEVEL_CHECK_TIER_ORDER = ["rookie", "operator", "street_legend"];
 
   const state = {
     data: null,
@@ -270,22 +271,91 @@
       hasTarget ? Math.min(100, Math.round((recommended / totalGoals) * 100)) : null;
     const statusClass = hasTarget
       ? tier.onTrack
-        ? "goal-card--ok"
-        : "goal-card--open"
-      : "";
+        ? "zs-tier-ontrack"
+        : "zs-tier-behind"
+      : "zs-tier-info";
 
     const countLabel = hasTarget
       ? `${current} / ${recommended} von ${totalGoals}${tier.remaining > 0 ? ` · noch ${tier.remaining}` : " · ✓"}`
       : `${current} von ${totalGoals}`;
 
     return `
-      <div class="lp-tier-compact ${statusClass}">
-        <div class="goal-card__meta">
-          <span class="status-badge ${hasTarget && tier.onTrack ? "status-badge--ok" : "status-badge--open"}">${escapeHtml(tier.label)}</span>
-          <span>${countLabel}</span>
+      <div class="zs-tier-row ${statusClass}">
+        <div class="zs-tier-head">
+          <span class="zs-tier-label">${escapeHtml(tier.label)}</span>
+          <span class="zs-tier-count">${countLabel}</span>
         </div>
-        ${window.LogbuchVisuals?.xpBar(pct) || `<div class="xp-bar"><div class="xp-bar__fill" style="width:${pct}%"></div></div>`}
-        ${recPct != null ? `<span class="zs-tier-marker-hint" style="left:${recPct}%">Ziel</span>` : ""}
+        <div class="zs-tier-bar">
+          <div class="zs-tier-fill" style="width:${pct}%"></div>
+          ${recPct != null ? `<div class="zs-tier-marker" style="left:${recPct}%"></div>` : ""}
+        </div>
+      </div>`;
+  }
+
+  function renderTargetSummary(topic) {
+    if (!topic.summary) return "";
+    const cls = topic.onTrack ? "zs-analysis zs-analysis-ok" : "zs-analysis";
+    return `<div class="${cls}">${escapeHtml(topic.summary)}</div>`;
+  }
+
+  function statusBadgeForGoal(status) {
+    if (status === "sicher") return "status-badge--ok";
+    if (status === "in_arbeit") return "status-badge--part";
+    return "status-badge--open";
+  }
+
+  function statusLabelForGoal(status) {
+    if (status === "sicher") return "sicher";
+    if (status === "in_arbeit") return "in Arbeit";
+    return "offen";
+  }
+
+  function renderWorkItems(topic) {
+    const items = topic.workItems || [];
+    if (!topic.targetGrade) return "";
+
+    if (!items.length) {
+      if (topic.onTrack) {
+        return `<p class="goal-card__what zs-topic-hint-ok">Du bist on track für Zielnote ${escapeHtml(topic.targetGradeLabel || topic.targetGrade)}.</p>`;
+      }
+      return `<p class="goal-card__what">Markiere deine Fortschritte im Mein Lernstand – dann siehst du hier die passenden Aufgaben.</p>`;
+    }
+
+    const byTier = {};
+    for (const item of items) {
+      if (!byTier[item.tier]) {
+        byTier[item.tier] = { label: item.tierLabel, items: [] };
+      }
+      byTier[item.tier].items.push(item);
+    }
+
+    return `
+      <div class="zs-work-list">
+        ${LEVEL_CHECK_TIER_ORDER.filter((tier) => byTier[tier])
+          .map((tier) => {
+            const group = byTier[tier];
+            return `
+              <div class="zs-work-tier">
+                <h5 class="zs-work-tier-title">${escapeHtml(group.label)}</h5>
+                <div class="goal-card-grid zs-work-grid">
+                  ${group.items
+                    .map(
+                      (item) => `
+                    <article class="student-card goal-card goal-card--open">
+                      <div class="card-content">
+                        <p class="goal-card__subject">${escapeHtml(item.goalText)}</p>
+                        <p class="goal-card__what">${escapeHtml(item.taskText)}</p>
+                        <div class="goal-card__meta">
+                          <span class="status-badge ${statusBadgeForGoal(item.status)}">${escapeHtml(statusLabelForGoal(item.status))}</span>
+                        </div>
+                      </div>
+                    </article>`
+                    )
+                    .join("")}
+                </div>
+              </div>`;
+          })
+          .join("")}
       </div>`;
   }
 
@@ -363,8 +433,10 @@
 
           ${
             topic.targetGrade
-              ? `<div class="lp-tier-compact-list">${(topic.tiers || []).map((tier) => renderTierBar(tier, topic.totalGoals)).join("")}</div>`
-              : `<p class="goal-card__what">Wähle deine Zielnote – die Balken zeigen Rookie, Operator und Street Legend.</p>`
+              ? `<div class="zs-tiers">${(topic.tiers || []).map((tier) => renderTierBar(tier, topic.totalGoals)).join("")}</div>
+                 ${renderTargetSummary(topic)}
+                 ${renderWorkItems(topic)}`
+              : `<p class="goal-card__what">Wähle deine Zielnote – dann siehst du, welche Aufgaben du auf Rookie-, Operator- und Street-Legend-Level bearbeiten solltest.</p>`
           }
 
           ${renderFeedbackSection(topic)}

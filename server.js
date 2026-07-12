@@ -414,7 +414,8 @@ function buildTopicTargetProgress(check, targetsRow = null) {
     tiers,
     recommended,
     onTrack: allOnTrack,
-    summary
+    summary,
+    workItems: targetKey ? buildGoalWorkItems(check, targetKey) : []
   };
 }
 
@@ -427,6 +428,60 @@ function buildTargetProgressSummary(tiers, targetGradeKey) {
       return `noch ${t.remaining}× ${t.label}`;
     });
   return parts.length ? parts.join(" · ") : null;
+}
+
+function tierGoalTextForGoal(goal, tier) {
+  if (tier === "rookie") return goal.rookieGoalText || null;
+  if (tier === "operator") return goal.operatorGoalText || null;
+  if (tier === "street_legend") return goal.streetLegendGoalText || null;
+  return null;
+}
+
+function goalTierStatus(goal, tier) {
+  const entry = goal.mark?.tiers?.[tier];
+  if (!entry) return "offen";
+  if (typeof entry === "object" && entry.status != null) {
+    return normalizeLevelStatus(entry.status);
+  }
+  return "sicher";
+}
+
+function buildGoalWorkItems(check, targetGradeKey) {
+  const targetKey = normalizeTargetGradeKey(targetGradeKey);
+  if (!targetKey || !check.goals?.length) return [];
+
+  const totalGoals = check.goals.length;
+  const recommended = recommendedTierCounts(totalGoals, targetKey);
+  if (!recommended) return [];
+
+  const items = [];
+  for (const tier of LEVEL_CHECK_TIERS) {
+    const required = recommended[tier];
+    if (required == null) continue;
+
+    const current = check.goals.filter((goal) =>
+      tierEntryIsMarked(goal.mark?.tiers?.[tier])
+    ).length;
+    const remaining = Math.max(0, required - current);
+    if (remaining <= 0) continue;
+
+    const openGoals = check.goals.filter(
+      (goal) => !tierEntryIsMarked(goal.mark?.tiers?.[tier])
+    );
+
+    for (const goal of openGoals) {
+      const taskText = tierGoalTextForGoal(goal, tier);
+      items.push({
+        tier,
+        tierLabel: LEVEL_CHECK_TIER_LABELS[tier],
+        goalId: goal.id,
+        goalText: goal.text,
+        taskText: (taskText && String(taskText).trim()) || goal.text,
+        status: goalTierStatus(goal, tier)
+      });
+    }
+  }
+  return items;
 }
 
 function buildGoalMarkFromRows(rows) {
@@ -5538,7 +5593,8 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
           })),
           recommended: null,
           onTrack: null,
-          summary: null
+          summary: null,
+          workItems: []
         };
       }
     });
