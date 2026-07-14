@@ -211,6 +211,134 @@
     );
   }
 
+  function renderGoalStepCard(step, title, bodyHtml, wide = false) {
+    return `
+      <article class="goal-step-card ${wide ? "goal-step-card--wide" : ""}">
+        <header class="goal-step-card__head">
+          <span class="goal-step-card__step">${step}</span>
+          <h3 class="goal-step-card__title">${title}</h3>
+        </header>
+        <div class="goal-step-card__body">${bodyHtml}</div>
+      </article>`;
+  }
+
+  function renderLevelChips(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V || !state.whatGoalId) return "";
+    return ui.fieldWrap(
+      ui.fieldLabel("Auf welchem Level arbeitest du daran?", { required: true }),
+      V.choiceChipGroup(
+        state.levelOptions.map((o) => ({ value: o.value, label: o.label })),
+        { activeValue: state.selectedLevel, attrName: "data-level" }
+      )
+    );
+  }
+
+  function renderHowGoalChips(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V || !state.whatGoalId || !state.selectedLevel) return "";
+    return ui.fieldWrap(
+      ui.fieldLabel("Wie willst du daran arbeiten?", { required: true }),
+      V.choiceChipGroup(
+        state.howGoals.map((g) => ({ value: g, label: g })),
+        { activeValue: state.howGoalText, attrName: "data-how-goal" }
+      )
+    );
+  }
+
+  function renderSocialChips(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+    return ui.fieldWrap(
+      ui.fieldLabel("Sozialform", { optional: true }),
+      V.choiceChipGroup(socialFormOptions(), {
+        activeValue: state.socialForm,
+        attrName: "data-social-form"
+      })
+    );
+  }
+
+  function renderConfidenceSegments(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+    return ui.fieldWrap(
+      ui.fieldLabel("Wie sicher fühlst du dich vorher?", { optional: true }),
+      V.choiceChipGroup(
+        [
+          { value: 1, label: "Unsicher" },
+          { value: 2, label: "Eher unsicher" },
+          { value: 3, label: "Mittel" },
+          { value: 4, label: "Sicher" },
+          { value: 5, label: "Sehr sicher" }
+        ],
+        { activeValue: state.confidenceBefore, attrName: "data-confidence" }
+      )
+    );
+  }
+
+  function renderPlanSummaryContent(ui) {
+    if (!requiredFieldsComplete()) {
+      return `<p class="plan-summary-empty">Fülle die Karten oben aus – hier siehst du dann deine Zusammenfassung.</p>`;
+    }
+
+    const checkpoint = pickedCheckpoint();
+    const checkpointLabel =
+      checkpoint?.label ||
+      (state.checkpoints.length === 1 ? state.checkpoints[0]?.label : null) ||
+      "Kein Nachweis geplant";
+
+    const rows = [
+      ["Fach", state.subject || "–"],
+      ["Nachweis", checkpointLabel],
+      ["Unterthema", state.whatGoalText || "–"],
+      ["Level", state.selectedLevel ? levelLabel(state.selectedLevel) : "–"],
+      ["Ziel", state.levelGoalText || "–"],
+      ["Arbeitsweg", state.howGoalText || "–"],
+      ["Arbeitsziele", state.workGoals.length ? state.workGoals.join(", ") : "–"],
+      ["Sozialform", state.socialForm ? labelForSocialForm(state.socialForm) : "–"],
+      [
+        "Sicherheit",
+        state.confidenceBefore != null
+          ? `${state.confidenceBefore} / 5`
+          : "–"
+      ],
+      ["Belohnung", state.editingEntryId ? "Kein zusätzliches XP" : "+2 XP"]
+    ];
+
+    return `
+      <dl class="plan-summary-list">
+        ${rows
+          .map(
+            ([label, value]) => `
+          <div class="plan-summary-row">
+            <dt>${ui.escapeHtml(label)}</dt>
+            <dd>${ui.escapeHtml(value)}</dd>
+          </div>`
+          )
+          .join("")}
+      </dl>
+      ${dailyGoalBlockHtml(ui)}`;
+  }
+
+  function renderPlanHero(ui, dateLabel) {
+    return `
+      <article class="plan-app-hero">
+        <div class="plan-app-hero__content">
+          <div class="plan-app-hero__icon" aria-hidden="true">
+            <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
+          </div>
+          <div class="plan-app-hero__copy">
+            <p class="plan-app-hero__eyebrow">Planen</p>
+            <h2 class="plan-app-hero__title">Tagesziel setzen</h2>
+            <p class="plan-app-hero__meta">${ui.escapeHtml(dateLabel)}${state.timeslot ? ` · ${ui.escapeHtml(state.timeslot)}` : ""}${state.subject ? ` · ${ui.escapeHtml(state.subject)}` : ""}</p>
+          </div>
+        </div>
+        <div class="plan-app-hero__visual" aria-hidden="true">
+          <img src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" loading="lazy">
+        </div>
+      </article>`;
+  }
+
   function renderCheckpointField(ui) {
     if (!state.checkpoints.length) {
       const fallbackMsg =
@@ -339,179 +467,143 @@
     }
 
     const levelMeaning = state.levelGoalText;
-    const showDailyGoal = requiredFieldsComplete();
 
     root.innerHTML = `
-      <div class="app-form-sheet">
-        <div class="app-form-header">
-          <span class="app-form-header__pill">${ui.escapeHtml(dateLabel)}${state.timeslot ? ` · ${ui.escapeHtml(state.timeslot)}` : ""}</span>
-        </div>
+      <div class="plan-app">
+        ${renderPlanHero(ui, dateLabel)}
 
-        <div class="logbuch-form app-form-body">
         ${
           state.editingEntryId
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest dein Tagesziel – beim Speichern gibt es kein zusätzliches XP.</div>`
             : ""
         }
 
-        <section class="app-form-section">
-          <h3 class="app-form-section__title">Stunde</h3>
-          <div class="app-form-section__grid">
-        ${
-          state.subjectLocked
-            ? ui.fieldWrap(
-                ui.fieldLabel("Fach"),
-                `<div class="plan-subject-locked">${ui.escapeHtml(state.subject || "–")}</div>`,
-                "Vom Stundenplan für diese Stunde"
-              )
-            : ui.fieldWrap(
-                ui.fieldLabel("Fach", { required: true }),
-                ui.select(
-                  "subject",
-                  C().SUBJECTS.map((s) => ({ value: s, label: s })),
-                  state.subject,
-                  { phase: "plan" }
-                )
-              )
-        }
+        <div class="plan-app-grid">
+          ${renderGoalStepCard(
+            1,
+            "Rahmen",
+            `
+            <div class="goal-step-card__stack">
+              ${
+                state.subjectLocked
+                  ? ui.fieldWrap(
+                      ui.fieldLabel("Fach"),
+                      `<div class="plan-subject-locked">${ui.escapeHtml(state.subject || "–")}</div>`,
+                      "Vom Stundenplan für diese Stunde"
+                    )
+                  : ui.fieldWrap(
+                      ui.fieldLabel("Fach", { required: true }),
+                      ui.select(
+                        "subject",
+                        C().SUBJECTS.map((s) => ({ value: s, label: s })),
+                        state.subject,
+                        { phase: "plan" }
+                      )
+                    )
+              }
+              ${renderCheckpointField(ui)}
+            </div>`
+          )}
 
-        ${renderCheckpointField(ui)}
-          </div>
-        </section>
+          ${renderGoalStepCard(
+            2,
+            "Lernziel",
+            `
+            <div class="goal-step-card__stack">
+              ${ui.fieldWrap(
+                ui.fieldLabel("Was willst du heute können?", { required: true }),
+                state.whatGoalOptions.length
+                  ? ui.select(
+                      "whatGoalId",
+                      state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
+                      state.whatGoalId,
+                      { phase: "plan", placeholder: "Unterthema wählen…" }
+                    )
+                  : whatGoalMessage(ui)
+              )}
+              ${renderLevelChips(ui)}
+              ${
+                levelMeaning
+                  ? `<div class="plan-level-meaning">
+                      <span class="plan-level-meaning-label">${ui.escapeHtml(levelMeaningLabel(state.selectedLevel))}</span>
+                      <p>${ui.escapeHtml(levelMeaning)}</p>
+                    </div>`
+                  : state.selectedLevel && state.whatGoalId
+                    ? `<div class="logbuch-msg logbuch-msg-info">Für dieses Level wurde noch kein Zieltext hinterlegt.</div>`
+                    : ""
+              }
+              ${renderHowGoalChips(ui)}
+              ${
+                state.whatGoalId && state.selectedLevel
+                  ? ui.fieldWrap(
+                      ui.fieldLabel("Was genau machst du?", { optional: true }),
+                      `<input type="text" class="logbuch-input app-input" id="planDetailsText" maxlength="100"
+                  placeholder="z. B. Rookie 1–4, danach Operator 1–2"
+                  value="${ui.escapeHtml(state.detailsText)}">
+                 <div class="logbuch-char-count"><span id="planDetailsCount">${state.detailsText.length}</span>/100</div>`,
+                      "",
+                      { wide: true }
+                    )
+                  : ""
+              }
+              ${
+                state.whatGoalId && state.selectedLevel
+                  ? ui.fieldWrap(
+                      ui.fieldLabel("Mein Plan B, wenn ich hänge", { optional: true }),
+                      ui.select(
+                        "planBStrategyText",
+                        PLAN_B().map((g) => ({ value: g, label: g })),
+                        state.planBStrategyText,
+                        { phase: "plan", placeholder: "Optional: Strategie wählen…" }
+                      ),
+                      "Wähle eine Strategie, die du nutzen willst, wenn du nicht weiterkommst."
+                    )
+                  : ""
+              }
+            </div>`
+          )}
 
-        <section class="app-form-section">
-          <h3 class="app-form-section__title">Dein Lernziel</h3>
-          <div class="app-form-section__grid">
-        ${ui.fieldWrap(
-          ui.fieldLabel("Was willst du heute können?", { required: true }),
-          state.whatGoalOptions.length
-            ? ui.select(
-                "whatGoalId",
-                state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
-                state.whatGoalId,
-                { phase: "plan", placeholder: "Unterthema wählen…" }
-              )
-            : whatGoalMessage(ui)
-        )}
+          ${renderGoalStepCard(
+            3,
+            "Arbeitsweise",
+            `
+            <div class="goal-step-card__stack">
+              ${renderSocialChips(ui)}
+              ${ui.fieldWrap(
+                ui.fieldLabel("Arbeitsziele", { optional: true }),
+                renderWorkGoalChips(ui),
+                "Tippe mehrere an – optionaler Arbeitsfokus"
+              )}
+            </div>`
+          )}
 
-        ${
-          state.whatGoalId
-            ? ui.fieldWrap(
-                ui.fieldLabel("Auf welchem Level arbeitest du daran?", { required: true }),
-                ui.select(
-                  "selectedLevel",
-                  state.levelOptions.map((o) => ({ value: o.value, label: o.label })),
-                  state.selectedLevel,
-                  { phase: "plan", placeholder: "Level wählen…" }
-                )
-              )
-            : ""
-        }
+          ${renderGoalStepCard(
+            4,
+            "Selbstcheck",
+            `<div class="goal-step-card__stack">${renderConfidenceSegments(ui)}</div>`
+          )}
 
-        ${
-          levelMeaning
-            ? `<div class="plan-level-meaning">
-                <span class="plan-level-meaning-label">${ui.escapeHtml(levelMeaningLabel(state.selectedLevel))}</span>
-                <p>${ui.escapeHtml(levelMeaning)}</p>
-              </div>`
-            : state.selectedLevel && state.whatGoalId
-              ? `<div class="logbuch-msg logbuch-msg-info">Für dieses Level wurde noch kein Zieltext hinterlegt.</div>`
-              : ""
-        }
-
-        ${
-          state.whatGoalId && state.selectedLevel
-            ? ui.fieldWrap(
-                ui.fieldLabel("Wie willst du daran arbeiten?", { required: true }),
-                ui.select(
-                  "howGoalText",
-                  state.howGoals.map((g) => ({ value: g, label: g })),
-                  state.howGoalText,
-                  { phase: "plan", placeholder: "Arbeitsweg wählen…" }
-                )
-              )
-            : ""
-        }
-
-        ${
-          state.whatGoalId && state.selectedLevel
-            ? ui.fieldWrap(
-                ui.fieldLabel("Was genau machst du?", { optional: true }),
-                `<input type="text" class="logbuch-input" id="planDetailsText" maxlength="100"
-            placeholder="z. B. Rookie 1–4, danach Operator 1–2"
-            value="${ui.escapeHtml(state.detailsText)}">
-           <div class="logbuch-char-count"><span id="planDetailsCount">${state.detailsText.length}</span>/100</div>`,
-                "",
-                { wide: true }
-              )
-            : ""
-        }
-
-        ${
-          state.whatGoalId && state.selectedLevel
-            ? ui.fieldWrap(
-                ui.fieldLabel("Mein Plan B, wenn ich hänge", { optional: true }),
-                ui.select(
-                  "planBStrategyText",
-                  PLAN_B().map((g) => ({ value: g, label: g })),
-                  state.planBStrategyText,
-                  { phase: "plan", placeholder: "Optional: Strategie wählen…" }
-                ),
-                "Wähle eine Strategie, die du nutzen willst, wenn du nicht weiterkommst."
-              )
-            : ""
-        }
-
-        <div id="planSummaryBox" ${showDailyGoal ? "" : "hidden"}>
-          ${showDailyGoal ? dailyGoalBlockHtml(ui) : ""}
-        </div>
-          </div>
-        </section>
-
-        <section class="app-form-section">
-          <h3 class="app-form-section__title">Arbeitsfokus</h3>
-          <div class="app-form-section__grid">
-        ${ui.fieldWrap(
-          ui.fieldLabel("Arbeitsziele", { optional: true }),
-          renderWorkGoalChips(ui),
-          "Tippe mehrere an – optionaler Arbeitsfokus"
-        )}
-
-        ${ui.fieldWrap(
-          ui.fieldLabel("Sozialform", { optional: true }),
-          ui.select("socialForm", socialFormOptions(), state.socialForm, { phase: "plan" })
-        )}
-
-        ${ui.fieldWrap(
-          ui.fieldLabel("Wie sicher fühlst du dich vorher?", { optional: true }),
-          ui.select(
-            "confidenceBefore",
-            [1, 2, 3, 4, 5].map((n) => ({
-              value: String(n),
-              label: `${n} – ${n <= 2 ? "unsicher" : n >= 4 ? "sicher" : "mittel"}`
-            })),
-            state.confidenceBefore != null ? String(state.confidenceBefore) : null,
-            { phase: "plan" }
-          )
-        )}
-          </div>
-        </section>
-
-        ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
-
-        <div class="app-form-footer">
-        ${ui.btnPrimary(
-          state.submitting
-            ? "Speichern…"
-            : state.editingEntryId
-              ? "Änderungen speichern"
-              : "Tagesziel speichern (+2 XP)",
-          "planSubmitBtn",
-          state.submitting || !requiredFieldsComplete(),
-          "logbuch-submit-full today-app-btn"
-        )}
-        ${ui.btnGhost("Abbrechen", "planBackBtn", "today-app-btn today-app-btn--ghost")}
-        </div>
+          ${renderGoalStepCard(
+            5,
+            "Zusammenfassung",
+            `
+            <div id="planSummaryCard">${renderPlanSummaryContent(ui)}</div>
+            ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
+            <div class="plan-app-footer">
+              ${ui.btnPrimary(
+                state.submitting
+                  ? "Speichern…"
+                  : state.editingEntryId
+                    ? "Änderungen speichern"
+                    : "Tagesziel speichern (+2 XP)",
+                "planSubmitBtn",
+                state.submitting || !requiredFieldsComplete(),
+                "logbuch-submit-full today-app-btn"
+              )}
+              ${ui.btnGhost("Abbrechen", "planBackBtn", "today-app-btn today-app-btn--ghost")}
+            </div>`,
+            true
+          )}
         </div>
       </div>`;
 
@@ -525,16 +617,52 @@
   }
 
   function updatePlanningPreview(root) {
-    const box = root.querySelector("#planSummaryBox");
+    const box = root.querySelector("#planSummaryCard");
     if (!box) return;
-    const ready = requiredFieldsComplete();
-    if (!ready) {
-      box.hidden = true;
-      box.innerHTML = "";
-      return;
+    box.innerHTML = renderPlanSummaryContent(UI());
+    const submitBtn = root.querySelector("#planSubmitBtn");
+    if (submitBtn) {
+      submitBtn.disabled = state.submitting || !requiredFieldsComplete();
     }
-    box.hidden = false;
-    box.innerHTML = dailyGoalBlockHtml(UI());
+  }
+
+  function bindChoiceChips(root, selector, onPick) {
+    root.querySelectorAll(selector).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        onPick(btn);
+      });
+    });
+  }
+
+  function bindChipGroups(root) {
+    bindChoiceChips(root, "[data-level]", (btn) => {
+      state.selectedLevel = btn.dataset.level;
+      state.howGoalText = null;
+      syncLevelGoalText();
+      refreshHowGoals();
+      render();
+    });
+
+    bindChoiceChips(root, "[data-how-goal]", (btn) => {
+      state.howGoalText = btn.dataset.howGoal;
+      updatePlanningPreview(root);
+      const submitBtn = root.querySelector("#planSubmitBtn");
+      if (submitBtn) submitBtn.disabled = state.submitting || !requiredFieldsComplete();
+    });
+
+    bindChoiceChips(root, "[data-social-form]", (btn) => {
+      state.socialForm = btn.dataset.socialForm;
+      updatePlanningPreview(root);
+    });
+
+    bindChoiceChips(root, "[data-confidence]", (btn) => {
+      state.confidenceBefore = Number(btn.dataset.confidence);
+      root.querySelectorAll("[data-confidence]").forEach((chip) => {
+        chip.classList.toggle("is-active", Number(chip.dataset.confidence) === state.confidenceBefore);
+      });
+      updatePlanningPreview(root);
+    });
   }
 
   function bindWorkGoalChips(root) {
@@ -551,6 +679,7 @@
         root.querySelectorAll(".plan-work-chip").forEach((chip) => {
           chip.classList.toggle("active", state.workGoals.includes(chip.dataset.workGoal));
         });
+        updatePlanningPreview(root);
       });
     });
   }
@@ -604,6 +733,7 @@
     });
 
     bindWorkGoalChips(root);
+    bindChipGroups(root);
 
     const details = root.querySelector("#planDetailsText");
     details?.addEventListener("input", () => {

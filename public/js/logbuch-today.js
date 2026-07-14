@@ -179,20 +179,145 @@
       </button>`;
   }
 
+  function nextStepHint(blockList, editable) {
+    if (!blockList.length) return "Heute sind keine Stunden eingetragen.";
+    if (!editable) return "Schau dir deine Stunden an.";
+    for (const block of blockList) {
+      const subject = block.entry?.subject || block.slot?.subject || "deiner Stunde";
+      if (!block.entry) return `Setze als Nächstes dein Tagesziel in ${subject}.`;
+      if (!block.entry.hasCheck) return `Als Nächstes: Zwischen-Check in ${subject}.`;
+      if (!block.entry.hasReflection) return `Als Nächstes: Tagesabschluss in ${subject}.`;
+    }
+    return "Stark – alle Stunden für heute sind erledigt.";
+  }
+
+  function lessonStatus(block) {
+    if (!block.entry) return { key: "open", label: "Offen" };
+    if (block.entry.hasReflection) return { key: "done", label: "Erledigt" };
+    return { key: "active", label: "Begonnen" };
+  }
+
+  function lessonStepCount(phases) {
+    return [phases.plan, phases.check, phases.reflect].filter(Boolean).length;
+  }
+
+  function renderTodayOverview(d, blockList, editable) {
+    const ui = UI();
+    const V = window.LogbuchVisuals;
+    const total = blockList.length;
+    const planned = blockList.filter((b) => b.entry).length;
+    const checked = blockList.filter((b) => b.entry?.hasCheck).length;
+    const reflected = blockList.filter((b) => b.entry?.hasReflection).length;
+    const profile = window.__studentProfile || {};
+    const xpLabel = profile.xpProgressLabel || `${Number(profile.xp || 0).toLocaleString("de-DE")} XP`;
+    const levelLabel = profile.levelName || "–";
+
+    const ring = V
+      ? V.circularProgress({
+          completed: reflected,
+          total,
+          label: "Tagesfortschritt",
+          sublabel: `${reflected} von ${total || 0} Aufgaben`,
+          size: 92,
+          accent: "#f97316"
+        })
+      : `<p class="today-overview__fallback">${reflected}/${total || 0}</p>`;
+
+    const kpiGoals = V
+      ? V.kpiStatCard({
+          value: `${planned}/${total || 0}`,
+          label: "Ziele gesetzt",
+          sublabel: "Plan",
+          accent: "#22d3ee"
+        })
+      : "";
+    const kpiChecks = V
+      ? V.kpiStatCard({
+          value: `${checked}/${total || 0}`,
+          label: "Checks",
+          sublabel: "Zwischen-Check",
+          accent: "#f59e0b"
+        })
+      : "";
+    const kpiXp = V
+      ? V.kpiStatCard({
+          value: xpLabel,
+          label: levelLabel,
+          sublabel: "XP · Level",
+          accent: "#a855f7",
+          variant: "xp"
+        })
+      : "";
+
+    return `
+      <section class="today-overview" aria-label="Heute im Überblick">
+        <article class="today-overview-hero">
+          <div class="today-overview-hero__content">
+            <div class="today-overview-hero__icon" aria-hidden="true">
+              <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
+            </div>
+            <div class="today-overview-hero__copy">
+              <p class="today-overview-hero__eyebrow">Mein Tag</p>
+              <h2 class="today-overview-hero__title">${ui.escapeHtml(d.weekdayLabel)} · ${ui.escapeHtml(d.dateLabel)}</h2>
+              <p class="today-overview-hero__hint">${ui.escapeHtml(nextStepHint(blockList, editable))}</p>
+            </div>
+          </div>
+          <div class="today-overview-hero__nav">
+            <button type="button" class="today-arrow" data-dir="prev" aria-label="Vorheriger Tag">‹</button>
+            <button type="button" class="today-arrow" data-dir="next" aria-label="Nächster Tag">›</button>
+          </div>
+          <div class="today-overview-hero__visual" aria-hidden="true">
+            <img src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" loading="lazy">
+          </div>
+        </article>
+
+        <h3 class="today-overview__label">Heute im Überblick</h3>
+
+        <div class="today-kpi-grid">
+          <article class="kpi-stat-card kpi-stat-card--ring">${ring}</article>
+          ${kpiGoals}
+          ${kpiChecks}
+          ${kpiXp}
+        </div>
+      </section>`;
+  }
+
   function renderBlock(block, editable) {
     const ui = UI();
     const slot = block.slot;
     const entry = block.entry;
 
+    const status = lessonStatus(block);
+    const phases = entry ? blockPhases(entry) : { plan: false, check: false, reflect: false };
+    const stepsDone = lessonStepCount(phases);
+    const V = window.LogbuchVisuals;
+    const miniRing = V
+      ? V.circularProgress({
+          completed: stepsDone,
+          total: 3,
+          size: 56,
+          accent: status.key === "done" ? "#22c55e" : status.key === "active" ? "#38bdf8" : "#f97316"
+        })
+      : "";
+
     if (!entry) {
       if (!editable) {
         return `
-          <article class="today-lesson-card">
-            <div class="today-lesson-card__head">
-              <h3 class="today-lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
-              ${slot?.timeslot ? `<span class="today-lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
+          <article class="subject-lesson-card subject-lesson-card--${status.key}">
+            <div class="subject-lesson-card__top">
+              <div class="subject-lesson-card__icon" aria-hidden="true">
+                <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
+              </div>
+              <div class="subject-lesson-card__meta">
+                <div class="subject-lesson-card__head">
+                  <h3 class="subject-lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
+                  <span class="status-badge status-badge--${status.key}">${status.label}</span>
+                </div>
+                ${slot?.timeslot ? `<span class="subject-lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
+              </div>
+              <div class="subject-lesson-card__ring">${miniRing}</div>
             </div>
-            <p class="today-lesson-card__empty">Kein Eintrag</p>
+            <p class="subject-lesson-card__empty">Kein Eintrag</p>
           </article>`;
       }
 
@@ -201,13 +326,22 @@
       if (slot?.timeslot) params.set("timeslot", slot.timeslot);
 
       return `
-        <article class="today-lesson-card today-lesson-card--open">
-          <div class="today-lesson-card__head">
-            <h3 class="today-lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
-            ${slot?.timeslot ? `<span class="today-lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
+        <article class="subject-lesson-card subject-lesson-card--${status.key}">
+          <div class="subject-lesson-card__top">
+            <div class="subject-lesson-card__icon" aria-hidden="true">
+              <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
+            </div>
+            <div class="subject-lesson-card__meta">
+              <div class="subject-lesson-card__head">
+                <h3 class="subject-lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
+                <span class="status-badge status-badge--${status.key}">${status.label}</span>
+              </div>
+              ${slot?.timeslot ? `<span class="subject-lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
+            </div>
+            <div class="subject-lesson-card__ring">${miniRing}</div>
           </div>
-          ${renderPhaseStepper({ plan: false, check: false, reflect: false })}
-          <p class="today-lesson-card__hint">Noch kein Tagesziel gesetzt.</p>
+          ${renderPhaseStepper(phases)}
+          <p class="subject-lesson-card__hint">Noch kein Tagesziel gesetzt.</p>
           ${appPrimaryButton("Tagesziel setzen", "plan", params.toString())}
         </article>`;
     }
@@ -220,7 +354,6 @@
 
     const checkParams = new URLSearchParams({ entryId: entry.id });
     const reflectParams = new URLSearchParams({ entryId: entry.id });
-    const phases = blockPhases(entry);
 
     const viewPlanBtn = navButton(
       editable && !entry.hasReflection ? "Ziel bearbeiten" : "Ziel ansehen",
@@ -244,33 +377,42 @@
     const allDone = entry.hasCheck && entry.hasReflection;
 
     const checkpointHint = entry.checkpoint_title
-      ? `<p class="today-lesson-card__meta">${ui.escapeHtml(entry.checkpoint_title)}</p>`
+      ? `<p class="subject-lesson-card__meta">${ui.escapeHtml(entry.checkpoint_title)}</p>`
       : "";
 
     return `
-      <article class="today-lesson-card ${allDone ? "today-lesson-card--done" : "today-lesson-card--active"}">
-        <div class="today-lesson-card__head">
-          <h3 class="today-lesson-card__subject">${ui.escapeHtml(entry.subject)}</h3>
-          ${entry.timeslot ? `<span class="today-lesson-card__time">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
+      <article class="subject-lesson-card subject-lesson-card--${status.key}">
+        <div class="subject-lesson-card__top">
+          <div class="subject-lesson-card__icon" aria-hidden="true">
+            <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
+          </div>
+          <div class="subject-lesson-card__meta">
+            <div class="subject-lesson-card__head">
+              <h3 class="subject-lesson-card__subject">${ui.escapeHtml(entry.subject)}</h3>
+              <span class="status-badge status-badge--${status.key}">${status.label}</span>
+            </div>
+            ${entry.timeslot ? `<span class="subject-lesson-card__time">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
+          </div>
+          <div class="subject-lesson-card__ring">${miniRing}</div>
         </div>
         ${checkpointHint}
         ${renderPhaseStepper(phases)}
-        <div class="today-lesson-card__body">
+        <div class="subject-lesson-card__body">
           ${renderDailyGoalBody(ui, entry)}
           ${entry.hasCheck ? renderCheckSummary(ui, entry) : ""}
           ${entry.hasReflection ? renderReflectionSummary(ui, entry) : ""}
         </div>
-        <div class="today-lesson-card__actions">
+        <div class="subject-lesson-card__actions">
           ${
             primary ||
-            (allDone ? `<p class="today-lesson-card__done">Alle Schritte erledigt ✓</p>` : "")
+            (allDone ? `<p class="subject-lesson-card__done">Alle Schritte erledigt ✓</p>` : "")
           }
           ${
             secondary.length
-              ? `<div class="today-lesson-card__secondary">${secondary.join("")}</div>`
+              ? `<div class="subject-lesson-card__secondary">${secondary.join("")}</div>`
               : ""
           }
-          ${nextSelect ? `<div class="today-lesson-card__select">${nextSelect}</div>` : ""}
+          ${nextSelect ? `<div class="subject-lesson-card__select">${nextSelect}</div>` : ""}
         </div>
       </article>`;
   }
@@ -298,55 +440,6 @@
           })
           .join("")}
       </div>`;
-  }
-
-  function renderProgressStrip(blockList) {
-    const total = blockList.length;
-    const planned = blockList.filter((b) => b.entry).length;
-    const checked = blockList.filter((b) => b.entry?.hasCheck).length;
-    const reflected = blockList.filter((b) => b.entry?.hasReflection).length;
-    const dayPct = total ? Math.round((reflected / total) * 100) : 0;
-
-    const steps = [
-      { label: "Ziele", done: planned, accent: "#22d3ee" },
-      { label: "Check", done: checked, accent: "#f59e0b" },
-      { label: "Abschluss", done: reflected, accent: "#a855f7" }
-    ];
-
-    return `
-      <section class="today-app-progress" aria-label="Tagesfortschritt">
-        <div class="today-app-progress__head">
-          <div class="today-app-progress__copy">
-            <p class="today-app-progress__eyebrow">Tagesfortschritt</p>
-            <p class="today-app-progress__summary">${reflected} von ${total || 0} Stunden abgeschlossen</p>
-          </div>
-          <p class="today-app-progress__pct" aria-hidden="true">${dayPct}<span>%</span></p>
-        </div>
-        <div
-          class="today-app-progress__bar"
-          role="progressbar"
-          aria-valuenow="${dayPct}"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-label="Gesamtfortschritt heute"
-        >
-          <span style="width:${dayPct}%"></span>
-        </div>
-        <div class="today-app-progress__steps">
-          ${steps
-            .map(
-              (s) => `
-            <div class="today-app-step ${total > 0 && s.done === total ? "is-complete" : ""}">
-              <div class="today-app-step__track" aria-hidden="true">
-                <span style="width:${total ? Math.round((s.done / total) * 100) : 0}%; background:${s.accent}"></span>
-              </div>
-              <span class="today-app-step__label">${s.label}</span>
-              <span class="today-app-step__count">${s.done}/${total || 0}</span>
-            </div>`
-            )
-            .join("")}
-        </div>
-      </section>`;
   }
 
   function renderEmptyState(d, editable) {
@@ -417,8 +510,7 @@
 
     root.innerHTML = `
       <div class="student-page today-shell today-app" id="todaySwipeArea">
-        ${renderDayNav(d)}
-        ${blockList.length ? renderProgressStrip(blockList) : ""}
+        ${blockList.length ? renderTodayOverview(d, blockList, editable) : renderDayNav(d)}
 
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="todaySlidePanel">

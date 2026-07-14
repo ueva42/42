@@ -490,5 +490,38 @@ window.LogbuchVisuals = {
         </div>
       </div>
     `);
+  },
+
+  kpiStatCard({ value, label, sublabel, accent, variant = "" }) {
+    return `
+      <article class="kpi-stat-card ${variant ? `kpi-stat-card--${variant}` : ""}" style="${accent ? `--kpi-accent:${accent}` : ""}">
+        <span class="kpi-stat-card__value">${this.escape(value)}</span>
+        <span class="kpi-stat-card__label">${this.escape(label)}</span>
+        ${sublabel ? `<span class="kpi-stat-card__sub">${this.escape(sublabel)}</span>` : ""}
+      </article>`;
+  },
+
+  choiceChipGroup(items, { activeValue, attrName = "data-choice-value", multi = false } = {}) {
+    const activeSet = multi
+      ? new Set(Array.isArray(activeValue) ? activeValue : [])
+      : null;
+    return `
+      <div class="choice-chip-group" role="group">
+        ${items
+          .map((item) => {
+            const isActive = multi
+              ? activeSet.has(item.value)
+              : String(activeValue) === String(item.value);
+            const disabled = item.disabled ? "disabled" : "";
+            return `
+              <button
+                type="button"
+                class="choice-chip ${isActive ? "is-active" : ""}"
+                ${attrName}="${this.escape(item.value)}"
+                ${disabled}
+              >${this.escape(item.label)}</button>`;
+          })
+          .join("")}
+      </div>`;
   }
 };
