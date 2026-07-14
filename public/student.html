@@ -3500,10 +3500,23 @@ body.student-app .card.section > h2 {
 .today-shell { display: flex; flex-direction: column; gap: 12px; }
 
 /* Mein Tag – App Layout */
-.today-app {
-  gap: 14px;
-  max-width: 680px;
+.today-app,
+.plan-app {
+  --app-bg: #050816;
+  --app-panel: rgba(8, 14, 35, 0.92);
+  --app-line: rgba(103, 132, 255, 0.22);
+  --glow-cyan: #22d3ee;
+  --glow-violet: #a855f7;
+  --glow-magenta: #d946ef;
+  --glow-orange: #fb923c;
+  --glow-green: #22c55e;
+  gap: 16px;
+  max-width: 920px;
   margin: 0 auto;
+}
+
+.today-app {
+  max-width: 680px;
 }
 
 #today-section > .page-hero,
@@ -3533,12 +3546,16 @@ body.student-app .card.section > h2 {
   gap: 12px;
   overflow: hidden;
   border-radius: 22px;
-  border: 1px solid rgba(251, 146, 60, 0.24);
+  border: 1px solid rgba(34, 211, 238, 0.28);
   background:
-    radial-gradient(circle at 100% 0%, rgba(251, 146, 60, 0.14), transparent 42%),
-    linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.18), transparent 44%),
+    radial-gradient(circle at 0% 100%, rgba(34, 211, 238, 0.1), transparent 40%),
+    linear-gradient(160deg, rgba(8, 14, 35, 0.98), rgba(5, 8, 22, 0.98));
   padding: 16px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.35),
+    0 0 24px rgba(34, 211, 238, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .today-overview-hero__content,
@@ -3572,7 +3589,7 @@ body.student-app .card.section > h2 {
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #fdba74;
+  color: #67e8f9;
 }
 
 .today-overview-hero__title,
@@ -3639,10 +3656,14 @@ body.student-app .card.section > h2 {
 
 .kpi-stat-card {
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(103, 132, 255, 0.18);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.1), transparent 42%),
+    rgba(8, 14, 35, 0.88);
   padding: 14px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .kpi-stat-card--ring {
@@ -3696,15 +3717,19 @@ body.student-app .card.section > h2 {
 
 .subject-lesson-card {
   border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+  border: 1px solid rgba(103, 132, 255, 0.16);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.08), transparent 42%),
+    rgba(8, 14, 35, 0.92);
   padding: 16px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-.subject-lesson-card--open { border-color: rgba(251, 146, 60, 0.28); }
-.subject-lesson-card--active { border-color: rgba(56, 189, 248, 0.24); }
-.subject-lesson-card--done { border-color: rgba(34, 197, 94, 0.24); }
+.subject-lesson-card--open { border-color: rgba(251, 146, 60, 0.35); box-shadow: 0 0 18px rgba(251, 146, 60, 0.08); }
+.subject-lesson-card--active { border-color: rgba(34, 211, 238, 0.32); box-shadow: 0 0 18px rgba(34, 211, 238, 0.08); }
+.subject-lesson-card--done { border-color: rgba(34, 197, 94, 0.32); box-shadow: 0 0 18px rgba(34, 197, 94, 0.08); }
 
 .subject-lesson-card__top {
   display: grid;
@@ -3738,7 +3763,7 @@ body.student-app .card.section > h2 {
   font-size: 14px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #fdba74;
+  color: #67e8f9;
 }
 
 .subject-lesson-card__time {
@@ -3796,21 +3821,36 @@ body.student-app .card.section > h2 {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .plan-app-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
 .goal-step-card {
   border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(2, 6, 23, 0.72);
-  padding: 14px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(103, 132, 255, 0.18);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.08), transparent 40%),
+    rgba(8, 14, 35, 0.9);
+  padding: 16px;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.goal-step-card:nth-child(1) { border-color: rgba(34, 211, 238, 0.24); }
+.goal-step-card:nth-child(2) { border-color: rgba(168, 85, 247, 0.24); }
+.goal-step-card:nth-child(3) { border-color: rgba(217, 70, 239, 0.22); }
+.goal-step-card:nth-child(4) { border-color: rgba(34, 211, 238, 0.22); }
+.goal-step-card:nth-child(5) {
+  border-color: rgba(251, 146, 60, 0.28);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(251, 146, 60, 0.1), transparent 38%),
+    rgba(8, 14, 35, 0.94);
 }
 
 .goal-step-card--wide {
@@ -3832,9 +3872,192 @@ body.student-app .card.section > h2 {
   place-items: center;
   font-size: 12px;
   font-weight: 800;
-  color: #fdba74;
-  background: rgba(251, 146, 60, 0.12);
-  border: 1px solid rgba(251, 146, 60, 0.28);
+  color: #e0f2fe;
+  background: rgba(34, 211, 238, 0.12);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.15);
+}
+
+.strategy-category-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.strategy-category-tab {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(5, 8, 22, 0.85);
+  color: #cbd5e1;
+  border-radius: 14px;
+  padding: 10px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.strategy-category-tab:hover {
+  border-color: color-mix(in srgb, var(--tab-accent, #a855f7) 45%, transparent);
+}
+
+.strategy-category-tab.is-active {
+  color: #f8fafc;
+  border-color: color-mix(in srgb, var(--tab-accent, #a855f7) 70%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--tab-accent, #a855f7) 35%, transparent),
+    0 0 20px color-mix(in srgb, var(--tab-accent, #a855f7) 28%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--tab-accent, #a855f7) 12%, transparent);
+}
+
+.strategy-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.strategy-tile {
+  appearance: none;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.08), transparent 42%),
+    rgba(5, 8, 22, 0.88);
+  border-radius: 16px;
+  padding: 12px;
+  min-height: 92px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.strategy-tile:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--tile-accent, #a855f7) 40%, transparent);
+}
+
+.strategy-tile.is-active {
+  border-color: color-mix(in srgb, var(--tile-accent, #a855f7) 75%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--tile-accent, #a855f7) 40%, transparent),
+    0 0 22px color-mix(in srgb, var(--tile-accent, #a855f7) 30%, transparent),
+    inset 0 0 20px color-mix(in srgb, var(--tile-accent, #a855f7) 10%, transparent);
+}
+
+.strategy-tile__icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--tile-accent, #a855f7);
+  background: color-mix(in srgb, var(--tile-accent, #a855f7) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tile-accent, #a855f7) 28%, transparent);
+}
+
+.strategy-tile__title {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #f8fafc;
+}
+
+.strategy-tile__desc {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #94a3b8;
+}
+
+.loadout-panel__label {
+  margin: 0 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #c4b5fd;
+}
+
+.loadout-panel__label--planb {
+  margin-top: 16px;
+  color: #67e8f9;
+}
+
+.confidence-selector {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.confidence-card {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(5, 8, 22, 0.88);
+  border-radius: 16px;
+  padding: 12px 8px;
+  min-height: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.confidence-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--conf-accent, #a855f7) 40%, transparent);
+}
+
+.confidence-card.is-active {
+  border-color: color-mix(in srgb, var(--conf-accent, #a855f7) 75%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--conf-accent, #a855f7) 35%, transparent),
+    0 0 20px color-mix(in srgb, var(--conf-accent, #a855f7) 28%, transparent);
+}
+
+.confidence-card__icon {
+  font-size: 18px;
+  color: var(--conf-accent, #a855f7);
+}
+
+.confidence-card__label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  color: #e2e8f0;
+  line-height: 1.25;
+}
+
+.glow-panel {
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  background: rgba(88, 28, 135, 0.12);
+  box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.08);
+}
+
+.glow-panel--violet {
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.plan-summary-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(8, 14, 35, 0.72);
+  border: 1px solid rgba(103, 132, 255, 0.14);
 }
 
 .goal-step-card__title {
@@ -3958,6 +4181,18 @@ body.student-app .card.section > h2 {
 }
 
 @media (max-width: 720px) {
+  .confidence-selector {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .strategy-tile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .strategy-category-tabs {
+    grid-template-columns: 1fr;
+  }
+
   .plan-app-grid {
     grid-template-columns: 1fr;
   }
@@ -4054,16 +4289,20 @@ body.student-app .card.section > h2 {
 #plan-section .btn-primary.logbuch-submit {
   appearance: none;
   width: 100%;
-  min-height: 46px;
+  min-height: 48px;
   border: none;
   border-radius: 14px;
   padding: 12px 16px;
   font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 800;
+  letter-spacing: 0.03em;
   color: #0f172a;
-  background: linear-gradient(135deg, #fdba74, #fb923c);
-  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.28);
+  background: linear-gradient(135deg, #fed7aa, #fb923c 55%, #f97316);
+  border: 1px solid rgba(254, 215, 170, 0.45);
+  box-shadow:
+    0 8px 24px rgba(249, 115, 22, 0.32),
+    0 0 28px rgba(249, 115, 22, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
@@ -6739,13 +6978,13 @@ h2 {
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=18"></script>
-<script src="/js/logbuch-visuals.js?v=5"></script>
+<script src="/js/logbuch-visuals.js?v=6"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-plan.js?v=15"></script>
+<script src="/js/logbuch-plan.js?v=16"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>
-<script src="/js/logbuch-today.js?v=22"></script>
+<script src="/js/logbuch-today.js?v=23"></script>
 <script src="/js/logbuch-week.js?v=5"></script>
 <script src="/js/logbuch-levelplan.js?v=13"></script>
 <script src="/js/logbuch-start-briefing.js?v=1"></script>

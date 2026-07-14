@@ -523,5 +523,69 @@ window.LogbuchVisuals = {
           })
           .join("")}
       </div>`;
+  },
+
+  strategyCategoryTabs(tabs, activeId, attrName = "data-strategy-category") {
+    return `
+      <div class="strategy-category-tabs" role="tablist">
+        ${tabs
+          .map(
+            (tab) => `
+          <button
+            type="button"
+            class="strategy-category-tab ${tab.id === activeId ? "is-active" : ""}"
+            ${attrName}="${this.escape(tab.id)}"
+            style="--tab-accent:${tab.accent || "#8b5cf6"}"
+            role="tab"
+            aria-selected="${tab.id === activeId ? "true" : "false"}"
+          >${this.escape(tab.label)}</button>`
+          )
+          .join("")}
+      </div>`;
+  },
+
+  strategyTileGrid(tiles, activeValue, attrName, { multi = false } = {}) {
+    const activeSet = multi ? new Set(Array.isArray(activeValue) ? activeValue : []) : null;
+    return `
+      <div class="strategy-tile-grid">
+        ${tiles
+          .map((tile) => {
+            const isActive = multi
+              ? activeSet.has(tile.value)
+              : String(activeValue) === String(tile.value);
+            return `
+          <button
+            type="button"
+            class="strategy-tile ${isActive ? "is-active" : ""}"
+            ${attrName}="${this.escape(tile.value)}"
+            style="--tile-accent:${tile.accent || "#8b5cf6"}"
+          >
+            <span class="strategy-tile__icon" aria-hidden="true">${this.escape(tile.icon || "◆")}</span>
+            <span class="strategy-tile__title">${this.escape(tile.title)}</span>
+            <span class="strategy-tile__desc">${this.escape(tile.desc || "")}</span>
+          </button>`;
+          })
+          .join("")}
+      </div>`;
+  },
+
+  confidenceSelector(options, activeValue) {
+    return `
+      <div class="confidence-selector" role="group">
+        ${options
+          .map(
+            (option) => `
+          <button
+            type="button"
+            class="confidence-card ${String(activeValue) === String(option.value) ? "is-active" : ""}"
+            data-confidence="${option.value}"
+            style="--conf-accent:${option.accent || "#a855f7"}"
+          >
+            <span class="confidence-card__icon" aria-hidden="true">${option.icon || "◉"}</span>
+            <span class="confidence-card__label">${this.escape(option.label)}</span>
+          </button>`
+          )
+          .join("")}
+      </div>`;
   }
 };

@@ -76,8 +76,206 @@
     hasClass: true,
     subjectLocked: false,
     submitting: false,
-    errorMsg: ""
+    errorMsg: "",
+    strategyCategory: "starten",
+    planBCategory: "starten"
   };
+
+  const STRATEGY_TABS = [
+    { id: "starten", label: "Ich starte", accent: "#fb923c" },
+    { id: "bearbeiten", label: "Ich arbeite", accent: "#a855f7" },
+    { id: "kontrollieren", label: "Ich kontrolliere", accent: "#22d3ee" }
+  ];
+
+  const HOW_GOAL_TILE_META = {
+    "Ich schaue mir zuerst ein Beispiel an.": {
+      cat: "starten",
+      title: "Beispiel anschauen",
+      desc: "Schau zuerst eine Beispielaufgabe an.",
+      icon: "◎",
+      accent: "#fb923c"
+    },
+    "Ich starte mit Rookie-Aufgaben.": {
+      cat: "starten",
+      title: "Rookie starten",
+      desc: "Beginne mit einfachen Aufgaben.",
+      icon: "1",
+      accent: "#fb923c"
+    },
+    "Ich löse erst mit Hilfe und danach alleine.": {
+      cat: "starten",
+      title: "Mit Hilfe starten",
+      desc: "Löse erst mit Hilfe, dann alleine.",
+      icon: "⇄",
+      accent: "#fb923c"
+    },
+    "Ich schaue ein Lernvideo und notiere drei wichtige Punkte.": {
+      cat: "starten",
+      title: "Lernvideo nutzen",
+      desc: "Video schauen und 3 Punkte notieren.",
+      icon: "▶",
+      accent: "#fb923c"
+    },
+    "Ich wiederhole ein unsicheres Ziel.": {
+      cat: "starten",
+      title: "Ziel wiederholen",
+      desc: "Wiederhole etwas, das noch unsicher ist.",
+      icon: "↺",
+      accent: "#fb923c"
+    },
+    "Ich bearbeite Operator-Aufgaben.": {
+      cat: "bearbeiten",
+      title: "Operator-Aufgaben",
+      desc: "Arbeite auf Operator-Level weiter.",
+      icon: "2",
+      accent: "#a855f7"
+    },
+    "Ich versuche eine Street-Legend-Aufgabe.": {
+      cat: "bearbeiten",
+      title: "Legend versuchen",
+      desc: "Probiere eine schwere Aufgabe.",
+      icon: "3",
+      accent: "#d946ef"
+    },
+    "Ich schreibe meinen Lösungsweg sauber auf.": {
+      cat: "bearbeiten",
+      title: "Weg aufschreiben",
+      desc: "Halte deinen Rechenweg sauber fest.",
+      icon: "✎",
+      accent: "#a855f7"
+    },
+    "Ich erkläre am Ende eine Aufgabe jemandem.": {
+      cat: "bearbeiten",
+      title: "Aufgabe erklären",
+      desc: "Erkläre am Ende jemandem deine Lösung.",
+      icon: "💬",
+      accent: "#a855f7"
+    },
+    "Ich vergleiche meinen Lösungsweg mit der Musterlösung.": {
+      cat: "kontrollieren",
+      title: "Rechenweg prüfen",
+      desc: "Vergleiche mit der Musterlösung.",
+      icon: "≡",
+      accent: "#22d3ee"
+    },
+    "Ich suche gezielt meine Fehler.": {
+      cat: "kontrollieren",
+      title: "Fehler suchen",
+      desc: "Finde und verbessere Fehler.",
+      icon: "⌕",
+      accent: "#22d3ee"
+    }
+  };
+
+  const PLAN_B_TILE_META = {
+    "Ich schaue mir eine Beispielaufgabe an.": {
+      cat: "starten",
+      title: "Beispiel ansehen",
+      desc: "Hol dir Orientierung am Beispiel.",
+      icon: "◎",
+      accent: "#fb923c"
+    },
+    "Ich markiere gegeben und gesucht.": {
+      cat: "starten",
+      title: "Gegeben & gesucht",
+      desc: "Markiere, was gegeben und gesucht ist.",
+      icon: "◫",
+      accent: "#fb923c"
+    },
+    "Ich nutze eine Hilfestellung.": {
+      cat: "starten",
+      title: "Hilfe nutzen",
+      desc: "Nutze eine Hilfestellung bewusst.",
+      icon: "?",
+      accent: "#fb923c"
+    },
+    "Ich starte mit einer einfachen Rookie-Aufgabe.": {
+      cat: "starten",
+      title: "Rookie-Start",
+      desc: "Starte klein und einfach.",
+      icon: "1",
+      accent: "#fb923c"
+    },
+    "Ich arbeite 5 Minuten konzentriert an einer kleinen Aufgabe.": {
+      cat: "starten",
+      title: "5-Minuten-Start",
+      desc: "Kurz fokussiert anfangen.",
+      icon: "⏱",
+      accent: "#fb923c"
+    },
+    "Ich teile die Aufgabe in kleine Schritte.": {
+      cat: "bearbeiten",
+      title: "Schritte teilen",
+      desc: "Zerlege die Aufgabe in Teile.",
+      icon: "▦",
+      accent: "#a855f7"
+    },
+    "Ich frage eine Partnerin oder einen Partner.": {
+      cat: "bearbeiten",
+      title: "Partner fragen",
+      desc: "Hol dir gezielt Unterstützung.",
+      icon: "👥",
+      accent: "#a855f7"
+    },
+    "Ich mache eine Probe oder kontrolliere rückwärts.": {
+      cat: "kontrollieren",
+      title: "Probe machen",
+      desc: "Prüfe dein Ergebnis rückwärts.",
+      icon: "↩",
+      accent: "#22d3ee"
+    }
+  };
+
+  const LEVEL_TILE_META = {
+    rookie: { title: "Rookie", desc: "Einstieg und Sicherheit.", icon: "1", accent: "#22d3ee" },
+    operator: { title: "Operator", desc: "Sicher anwenden.", icon: "2", accent: "#a855f7" },
+    street_legend: { title: "Street Legend", desc: "Meistern und erklären.", icon: "3", accent: "#d946ef" }
+  };
+
+  function howGoalTile(text) {
+    const meta = HOW_GOAL_TILE_META[text];
+    if (meta) return { value: text, ...meta };
+    return {
+      value: text,
+      cat: "bearbeiten",
+      title: text.length > 34 ? `${text.slice(0, 31)}…` : text,
+      desc: text,
+      icon: "◆",
+      accent: "#a855f7"
+    };
+  }
+
+  function planBTile(text) {
+    const meta = PLAN_B_TILE_META[text];
+    if (meta) return { value: text, ...meta };
+    return {
+      value: text,
+      cat: "starten",
+      title: text.length > 30 ? `${text.slice(0, 27)}…` : text,
+      desc: text,
+      icon: "◆",
+      accent: "#fb923c"
+    };
+  }
+
+  function syncStrategyCategoryFromSelection() {
+    if (state.howGoalText) {
+      state.strategyCategory = howGoalTile(state.howGoalText).cat;
+    }
+    if (state.planBStrategyText) {
+      state.planBCategory = planBTile(state.planBStrategyText).cat;
+    }
+  }
+
+  function filteredHowGoalTiles() {
+    return state.howGoals
+      .map(howGoalTile)
+      .filter((tile) => tile.cat === state.strategyCategory);
+  }
+
+  function filteredPlanBTiles() {
+    return PLAN_B().map(planBTile).filter((tile) => tile.cat === state.planBCategory);
+  }
 
   function todayIso() {
     const d = new Date();
@@ -164,17 +362,94 @@
     );
   }
 
-  function renderWorkGoalChips(ui) {
-    const chips = C().WORK_GOALS.map(
-      (goal) => `
-      <button type="button"
-        class="plan-work-chip ${state.workGoals.includes(goal) ? "active" : ""}"
-        data-work-goal="${ui.escapeHtml(goal)}">
-        ${ui.escapeHtml(goal)}
-      </button>`
-    ).join("");
+  function renderWorkGoalTiles(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+    const tiles = C().WORK_GOALS.map((goal) => ({
+      value: goal,
+      title: goal,
+      desc: "Arbeitsfokus wählen",
+      icon: "◈",
+      accent: "#22d3ee"
+    }));
+    return ui.fieldWrap(
+      ui.fieldLabel("Arbeitsfokus", { optional: true }),
+      V.strategyTileGrid(tiles, state.workGoals, "data-work-goal", { multi: true }),
+      "Wähle optional mehrere Fokus-Karten."
+    );
+  }
 
-    return `<div class="plan-work-goal-chips" id="planWorkGoalChips">${chips}</div>`;
+  function renderLevelTiles(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V || !state.whatGoalId) return "";
+    const tiles = state.levelOptions.map((o) => ({
+      value: o.value,
+      ...(LEVEL_TILE_META[o.value] || {
+        title: o.label,
+        desc: "Level wählen",
+        icon: "◆",
+        accent: "#a855f7"
+      })
+    }));
+    return ui.fieldWrap(
+      ui.fieldLabel("Auf welchem Level arbeitest du?", { required: true }),
+      V.strategyTileGrid(tiles, state.selectedLevel, "data-level")
+    );
+  }
+
+  function renderStrategyLoadout(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V || !state.whatGoalId || !state.selectedLevel) return "";
+
+    return `
+      <div class="loadout-panel">
+        <p class="loadout-panel__label">Hauptstrategie</p>
+        ${V.strategyCategoryTabs(STRATEGY_TABS, state.strategyCategory)}
+        ${V.strategyTileGrid(filteredHowGoalTiles(), state.howGoalText, "data-how-goal")}
+
+        <p class="loadout-panel__label loadout-panel__label--planb">Notfall-Plan B</p>
+        ${V.strategyCategoryTabs(STRATEGY_TABS, state.planBCategory, "data-plan-b-category")}
+        ${V.strategyTileGrid(filteredPlanBTiles(), state.planBStrategyText, "data-plan-b")}
+      </div>`;
+  }
+
+  function renderConfidenceCards(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+    return ui.fieldWrap(
+      ui.fieldLabel("Wie sicher fühlst du dich vorher?", { optional: true }),
+      V.confidenceSelector(
+        [
+          { value: 1, label: "Unsicher", icon: "◎", accent: "#f472b6" },
+          { value: 2, label: "Eher unsicher", icon: "◔", accent: "#fb923c" },
+          { value: 3, label: "Mittel", icon: "◑", accent: "#a855f7" },
+          { value: 4, label: "Sicher", icon: "◕", accent: "#22d3ee" },
+          { value: 5, label: "Sehr sicher", icon: "●", accent: "#22c55e" }
+        ],
+        state.confidenceBefore
+      )
+    );
+  }
+
+  function renderSocialTiles(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+    const tiles = socialFormOptions().map((opt) => ({
+      value: opt.value,
+      title: opt.label.replace(" (Silber/Gold)", ""),
+      desc: opt.disabled ? "Noch gesperrt" : "Sozialform wählen",
+      icon: "◉",
+      accent: "#a855f7",
+      disabled: opt.disabled
+    }));
+    return ui.fieldWrap(
+      ui.fieldLabel("Sozialform", { optional: true }),
+      V.strategyTileGrid(
+        tiles.filter((t) => !t.disabled),
+        state.socialForm,
+        "data-social-form"
+      )
+    );
   }
 
   function dailyGoalBlockHtml(ui, entry) {
@@ -223,57 +498,19 @@
   }
 
   function renderLevelChips(ui) {
-    const V = window.LogbuchVisuals;
-    if (!V || !state.whatGoalId) return "";
-    return ui.fieldWrap(
-      ui.fieldLabel("Auf welchem Level arbeitest du daran?", { required: true }),
-      V.choiceChipGroup(
-        state.levelOptions.map((o) => ({ value: o.value, label: o.label })),
-        { activeValue: state.selectedLevel, attrName: "data-level" }
-      )
-    );
+    return renderLevelTiles(ui);
   }
 
   function renderHowGoalChips(ui) {
-    const V = window.LogbuchVisuals;
-    if (!V || !state.whatGoalId || !state.selectedLevel) return "";
-    return ui.fieldWrap(
-      ui.fieldLabel("Wie willst du daran arbeiten?", { required: true }),
-      V.choiceChipGroup(
-        state.howGoals.map((g) => ({ value: g, label: g })),
-        { activeValue: state.howGoalText, attrName: "data-how-goal" }
-      )
-    );
+    return "";
   }
 
   function renderSocialChips(ui) {
-    const V = window.LogbuchVisuals;
-    if (!V) return "";
-    return ui.fieldWrap(
-      ui.fieldLabel("Sozialform", { optional: true }),
-      V.choiceChipGroup(socialFormOptions(), {
-        activeValue: state.socialForm,
-        attrName: "data-social-form"
-      })
-    );
+    return renderSocialTiles(ui);
   }
 
   function renderConfidenceSegments(ui) {
-    const V = window.LogbuchVisuals;
-    if (!V) return "";
-    return ui.fieldWrap(
-      ui.fieldLabel("Wie sicher fühlst du dich vorher?", { optional: true }),
-      V.choiceChipGroup(
-        [
-          { value: 1, label: "Unsicher" },
-          { value: 2, label: "Eher unsicher" },
-          { value: 3, label: "Mittel" },
-          { value: 4, label: "Sicher" },
-          { value: 5, label: "Sehr sicher" }
-        ],
-        { activeValue: state.confidenceBefore, attrName: "data-confidence" }
-      )
-    );
+    return renderConfidenceCards(ui);
   }
 
   function renderPlanSummaryContent(ui) {
@@ -294,6 +531,7 @@
       ["Level", state.selectedLevel ? levelLabel(state.selectedLevel) : "–"],
       ["Ziel", state.levelGoalText || "–"],
       ["Arbeitsweg", state.howGoalText || "–"],
+      ["Plan B", state.planBStrategyText || "–"],
       ["Arbeitsziele", state.workGoals.length ? state.workGoals.join(", ") : "–"],
       ["Sozialform", state.socialForm ? labelForSocialForm(state.socialForm) : "–"],
       [
@@ -404,6 +642,7 @@
     state.selectedCheckpointId = entry.checkpoint_id || null;
     state.existingEntry = null;
     refreshHowGoals();
+    syncStrategyCategoryFromSelection();
   }
 
   function renderExistingEntry(ui, dateLabel) {
@@ -521,10 +760,10 @@
                     )
                   : whatGoalMessage(ui)
               )}
-              ${renderLevelChips(ui)}
+              ${renderLevelTiles(ui)}
               ${
                 levelMeaning
-                  ? `<div class="plan-level-meaning">
+                  ? `<div class="plan-level-meaning glow-panel glow-panel--violet">
                       <span class="plan-level-meaning-label">${ui.escapeHtml(levelMeaningLabel(state.selectedLevel))}</span>
                       <p>${ui.escapeHtml(levelMeaning)}</p>
                     </div>`
@@ -532,7 +771,6 @@
                     ? `<div class="logbuch-msg logbuch-msg-info">Für dieses Level wurde noch kein Zieltext hinterlegt.</div>`
                     : ""
               }
-              ${renderHowGoalChips(ui)}
               ${
                 state.whatGoalId && state.selectedLevel
                   ? ui.fieldWrap(
@@ -546,46 +784,29 @@
                     )
                   : ""
               }
-              ${
-                state.whatGoalId && state.selectedLevel
-                  ? ui.fieldWrap(
-                      ui.fieldLabel("Mein Plan B, wenn ich hänge", { optional: true }),
-                      ui.select(
-                        "planBStrategyText",
-                        PLAN_B().map((g) => ({ value: g, label: g })),
-                        state.planBStrategyText,
-                        { phase: "plan", placeholder: "Optional: Strategie wählen…" }
-                      ),
-                      "Wähle eine Strategie, die du nutzen willst, wenn du nicht weiterkommst."
-                    )
-                  : ""
-              }
             </div>`
           )}
 
           ${renderGoalStepCard(
             3,
-            "Arbeitsweise",
+            "Dein Loadout",
             `
             <div class="goal-step-card__stack">
-              ${renderSocialChips(ui)}
-              ${ui.fieldWrap(
-                ui.fieldLabel("Arbeitsziele", { optional: true }),
-                renderWorkGoalChips(ui),
-                "Tippe mehrere an – optionaler Arbeitsfokus"
-              )}
+              ${renderStrategyLoadout(ui)}
+              ${renderSocialTiles(ui)}
+              ${renderWorkGoalTiles(ui)}
             </div>`
           )}
 
           ${renderGoalStepCard(
             4,
             "Selbstcheck",
-            `<div class="goal-step-card__stack">${renderConfidenceSegments(ui)}</div>`
+            `<div class="goal-step-card__stack">${renderConfidenceCards(ui)}</div>`
           )}
 
           ${renderGoalStepCard(
             5,
-            "Zusammenfassung",
+            "Mission Summary",
             `
             <div id="planSummaryCard">${renderPlanSummaryContent(ui)}</div>
             ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
@@ -644,15 +865,41 @@
       render();
     });
 
+    bindChoiceChips(root, "[data-strategy-category]", (btn) => {
+      state.strategyCategory = btn.dataset.strategyCategory;
+      render();
+    });
+
+    bindChoiceChips(root, "[data-plan-b-category]", (btn) => {
+      state.planBCategory = btn.dataset.planBCategory;
+      render();
+    });
+
     bindChoiceChips(root, "[data-how-goal]", (btn) => {
       state.howGoalText = btn.dataset.howGoal;
+      state.strategyCategory = howGoalTile(state.howGoalText).cat;
+      root.querySelectorAll("[data-how-goal]").forEach((chip) => {
+        chip.classList.toggle("is-active", chip.dataset.howGoal === state.howGoalText);
+      });
       updatePlanningPreview(root);
       const submitBtn = root.querySelector("#planSubmitBtn");
       if (submitBtn) submitBtn.disabled = state.submitting || !requiredFieldsComplete();
     });
 
+    bindChoiceChips(root, "[data-plan-b]", (btn) => {
+      state.planBStrategyText = btn.dataset.planB;
+      state.planBCategory = planBTile(state.planBStrategyText).cat;
+      root.querySelectorAll("[data-plan-b]").forEach((chip) => {
+        chip.classList.toggle("is-active", chip.dataset.planB === state.planBStrategyText);
+      });
+      updatePlanningPreview(root);
+    });
+
     bindChoiceChips(root, "[data-social-form]", (btn) => {
       state.socialForm = btn.dataset.socialForm;
+      root.querySelectorAll("[data-social-form]").forEach((chip) => {
+        chip.classList.toggle("is-active", chip.dataset.socialForm === state.socialForm);
+      });
       updatePlanningPreview(root);
     });
 
@@ -666,18 +913,15 @@
   }
 
   function bindWorkGoalChips(root) {
-    root.querySelectorAll(".plan-work-chip").forEach((btn) => {
+    root.querySelectorAll("[data-work-goal]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const goal = btn.dataset.workGoal;
         if (!goal) return;
         const idx = state.workGoals.indexOf(goal);
-        if (idx >= 0) {
-          state.workGoals.splice(idx, 1);
-        } else {
-          state.workGoals.push(goal);
-        }
-        root.querySelectorAll(".plan-work-chip").forEach((chip) => {
-          chip.classList.toggle("active", state.workGoals.includes(chip.dataset.workGoal));
+        if (idx >= 0) state.workGoals.splice(idx, 1);
+        else state.workGoals.push(goal);
+        root.querySelectorAll("[data-work-goal]").forEach((chip) => {
+          chip.classList.toggle("is-active", state.workGoals.includes(chip.dataset.workGoal));
         });
         updatePlanningPreview(root);
       });
@@ -936,6 +1180,8 @@
     state.subjectLocked = false;
     state.submitting = false;
     state.errorMsg = "";
+    state.strategyCategory = "starten";
+    state.planBCategory = "starten";
 
     const root = document.getElementById("plan-screen-root");
     if (root) {
@@ -944,6 +1190,7 @@
 
     try {
       await loadContext();
+      syncStrategyCategoryFromSelection();
       render();
     } catch (err) {
       console.error(err);
