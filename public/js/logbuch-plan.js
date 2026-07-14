@@ -342,15 +342,21 @@
     const showDailyGoal = requiredFieldsComplete();
 
     root.innerHTML = `
-      <div class="logbuch-form">
-        <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${state.timeslot ? ` · ${ui.escapeHtml(state.timeslot)}` : ""}</p>
+      <div class="app-form-sheet">
+        <div class="app-form-header">
+          <span class="app-form-header__pill">${ui.escapeHtml(dateLabel)}${state.timeslot ? ` · ${ui.escapeHtml(state.timeslot)}` : ""}</span>
+        </div>
 
+        <div class="logbuch-form app-form-body">
         ${
           state.editingEntryId
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest dein Tagesziel – beim Speichern gibt es kein zusätzliches XP.</div>`
             : ""
         }
 
+        <section class="app-form-section">
+          <h3 class="app-form-section__title">Stunde</h3>
+          <div class="app-form-section__grid">
         ${
           state.subjectLocked
             ? ui.fieldWrap(
@@ -370,7 +376,12 @@
         }
 
         ${renderCheckpointField(ui)}
+          </div>
+        </section>
 
+        <section class="app-form-section">
+          <h3 class="app-form-section__title">Dein Lernziel</h3>
+          <div class="app-form-section__grid">
         ${ui.fieldWrap(
           ui.fieldLabel("Was willst du heute können?", { required: true }),
           state.whatGoalOptions.length
@@ -454,7 +465,12 @@
         <div id="planSummaryBox" ${showDailyGoal ? "" : "hidden"}>
           ${showDailyGoal ? dailyGoalBlockHtml(ui) : ""}
         </div>
+          </div>
+        </section>
 
+        <section class="app-form-section">
+          <h3 class="app-form-section__title">Arbeitsfokus</h3>
+          <div class="app-form-section__grid">
         ${ui.fieldWrap(
           ui.fieldLabel("Arbeitsziele", { optional: true }),
           renderWorkGoalChips(ui),
@@ -478,9 +494,12 @@
             { phase: "plan" }
           )
         )}
+          </div>
+        </section>
 
         ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
 
+        <div class="app-form-footer">
         ${ui.btnPrimary(
           state.submitting
             ? "Speichern…"
@@ -489,9 +508,11 @@
               : "Tagesziel speichern (+2 XP)",
           "planSubmitBtn",
           state.submitting || !requiredFieldsComplete(),
-          "logbuch-submit-full"
+          "logbuch-submit-full today-app-btn"
         )}
-        ${ui.btnGhost("Abbrechen", "planBackBtn")}
+        ${ui.btnGhost("Abbrechen", "planBackBtn", "today-app-btn today-app-btn--ghost")}
+        </div>
+        </div>
       </div>`;
 
     bindHandlers(root);

@@ -88,7 +88,7 @@
     }
 
     return `
-      <select class="logbuch-select today-action-select" data-entry-id="${ui.escapeHtml(entry.id)}">
+      <select class="logbuch-select today-action-select today-app-select" data-entry-id="${ui.escapeHtml(entry.id)}">
         ${options}
       </select>`;
   }
@@ -154,9 +154,9 @@
       </p>`;
   }
 
-  function navButton(label, nav, query, primary = false) {
+  function navButton(label, nav, query, primary = false, className = "") {
     const ui = UI();
-    const cls = primary ? "btn-primary" : "logbuch-btn-ghost";
+    const cls = className || (primary ? "today-app-btn" : "today-app-btn today-app-btn--ghost");
     return `
       <button type="button" class="${cls}" data-nav="${ui.escapeHtml(nav)}" data-query="${ui.escapeHtml(query)}">
         ${ui.escapeHtml(label)} →
@@ -171,6 +171,14 @@
     return navButton("Tagesabschluss", "reflect", new URLSearchParams({ entryId: entry.id }).toString(), true);
   }
 
+  function appPrimaryButton(label, nav, query) {
+    const ui = UI();
+    return `
+      <button type="button" class="today-app-btn" data-nav="${ui.escapeHtml(nav)}" data-query="${ui.escapeHtml(query)}">
+        ${ui.escapeHtml(label)} <span aria-hidden="true">→</span>
+      </button>`;
+  }
+
   function renderBlock(block, editable) {
     const ui = UI();
     const slot = block.slot;
@@ -179,14 +187,12 @@
     if (!entry) {
       if (!editable) {
         return `
-          <article class="student-card lesson-card">
-            <div class="card-content">
-              <div class="lesson-card__head">
-                <h3 class="lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
-                ${slot?.timeslot ? `<span class="lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
-              </div>
-              <p class="today-block-muted">Kein Eintrag</p>
+          <article class="today-lesson-card">
+            <div class="today-lesson-card__head">
+              <h3 class="today-lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
+              ${slot?.timeslot ? `<span class="today-lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
             </div>
+            <p class="today-lesson-card__empty">Kein Eintrag</p>
           </article>`;
       }
 
@@ -195,17 +201,14 @@
       if (slot?.timeslot) params.set("timeslot", slot.timeslot);
 
       return `
-        <article class="student-card lesson-card">
-          <div class="card-content">
-            <div class="lesson-card__head">
-              <h3 class="lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
-              ${slot?.timeslot ? `<span class="lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
-            </div>
-            <p class="lesson-card__goal">Noch kein Tagesziel gesetzt.</p>
-            <div class="lesson-card__actions">
-              ${navButton("Tagesziel setzen", "plan", params.toString(), true)}
-            </div>
+        <article class="today-lesson-card today-lesson-card--open">
+          <div class="today-lesson-card__head">
+            <h3 class="today-lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
+            ${slot?.timeslot ? `<span class="today-lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
           </div>
+          ${renderPhaseStepper({ plan: false, check: false, reflect: false })}
+          <p class="today-lesson-card__hint">Noch kein Tagesziel gesetzt.</p>
+          ${appPrimaryButton("Tagesziel setzen", "plan", params.toString())}
         </article>`;
     }
 
@@ -236,90 +239,114 @@
       : "";
 
     const primary = primaryAction(entry, editable);
-    const secondary = [viewPlanBtn, viewCheckBtn, viewReflectBtn].filter(Boolean).join("");
+    const secondary = [viewPlanBtn, viewCheckBtn, viewReflectBtn].filter(Boolean);
     const nextSelect = !readOnly && !(entry.hasCheck && entry.hasReflection) ? renderActionSelect(entry) : "";
+    const allDone = entry.hasCheck && entry.hasReflection;
 
     const checkpointHint = entry.checkpoint_title
-      ? `<p class="today-block-muted">${ui.escapeHtml(entry.checkpoint_title)}</p>`
+      ? `<p class="today-lesson-card__meta">${ui.escapeHtml(entry.checkpoint_title)}</p>`
       : "";
 
     return `
-      <article class="student-card lesson-card">
-        <div class="card-content">
-          <div class="lesson-card__head">
-            <h3 class="lesson-card__subject">${ui.escapeHtml(entry.subject)}</h3>
-            ${entry.timeslot ? `<span class="lesson-card__time">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
-          </div>
-          ${checkpointHint}
+      <article class="today-lesson-card ${allDone ? "today-lesson-card--done" : "today-lesson-card--active"}">
+        <div class="today-lesson-card__head">
+          <h3 class="today-lesson-card__subject">${ui.escapeHtml(entry.subject)}</h3>
+          ${entry.timeslot ? `<span class="today-lesson-card__time">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
+        </div>
+        ${checkpointHint}
+        ${renderPhaseStepper(phases)}
+        <div class="today-lesson-card__body">
           ${renderDailyGoalBody(ui, entry)}
           ${entry.hasCheck ? renderCheckSummary(ui, entry) : ""}
           ${entry.hasReflection ? renderReflectionSummary(ui, entry) : ""}
-          <div class="lesson-card__phases">${renderPhasePills(phases)}</div>
-          <div class="lesson-card__actions">
-            ${primary || ""}
-            ${secondary}
-            ${nextSelect}
-          </div>
+        </div>
+        <div class="today-lesson-card__actions">
+          ${
+            primary ||
+            (allDone ? `<p class="today-lesson-card__done">Alle Schritte erledigt ✓</p>` : "")
+          }
+          ${
+            secondary.length
+              ? `<div class="today-lesson-card__secondary">${secondary.join("")}</div>`
+              : ""
+          }
+          ${nextSelect ? `<div class="today-lesson-card__select">${nextSelect}</div>` : ""}
         </div>
       </article>`;
   }
 
+  function renderPhaseStepper(phases) {
+    const items = [
+      { key: "plan", label: "Plan" },
+      { key: "check", label: "Check" },
+      { key: "reflect", label: "Abschluss" }
+    ];
+    return `
+      <div class="today-lesson-steps" aria-label="Schritte dieser Stunde">
+        ${items
+          .map((p, index) => {
+            const done = phases[p.key];
+            const line =
+              index < items.length - 1
+                ? `<span class="today-lesson-step__line ${done ? "is-done" : ""}" aria-hidden="true"></span>`
+                : "";
+            return `
+              <div class="today-lesson-step ${done ? "is-done" : ""}">
+                <span class="today-lesson-step__dot" aria-hidden="true">${done ? "✓" : index + 1}</span>
+                <span class="today-lesson-step__label">${p.label}</span>
+              </div>${line}`;
+          })
+          .join("")}
+      </div>`;
+  }
+
   function renderProgressStrip(blockList) {
-    const V = window.LogbuchVisuals;
     const total = blockList.length;
     const planned = blockList.filter((b) => b.entry).length;
     const checked = blockList.filter((b) => b.entry?.hasCheck).length;
     const reflected = blockList.filter((b) => b.entry?.hasReflection).length;
-    const p = window.__studentProfile || {};
+    const dayPct = total ? Math.round((reflected / total) * 100) : 0;
 
-    const stats = V
-      ? V.statCards([
-          { value: `${planned}/${total || 0}`, label: "Ziele gesetzt", accent: true },
-          { value: `${checked}/${total || 0}`, label: "Checks" },
-          { value: `${reflected}/${total || 0}`, label: "Reflexionen" },
-          { value: Number(p.xp || 0).toLocaleString("de-DE"), label: "XP gesamt", accent: true }
-        ])
-      : "";
-
-    if (!V) return stats;
-
-    const checkOpen = total - checked;
-    const reflectOpen = total - reflected;
+    const steps = [
+      { label: "Ziele", done: planned, accent: "#22d3ee" },
+      { label: "Check", done: checked, accent: "#f59e0b" },
+      { label: "Abschluss", done: reflected, accent: "#a855f7" }
+    ];
 
     return `
-      ${V.progressPanel({
-        radial: V.circularProgress({
-          completed: reflected,
-          total,
-          label: "Tagesfortschritt",
-          sublabel: `${reflected} von ${total || 0} Aufgaben`,
-          accent: "#f97316"
-        }),
-        stats
-      })}
-      <div class="today-status-circles">
-        ${V.circularProgress({
-          completed: planned,
-          total,
-          label: "Ziele gesetzt",
-          size: 92,
-          accent: "#22d3ee"
-        })}
-        ${V.circularProgress({
-          completed: checked,
-          total,
-          label: "Zwischen-Check",
-          size: 92,
-          accent: checkOpen > 0 ? "#f59e0b" : "#22c55e"
-        })}
-        ${V.circularProgress({
-          completed: reflected,
-          total,
-          label: "Tagesabschluss",
-          size: 92,
-          accent: reflectOpen > 0 ? "#a855f7" : "#22c55e"
-        })}
-      </div>`;
+      <section class="today-app-progress" aria-label="Tagesfortschritt">
+        <div class="today-app-progress__head">
+          <div class="today-app-progress__copy">
+            <p class="today-app-progress__eyebrow">Tagesfortschritt</p>
+            <p class="today-app-progress__summary">${reflected} von ${total || 0} Stunden abgeschlossen</p>
+          </div>
+          <p class="today-app-progress__pct" aria-hidden="true">${dayPct}<span>%</span></p>
+        </div>
+        <div
+          class="today-app-progress__bar"
+          role="progressbar"
+          aria-valuenow="${dayPct}"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-label="Gesamtfortschritt heute"
+        >
+          <span style="width:${dayPct}%"></span>
+        </div>
+        <div class="today-app-progress__steps">
+          ${steps
+            .map(
+              (s) => `
+            <div class="today-app-step ${total > 0 && s.done === total ? "is-complete" : ""}">
+              <div class="today-app-step__track" aria-hidden="true">
+                <span style="width:${total ? Math.round((s.done / total) * 100) : 0}%; background:${s.accent}"></span>
+              </div>
+              <span class="today-app-step__label">${s.label}</span>
+              <span class="today-app-step__count">${s.done}/${total || 0}</span>
+            </div>`
+            )
+            .join("")}
+        </div>
+      </section>`;
   }
 
   function renderEmptyState(d, editable) {
@@ -353,11 +380,11 @@
   function renderDayNav(d) {
     const ui = UI();
     return `
-      <div class="student-card day-nav-card">
+      <div class="today-day-nav">
         <button type="button" class="today-arrow" data-dir="prev" aria-label="Vorheriger Tag">‹</button>
-        <div class="day-nav-card__center">
-          <h3 class="day-nav-card__title">${ui.escapeHtml(d.weekdayLabel)}</h3>
-          <p class="day-nav-card__sub">${ui.escapeHtml(d.dateLabel)}</p>
+        <div class="today-day-nav__center">
+          <h3 class="today-day-nav__title">${ui.escapeHtml(d.weekdayLabel)}</h3>
+          <p class="today-day-nav__sub">${ui.escapeHtml(d.dateLabel)}</p>
         </div>
         <button type="button" class="today-arrow" data-dir="next" aria-label="Nächster Tag">›</button>
       </div>`;
@@ -389,18 +416,19 @@
         : renderEmptyState(d, editable);
 
     root.innerHTML = `
-      <div class="student-page today-shell" id="todaySwipeArea">
+      <div class="student-page today-shell today-app" id="todaySwipeArea">
         ${renderDayNav(d)}
-        ${renderProgressStrip(blockList)}
+        ${blockList.length ? renderProgressStrip(blockList) : ""}
 
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="todaySlidePanel">
-            <section class="page-grid">
-              <div class="section-block">
-                <h3 class="section-block__title">${blockList.length ? "Deine Stunden" : "Übersicht"}</h3>
-                <div class="today-blocks">${lessonsHtml}</div>
-              </div>
-            </section>
+            <div class="today-lesson-list">
+              ${
+                blockList.length
+                  ? `<h3 class="today-lesson-list__title">Deine Stunden</h3>${lessonsHtml}`
+                  : lessonsHtml
+              }
+            </div>
           </div>
         </div>
       </div>`;

@@ -3498,6 +3498,511 @@ body.student-app .card.section > h2 {
   opacity: 0.7;
 }
 .today-shell { display: flex; flex-direction: column; gap: 12px; }
+
+/* Mein Tag – App Layout */
+.today-app {
+  gap: 14px;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+#today-section #userCard {
+  display: none;
+}
+
+#today-section .today-status-panel {
+  margin-bottom: 0;
+}
+
+#today-section .page-hero,
+#plan-section .page-hero,
+#check-section .page-hero,
+#reflect-section .page-hero {
+  min-height: 0;
+  margin: -18px -20px 14px;
+  padding: 14px 16px 12px;
+  align-items: center;
+}
+
+#today-section .page-hero__image,
+#plan-section .page-hero__image,
+#check-section .page-hero__image,
+#reflect-section .page-hero__image {
+  width: 34%;
+  opacity: 0.42;
+}
+
+#today-section .page-hero__sub,
+#plan-section .page-hero__sub,
+#check-section .page-hero__sub,
+#reflect-section .page-hero__sub {
+  display: none;
+}
+
+#today-section .page-hero__title,
+#plan-section .page-hero__title,
+#check-section .page-hero__title,
+#reflect-section .page-hero__title {
+  font-size: clamp(1rem, 2.4vw, 1.15rem);
+  margin: 0;
+}
+
+#today-section .student-section-icon,
+#plan-section .student-section-icon,
+#check-section .student-section-icon,
+#reflect-section .student-section-icon {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+}
+
+.today-app-progress {
+  border-radius: 22px;
+  border: 1px solid rgba(251, 146, 60, 0.22);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(251, 146, 60, 0.12), transparent 42%),
+    linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+  padding: 16px 18px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.today-app-progress__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.today-app-progress__eyebrow {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fdba74;
+}
+
+.today-app-progress__summary {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #f8fafc;
+}
+
+.today-app-progress__pct {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 1.65rem;
+  line-height: 1;
+  color: #fff7ed;
+  flex-shrink: 0;
+}
+
+.today-app-progress__pct span {
+  font-size: 0.9rem;
+  opacity: 0.72;
+}
+
+.today-app-progress__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.today-app-progress__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee, #f97316, #a855f7);
+  box-shadow: 0 0 16px rgba(249, 115, 22, 0.35);
+  transition: width 0.35s ease;
+}
+
+.today-app-progress__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.today-app-step {
+  min-width: 0;
+  padding: 10px 10px 8px;
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.today-app-step.is-complete {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.today-app-step__track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.today-app-step__track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.35s ease;
+}
+
+.today-app-step__label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.today-app-step__count {
+  display: block;
+  margin-top: 2px;
+  font-family: "Orbitron", system-ui;
+  font-size: 13px;
+  color: #f1f5f9;
+}
+
+.today-lesson-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.today-lesson-list__title {
+  margin: 2px 2px 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.today-lesson-card {
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+  padding: 16px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+}
+
+.today-lesson-card--open {
+  border-color: rgba(251, 146, 60, 0.28);
+}
+
+.today-lesson-card--active {
+  border-color: rgba(56, 189, 248, 0.24);
+}
+
+.today-lesson-card--done {
+  border-color: rgba(34, 197, 94, 0.24);
+}
+
+.today-lesson-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.today-lesson-card__subject {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fdba74;
+}
+
+.today-lesson-card__time {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.today-lesson-card__meta,
+.today-lesson-card__hint,
+.today-block-muted {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.today-lesson-card__body .lesson-card__goal,
+.today-lesson-card__body .today-focus-card {
+  margin-top: 0;
+}
+
+.today-lesson-card__body .today-focus-card {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+}
+
+.today-lesson-card__done {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #86efac;
+}
+
+.today-lesson-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 12px;
+}
+
+.today-lesson-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 52px;
+}
+
+.today-lesson-step__dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.today-lesson-step.is-done .today-lesson-step__dot {
+  color: #052e16;
+  background: #4ade80;
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.today-lesson-step__label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.today-lesson-step.is-done .today-lesson-step__label {
+  color: #86efac;
+}
+
+.today-lesson-step__line {
+  flex: 1;
+  height: 2px;
+  margin: 0 4px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
+.today-lesson-step__line.is-done {
+  background: rgba(34, 197, 94, 0.45);
+}
+
+.today-lesson-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.today-lesson-card__secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.today-app-btn,
+#plan-section .btn-primary.logbuch-submit {
+  appearance: none;
+  width: 100%;
+  min-height: 46px;
+  border: none;
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+  background: linear-gradient(135deg, #fdba74, #fb923c);
+  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.28);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.today-app-btn:hover:not(:disabled),
+#plan-section .btn-primary.logbuch-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(249, 115, 22, 0.34);
+}
+
+.today-app-btn:disabled,
+#plan-section .btn-primary.logbuch-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.today-app-btn--ghost,
+#plan-section .logbuch-btn-ghost {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+  width: auto;
+  min-height: 40px;
+}
+
+.today-lesson-card__secondary .today-app-btn {
+  width: auto;
+  flex: 1 1 calc(50% - 4px);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 10px 12px;
+}
+
+.today-app-select,
+.today-lesson-card__select .today-action-select {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(2, 6, 23, 0.75);
+  color: #e2e8f0;
+  padding: 10px 12px;
+}
+
+.app-form-sheet {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.app-form-header {
+  margin-bottom: 12px;
+}
+
+.app-form-header__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fdba74;
+  background: rgba(251, 146, 60, 0.12);
+  border: 1px solid rgba(251, 146, 60, 0.22);
+}
+
+.app-form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#plan-section .logbuch-form,
+#check-section .logbuch-form,
+#reflect-section .logbuch-form {
+  grid-template-columns: 1fr;
+}
+
+.app-form-section {
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(2, 6, 23, 0.55);
+  padding: 14px;
+}
+
+.app-form-section__title {
+  margin: 0 0 12px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.app-form-section__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-form-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: sticky;
+  bottom: 8px;
+  padding-top: 4px;
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0), rgba(2, 6, 23, 0.92) 24%);
+}
+
+@media (max-width: 720px) {
+  #today-section .page-hero__image,
+  #plan-section .page-hero__image,
+  #check-section .page-hero__image,
+  #reflect-section .page-hero__image {
+    display: none;
+  }
+
+  .today-app-progress__pct {
+    font-size: 1.35rem;
+  }
+
+  .today-lesson-card__secondary .today-app-btn {
+    flex-basis: 100%;
+  }
+}
+
+.today-day-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(2, 6, 23, 0.72);
+}
+
+.today-day-nav__center {
+  flex: 1;
+  text-align: center;
+  min-width: 0;
+}
+
+.today-day-nav__title {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f1f5f9;
+}
+
+.today-day-nav__sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
 .today-status-panel {
   display: grid;
   gap: 10px;
@@ -6093,15 +6598,15 @@ h2 {
 <script src="/js/auth-fetch.js?v=3"></script>
 <script src="/js/logbuch-constants.js?v=6"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
-<script src="/js/logbuch-ui.js"></script>
+<script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=18"></script>
 <script src="/js/logbuch-visuals.js?v=4"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-plan.js?v=13"></script>
+<script src="/js/logbuch-plan.js?v=14"></script>
 <script src="/js/logbuch-check.js?v=6"></script>
 <script src="/js/logbuch-reflect.js?v=3"></script>
-<script src="/js/logbuch-today.js?v=20"></script>
+<script src="/js/logbuch-today.js?v=21"></script>
 <script src="/js/logbuch-week.js?v=5"></script>
 <script src="/js/logbuch-levelplan.js?v=13"></script>
 <script src="/js/logbuch-start-briefing.js?v=1"></script>

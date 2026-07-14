@@ -91,8 +91,8 @@ window.LogbuchUI = {
     return `<button type="button" class="btn-primary logbuch-submit ${extraClass}" id="${id}" ${disabled ? "disabled" : ""}>${this.escapeHtml(text)}</button>`;
   },
 
-  btnGhost(text, id) {
-    return `<button type="button" class="logbuch-btn-ghost" id="${id}">${this.escapeHtml(text)}</button>`;
+  btnGhost(text, id, extraClass = "") {
+    return `<button type="button" class="logbuch-btn-ghost ${extraClass}" id="${id}">${this.escapeHtml(text)}</button>`;
   },
 
   msg(text, type = "error") {
