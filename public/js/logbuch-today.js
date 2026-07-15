@@ -209,43 +209,50 @@
     const checked = blockList.filter((b) => b.entry?.hasCheck).length;
     const reflected = blockList.filter((b) => b.entry?.hasReflection).length;
     const profile = window.__studentProfile || {};
-    const xpLabel = profile.xpProgressLabel || `${Number(profile.xp || 0).toLocaleString("de-DE")} XP`;
-    const levelLabel = profile.levelName || "–";
+    const todayXp = Number(profile.todayXp || 0);
+    const xpTarget = Math.max(10, todayXp || 10);
 
-    const ring = V
+    const ringProgress = V
       ? V.circularProgress({
           completed: reflected,
-          total,
+          total: total || 1,
           label: "Tagesfortschritt",
-          sublabel: `${reflected} von ${total || 0} Aufgaben`,
-          size: 92,
-          accent: "#f97316"
+          sublabel: `${reflected} von ${total || 0}`,
+          size: 88,
+          accent: "#22d3ee"
         })
       : `<p class="today-overview__fallback">${reflected}/${total || 0}</p>`;
 
-    const kpiGoals = V
-      ? V.kpiStatCard({
-          value: `${planned}/${total || 0}`,
+    const ringGoals = V
+      ? V.circularProgress({
+          completed: planned,
+          total: total || 1,
           label: "Ziele gesetzt",
-          sublabel: "Plan",
-          accent: "#22d3ee"
+          sublabel: `${planned} von ${total || 0}`,
+          size: 88,
+          accent: "#a855f7"
         })
       : "";
-    const kpiChecks = V
-      ? V.kpiStatCard({
-          value: `${checked}/${total || 0}`,
+
+    const ringChecks = V
+      ? V.circularProgress({
+          completed: checked,
+          total: total || 1,
           label: "Checks",
-          sublabel: "Zwischen-Check",
+          sublabel: `${checked} von ${total || 0}`,
+          size: 88,
           accent: "#f59e0b"
         })
       : "";
-    const kpiXp = V
-      ? V.kpiStatCard({
-          value: xpLabel,
-          label: levelLabel,
-          sublabel: "XP · Level",
-          accent: "#a855f7",
-          variant: "xp"
+
+    const ringXp = V
+      ? V.circularProgress({
+          completed: todayXp,
+          total: xpTarget,
+          label: "XP heute",
+          sublabel: `${todayXp} XP`,
+          size: 88,
+          accent: "#22c55e"
         })
       : "";
 
@@ -273,11 +280,11 @@
 
         <h3 class="today-overview__label">Heute im Überblick</h3>
 
-        <div class="today-kpi-grid">
-          <article class="kpi-stat-card kpi-stat-card--ring">${ring}</article>
-          ${kpiGoals}
-          ${kpiChecks}
-          ${kpiXp}
+        <div class="today-kpi-grid today-kpi-grid--rings">
+          <article class="kpi-ring-card">${ringProgress}</article>
+          <article class="kpi-ring-card">${ringGoals}</article>
+          <article class="kpi-ring-card">${ringChecks}</article>
+          <article class="kpi-ring-card">${ringXp}</article>
         </div>
       </section>`;
   }

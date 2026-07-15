@@ -559,7 +559,9 @@ window.LogbuchVisuals = {
             class="strategy-tile ${isActive ? "is-active" : ""}"
             ${attrName}="${this.escape(tile.value)}"
             style="--tile-accent:${tile.accent || "#8b5cf6"}"
+            ${tile.disabled ? "disabled" : ""}
           >
+            ${isActive ? `<span class="strategy-tile__check" aria-hidden="true">✓</span>` : ""}
             <span class="strategy-tile__icon" aria-hidden="true">${this.escape(tile.icon || "◆")}</span>
             <span class="strategy-tile__title">${this.escape(tile.title)}</span>
             <span class="strategy-tile__desc">${this.escape(tile.desc || "")}</span>

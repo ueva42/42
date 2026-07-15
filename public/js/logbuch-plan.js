@@ -57,6 +57,8 @@
     selectedLevel: null,
     levelGoalText: "",
     howGoalText: null,
+    startGoalText: null,
+    controlGoalText: null,
     planBStrategyText: null,
     workGoals: [],
     socialForm: null,
@@ -76,16 +78,90 @@
     hasClass: true,
     subjectLocked: false,
     submitting: false,
-    errorMsg: "",
-    strategyCategory: "starten",
-    planBCategory: "starten"
+    errorMsg: ""
   };
 
-  const STRATEGY_TABS = [
-    { id: "starten", label: "Ich starte", accent: "#fb923c" },
-    { id: "bearbeiten", label: "Ich arbeite", accent: "#a855f7" },
-    { id: "kontrollieren", label: "Ich kontrolliere", accent: "#22d3ee" }
+  const ARBEIT_TILE_META = {
+    "Konzentriert arbeiten": {
+      title: "Konzentriert arbeiten",
+      desc: "Ich arbeite fokussiert an meiner Aufgabe.",
+      icon: "◎",
+      accent: "#a855f7"
+    },
+    "Kein Handy": {
+      title: "Kein Handy",
+      desc: "Ich lege mein Handy weg.",
+      icon: "▣",
+      accent: "#a855f7"
+    },
+    "Tablet nur für Aufgaben": {
+      title: "Tablet nur für Aufgaben",
+      desc: "Ich nutze das Tablet nur fürs Lernen.",
+      icon: "▤",
+      accent: "#a855f7"
+    },
+    "Nicht ablenken lassen": {
+      title: "Nicht ablenken lassen",
+      desc: "Ich lasse mich nicht stören.",
+      icon: "◌",
+      accent: "#a855f7"
+    },
+    "Ruhig arbeiten": {
+      title: "Ruhig arbeiten",
+      desc: "Ich arbeite ruhig und sauber.",
+      icon: "◍",
+      accent: "#a855f7"
+    },
+    "Hilfe holen wenn nötig": {
+      title: "Hilfe gezielt nutzen",
+      desc: "Ich nutze Hilfestellung bewusst.",
+      icon: "?",
+      accent: "#a855f7"
+    }
+  };
+
+  const CONTROL_STRATEGY_TILES = [
+    {
+      value: "Ergebnis kontrollieren",
+      title: "Rechenweg prüfen",
+      desc: "Ich prüfe meinen Rechenweg.",
+      icon: "≡",
+      accent: "#22d3ee"
+    },
+    {
+      value: "Mit Partner vergleichen",
+      title: "Mit Musterlösung vergleichen",
+      desc: "Ich vergleiche mit der Musterlösung.",
+      icon: "⇄",
+      accent: "#22d3ee"
+    },
+    {
+      value: "Gegenprobe machen",
+      title: "Rückwärts kontrollieren",
+      desc: "Ich kontrolliere mein Ergebnis rückwärts.",
+      icon: "↩",
+      accent: "#22d3ee"
+    },
+    {
+      value: "Lösungsweg erklären",
+      title: "Lösung erklären",
+      desc: "Ich erkläre meine Lösung am Ende.",
+      icon: "💬",
+      accent: "#22d3ee"
+    },
+    {
+      value: "Aufgaben Schritt für Schritt",
+      title: "Fehler suchen",
+      desc: "Ich suche gezielt Fehler in meinem Weg.",
+      icon: "⌕",
+      accent: "#22d3ee"
+    }
   ];
+
+  const HOW_TO_CONTROL_STRATEGY = {
+    "Ich vergleiche meinen Lösungsweg mit der Musterlösung.": "Mit Partner vergleichen",
+    "Ich suche gezielt meine Fehler.": "Aufgaben Schritt für Schritt"
+  };
 
   const HOW_GOAL_TILE_META = {
     "Ich schaue mir zuerst ein Beispiel an.": {
@@ -258,23 +334,41 @@
     };
   }
 
-  function syncStrategyCategoryFromSelection() {
-    if (state.howGoalText) {
-      state.strategyCategory = howGoalTile(state.howGoalText).cat;
-    }
-    if (state.planBStrategyText) {
-      state.planBCategory = planBTile(state.planBStrategyText).cat;
-    }
+  function syncStartGoalFromHowGoal() {
+    state.howGoalText = state.startGoalText;
   }
 
-  function filteredHowGoalTiles() {
-    return state.howGoals
-      .map(howGoalTile)
-      .filter((tile) => tile.cat === state.strategyCategory);
+  function controlLabel(value) {
+    const tile = CONTROL_STRATEGY_TILES.find((t) => t.value === value);
+    if (tile) return tile.title;
+    return value || "–";
   }
 
-  function filteredPlanBTiles() {
-    return PLAN_B().map(planBTile).filter((tile) => tile.cat === state.planBCategory);
+  function arbeitTile(goal) {
+    const meta = ARBEIT_TILE_META[goal];
+    return {
+      value: goal,
+      title: meta?.title || goal,
+      desc: meta?.desc || "Arbeitsfokus wählen",
+      icon: meta?.icon || "◈",
+      accent: meta?.accent || "#a855f7"
+    };
+  }
+
+  function startGoalTiles() {
+    return state.howGoals.map(howGoalTile).filter((tile) => tile.cat === "starten");
+  }
+
+  function controlGoalTiles() {
+    return CONTROL_STRATEGY_TILES;
+  }
+
+  function arbeitGoalTiles() {
+    return C().WORK_GOALS.map(arbeitTile);
+  }
+
+  function planBTilesAll() {
+    return PLAN_B().map(planBTile);
   }
 
   function todayIso() {
@@ -317,9 +411,7 @@
   }
 
   function levelMeaningLabel(level) {
-    if (level === "rookie") return "Auf Rookie-Level heißt das:";
-    if (level === "operator") return "Auf Operator-Level heißt das:";
-    if (level === "street_legend") return "Auf Street-Legend-Level heißt das:";
+    if (level) return "Auf diesem Level heißt das:";
     return "Das bedeutet:";
   }
 
@@ -333,7 +425,8 @@
 
   function refreshHowGoals() {
     state.howGoals = howGoalsForLevel(state.selectedLevel, state.howGoalsBase);
-    if (state.howGoalText && !state.howGoals.includes(state.howGoalText)) {
+    if (state.startGoalText && !state.howGoals.includes(state.startGoalText)) {
+      state.startGoalText = null;
       state.howGoalText = null;
     }
   }
@@ -356,27 +449,55 @@
       state.whatGoalId &&
       state.selectedLevel &&
       state.levelGoalText &&
-      state.howGoalText &&
+      state.startGoalText &&
+      state.controlGoalText &&
+      state.workGoals.length >= 1 &&
+      state.workGoals.length <= 3 &&
       checkpointSatisfied() &&
       state.whatGoalOptions.length
     );
   }
 
-  function renderWorkGoalTiles(ui) {
+  function renderMeinWegZumZiel(ui) {
     const V = window.LogbuchVisuals;
-    if (!V) return "";
-    const tiles = C().WORK_GOALS.map((goal) => ({
-      value: goal,
-      title: goal,
-      desc: "Arbeitsfokus wählen",
-      icon: "◈",
-      accent: "#22d3ee"
-    }));
-    return ui.fieldWrap(
-      ui.fieldLabel("Arbeitsfokus", { optional: true }),
-      V.strategyTileGrid(tiles, state.workGoals, "data-work-goal", { multi: true }),
-      "Wähle optional mehrere Fokus-Karten."
-    );
+    if (!V || !state.whatGoalId || !state.selectedLevel) return "";
+
+    return `
+      <div class="way-to-goal">
+        <p class="way-to-goal__intro">Wähle aus, <strong>wie</strong> du heute arbeiten willst.</p>
+
+        <section class="way-section way-section--start">
+          <header class="way-section__head">
+            <h4 class="way-section__title">Ich starte so</h4>
+            <p class="way-section__hint">Genau 1 Auswahl</p>
+          </header>
+          ${V.strategyTileGrid(startGoalTiles(), state.startGoalText, "data-start-goal")}
+        </section>
+
+        <section class="way-section way-section--work">
+          <header class="way-section__head">
+            <h4 class="way-section__title">Ich arbeite so</h4>
+            <p class="way-section__hint">1 bis 3 Auswahlen</p>
+          </header>
+          ${V.strategyTileGrid(arbeitGoalTiles(), state.workGoals, "data-work-goal", { multi: true })}
+        </section>
+
+        <section class="way-section way-section--control">
+          <header class="way-section__head">
+            <h4 class="way-section__title">Ich kontrolliere so</h4>
+            <p class="way-section__hint">Genau 1 Auswahl</p>
+          </header>
+          ${V.strategyTileGrid(controlGoalTiles(), state.controlGoalText, "data-control-goal")}
+        </section>
+
+        <section class="way-section way-section--planb">
+          <header class="way-section__head">
+            <h4 class="way-section__title">Plan B, wenn ich hänge</h4>
+            <p class="way-section__hint">Genau 1 Auswahl · optional</p>
+          </header>
+          ${V.strategyTileGrid(planBTilesAll(), state.planBStrategyText, "data-plan-b")}
+        </section>
+      </div>`;
   }
 
   function renderLevelTiles(ui) {
@@ -393,24 +514,12 @@
     }));
     return ui.fieldWrap(
       ui.fieldLabel("Auf welchem Level arbeitest du?", { required: true }),
-      V.strategyTileGrid(tiles, state.selectedLevel, "data-level")
+      `<div class="level-tile-grid">${V.strategyTileGrid(tiles, state.selectedLevel, "data-level")}</div>`
     );
   }
 
   function renderStrategyLoadout(ui) {
-    const V = window.LogbuchVisuals;
-    if (!V || !state.whatGoalId || !state.selectedLevel) return "";
-
-    return `
-      <div class="loadout-panel">
-        <p class="loadout-panel__label">Hauptstrategie</p>
-        ${V.strategyCategoryTabs(STRATEGY_TABS, state.strategyCategory)}
-        ${V.strategyTileGrid(filteredHowGoalTiles(), state.howGoalText, "data-how-goal")}
-
-        <p class="loadout-panel__label loadout-panel__label--planb">Notfall-Plan B</p>
-        ${V.strategyCategoryTabs(STRATEGY_TABS, state.planBCategory, "data-plan-b-category")}
-        ${V.strategyTileGrid(filteredPlanBTiles(), state.planBStrategyText, "data-plan-b")}
-      </div>`;
+    return renderMeinWegZumZiel(ui);
   }
 
   function renderConfidenceCards(ui) {
@@ -515,55 +624,67 @@
 
   function renderPlanSummaryContent(ui) {
     if (!requiredFieldsComplete()) {
-      return `<p class="plan-summary-empty">Fülle die Karten oben aus – hier siehst du dann deine Zusammenfassung.</p>`;
+      return `<p class="plan-summary-empty">Wähle dein Ziel und deinen Weg – hier siehst du dann deine Mission.</p>`;
     }
 
-    const checkpoint = pickedCheckpoint();
-    const checkpointLabel =
-      checkpoint?.label ||
-      (state.checkpoints.length === 1 ? state.checkpoints[0]?.label : null) ||
-      "Kein Nachweis geplant";
+    const arbeitLines = state.workGoals.map((goal) => {
+      const tile = arbeitTile(goal);
+      return tile.title;
+    });
 
-    const rows = [
-      ["Fach", state.subject || "–"],
-      ["Nachweis", checkpointLabel],
-      ["Unterthema", state.whatGoalText || "–"],
-      ["Level", state.selectedLevel ? levelLabel(state.selectedLevel) : "–"],
-      ["Ziel", state.levelGoalText || "–"],
-      ["Arbeitsweg", state.howGoalText || "–"],
-      ["Plan B", state.planBStrategyText || "–"],
-      ["Arbeitsziele", state.workGoals.length ? state.workGoals.join(", ") : "–"],
-      ["Sozialform", state.socialForm ? labelForSocialForm(state.socialForm) : "–"],
-      [
-        "Sicherheit",
-        state.confidenceBefore != null
-          ? `${state.confidenceBefore} / 5`
-          : "–"
-      ],
-      ["Belohnung", state.editingEntryId ? "Kein zusätzliches XP" : "+2 XP"]
-    ];
+    const controlTile = CONTROL_STRATEGY_TILES.find((t) => t.value === state.controlGoalText);
+
+    const wegLines = [
+      state.startGoalText,
+      ...arbeitLines.map((line) => `Ich arbeite: ${line}`),
+      controlTile?.desc || (state.controlGoalText ? `Ich kontrolliere: ${controlLabel(state.controlGoalText)}` : null)
+    ].filter(Boolean);
 
     return `
-      <dl class="plan-summary-list">
-        ${rows
-          .map(
-            ([label, value]) => `
-          <div class="plan-summary-row">
-            <dt>${ui.escapeHtml(label)}</dt>
-            <dd>${ui.escapeHtml(value)}</dd>
-          </div>`
-          )
-          .join("")}
-      </dl>
-      ${dailyGoalBlockHtml(ui)}`;
+      <div class="mission-summary">
+        <div class="mission-summary__block">
+          <p class="mission-summary__label">Was ich heute können will</p>
+          <p class="mission-summary__value">${ui.escapeHtml(state.levelGoalText || "–")}</p>
+        </div>
+        <div class="mission-summary__block">
+          <p class="mission-summary__label">Mein Level</p>
+          <p class="mission-summary__value">${ui.escapeHtml(state.selectedLevel ? levelLabel(state.selectedLevel) : "–")}</p>
+        </div>
+        <div class="mission-summary__block">
+          <p class="mission-summary__label">Mein Weg zum Ziel</p>
+          <ul class="mission-summary__list">
+            ${wegLines.map((line) => `<li>${ui.escapeHtml(line)}</li>`).join("")}
+          </ul>
+        </div>
+        ${
+          state.planBStrategyText
+            ? `<div class="mission-summary__block">
+                <p class="mission-summary__label">Mein Plan B</p>
+                <p class="mission-summary__value">${ui.escapeHtml(state.planBStrategyText)}</p>
+              </div>`
+            : ""
+        }
+        ${
+          state.confidenceBefore != null
+            ? `<div class="mission-summary__block">
+                <p class="mission-summary__label">Sicherheitsgefühl</p>
+                <p class="mission-summary__value">${ui.escapeHtml(String(state.confidenceBefore))} / 5</p>
+              </div>`
+            : ""
+        }
+        <div class="mission-summary__reward">
+          <span class="mission-summary__reward-label">Belohnung</span>
+          <span class="mission-summary__reward-value">${state.editingEntryId ? "Kein zusätzliches XP" : "+2 XP"}</span>
+        </div>
+      </div>`;
   }
 
   function renderPlanHero(ui, dateLabel) {
     return `
-      <article class="plan-app-hero">
+      <article class="plan-app-hero plan-app-hero--compact">
         <div class="plan-app-hero__content">
           <div class="plan-app-hero__icon" aria-hidden="true">
-            <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
+            <img src="/icons/student/png/zielsetzung.png" alt="" aria-hidden="true">
           </div>
           <div class="plan-app-hero__copy">
             <p class="plan-app-hero__eyebrow">Planen</p>
@@ -572,7 +693,7 @@
           </div>
         </div>
         <div class="plan-app-hero__visual" aria-hidden="true">
-          <img src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" loading="lazy">
+          <img src="/icons/student/hero/zielsetzung-hero.png" alt="" aria-hidden="true" loading="lazy">
         </div>
       </article>`;
   }
@@ -633,7 +754,18 @@
     state.whatGoalText = entry.what_goal_text || "";
     state.selectedLevel = entry.selected_level;
     state.levelGoalText = entry.level_goal_text || "";
-    state.howGoalText = entry.how_goal_text || entry.goal || null;
+    const how = entry.how_goal_text || entry.goal || null;
+    const howCat = how ? howGoalTile(how).cat : null;
+    state.startGoalText = howCat === "starten" || !howCat ? how : null;
+    state.howGoalText = state.startGoalText;
+    if (!state.startGoalText && how) {
+      state.startGoalText = how;
+      state.howGoalText = how;
+    }
+    state.controlGoalText = entry.strategy || null;
+    if (!state.controlGoalText && how && howCat === "kontrollieren") {
+      state.controlGoalText = HOW_TO_CONTROL_STRATEGY[how] || null;
+    }
     state.planBStrategyText = entry.plan_b_strategy_text || null;
     state.detailsText = entry.details_text || entry.freitext || "";
     state.workGoals = Array.isArray(entry.work_goals) ? entry.work_goals : [];
@@ -642,7 +774,6 @@
     state.selectedCheckpointId = entry.checkpoint_id || null;
     state.existingEntry = null;
     refreshHowGoals();
-    syncStrategyCategoryFromSelection();
   }
 
   function renderExistingEntry(ui, dateLabel) {
@@ -720,7 +851,7 @@
         <div class="plan-app-grid">
           ${renderGoalStepCard(
             1,
-            "Rahmen",
+            "Was will ich heute können?",
             `
             <div class="goal-step-card__stack">
               ${
@@ -741,16 +872,8 @@
                     )
               }
               ${renderCheckpointField(ui)}
-            </div>`
-          )}
-
-          ${renderGoalStepCard(
-            2,
-            "Lernziel",
-            `
-            <div class="goal-step-card__stack">
               ${ui.fieldWrap(
-                ui.fieldLabel("Was willst du heute können?", { required: true }),
+                ui.fieldLabel("Unterthema", { required: true }),
                 state.whatGoalOptions.length
                   ? ui.select(
                       "whatGoalId",
@@ -788,25 +911,20 @@
           )}
 
           ${renderGoalStepCard(
-            3,
-            "Dein Loadout",
-            `
-            <div class="goal-step-card__stack">
-              ${renderStrategyLoadout(ui)}
-              ${renderSocialTiles(ui)}
-              ${renderWorkGoalTiles(ui)}
-            </div>`
+            2,
+            "Mein Weg zum Ziel",
+            `<div class="goal-step-card__stack">${renderMeinWegZumZiel(ui)}</div>`
           )}
 
           ${renderGoalStepCard(
-            4,
+            3,
             "Selbstcheck",
             `<div class="goal-step-card__stack">${renderConfidenceCards(ui)}</div>`
           )}
 
           ${renderGoalStepCard(
-            5,
-            "Mission Summary",
+            4,
+            "Meine Mission heute",
             `
             <div id="planSummaryCard">${renderPlanSummaryContent(ui)}</div>
             ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
@@ -859,27 +977,28 @@
   function bindChipGroups(root) {
     bindChoiceChips(root, "[data-level]", (btn) => {
       state.selectedLevel = btn.dataset.level;
+      state.startGoalText = null;
       state.howGoalText = null;
       syncLevelGoalText();
       refreshHowGoals();
       render();
     });
 
-    bindChoiceChips(root, "[data-strategy-category]", (btn) => {
-      state.strategyCategory = btn.dataset.strategyCategory;
-      render();
+    bindChoiceChips(root, "[data-start-goal]", (btn) => {
+      state.startGoalText = btn.dataset.startGoal;
+      syncStartGoalFromHowGoal();
+      root.querySelectorAll("[data-start-goal]").forEach((chip) => {
+        chip.classList.toggle("is-active", chip.dataset.startGoal === state.startGoalText);
+      });
+      updatePlanningPreview(root);
+      const submitBtn = root.querySelector("#planSubmitBtn");
+      if (submitBtn) submitBtn.disabled = state.submitting || !requiredFieldsComplete();
     });
 
-    bindChoiceChips(root, "[data-plan-b-category]", (btn) => {
-      state.planBCategory = btn.dataset.planBCategory;
-      render();
-    });
-
-    bindChoiceChips(root, "[data-how-goal]", (btn) => {
-      state.howGoalText = btn.dataset.howGoal;
-      state.strategyCategory = howGoalTile(state.howGoalText).cat;
-      root.querySelectorAll("[data-how-goal]").forEach((chip) => {
-        chip.classList.toggle("is-active", chip.dataset.howGoal === state.howGoalText);
+    bindChoiceChips(root, "[data-control-goal]", (btn) => {
+      state.controlGoalText = btn.dataset.controlGoal;
+      root.querySelectorAll("[data-control-goal]").forEach((chip) => {
+        chip.classList.toggle("is-active", chip.dataset.controlGoal === state.controlGoalText);
       });
       updatePlanningPreview(root);
       const submitBtn = root.querySelector("#planSubmitBtn");
@@ -887,18 +1006,10 @@
     });
 
     bindChoiceChips(root, "[data-plan-b]", (btn) => {
-      state.planBStrategyText = btn.dataset.planB;
-      state.planBCategory = planBTile(state.planBStrategyText).cat;
+      state.planBStrategyText =
+        state.planBStrategyText === btn.dataset.planB ? null : btn.dataset.planB;
       root.querySelectorAll("[data-plan-b]").forEach((chip) => {
         chip.classList.toggle("is-active", chip.dataset.planB === state.planBStrategyText);
-      });
-      updatePlanningPreview(root);
-    });
-
-    bindChoiceChips(root, "[data-social-form]", (btn) => {
-      state.socialForm = btn.dataset.socialForm;
-      root.querySelectorAll("[data-social-form]").forEach((chip) => {
-        chip.classList.toggle("is-active", chip.dataset.socialForm === state.socialForm);
       });
       updatePlanningPreview(root);
     });
@@ -918,12 +1029,17 @@
         const goal = btn.dataset.workGoal;
         if (!goal) return;
         const idx = state.workGoals.indexOf(goal);
-        if (idx >= 0) state.workGoals.splice(idx, 1);
-        else state.workGoals.push(goal);
+        if (idx >= 0) {
+          state.workGoals.splice(idx, 1);
+        } else if (state.workGoals.length < 3) {
+          state.workGoals.push(goal);
+        }
         root.querySelectorAll("[data-work-goal]").forEach((chip) => {
           chip.classList.toggle("is-active", state.workGoals.includes(chip.dataset.workGoal));
         });
         updatePlanningPreview(root);
+        const submitBtn = root.querySelector("#planSubmitBtn");
+        if (submitBtn) submitBtn.disabled = state.submitting || !requiredFieldsComplete();
       });
     });
   }
@@ -935,7 +1051,9 @@
         state.whatGoalText = "";
         state.selectedLevel = null;
         state.levelGoalText = "";
+        state.startGoalText = null;
         state.howGoalText = null;
+        state.controlGoalText = null;
         state.selectedCheckpointId = null;
         await loadContext();
         render();
@@ -946,7 +1064,9 @@
         state.whatGoalText = "";
         state.selectedLevel = null;
         state.levelGoalText = "";
+        state.startGoalText = null;
         state.howGoalText = null;
+        state.controlGoalText = null;
         await loadContext();
         render();
         return;
@@ -954,13 +1074,17 @@
       if (field === "whatGoalId") {
         state.selectedLevel = null;
         state.levelGoalText = "";
+        state.startGoalText = null;
         state.howGoalText = null;
+        state.controlGoalText = null;
         syncLevelGoalText();
         render();
         return;
       }
       if (field === "selectedLevel") {
+        state.startGoalText = null;
         state.howGoalText = null;
+        state.controlGoalText = null;
         syncLevelGoalText();
         refreshHowGoals();
         render();
@@ -1020,11 +1144,23 @@
       render();
       return;
     }
-    if (!state.howGoalText) {
-      state.errorMsg = "Bitte wähle, wie du daran arbeitest.";
+    if (!state.startGoalText) {
+      state.errorMsg = "Bitte wähle, wie du startest.";
       render();
       return;
     }
+    if (state.workGoals.length < 1) {
+      state.errorMsg = "Bitte wähle mindestens eine Arbeitsweise (1–3 Karten).";
+      render();
+      return;
+    }
+    if (!state.controlGoalText) {
+      state.errorMsg = "Bitte wähle, wie du kontrollierst.";
+      render();
+      return;
+    }
+
+    syncStartGoalFromHowGoal();
 
     if (state.confidenceBefore != null) {
       state.confidenceBefore = Number(state.confidenceBefore);
@@ -1056,11 +1192,12 @@
           whatGoalId: state.whatGoalId,
           whatGoalText: state.whatGoalText.trim(),
           selectedLevel: state.selectedLevel,
-          howGoalText: state.howGoalText,
-          goal: state.howGoalText,
+          howGoalText: state.startGoalText,
+          goal: state.startGoalText,
           detailsText: state.detailsText.trim() || null,
           workGoals: state.workGoals,
           socialForm: state.socialForm,
+          strategy: state.controlGoalText || null,
           confidenceBefore:
             state.confidenceBefore != null ? Number(state.confidenceBefore) : null,
           planBStrategyText: state.planBStrategyText || null,
@@ -1136,7 +1273,8 @@
       state.subject = data.suggestedSubject;
     }
 
-    if (state.howGoalText && !state.howGoals.includes(state.howGoalText)) {
+    if (state.startGoalText && !state.howGoals.includes(state.startGoalText)) {
+      state.startGoalText = null;
       state.howGoalText = null;
     }
     if (state.whatGoalId) {
@@ -1164,6 +1302,8 @@
     state.selectedLevel = null;
     state.levelGoalText = "";
     state.howGoalText = null;
+    state.startGoalText = null;
+    state.controlGoalText = null;
     state.planBStrategyText = window.LogbuchStrategies?.rememberedPlanB() || null;
     state.workGoals = [];
     state.socialForm = null;
@@ -1180,8 +1320,6 @@
     state.subjectLocked = false;
     state.submitting = false;
     state.errorMsg = "";
-    state.strategyCategory = "starten";
-    state.planBCategory = "starten";
 
     const root = document.getElementById("plan-screen-root");
     if (root) {
@@ -1190,7 +1328,6 @@
 
     try {
       await loadContext();
-      syncStrategyCategoryFromSelection();
       render();
     } catch (err) {
       console.error(err);
