@@ -913,9 +913,10 @@ const LOG_SOCIAL_FORMS = ["einzel", "partner", "gruppe", "frei"];
 const LOG_GOAL_ACHIEVED = ["ja", "teilweise", "nein"];
 
 const LOG_REFLECT_GOAL_REACHED = [
-  { id: "ja_sicher", label: "Ja, ich bin sicher.", legacy: "ja" },
-  { id: "teilweise_uebung", label: "Teilweise, ich brauche noch Übung.", legacy: "teilweise" },
-  { id: "nein_nicht", label: "Nein, ich habe es noch nicht verstanden.", legacy: "nein" }
+  { id: "ja_sicher", label: "Ja, geschafft.", legacy: "ja" },
+  { id: "teilweise_uebung", label: "Teilweise geschafft.", legacy: "teilweise" },
+  { id: "nein_nicht", label: "Noch nicht geschafft.", legacy: "nein" },
+  { id: "ziel_geaendert", label: "Mein Ziel hat sich geändert.", legacy: "nein" }
 ];
 
 const LOG_HOW_WORKED = ["konzentriert", "mit_hilfe", "unruhig", "abgelenkt"];
@@ -945,7 +946,8 @@ const LOG_NEXT_STEPS = [
   "operator_weiter",
   "hilfestellung",
   "lehrkraft_fragen",
-  "nachweis_vorbereiten"
+  "nachweis_vorbereiten",
+  "andere_strategie"
 ];
 
 const LOG_STRATEGIES = [
@@ -1301,7 +1303,9 @@ const LOG_TIME_WASTERS = [
   "Lärm in der Klasse",
   "Ich war müde",
   "Aufgabe war unklar",
-  "Ich habe aufgeschoben"
+  "Ich habe aufgeschoben",
+  "Zu schwierige Aufgabe",
+  "Zeit war zu knapp"
 ];
 
 const LOG_TIME_WASTER_LEVELS = ["nie", "selten", "manchmal", "oft"];
@@ -1347,6 +1351,11 @@ const LOG_WEEK_STRATEGY_HELPED = [
 const LOG_CHECK_RATINGS = ["👍", "😐", "👎"];
 
 const LOG_CHECK_ON_TRACK = [
+  "Ja, ich bin gut unterwegs.",
+  "Teilweise, ich muss etwas ändern.",
+  "Noch nicht, ich hänge fest.",
+  "Ich habe mein Ziel geändert.",
+  // Legacy
   "Ja, ich arbeite passend zu meinem Ziel.",
   "Teilweise, ich bin etwas unsicher.",
   "Nein, ich habe den Fokus verloren."
@@ -1366,6 +1375,12 @@ const LOG_CHECK_PROGRESS = [
 
 const LOG_CHECK_NEXT_STEP = [
   "Ich arbeite weiter wie geplant.",
+  "Ich nutze meinen Plan B.",
+  "Ich wähle eine andere Strategie.",
+  "Ich frage gezielt nach Hilfe.",
+  "Ich passe mein Ziel an.",
+  "Ich starte mit einer leichteren Aufgabe.",
+  // Legacy / Taktik-Deck
   "Ich schaue mir ein Beispiel an.",
   "Ich schaue mir zuerst eine Beispielaufgabe an.",
   "Ich nutze eine Hilfestellung.",
@@ -1411,13 +1426,14 @@ const LOG_NEXT_STEP_LABELS = {
   levelcheck_machen: "Zielsetzung prüfen",
   test_vorbereiten: "Test vorbereiten",
   neues_thema: "Neues Thema",
-  weiter_gleiches_ziel: "Ich übe dasselbe Ziel weiter.",
-  naechstes_level: "Ich gehe zum nächsten Level.",
-  rookie_wiederholen: "Ich wiederhole zuerst Rookie-Aufgaben.",
-  operator_weiter: "Ich bearbeite Operator-Aufgaben weiter.",
-  hilfestellung: "Ich brauche eine Hilfestellung.",
-  lehrkraft_fragen: "Ich frage die Lehrkraft.",
-  nachweis_vorbereiten: "Ich bereite mich weiter auf den Nachweis vor."
+  weiter_gleiches_ziel: "Beim nächsten Mal wiederholen",
+  naechstes_level: "Ein Level höher ausprobieren",
+  rookie_wiederholen: "Eine leichtere Aufgabe üben",
+  operator_weiter: "Auf dem gleichen Level weiterarbeiten",
+  hilfestellung: "Hilfe einplanen",
+  lehrkraft_fragen: "Hilfe einplanen",
+  nachweis_vorbereiten: "Eine offene Aufgabe abschließen",
+  andere_strategie: "Eine andere Strategie testen"
 };
 
 function reflectGoalLegacy(goalReachedId) {

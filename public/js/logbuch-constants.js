@@ -71,9 +71,10 @@ window.LOGBUCH = {
     ]
   },
   GOAL_ACHIEVED: [
-    { id: "ja_sicher", label: "Ja, ich bin sicher." },
-    { id: "teilweise_uebung", label: "Teilweise, ich brauche noch Übung." },
-    { id: "nein_nicht", label: "Nein, ich habe es noch nicht verstanden." }
+    { id: "ja_sicher", label: "Ja, geschafft." },
+    { id: "teilweise_uebung", label: "Teilweise geschafft." },
+    { id: "nein_nicht", label: "Noch nicht geschafft." },
+    { id: "ziel_geaendert", label: "Mein Ziel hat sich geändert." }
   ],
   HOW_WORKED: [
     { id: "ja_geplant", label: "Ja, ich habe wie geplant gearbeitet." },
@@ -94,13 +95,24 @@ window.LOGBUCH = {
     { value: "5", label: "5 – sehr sicher" }
   ],
   NEXT_STEPS: [
-    { id: "weiter_gleiches_ziel", label: "Ich übe dasselbe Ziel weiter." },
-    { id: "naechstes_level", label: "Ich gehe zum nächsten Level." },
-    { id: "rookie_wiederholen", label: "Ich wiederhole zuerst Rookie-Aufgaben." },
-    { id: "operator_weiter", label: "Ich bearbeite Operator-Aufgaben weiter." },
-    { id: "hilfestellung", label: "Ich brauche eine Hilfestellung." },
-    { id: "lehrkraft_fragen", label: "Ich frage die Lehrkraft." },
-    { id: "nachweis_vorbereiten", label: "Ich bereite mich weiter auf den Nachweis vor." }
+    { id: "weiter_gleiches_ziel", label: "Beim nächsten Mal wiederholen" },
+    { id: "operator_weiter", label: "Auf dem gleichen Level weiterarbeiten" },
+    { id: "naechstes_level", label: "Ein Level höher ausprobieren" },
+    { id: "andere_strategie", label: "Eine andere Strategie testen" },
+    { id: "nachweis_vorbereiten", label: "Eine offene Aufgabe abschließen" },
+    { id: "hilfestellung", label: "Hilfe einplanen" },
+    { id: "rookie_wiederholen", label: "Eine leichtere Aufgabe üben" },
+    { id: "lehrkraft_fragen", label: "Ich frage die Lehrkraft." }
+  ],
+  REFLECT_HELPED: [
+    { id: "mein_weg", label: "Mein Weg zum Ziel", desc: "Mein Plan hat geholfen." },
+    { id: "plan_b", label: "Mein Plan B", desc: "Notfallplan hat geholfen." },
+    { id: "beispiel", label: "Eine Beispielaufgabe", desc: "Am Beispiel orientiert." },
+    { id: "hilfe", label: "Hilfe von anderen", desc: "Partner oder Lehrkraft." },
+    { id: "leichter", label: "Eine leichtere Aufgabe", desc: "Klein gestartet." },
+    { id: "muster", label: "Die Musterlösung", desc: "Vergleich hat geholfen." },
+    { id: "fokus", label: "Konzentriertes Arbeiten", desc: "Ruhig und fokussiert." },
+    { id: "andere", label: "Eine andere Strategie", desc: "Andere Taktik genutzt." }
   ],
   TIME_WASTERS: [
     "Handy / Social Media",
@@ -108,7 +120,9 @@ window.LOGBUCH = {
     "Lärm in der Klasse",
     "Ich war müde",
     "Aufgabe war unklar",
-    "Ich habe aufgeschoben"
+    "Ich habe aufgeschoben",
+    "Zu schwierige Aufgabe",
+    "Zeit war zu knapp"
   ],
   TIME_WASTER_LEVELS: ["nie", "selten", "manchmal", "oft"],
   WEEK_STRATEGIES: [
@@ -132,9 +146,10 @@ window.LOGBUCH = {
     { id: "👎", label: "👎" }
   ],
   CHECK_ON_TRACK: [
-    "Ja, ich arbeite passend zu meinem Ziel.",
-    "Teilweise, ich bin etwas unsicher.",
-    "Nein, ich habe den Fokus verloren."
+    "Ja, ich bin gut unterwegs.",
+    "Teilweise, ich muss etwas ändern.",
+    "Noch nicht, ich hänge fest.",
+    "Ich habe mein Ziel geändert."
   ],
   CHECK_UNDERSTANDING: [
     "Ja, ich verstehe sie.",
@@ -148,17 +163,11 @@ window.LOGBUCH = {
   ],
   CHECK_NEXT_STEP: [
     "Ich arbeite weiter wie geplant.",
-    "Ich schaue mir ein Beispiel an.",
-    "Ich schaue mir zuerst eine Beispielaufgabe an.",
-    "Ich nutze eine Hilfestellung.",
-    "Ich vergleiche mit der Musterlösung.",
-    "Ich frage eine Partnerin oder einen Partner.",
-    "Ich teile die Aufgabe in kleine Schritte.",
-    "Ich mache eine Probe oder kontrolliere rückwärts.",
-    "Ich gehe kurz zurück zu Rookie-Aufgaben.",
-    "Ich markiere gegeben und gesucht.",
-    "Ich suche gezielt meine Fehler und verbessere sie.",
-    "Ich arbeite 5 Minuten konzentriert an einer kleinen Aufgabe."
+    "Ich nutze meinen Plan B.",
+    "Ich wähle eine andere Strategie.",
+    "Ich frage gezielt nach Hilfe.",
+    "Ich passe mein Ziel an.",
+    "Ich starte mit einer leichteren Aufgabe."
   ],
   COMPETENCY_STATUS: {
     offen: { label: "Offen", class: "status-offen" },

@@ -3828,6 +3828,212 @@ body.student-app .card.section > h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+  align-items: start;
+}
+
+.plan-app-grid--start {
+  align-items: start;
+}
+
+.mission-facts {
+  display: grid;
+  gap: 10px;
+}
+
+.mission-fact {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(103, 132, 255, 0.16);
+  background: rgba(5, 8, 22, 0.7);
+}
+
+.mission-fact__label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.mission-fact__value {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #f1f5f9;
+}
+
+.check-strategy-block--urgent {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(244, 114, 182, 0.45);
+  background: rgba(244, 114, 182, 0.08);
+  box-shadow: 0 0 22px rgba(244, 114, 182, 0.18);
+}
+
+.disturb-levels {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.disturb-level-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.disturb-level-row__name {
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.disturb-level-segs {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.disturb-seg {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(5, 8, 22, 0.8);
+  color: #94a3b8;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.disturb-seg.is-active {
+  border-color: rgba(244, 114, 182, 0.55);
+  color: #fce7f3;
+  box-shadow: 0 0 14px rgba(244, 114, 182, 0.25);
+}
+
+.reminder-toast-root {
+  position: fixed;
+  right: 16px;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  z-index: 1200;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.reminder-toast {
+  pointer-events: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.16), transparent 45%),
+    rgba(5, 8, 22, 0.96);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(34, 211, 238, 0.18);
+  padding: 14px;
+}
+
+.reminder-toast--reflect {
+  border-color: rgba(251, 146, 60, 0.4);
+}
+
+.reminder-toast__title {
+  margin: 0 0 4px;
+  font-family: "Orbitron", system-ui;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f8fafc;
+}
+
+.reminder-toast__text {
+  margin: 0;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.reminder-toast__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.reminder-toast__close {
+  margin-left: auto;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.reminder-optin {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+}
+
+.reminder-optin__title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: #f8fafc;
+}
+
+.reminder-optin__text {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.reminder-optin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.notif-reminder-block {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.notif-reminder-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #67e8f9;
+  margin-bottom: 8px;
+}
+
+.notif-item--reminder {
+  display: block;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  background: rgba(8, 14, 35, 0.9);
+  color: inherit;
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.notif-item__title {
+  font-weight: 800;
+  font-size: 13px;
+  color: #f8fafc;
+}
+
+.notif-item__src,
+.notif-item__time {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
 }
 
 .goal-step-card {
@@ -7144,20 +7350,21 @@ h2 {
 </div>
 
 <script src="/js/auth-fetch.js?v=3"></script>
-<script src="/js/logbuch-constants.js?v=6"></script>
+<script src="/js/logbuch-constants.js?v=7"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=18"></script>
 <script src="/js/logbuch-visuals.js?v=7"></script>
+<script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-plan.js?v=17"></script>
-<script src="/js/logbuch-check.js?v=6"></script>
-<script src="/js/logbuch-reflect.js?v=3"></script>
-<script src="/js/logbuch-today.js?v=24"></script>
+<script src="/js/logbuch-plan.js?v=18"></script>
+<script src="/js/logbuch-check.js?v=7"></script>
+<script src="/js/logbuch-reflect.js?v=4"></script>
+<script src="/js/logbuch-today.js?v=25"></script>
 <script src="/js/logbuch-week.js?v=5"></script>
 <script src="/js/logbuch-levelplan.js?v=13"></script>
-<script src="/js/logbuch-start-briefing.js?v=1"></script>
+<script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=13"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=5"></script>
@@ -7303,12 +7510,12 @@ function renderNotifListFromXpLog(xpLog) {
   const list = document.getElementById("notifList");
   if (!list) return;
 
-  if (!xpLog || !xpLog.length) {
+  if ((!xpLog || !xpLog.length) && !(window.LogbuchReminders)) {
     list.innerHTML = `<div class="notif-empty">Keine neuen Nachrichten</div>`;
     return;
   }
 
-  const sorted = [...xpLog].sort((a,b)=> new Date(b.created_at) - new Date(a.created_at));
+  const sorted = [...(xpLog || [])].sort((a,b)=> new Date(b.created_at) - new Date(a.created_at));
 
   list.innerHTML = sorted.slice(0, 25).map(e => {
     const amount = Number(e.amount);
@@ -7323,7 +7530,9 @@ function renderNotifListFromXpLog(xpLog) {
         <div class="time">${time}</div>
       </div>
     `;
-  }).join("");
+  }).join("") || `<div class="notif-empty">Keine XP-Nachrichten</div>`;
+
+  window.LogbuchReminders?.mergeBellIntoNotifPanel?.();
 }
 
 function openNotifPanel() {
@@ -7511,6 +7720,8 @@ window.loadMe = async function loadMe() {
 
   if (!data.character) openCharacterOverlay();
   else if (window.LogbuchStartBriefing) window.LogbuchStartBriefing.openAuto();
+
+  window.LogbuchReminders?.start?.();
 
   hideLoader();
 }

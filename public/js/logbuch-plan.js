@@ -572,7 +572,7 @@
         <p class="plan-daily-goal-title">Dein Tagesziel heute</p>
         <div class="plan-daily-goal-card">
           <p><strong>Ich arbeite an diesem Ziel:</strong><br>${ui.escapeHtml(levelGoal)}</p>
-          <p><strong>Mein Weg:</strong><br>${ui.escapeHtml(howGoal)}</p>
+          <p><strong>Mein Weg zum Ziel:</strong><br>${ui.escapeHtml(howGoal)}</p>
           ${
             details && String(details).trim()
               ? `<p><strong>Konkret:</strong><br>${ui.escapeHtml(String(details).trim())}</p>`
@@ -786,7 +786,7 @@
       ["Was-Ziel", e.what_goal_text || "–"],
       ["Level", e.selected_level ? levelLabel(e.selected_level) : "–"],
       ["Fachliches Ziel", e.level_goal_text || "–"],
-      ["Wie-Ziel", e.how_goal_text || e.goal || "–"],
+      ["Mein Weg zum Ziel", e.how_goal_text || e.goal || "–"],
       ["Arbeitsziele", workGoals.length ? workGoals.join(", ") : "–"],
       ["Sozialform", e.social_form ? labelForSocialForm(e.social_form) : "–"],
       [
@@ -1150,7 +1150,7 @@
       return;
     }
     if (state.workGoals.length < 1) {
-      state.errorMsg = "Bitte wähle mindestens eine Arbeitsweise (1–3 Karten).";
+      state.errorMsg = "Bitte wähle, wie du arbeitest (1–3 Karten unter „Ich arbeite so“).";
       render();
       return;
     }

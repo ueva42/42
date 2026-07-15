@@ -105,7 +105,7 @@
           <p class="lesson-card__goal"><strong>Ziel:</strong> ${ui.escapeHtml(entry.level_goal_text)}</p>
           ${
             entry.how_goal_text || entry.goal
-              ? `<p class="lesson-card__goal"><strong>Weg:</strong> ${ui.escapeHtml(entry.how_goal_text || entry.goal || "")}</p>`
+              ? `<p class="lesson-card__goal"><strong>Mein Weg zum Ziel:</strong> ${ui.escapeHtml(entry.how_goal_text || entry.goal || "")}</p>`
               : ""
           }
         </div>`;

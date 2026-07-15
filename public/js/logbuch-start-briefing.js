@@ -27,14 +27,14 @@
         "Ich übe Richtig zählen auf Operator-Level und starte mit Rookie-Aufgaben."
     },
     {
-      title: "Was-Ziel und Wie-Ziel",
+      title: "Was-Ziel und Mein Weg zum Ziel",
       paragraphs: ["Das Was-Ziel sagt, was du lernen willst."],
       examples: [{ label: "Was-Ziel", text: "Ich kann mit Gegenereignissen rechnen." }],
-      paragraphsAfter: ["Das Wie-Ziel sagt, wie du daran arbeitest."],
+      paragraphsAfter: ["Mein Weg zum Ziel sagt, wie du daran arbeitest."],
       examplesAfter: [
-        { label: "Wie-Ziel", text: "Ich vergleiche meinen Rechenweg mit der Musterlösung." }
+        { label: "Mein Weg zum Ziel", text: "Ich vergleiche meinen Rechenweg mit der Musterlösung." }
       ],
-      takeaway: "Was-Ziel = Was will ich können?\nWie-Ziel = Wie komme ich dahin?"
+      takeaway: "Was-Ziel = Was will ich können?\nMein Weg zum Ziel = Wie komme ich dahin?"
     },
     {
       title: "2. Mach einen Zwischen-Check",

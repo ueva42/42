@@ -1,10 +1,135 @@
 /**
- * SRL-Logbuch – ZWISCHEN-CHECK-Screen (Nachsteuern).
+ * SRL-Logbuch – ZWISCHEN-CHECK (App-Flow mit Kacheln).
  */
 (function () {
   const C = () => window.LOGBUCH;
   const UI = () => window.LogbuchUI;
+  const V = () => window.LogbuchVisuals;
   const STRATEGIES = () => window.LOGBUCH_STRATEGIES || [];
+
+  const ON_TRACK_TILES = [
+    {
+      value: "Ja, ich bin gut unterwegs.",
+      title: "Gut unterwegs",
+      desc: "Ja, ich bin gut unterwegs.",
+      icon: "✓",
+      accent: "#22c55e"
+    },
+    {
+      value: "Teilweise, ich muss etwas ändern.",
+      title: "Etwas ändern",
+      desc: "Teilweise, ich muss etwas ändern.",
+      icon: "↻",
+      accent: "#22d3ee"
+    },
+    {
+      value: "Noch nicht, ich hänge fest.",
+      title: "Ich hänge fest",
+      desc: "Noch nicht, ich hänge fest.",
+      icon: "!",
+      accent: "#f472b6"
+    },
+    {
+      value: "Ich habe mein Ziel geändert.",
+      title: "Ziel geändert",
+      desc: "Ich habe mein Ziel geändert.",
+      icon: "✎",
+      accent: "#fb923c"
+    }
+  ];
+
+  const UNDERSTAND_TILES = [
+    {
+      value: "Ja, ich verstehe sie.",
+      title: "Ja",
+      desc: "Ich verstehe die Aufgaben.",
+      icon: "◎",
+      accent: "#22c55e"
+    },
+    {
+      value: "Teilweise, ich brauche noch Hilfe.",
+      title: "Teilweise",
+      desc: "Noch etwas Hilfe nötig.",
+      icon: "◑",
+      accent: "#22d3ee"
+    },
+    {
+      value: "Nein, ich weiß nicht, was ich tun soll.",
+      title: "Noch nicht",
+      desc: "Ich weiß noch nicht genau, was ich tun soll.",
+      icon: "◌",
+      accent: "#f472b6"
+    }
+  ];
+
+  const PROGRESS_TILES = [
+    {
+      value: "Ja, ich komme gut voran.",
+      title: "Gut",
+      desc: "Ich komme gut voran.",
+      icon: "→",
+      accent: "#22c55e"
+    },
+    {
+      value: "Teilweise, es geht langsam.",
+      title: "Langsam",
+      desc: "Es geht eher langsam voran.",
+      icon: "…",
+      accent: "#fb923c"
+    },
+    {
+      value: "Nein, ich hänge fest.",
+      title: "Ich hänge",
+      desc: "Ich komme gerade nicht weiter.",
+      icon: "✕",
+      accent: "#f472b6"
+    }
+  ];
+
+  const NEXT_TILES = [
+    {
+      value: "Ich arbeite weiter wie geplant.",
+      title: "Weiter wie geplant",
+      desc: "Ich bleibe bei meinem Weg zum Ziel.",
+      icon: "▶",
+      accent: "#22c55e"
+    },
+    {
+      value: "Ich nutze meinen Plan B.",
+      title: "Plan B nutzen",
+      desc: "Ich nutze meinen Plan B.",
+      icon: "B",
+      accent: "#a855f7"
+    },
+    {
+      value: "Ich wähle eine andere Strategie.",
+      title: "Andere Strategie",
+      desc: "Ich wähle eine andere Strategie.",
+      icon: "↺",
+      accent: "#22d3ee"
+    },
+    {
+      value: "Ich frage gezielt nach Hilfe.",
+      title: "Hilfe fragen",
+      desc: "Ich frage gezielt nach Hilfe.",
+      icon: "?",
+      accent: "#fb923c"
+    },
+    {
+      value: "Ich passe mein Ziel an.",
+      title: "Ziel anpassen",
+      desc: "Ich passe mein Ziel an.",
+      icon: "✎",
+      accent: "#d946ef"
+    },
+    {
+      value: "Ich starte mit einer leichteren Aufgabe.",
+      title: "Leichter starten",
+      desc: "Ich starte mit einer leichteren Aufgabe.",
+      icon: "1",
+      accent: "#67e8f9"
+    }
+  ];
 
   const state = {
     entryId: null,
@@ -44,10 +169,6 @@
     return value || "–";
   }
 
-  function selectOptions(items) {
-    return items.map((label) => ({ value: label, label }));
-  }
-
   function isLegacyCheck(check) {
     if (!check) return false;
     return [check.on_track, check.understands, check.progress].some((v) =>
@@ -63,26 +184,57 @@
     return strategyById(state.strategyModalId);
   }
 
-  function renderDailyGoalCard(ui, entry) {
-    const whatGoal = entry.what_goal_text || "–";
-    const level = levelLabel(entry.selected_level, entry);
-    const levelGoal = entry.level_goal_text || "–";
-    const howGoal = entry.how_goal_text || entry.goal || "–";
-    const details = entry.details_text;
+  function needsTaktikHighlight() {
+    return (
+      state.onTrack === "Noch nicht, ich hänge fest." ||
+      state.progress === "Nein, ich hänge fest." ||
+      state.understands === "Nein, ich weiß nicht, was ich tun soll." ||
+      state.nextStepAnswer === "Ich wähle eine andere Strategie."
+    );
+  }
 
+  function goalStepCard(step, title, bodyHtml, wide = false) {
+    return `
+      <article class="goal-step-card ${wide ? "goal-step-card--wide" : ""}">
+        <header class="goal-step-card__head">
+          <span class="goal-step-card__step">${step}</span>
+          <h3 class="goal-step-card__title">${title}</h3>
+        </header>
+        <div class="goal-step-card__body">${bodyHtml}</div>
+      </article>`;
+  }
+
+  function renderMissionCard(ui, entry) {
+    const items = [
+      ["Was-Ziel", entry.what_goal_text || "–"],
+      ["Level", levelLabel(entry.selected_level, entry)],
+      ["Fachliches Ziel", entry.level_goal_text || "–"],
+      ["Mein Weg zum Ziel", entry.how_goal_text || entry.goal || "–"],
+      ["Plan B", entry.plan_b_strategy_text || "–"]
+    ];
+    return `
+      <div class="mission-facts">
+        ${items
+          .map(
+            ([label, value]) => `
+          <div class="mission-fact">
+            <span class="mission-fact__label">${ui.escapeHtml(label)}</span>
+            <span class="mission-fact__value">${ui.escapeHtml(value)}</span>
+          </div>`
+          )
+          .join("")}
+      </div>`;
+  }
+
+  function renderDailyGoalCard(ui, entry) {
     return `
       <section class="check-daily-goal">
-        <h3 class="check-daily-goal-title">Heutiges Ziel</h3>
+        <h3 class="check-daily-goal-title">Meine Mission</h3>
         <div class="check-daily-goal-card">
-          <p><strong>Was-Ziel:</strong><br>${ui.escapeHtml(whatGoal)}</p>
-          <p><strong>Level:</strong><br>${ui.escapeHtml(level)}</p>
-          <p><strong>Fachliches Ziel:</strong><br>${ui.escapeHtml(levelGoal)}</p>
-          <p><strong>Mein Weg:</strong><br>${ui.escapeHtml(howGoal)}</p>
-          ${
-            details && String(details).trim()
-              ? `<p><strong>Konkret:</strong><br>${ui.escapeHtml(String(details).trim())}</p>`
-              : ""
-          }
+          <p><strong>Was-Ziel:</strong><br>${ui.escapeHtml(entry.what_goal_text || "–")}</p>
+          <p><strong>Level:</strong><br>${ui.escapeHtml(levelLabel(entry.selected_level, entry))}</p>
+          <p><strong>Fachliches Ziel:</strong><br>${ui.escapeHtml(entry.level_goal_text || "–")}</p>
+          <p><strong>Mein Weg zum Ziel:</strong><br>${ui.escapeHtml(entry.how_goal_text || entry.goal || "–")}</p>
           ${
             entry.plan_b_strategy_text
               ? `<p><strong>Plan B, wenn ich hänge:</strong><br>${ui.escapeHtml(entry.plan_b_strategy_text)}</p>`
@@ -95,16 +247,17 @@
   function renderStrategySelected(ui) {
     if (!state.selectedStrategyName) return "";
     return `
-      <div class="check-strategy-selected">
-        <span class="check-strategy-selected-label">Gewählte Taktik:</span>
+      <div class="check-strategy-selected glow-panel glow-panel--violet">
+        <span class="check-strategy-selected-label">Gewählte Taktik</span>
         <strong>${ui.escapeHtml(state.selectedStrategyName)}</strong>
       </div>`;
   }
 
   function renderStrategyBlock(ui) {
+    const highlight = needsTaktikHighlight() ? " check-strategy-block--urgent" : "";
     return `
-      <div class="check-strategy-block">
-        <button type="button" class="logbuch-btn-strategy" id="strategyOpenBtn">Taktik holen</button>
+      <div class="check-strategy-block${highlight}">
+        <button type="button" class="today-app-btn today-app-btn--ghost" id="strategyOpenBtn">Passende Taktik finden</button>
         <p class="logbuch-hint">Wenn du festhängst, hol dir eine passende Lernstrategie.</p>
         ${renderStrategySelected(ui)}
       </div>`;
@@ -120,36 +273,28 @@
         </button>`
       )
       .join("");
-
     return `
       <h3 class="strategy-modal-title">Was klappt gerade nicht?</h3>
       <div class="strategy-problem-list">${items}</div>`;
   }
 
   function renderStrategyTutorialStep(ui, strategy) {
-    const steps = strategy.steps
-      .map((step) => `<li>${ui.escapeHtml(step)}</li>`)
-      .join("");
-
+    const steps = strategy.steps.map((step) => `<li>${ui.escapeHtml(step)}</li>`).join("");
     return `
       <p class="strategy-modal-kicker">${ui.escapeHtml(strategy.problem)}</p>
       <h3 class="strategy-modal-title">${ui.escapeHtml(strategy.name)}</h3>
-
       <div class="strategy-tutorial-block">
         <h4>Wann hilft dir das?</h4>
         <p>${ui.escapeHtml(strategy.whenHelps)}</p>
       </div>
-
       <div class="strategy-tutorial-block">
         <h4>So geht's:</h4>
         <ol class="strategy-steps">${steps}</ol>
       </div>
-
       <div class="strategy-tutorial-block strategy-next-block">
         <h4>Dein nächster Schritt:</h4>
         <p>${ui.escapeHtml(strategy.nextStep)}</p>
       </div>
-
       <div class="strategy-modal-actions">
         ${ui.btnPrimary("Diese Taktik nutzen", "strategyApplyBtn")}
         ${ui.btnGhost("Zurück", "strategyBackBtn")}
@@ -180,11 +325,10 @@
     overlay.id = "strategyOverlay";
     overlay.className = "strategy-overlay";
     overlay.innerHTML = `
-      <div class="strategy-modal" role="dialog" aria-modal="true" aria-labelledby="strategyModalTitle">
+      <div class="strategy-modal" role="dialog" aria-modal="true">
         ${body}
         ${cancelOnly}
       </div>`;
-
     document.body.appendChild(overlay);
     bindStrategyModalHandlers(overlay);
   }
@@ -200,15 +344,14 @@
     state.strategyModalOpen = false;
     state.strategyModalStep = "problem";
     state.strategyModalId = null;
-    const overlay = document.getElementById("strategyOverlay");
-    if (overlay) overlay.remove();
+    document.getElementById("strategyOverlay")?.remove();
   }
 
   function applyStrategy(strategy) {
     state.selectedStrategyName = strategy.name;
     state.selectedStrategyProblem = strategy.problem;
     state.selectedStrategyNextStep = strategy.nextStep;
-    state.nextStepAnswer = strategy.nextStep;
+    state.nextStepAnswer = "Ich wähle eine andere Strategie.";
     closeStrategyModal();
     render();
   }
@@ -221,25 +364,63 @@
         renderStrategyModal();
       });
     });
-
     overlay.querySelector("#strategyApplyBtn")?.addEventListener("click", () => {
       const strategy = activeStrategy();
       if (strategy) applyStrategy(strategy);
     });
-
     overlay.querySelector("#strategyBackBtn")?.addEventListener("click", () => {
       state.strategyModalStep = "problem";
       state.strategyModalId = null;
       renderStrategyModal();
     });
-
     overlay.querySelectorAll("#strategyCancelBtn").forEach((btn) => {
       btn.addEventListener("click", closeStrategyModal);
     });
-
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) closeStrategyModal();
     });
+  }
+
+  function shortLabel(list, value) {
+    const hit = list.find((t) => t.value === value);
+    return hit?.title || value || "–";
+  }
+
+  function renderCheckSummary(ui) {
+    if (!allQuestionsAnswered()) {
+      return `<p class="plan-summary-empty">Wähle Status und nächsten Schritt – hier siehst du dann deine Zusammenfassung.</p>`;
+    }
+    return `
+      <div class="mission-summary">
+        <div class="mission-summary__block">
+          <p class="mission-summary__label">Status</p>
+          <p class="mission-summary__value">${ui.escapeHtml(shortLabel(ON_TRACK_TILES, state.onTrack))}</p>
+        </div>
+        <div class="mission-summary__block">
+          <p class="mission-summary__label">Verständnis</p>
+          <p class="mission-summary__value">${ui.escapeHtml(shortLabel(UNDERSTAND_TILES, state.understands))}</p>
+        </div>
+        <div class="mission-summary__block">
+          <p class="mission-summary__label">Vorankommen</p>
+          <p class="mission-summary__value">${ui.escapeHtml(shortLabel(PROGRESS_TILES, state.progress))}</p>
+        </div>
+        <div class="mission-summary__block">
+          <p class="mission-summary__label">Nächster Schritt</p>
+          <p class="mission-summary__value">${ui.escapeHtml(shortLabel(NEXT_TILES, state.nextStepAnswer) || state.nextStepAnswer)}</p>
+        </div>
+        ${
+          state.selectedStrategyName
+            ? `<div class="mission-summary__block">
+                <p class="mission-summary__label">Taktik</p>
+                <p class="mission-summary__value">${ui.escapeHtml(state.selectedStrategyName)}</p>
+              </div>`
+            : ""
+        }
+        <div class="mission-summary__reward">
+          <span class="mission-summary__reward-label">Belohnung</span>
+          <span class="mission-summary__reward-value">${state.existingCheck?.canEdit ? "Kein zusätzliches XP" : "+3 XP"}</span>
+        </div>
+      </div>`;
   }
 
   function renderCheckDetailsList(ui, c) {
@@ -249,17 +430,13 @@
         c.change_note ? `<br>${ui.escapeHtml(c.change_note)}` : ""
       }`;
     }
-
     const rows = [
       ["Bin ich auf dem richtigen Weg?", c.on_track],
       ["Verstehe ich die Aufgaben?", c.understands],
       ["Komme ich gut voran?", c.progress],
       ["Was mache ich jetzt?", c.next_step_answer || "–"]
     ];
-    if (c.selected_strategy_name) {
-      rows.push(["Gewählte Taktik", c.selected_strategy_name]);
-    }
-
+    if (c.selected_strategy_name) rows.push(["Gewählte Taktik", c.selected_strategy_name]);
     return `
       <dl class="plan-readonly-list">
         ${rows
@@ -286,22 +463,41 @@
     return true;
   }
 
+  function renderHero(ui, e, dateIso) {
+    const pct = window.LogbuchReminders?.lessonProgressPct?.(e.timeslot) ?? null;
+    return `
+      <article class="plan-app-hero plan-app-hero--compact">
+        <div class="plan-app-hero__content">
+          <div class="plan-app-hero__icon" aria-hidden="true">
+            <img src="/icons/student/png/meine-checks.png" alt="" aria-hidden="true">
+          </div>
+          <div class="plan-app-hero__copy">
+            <p class="plan-app-hero__eyebrow">Check</p>
+            <h2 class="plan-app-hero__title">Zwischen-Check</h2>
+            <p class="plan-app-hero__meta">Wie läuft es gerade in deiner Stunde?</p>
+            <p class="plan-app-hero__meta">${ui.escapeHtml(formatDate(dateIso))}${e.timeslot ? ` · ${ui.escapeHtml(e.timeslot)}` : ""}${e.subject ? ` · ${ui.escapeHtml(e.subject)}` : ""}${pct != null ? ` · ${pct} %` : ""}</p>
+          </div>
+        </div>
+        <div class="plan-app-hero__visual" aria-hidden="true">
+          <img src="/icons/student/hero/meine-checks-hero.png" alt="" aria-hidden="true" loading="lazy">
+        </div>
+      </article>`;
+  }
+
   function renderReadOnly() {
     const root = document.getElementById("check-screen-root");
     if (!root) return;
     const ui = UI();
     const c = state.existingCheck;
-
     root.innerHTML = `
-      <div class="logbuch-form logbuch-form-readonly">
+      <div class="plan-app">
         ${renderDailyGoalCard(ui, state.entry)}
         <div class="logbuch-msg logbuch-msg-info">
           Dein Zwischen-Check für <b>${ui.escapeHtml(state.entry.subject)}</b> (nur Ansicht)
         </div>
         ${renderCheckDetailsList(ui, c)}
-        ${ui.btnGhost("Zurück zu Mein Tag", "checkBackBtn")}
+        ${ui.btnGhost("Zurück zu Mein Tag", "checkBackBtn", "today-app-btn today-app-btn--ghost")}
       </div>`;
-
     root.querySelector("#checkBackBtn")?.addEventListener("click", () => {
       window.StudentRouter?.navigateToSection("today");
     });
@@ -311,13 +507,11 @@
     const root = document.getElementById("check-screen-root");
     if (!root) return;
     const ui = UI();
-
     root.innerHTML = `
-      <div class="logbuch-form">
+      <div class="plan-app">
         ${ui.msg("Kein Lern-Eintrag gefunden. Bitte zuerst ein Tagesziel setzen.")}
-        ${ui.btnGhost("Zurück zu Mein Tag", "checkBackBtn")}
+        ${ui.btnGhost("Zurück zu Mein Tag", "checkBackBtn", "today-app-btn today-app-btn--ghost")}
       </div>`;
-
     root.querySelector("#checkBackBtn")?.addEventListener("click", () => {
       window.StudentRouter?.navigateToSection("today");
     });
@@ -325,6 +519,44 @@
 
   function allQuestionsAnswered() {
     return !!(state.onTrack && state.understands && state.progress && state.nextStepAnswer);
+  }
+
+  function updatePreview(root) {
+    const box = root.querySelector("#checkSummaryCard");
+    if (box) box.innerHTML = renderCheckSummary(UI());
+    const submitBtn = root.querySelector("#checkSubmitBtn");
+    if (submitBtn) submitBtn.disabled = state.submitting || !allQuestionsAnswered();
+    const tactic = root.querySelector(".check-strategy-block");
+    if (tactic) tactic.classList.toggle("check-strategy-block--urgent", needsTaktikHighlight());
+  }
+
+  function bindTiles(root) {
+    const pairs = [
+      ["[data-on-track]", "onTrack", "data-on-track"],
+      ["[data-understands]", "understands", "data-understands"],
+      ["[data-progress]", "progress", "data-progress"],
+      ["[data-next-step]", "nextStepAnswer", "data-next-step"]
+    ];
+    pairs.forEach(([sel, field, attr]) => {
+      root.querySelectorAll(sel).forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state[field] = btn.getAttribute(attr);
+          if (field === "nextStepAnswer" && state.nextStepAnswer === "Ich nutze meinen Plan B.") {
+            const planB = state.entry?.plan_b_strategy_text;
+            if (planB && C().CHECK_NEXT_STEP.includes(planB)) {
+              // keep UI value; storage uses the chosen next-step label
+            }
+          }
+          if (field === "nextStepAnswer" && state.nextStepAnswer === "Ich wähle eine andere Strategie.") {
+            openStrategyModal();
+          }
+          root.querySelectorAll(sel).forEach((chip) => {
+            chip.classList.toggle("is-active", chip.getAttribute(attr) === state[field]);
+          });
+          updatePreview(root);
+        });
+      });
+    });
   }
 
   function render() {
@@ -338,7 +570,7 @@
 
     if (state.existingCheck) {
       if (state.existingCheck.canEdit && applyCheckToState(state.existingCheck)) {
-        // Bearbeitungsmodus – Formular weiter unten
+        // edit mode
       } else {
         renderReadOnly();
         return;
@@ -346,74 +578,79 @@
     }
 
     const ui = UI();
+    const visuals = V();
     const e = state.entry;
     const dateIso =
-      e.date instanceof Date
-        ? e.date.toISOString().slice(0, 10)
-        : String(e.date).slice(0, 10);
+      e.date instanceof Date ? e.date.toISOString().slice(0, 10) : String(e.date).slice(0, 10);
+
+    const tileGrid = (tiles, active, attr) =>
+      visuals
+        ? visuals.strategyTileGrid(tiles, active, attr)
+        : tiles
+            .map(
+              (t) =>
+                `<button type="button" class="strategy-tile ${active === t.value ? "is-active" : ""}" ${attr}="${ui.escapeHtml(t.value)}">${ui.escapeHtml(t.title)}</button>`
+            )
+            .join("");
 
     root.innerHTML = `
-      <div class="logbuch-form">
-        <p class="logbuch-meta">${ui.escapeHtml(formatDate(dateIso))}${e.timeslot ? ` · ${ui.escapeHtml(e.timeslot)}` : ""}</p>
-
-        ${renderDailyGoalCard(ui, e)}
-
+      <div class="plan-app check-app">
+        ${renderHero(ui, e, dateIso)}
         ${
           state.existingCheck?.canEdit
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest deinen Zwischen-Check – beim Speichern gibt es kein zusätzliches XP.</div>`
             : ""
         }
-
-        ${ui.fieldWrap(
-          ui.fieldLabel("Bin ich auf dem richtigen Weg?", { required: true }),
-          ui.select("onTrack", selectOptions(C().CHECK_ON_TRACK), state.onTrack, {
-            phase: "check",
-            placeholder: "Bitte wählen…"
-          })
-        )}
-
-        ${ui.fieldWrap(
-          ui.fieldLabel("Verstehe ich die Aufgaben?", { required: true }),
-          ui.select("understands", selectOptions(C().CHECK_UNDERSTANDING), state.understands, {
-            phase: "check",
-            placeholder: "Bitte wählen…"
-          })
-        )}
-
-        ${ui.fieldWrap(
-          ui.fieldLabel("Komme ich gut voran?", { required: true }),
-          ui.select("progress", selectOptions(C().CHECK_PROGRESS), state.progress, {
-            phase: "check",
-            placeholder: "Bitte wählen…"
-          })
-        )}
-
-        ${ui.fieldWrap(
-          ui.fieldLabel("Was mache ich jetzt?", { required: true }),
-          ui.select(
-            "nextStepAnswer",
-            selectOptions(C().CHECK_NEXT_STEP),
-            state.nextStepAnswer,
-            { phase: "check", placeholder: "Nächsten Schritt wählen…" }
-          ),
-          "Wähle, wie du jetzt weitermachst."
-        )}
-
-        ${renderStrategyBlock(ui)}
-
-        ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
-
-        ${ui.btnPrimary(
-          state.submitting
-            ? "Speichern…"
-            : state.existingCheck?.canEdit
-              ? "Zwischen-Check speichern"
-              : "Zwischen-Check speichern (+3 XP)",
-          "checkSubmitBtn",
-          state.submitting || !allQuestionsAnswered(),
-          "logbuch-submit-full"
-        )}
-        ${ui.btnGhost("Abbrechen", "checkBackBtn")}
+        <div class="plan-app-grid plan-app-grid--start">
+          ${goalStepCard(1, "Meine Mission", renderMissionCard(ui, e))}
+          ${goalStepCard(
+            2,
+            "Bin ich auf dem richtigen Weg?",
+            tileGrid(ON_TRACK_TILES, state.onTrack, "data-on-track")
+          )}
+          ${goalStepCard(
+            3,
+            "Kurzer Lern-Check",
+            `
+            <div class="goal-step-card__stack">
+              <p class="way-section__title">Verstehe ich die Aufgaben?</p>
+              ${tileGrid(UNDERSTAND_TILES, state.understands, "data-understands")}
+              <p class="way-section__title">Komme ich gut voran?</p>
+              ${tileGrid(PROGRESS_TILES, state.progress, "data-progress")}
+            </div>`
+          )}
+          ${goalStepCard(
+            4,
+            "Mein nächster Schritt",
+            `
+            <div class="goal-step-card__stack">
+              <p class="way-to-goal__intro">Was mache ich jetzt?</p>
+              ${tileGrid(NEXT_TILES, state.nextStepAnswer, "data-next-step")}
+              ${renderStrategyBlock(ui)}
+            </div>`
+          )}
+          ${goalStepCard(
+            5,
+            "Mein nächster Schritt",
+            `
+            <div id="checkSummaryCard">${renderCheckSummary(ui)}</div>
+            ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
+            <div class="plan-app-footer">
+              ${ui.btnPrimary(
+                state.submitting
+                  ? "Speichern…"
+                  : state.existingCheck?.canEdit
+                    ? "Zwischen-Check speichern"
+                    : "Zwischen-Check speichern · +3 XP",
+                "checkSubmitBtn",
+                state.submitting || !allQuestionsAnswered(),
+                "logbuch-submit-full today-app-btn"
+              )}
+              ${ui.btnGhost("Abbrechen", "checkBackBtn", "today-app-btn today-app-btn--ghost")}
+            </div>`,
+            true
+          )}
+        </div>
       </div>`;
 
     bindHandlers(root);
@@ -421,13 +658,7 @@
   }
 
   function bindHandlers(root) {
-    UI().bindSelects(root, state, () => {
-      const submitBtn = root.querySelector("#checkSubmitBtn");
-      if (submitBtn) {
-        submitBtn.disabled = state.submitting || !allQuestionsAnswered();
-      }
-    });
-
+    bindTiles(root);
     root.querySelector("#strategyOpenBtn")?.addEventListener("click", openStrategyModal);
     root.querySelector("#checkSubmitBtn")?.addEventListener("click", submitCheck);
     root.querySelector("#checkBackBtn")?.addEventListener("click", () => {
@@ -438,7 +669,7 @@
 
   async function submitCheck() {
     if (!allQuestionsAnswered()) {
-      state.errorMsg = "Bitte beantworte alle vier Fragen.";
+      state.errorMsg = "Bitte beantworte alle Fragen.";
       render();
       return;
     }
@@ -474,22 +705,16 @@
           body: JSON.stringify(payload)
         }
       );
-
       const data = await res.json();
-
       if (!data.success) {
         state.submitting = false;
         state.errorMsg = data.message || "Speichern fehlgeschlagen.";
         render();
         return;
       }
-
       closeStrategyModal();
-
-      if (typeof window.loadMe === "function") {
-        await window.loadMe();
-      }
-
+      window.LogbuchReminders?.clearForEntry?.(state.entryId, "check");
+      if (typeof window.loadMe === "function") await window.loadMe();
       window.StudentRouter?.navigateToSection("today");
     } catch (err) {
       console.error(err);
@@ -519,9 +744,7 @@
     closeStrategyModal();
 
     const root = document.getElementById("check-screen-root");
-    if (root) {
-      root.innerHTML = `<div class="logbuch-loading">Lade Zwischen-Check…</div>`;
-    }
+    if (root) root.innerHTML = `<div class="logbuch-loading">Lade Zwischen-Check…</div>`;
 
     if (!state.entryId) {
       renderMissing();
@@ -533,23 +756,17 @@
         `/api/student/log/check-context?entryId=${encodeURIComponent(state.entryId)}`
       );
       const data = await res.json();
-
       if (!data.entry) {
         renderMissing();
         return;
       }
-
       state.entry = data.entry;
       state.existingCheck = data.existingCheck || null;
-      if (state.existingCheck?.canEdit) {
-        applyCheckToState(state.existingCheck);
-      }
+      if (state.existingCheck?.canEdit) applyCheckToState(state.existingCheck);
       render();
     } catch (err) {
       console.error(err);
-      if (root) {
-        root.innerHTML = UI().msg("Zwischen-Check konnte nicht geladen werden.");
-      }
+      if (root) root.innerHTML = UI().msg("Zwischen-Check konnte nicht geladen werden.");
     }
   }
 
