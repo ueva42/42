@@ -831,13 +831,6 @@
           <div class="zielpfad-ring-card__text">
             <strong>${escapeHtml(label)}</strong>
             <span>${escapeHtml(goalLine)}</span>
-            <div class="zielpfad-ring-card__stand">
-              <span>Dein Stand</span>
-              <strong>${p.actualCurrent} von ${p.totalGoals} Aufgaben geschafft</strong>
-              <small>${p.actualPct} % bearbeitet${
-                p.goesBeyond ? " · Stark – du gehst schon über dein Ziel hinaus!" : ""
-              }</small>
-            </div>
           </div>
         </article>`;
     }).join("");
@@ -845,7 +838,7 @@
     return `
       <section class="zielpfad-block">
         <h3 class="zielpfad-block__title">Dein Zielprofil</h3>
-        <p class="zielpfad-block__sub">Die Kreise zeigen die Vorgabe für Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))}. Darunter steht dein echter Stand.</p>
+        <p class="zielpfad-block__sub">Die Kreise zeigen die Vorgabe für Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))}.</p>
         ${anyBeyond ? `<p class="zielpfad-beyond-hint">Stark – du gehst schon über dein Ziel hinaus!</p>` : ""}
         <div class="zielpfad-ring-grid">${cards}</div>
       </section>`;
@@ -1316,8 +1309,7 @@
         ${renderLevelCards(topic)}
         ${
           topic.targetGrade
-            ? `${renderOpenForGoalCard(topic)}
-               ${renderNextStep(topic)}
+            ? `${renderNextStep(topic)}
                ${renderGoalTasks(topic)}
                ${renderResultSection(topic)}`
             : ""
