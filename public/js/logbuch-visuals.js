@@ -589,5 +589,77 @@ window.LogbuchVisuals = {
           )
           .join("")}
       </div>`;
+  },
+
+  /**
+   * GradeGoalProgress – runder Fortschrittsring für Zielnote 1/2/3.
+   * Prozent und Aufgabenanzahl kommen von außen (API / Zielpfad-Modell).
+   */
+  gradeGoalCard({
+    grade,
+    percentage,
+    completedTasks,
+    totalTasks,
+    openTasks,
+    selected = false,
+    accent = "#22d3ee",
+    unavailable = false
+  } = {}) {
+    const pct = unavailable || percentage == null ? 0 : this.clamp(percentage, 0, 100);
+    const aria =
+      unavailable || totalTasks === 0
+        ? `Zielnote ${grade}: noch keine Aufgaben zugeordnet`
+        : `${completedTasks ?? 0} von ${totalTasks} Aufgaben für Zielnote ${grade} geschafft`;
+
+    const statusSmall = unavailable
+      ? totalTasks === 0
+        ? "Noch keine Aufgaben zugeordnet"
+        : "Fortschritt noch nicht verfügbar"
+      : (openTasks ?? 0) > 0
+        ? `Noch ${openTasks} offen`
+        : "Ziel erreicht";
+
+    const countLine = unavailable
+      ? totalTasks === 0
+        ? "–"
+        : `${completedTasks ?? 0} von ${totalTasks} Aufgaben`
+      : `${completedTasks ?? 0} von ${totalTasks} Aufgaben`;
+
+    const pctLabel =
+      unavailable || percentage == null
+        ? totalTasks === 0
+          ? "–"
+          : "…"
+        : `${pct} %`;
+
+    return `
+      <button
+        type="button"
+        class="grade-goal-card ${selected ? "is-selected" : ""} ${unavailable ? "is-unavailable" : ""}"
+        data-grade-goal="${this.escape(grade)}"
+        style="--grade-accent:${accent}"
+        aria-pressed="${selected ? "true" : "false"}"
+      >
+        ${selected ? `<span class="grade-goal-card__badge">Dein Ziel</span>` : ""}
+        <div
+          class="grade-goal-ring"
+          style="--progress:${pct}; --accent:${accent}"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="${pct}"
+          aria-label="${this.escape(aria)}"
+        >
+          <div class="grade-goal-ring__inside">
+            <span class="grade-goal-ring__grade">${this.escape(grade)}</span>
+            <strong>${this.escape(pctLabel)}</strong>
+          </div>
+        </div>
+        <div class="grade-goal-card__text">
+          <strong>Zielnote ${this.escape(grade)}</strong>
+          <span>${this.escape(countLine)}</span>
+          <small>${this.escape(statusSmall)}</small>
+        </div>
+      </button>`;
   }
 };

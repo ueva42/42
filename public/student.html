@@ -2142,6 +2142,630 @@ body.student-app {
   margin-top: 16px;
 }
 
+/* ============================================
+   ZIELPFAD (Ziele / Mein Zielpfad)
+============================================ */
+#zielsetzung-section > .page-hero {
+  display: none;
+}
+
+.zielpfad-app {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.zielpfad-hero__sub {
+  max-width: 36ch;
+}
+
+.zielpfad-hero__exam {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #e2e8f0;
+}
+
+.zielpfad-hero__exam strong {
+  color: #f8fafc;
+}
+
+.zielpfad-hero__goal {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(34, 211, 238, 0.08);
+  color: #67e8f9;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.zielpfad-hero__visual img {
+  opacity: 0.28;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 48%, #000 100%);
+  filter: saturate(0.85) brightness(0.72);
+}
+
+.zielpfad-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.zielpfad-block__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.zielpfad-block__title--sm {
+  font-size: 10px;
+}
+
+.zielpfad-block__sub {
+  margin: -4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.zielpfad-hint {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.grade-goal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.grade-goal-grid.is-saving {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.grade-goal-card {
+  appearance: none;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--grade-accent, #22d3ee) 12%, transparent), transparent 58%),
+    rgba(6, 11, 29, 0.92);
+  padding: 14px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  color: #e2e8f0;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
+}
+
+.grade-goal-card:hover:not(.is-selected) {
+  border-color: color-mix(in srgb, var(--grade-accent, #22d3ee) 35%, transparent);
+  transform: translateY(-1px);
+}
+
+.grade-goal-card.is-selected {
+  border-color: color-mix(in srgb, var(--grade-accent, #22d3ee) 65%, transparent);
+  box-shadow:
+    0 0 28px color-mix(in srgb, var(--grade-accent, #22d3ee) 28%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.grade-goal-card:not(.is-selected) {
+  opacity: 0.82;
+}
+
+.grade-goal-card.is-unavailable .grade-goal-ring__inside strong {
+  font-size: 18px;
+}
+
+.grade-goal-card__badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--grade-accent, #22d3ee) 45%, transparent);
+  background: color-mix(in srgb, var(--grade-accent, #22d3ee) 12%, transparent);
+  color: #f8fafc;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.grade-goal-ring {
+  --progress: 0;
+  --accent: #22d3ee;
+  width: 136px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  position: relative;
+  background: conic-gradient(
+    var(--accent) calc(var(--progress) * 1%),
+    rgba(255, 255, 255, 0.08) 0
+  );
+  box-shadow: 0 0 26px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.grade-goal-ring::before {
+  content: "";
+  position: absolute;
+  width: 79%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #060b1d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.grade-goal-ring__inside {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.grade-goal-ring__grade {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.grade-goal-ring__inside strong {
+  font-size: 22px;
+  color: #f8fafc;
+}
+
+.grade-goal-card__text {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+}
+
+.grade-goal-card__text strong {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.grade-goal-card__text span {
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.grade-goal-card__text small {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.zielpfad-next-card,
+.zielpfad-missing-card,
+.zielpfad-result-card,
+.zielpfad-task-empty {
+  border-radius: 18px;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.1), transparent 42%),
+    rgba(8, 14, 35, 0.9);
+  padding: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.zielpfad-next-card {
+  border-color: rgba(249, 115, 22, 0.35);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.12), transparent 45%),
+    rgba(8, 14, 35, 0.92);
+}
+
+.zielpfad-next-card__eyebrow {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fdba74;
+}
+
+.zielpfad-next-card__text {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #f8fafc;
+}
+
+.zielpfad-next-card__why,
+.zielpfad-next-card__hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.zielpfad-missing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.zielpfad-missing-stat {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(6, 11, 29, 0.7);
+  padding: 10px 12px;
+}
+
+.zielpfad-missing-stat strong {
+  display: block;
+  font-size: 20px;
+  color: #f8fafc;
+}
+
+.zielpfad-missing-stat span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.zielpfad-missing-stat--accent {
+  border-color: rgba(34, 211, 238, 0.28);
+}
+
+.zielpfad-missing-stat--accent strong {
+  color: #67e8f9;
+}
+
+.zielpfad-missing-card.is-ok {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.zielpfad-missing-summary,
+.zielpfad-missing-detail {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #e2e8f0;
+}
+
+.zielpfad-task-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zielpfad-task-group__title {
+  margin: 8px 0 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.zielpfad-task-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.zielpfad-task-card {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(6, 11, 29, 0.88);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zielpfad-task-card--arbeit {
+  border-color: rgba(34, 211, 238, 0.35);
+}
+
+.zielpfad-task-card--sicher {
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.zielpfad-task-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.zielpfad-order-badge {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #f59e0b;
+}
+
+.zielpfad-status {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.zielpfad-status--offen {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.zielpfad-status--arbeit {
+  color: #67e8f9;
+  background: rgba(34, 211, 238, 0.12);
+}
+
+.zielpfad-status--geschafft,
+.zielpfad-status--sicher {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.14);
+}
+
+.zielpfad-task-card__subject {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+}
+
+.zielpfad-task-card__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #f8fafc;
+}
+
+.zielpfad-task-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.zielpfad-tier-badge,
+.zielpfad-badge {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.zielpfad-tier-badge {
+  color: #c4b5fd;
+  background: rgba(168, 85, 247, 0.14);
+}
+
+.zielpfad-badge--foundation {
+  color: #67e8f9;
+  background: rgba(34, 211, 238, 0.12);
+}
+
+.zielpfad-badge--extra {
+  color: #fdba74;
+  background: rgba(249, 115, 22, 0.12);
+}
+
+.zielpfad-actions {
+  margin-top: 4px;
+}
+
+.zielpfad-btn {
+  appearance: none;
+  width: 100%;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  background: rgba(8, 14, 35, 0.95);
+  color: #fdba74;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(249, 115, 22, 0.12);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.zielpfad-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(249, 115, 22, 0.7);
+  box-shadow: 0 0 22px rgba(249, 115, 22, 0.22);
+}
+
+.zielpfad-btn--ghost {
+  border-color: rgba(34, 211, 238, 0.35);
+  color: #67e8f9;
+  box-shadow: none;
+}
+
+.zielpfad-btn--ghost:hover {
+  border-color: rgba(34, 211, 238, 0.55);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.16);
+}
+
+.zielpfad-btn--sm {
+  min-height: 40px;
+  font-size: 12px;
+}
+
+.zielpfad-result-card {
+  border-color: rgba(168, 85, 247, 0.28);
+}
+
+.zielpfad-result__pending {
+  margin: 0;
+  font-size: 14px;
+  color: #cbd5e1;
+}
+
+.zielpfad-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.zielpfad-result-stat {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(6, 11, 29, 0.7);
+  padding: 12px;
+}
+
+.zielpfad-result-stat span {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.zielpfad-result-stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+  color: #f8fafc;
+}
+
+.zielpfad-result__diff {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.zielpfad-result__form {
+  margin-top: 14px;
+}
+
+.zielpfad-result__select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zielpfad-result__select-label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.zielpfad-result__select,
+.zs-achieved-select {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  background: rgba(6, 11, 29, 0.95);
+  color: #f8fafc;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.zielpfad-archived-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.zielpfad-archived-card {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 14, 35, 0.88);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zielpfad-archived-card__main {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.zielpfad-archived-card__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.zielpfad-archived-card__title {
+  margin: 0;
+  font-size: 15px;
+  color: #f8fafc;
+}
+
+.zielpfad-archived-card__meta,
+.zielpfad-archived-card__grades,
+.zielpfad-archived-card__reflection {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.zielpfad-archived-card__grades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .grade-goal-grid {
+    grid-template-columns: repeat(3, minmax(108px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+  }
+
+  .grade-goal-card {
+    scroll-snap-align: start;
+    min-width: 108px;
+  }
+
+  .grade-goal-ring {
+    width: 112px;
+  }
+
+  .zielpfad-task-grid,
+  .zielpfad-archived-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .grade-goal-grid {
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+  }
+
+  .grade-goal-card.is-selected {
+    order: -1;
+  }
+
+  .zielpfad-missing-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .goal-card__progress {
   margin: 12px 0;
   display: flex;
@@ -7350,11 +7974,11 @@ h2 {
 </div>
 
 <script src="/js/auth-fetch.js?v=3"></script>
-<script src="/js/logbuch-constants.js?v=7"></script>
+<script src="/js/logbuch-constants.js?v=8"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=18"></script>
-<script src="/js/logbuch-visuals.js?v=7"></script>
+<script src="/js/logbuch-visuals.js?v=8"></script>
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
@@ -7366,7 +7990,7 @@ h2 {
 <script src="/js/logbuch-levelplan.js?v=13"></script>
 <script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
-<script src="/js/logbuch-zielsetzung.js?v=13"></script>
+<script src="/js/logbuch-zielsetzung.js?v=14"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=5"></script>
 <script src="/js/logbuch-screens.js?v=4"></script>
 

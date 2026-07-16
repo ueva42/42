@@ -176,5 +176,30 @@ window.LOGBUCH = {
     test_angemeldet: { label: "Test angemeldet", class: "status-test" },
     bestanden: { label: "Bestanden", class: "status-bestanden" },
     nacharbeit: { label: "Nacharbeit", class: "status-nacharbeit" }
+  },
+
+  /** Spiegel von server.js TARGET_GRADE_RULES – nur für Anzeige, nicht ändern ohne Server-Sync */
+  TARGET_GRADE_RULES: {
+    "1": { street_legend: 0.8 },
+    "1.5": { operator: 1, street_legend: 0.65 },
+    "2": { operator: 1, street_legend: 0.5 },
+    "2.5": { operator: 1, street_legend: 0.25 },
+    "3": { operator: 0.8 },
+    "3.5": { rookie: 1, operator: 0.5 },
+    "4": { rookie: 0.8 },
+    "4.5": { rookie: 1 },
+    "5": { rookie: 0.6 },
+    "5.5": { rookie: 0.5 },
+    "6": { rookie: 0.4 }
+  },
+
+  ZIELPFAD_PRIMARY_GRADES: ["3", "2", "1"],
+
+  LEVEL_CHECK_TIER_ORDER: ["rookie", "operator", "street_legend"],
+
+  LEVEL_CHECK_TIER_LABELS: {
+    rookie: "Rookie",
+    operator: "Operator",
+    street_legend: "Street Legend"
   }
 };
