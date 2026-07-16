@@ -203,47 +203,28 @@
 
   function renderTodayOverview(d, blockList, editable) {
     const ui = UI();
-    const V = window.LogbuchVisuals;
     const total = blockList.length;
     const planned = blockList.filter((b) => b.entry).length;
-    const checked = blockList.filter((b) => b.entry?.hasCheck).length;
     const reflected = blockList.filter((b) => b.entry?.hasReflection).length;
     const profile = window.__studentProfile || {};
     const todayXp = Number(profile.todayXp || 0);
-    const xpTarget = Math.max(10, todayXp || 10);
+    const xpTarget = Math.max(50, todayXp || 50);
+    const pct = (n, den) => (den > 0 ? Math.min(100, Math.round((n / den) * 100)) : 0);
+    const dayPct = pct(reflected, total);
+    const goalsPct = pct(planned, total);
+    const xpPct = pct(todayXp, xpTarget);
 
-    const ringProgress = V
-      ? V.circularProgress({
-          completed: reflected,
-          total: total || 1,
-          label: "Tagesfortschritt",
-          sublabel: `${reflected} von ${total || 0}`,
-          size: 88,
-          accent: "#22d3ee"
-        })
-      : `<p class="today-overview__fallback">${reflected}/${total || 0}</p>`;
-
-    const ringGoals = V
-      ? V.circularProgress({
-          completed: planned,
-          total: total || 1,
-          label: "Ziele gesetzt",
-          sublabel: `${planned} von ${total || 0}`,
-          size: 88,
-          accent: "#a855f7"
-        })
-      : "";
-
-    const ringXp = V
-      ? V.circularProgress({
-          completed: todayXp,
-          total: xpTarget,
-          label: "XP heute",
-          sublabel: `${todayXp} XP`,
-          size: 88,
-          accent: "#22c55e"
-        })
-      : "";
+    const metric = ({ accent, label, value, sub, fill }) => `
+      <article class="today-dash__metric today-dash__metric--${accent}">
+        <div class="today-dash__metric-head">
+          <p class="today-dash__metric-label">${ui.escapeHtml(label)}</p>
+          <p class="today-dash__metric-value">${ui.escapeHtml(value)}</p>
+          <p class="today-dash__metric-sub">${ui.escapeHtml(sub)}</p>
+        </div>
+        <div class="today-dash__track" aria-hidden="true">
+          <div class="today-dash__fill" style="width:${fill}%"></div>
+        </div>
+      </article>`;
 
     return `
       <section class="today-overview" aria-label="Heute im Überblick">
@@ -267,12 +248,37 @@
           </div>
         </article>
 
-        <h3 class="today-overview__label">Heute im Überblick</h3>
+        <div class="today-dash" aria-label="Heute im Überblick">
+          <article class="today-dash__featured">
+            <div class="today-dash__featured-copy">
+              <p class="today-dash__featured-eyebrow">Heute im Überblick</p>
+              <h3 class="today-dash__featured-title">Tagesfortschritt</h3>
+              <p class="today-dash__featured-sub">${reflected} von ${total || 0} Stunden reflektiert</p>
+            </div>
+            <div class="today-dash__featured-pct" aria-hidden="true">
+              <span>${dayPct}</span><small>%</small>
+            </div>
+            <div class="today-dash__track today-dash__track--xl" aria-hidden="true">
+              <div class="today-dash__fill today-dash__fill--cyan" style="width:${dayPct}%"></div>
+            </div>
+          </article>
 
-        <div class="today-kpi-grid today-kpi-grid--rings">
-          <article class="kpi-ring-card">${ringProgress}</article>
-          <article class="kpi-ring-card">${ringGoals}</article>
-          <article class="kpi-ring-card">${ringXp}</article>
+          <div class="today-dash__row">
+            ${metric({
+              accent: "violet",
+              label: "Ziele gesetzt",
+              value: `${planned}/${total || 0}`,
+              sub: `${goalsPct} % der Stunden`,
+              fill: goalsPct
+            })}
+            ${metric({
+              accent: "green",
+              label: "XP heute",
+              value: String(todayXp),
+              sub: `Zielmarke ${xpTarget} XP`,
+              fill: xpPct
+            })}
+          </div>
         </div>
       </section>`;
   }
