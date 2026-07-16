@@ -34,7 +34,7 @@
       title: "Ziel geändert",
       desc: "Ich habe mein Ziel geändert.",
       icon: "✎",
-      accent: "#fb923c"
+      accent: "#a855f7"
     }
   ];
 
@@ -75,7 +75,7 @@
       title: "Langsam",
       desc: "Es geht eher langsam voran.",
       icon: "…",
-      accent: "#fb923c"
+      accent: "#a855f7"
     },
     {
       value: "Nein, ich hänge fest.",
@@ -113,7 +113,7 @@
       title: "Hilfe fragen",
       desc: "Ich frage gezielt nach Hilfe.",
       icon: "?",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     {
       value: "Ich passe mein Ziel an.",
@@ -465,22 +465,40 @@
 
   function renderHero(ui, e, dateIso) {
     const pct = window.LogbuchReminders?.lessonProgressPct?.(e.timeslot) ?? null;
+    const chips = [
+      formatDate(dateIso),
+      e.timeslot,
+      e.subject,
+      pct != null ? `${pct} % der Stunde` : null
+    ].filter(Boolean);
+
     return `
-      <article class="plan-app-hero plan-app-hero--compact">
+      <article class="plan-app-hero plan-app-hero--compact plan-app-hero--check">
         <div class="plan-app-hero__content">
           <div class="plan-app-hero__icon" aria-hidden="true">
             <img src="/icons/student/png/meine-checks.png" alt="" aria-hidden="true">
           </div>
           <div class="plan-app-hero__copy">
-            <p class="plan-app-hero__eyebrow">Check</p>
+            <p class="plan-app-hero__eyebrow">Schritt 2 von 3 · Check</p>
             <h2 class="plan-app-hero__title">Zwischen-Check</h2>
             <p class="plan-app-hero__meta">Wie läuft es gerade in deiner Stunde?</p>
-            <p class="plan-app-hero__meta">${ui.escapeHtml(formatDate(dateIso))}${e.timeslot ? ` · ${ui.escapeHtml(e.timeslot)}` : ""}${e.subject ? ` · ${ui.escapeHtml(e.subject)}` : ""}${pct != null ? ` · ${pct} %` : ""}</p>
+            ${
+              chips.length
+                ? `<div class="plan-app-hero__chips">${chips
+                    .map((c) => `<span class="plan-app-hero__chip">${ui.escapeHtml(c)}</span>`)
+                    .join("")}</div>`
+                : ""
+            }
           </div>
         </div>
         <div class="plan-app-hero__visual" aria-hidden="true">
           <img src="/icons/student/hero/meine-checks-hero.png" alt="" aria-hidden="true" loading="lazy">
         </div>
+        <nav class="phase-rail" aria-label="Lernschritte">
+          <span class="phase-rail__item is-done">1 · Tagesziel</span>
+          <span class="phase-rail__item is-active">2 · Check</span>
+          <span class="phase-rail__item">3 · Abschluss</span>
+        </nav>
       </article>`;
   }
 

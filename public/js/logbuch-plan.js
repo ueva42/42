@@ -169,35 +169,35 @@
       title: "Beispiel anschauen",
       desc: "Schau zuerst eine Beispielaufgabe an.",
       icon: "◎",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     "Ich starte mit Rookie-Aufgaben.": {
       cat: "starten",
       title: "Rookie starten",
       desc: "Beginne mit einfachen Aufgaben.",
       icon: "1",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     "Ich löse erst mit Hilfe und danach alleine.": {
       cat: "starten",
       title: "Mit Hilfe starten",
       desc: "Löse erst mit Hilfe, dann alleine.",
       icon: "⇄",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     "Ich schaue ein Lernvideo und notiere drei wichtige Punkte.": {
       cat: "starten",
       title: "Lernvideo nutzen",
       desc: "Video schauen und 3 Punkte notieren.",
       icon: "▶",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     "Ich wiederhole ein unsicheres Ziel.": {
       cat: "starten",
       title: "Ziel wiederholen",
       desc: "Wiederhole etwas, das noch unsicher ist.",
       icon: "↺",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     "Ich bearbeite Operator-Aufgaben.": {
       cat: "bearbeiten",
@@ -249,35 +249,35 @@
       title: "Beispiel ansehen",
       desc: "Hol dir Orientierung am Beispiel.",
       icon: "◎",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     "Ich markiere gegeben und gesucht.": {
       cat: "starten",
       title: "Gegeben & gesucht",
       desc: "Markiere, was gegeben und gesucht ist.",
       icon: "◫",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     "Ich nutze eine Hilfestellung.": {
       cat: "starten",
       title: "Hilfe nutzen",
       desc: "Nutze eine Hilfestellung bewusst.",
       icon: "?",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     "Ich starte mit einer einfachen Rookie-Aufgabe.": {
       cat: "starten",
       title: "Rookie-Start",
       desc: "Starte klein und einfach.",
       icon: "1",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     "Ich arbeite 5 Minuten konzentriert an einer kleinen Aufgabe.": {
       cat: "starten",
       title: "5-Minuten-Start",
       desc: "Kurz fokussiert anfangen.",
       icon: "⏱",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     },
     "Ich teile die Aufgabe in kleine Schritte.": {
       cat: "bearbeiten",
@@ -330,7 +330,7 @@
       title: text.length > 30 ? `${text.slice(0, 27)}…` : text,
       desc: text,
       icon: "◆",
-      accent: "#fb923c"
+      accent: "#22d3ee"
     };
   }
 
@@ -530,7 +530,7 @@
       V.confidenceSelector(
         [
           { value: 1, label: "Unsicher", icon: "◎", accent: "#f472b6" },
-          { value: 2, label: "Eher unsicher", icon: "◔", accent: "#fb923c" },
+          { value: 2, label: "Eher unsicher", icon: "◔", accent: "#22d3ee" },
           { value: 3, label: "Mittel", icon: "◑", accent: "#a855f7" },
           { value: 4, label: "Sicher", icon: "◕", accent: "#22d3ee" },
           { value: 5, label: "Sehr sicher", icon: "●", accent: "#22c55e" }
@@ -680,21 +680,39 @@
   }
 
   function renderPlanHero(ui, dateLabel) {
+    const chips = [
+      dateLabel,
+      state.timeslot,
+      state.subject
+    ].filter(Boolean);
+
     return `
-      <article class="plan-app-hero plan-app-hero--compact">
+      <article class="plan-app-hero plan-app-hero--compact plan-app-hero--plan">
         <div class="plan-app-hero__content">
           <div class="plan-app-hero__icon" aria-hidden="true">
             <img src="/icons/student/png/zielsetzung.png" alt="" aria-hidden="true">
           </div>
           <div class="plan-app-hero__copy">
-            <p class="plan-app-hero__eyebrow">Planen</p>
+            <p class="plan-app-hero__eyebrow">Schritt 1 von 3 · Planen</p>
             <h2 class="plan-app-hero__title">Tagesziel setzen</h2>
-            <p class="plan-app-hero__meta">${ui.escapeHtml(dateLabel)}${state.timeslot ? ` · ${ui.escapeHtml(state.timeslot)}` : ""}${state.subject ? ` · ${ui.escapeHtml(state.subject)}` : ""}</p>
+            <p class="plan-app-hero__meta">Lege fest, was du in dieser Stunde schaffen willst.</p>
+            ${
+              chips.length
+                ? `<div class="plan-app-hero__chips">${chips
+                    .map((c) => `<span class="plan-app-hero__chip">${ui.escapeHtml(c)}</span>`)
+                    .join("")}</div>`
+                : ""
+            }
           </div>
         </div>
         <div class="plan-app-hero__visual" aria-hidden="true">
           <img src="/icons/student/hero/zielsetzung-hero.png" alt="" aria-hidden="true" loading="lazy">
         </div>
+        <nav class="phase-rail" aria-label="Lernschritte">
+          <span class="phase-rail__item is-active">1 · Tagesziel</span>
+          <span class="phase-rail__item">2 · Check</span>
+          <span class="phase-rail__item">3 · Abschluss</span>
+        </nav>
       </article>`;
   }
 

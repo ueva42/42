@@ -244,22 +244,35 @@
   }
 
   function renderHero(ui, e) {
+    const chips = [formatMetaLine(e), e.subject].filter(Boolean);
+
     return `
-      <article class="plan-app-hero plan-app-hero--compact">
+      <article class="plan-app-hero plan-app-hero--compact plan-app-hero--reflect">
         <div class="plan-app-hero__content">
           <div class="plan-app-hero__icon" aria-hidden="true">
             <img src="/icons/student/png/lernstand.png" alt="" aria-hidden="true">
           </div>
           <div class="plan-app-hero__copy">
-            <p class="plan-app-hero__eyebrow">Abschluss</p>
+            <p class="plan-app-hero__eyebrow">Schritt 3 von 3 · Abschluss</p>
             <h2 class="plan-app-hero__title">Mein Tagesabschluss</h2>
             <p class="plan-app-hero__meta">Was hat heute funktioniert und was ist dein nächster Schritt?</p>
-            <p class="plan-app-hero__meta">${ui.escapeHtml(formatMetaLine(e))}${e.subject ? ` · ${ui.escapeHtml(e.subject)}` : ""}</p>
+            ${
+              chips.length
+                ? `<div class="plan-app-hero__chips">${chips
+                    .map((c) => `<span class="plan-app-hero__chip">${ui.escapeHtml(c)}</span>`)
+                    .join("")}</div>`
+                : ""
+            }
           </div>
         </div>
         <div class="plan-app-hero__visual" aria-hidden="true">
           <img src="/icons/student/hero/lernstand-hero.png" alt="" aria-hidden="true" loading="lazy">
         </div>
+        <nav class="phase-rail" aria-label="Lernschritte">
+          <span class="phase-rail__item is-done">1 · Tagesziel</span>
+          <span class="phase-rail__item is-done">2 · Check</span>
+          <span class="phase-rail__item is-active">3 · Abschluss</span>
+        </nav>
       </article>`;
   }
 
@@ -269,7 +282,7 @@
       title: g.label.replace(/\.$/, ""),
       desc: g.label,
       icon: ["✓", "◑", "◌", "✎"][i] || "◆",
-      accent: ["#22c55e", "#22d3ee", "#f472b6", "#fb923c"][i] || "#a855f7"
+      accent: ["#22c55e", "#22d3ee", "#f472b6", "#a855f7"][i] || "#a855f7"
     }));
   }
 
@@ -485,7 +498,7 @@
 
     const confOptions = [
       { value: 1, label: "Sehr unsicher", icon: "1", accent: "#f472b6" },
-      { value: 2, label: "Eher unsicher", icon: "2", accent: "#fb923c" },
+      { value: 2, label: "Eher unsicher", icon: "2", accent: "#a855f7" },
       { value: 3, label: "Mittel", icon: "3", accent: "#a855f7" },
       { value: 4, label: "Sicher", icon: "4", accent: "#22d3ee" },
       { value: 5, label: "Sehr sicher", icon: "5", accent: "#22c55e" }
