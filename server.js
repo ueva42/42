@@ -437,6 +437,24 @@ function tierGoalTextForGoal(goal, tier) {
   return null;
 }
 
+function normalizePracticeUrlInput(raw) {
+  if (raw == null) return null;
+  const trimmed = String(raw).trim();
+  return trimmed || null;
+}
+
+function isValidPracticeUrl(url) {
+  const value = normalizePracticeUrlInput(url);
+  if (!value) return false;
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    return Boolean(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function goalTierStatus(goal, tier) {
   const entry = goal.mark?.tiers?.[tier];
   if (!entry) return "offen";
@@ -477,7 +495,8 @@ function buildGoalWorkItems(check, targetGradeKey) {
         goalId: goal.id,
         goalText: goal.text,
         taskText: (taskText && String(taskText).trim()) || goal.text,
-        status: goalTierStatus(goal, tier)
+        status: goalTierStatus(goal, tier),
+        practiceUrl: isValidPracticeUrl(goal.practiceUrl) ? normalizePracticeUrlInput(goal.practiceUrl) : null
       });
     }
   }
@@ -2610,6 +2629,7 @@ async function migrate() {
   await ensureColumn("level_check_goals", "rookie_goal_text", "TEXT");
   await ensureColumn("level_check_goals", "operator_goal_text", "TEXT");
   await ensureColumn("level_check_goals", "street_legend_goal_text", "TEXT");
+  await ensureColumn("level_check_goals", "practice_url", "TEXT");
   await ensureColumn("level_check_goals", "active", "BOOLEAN DEFAULT true");
   await ensureColumn("level_check_goals", "updated_at", "TIMESTAMP DEFAULT NOW()");
 
@@ -5204,6 +5224,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       rookie_goal_text,
       operator_goal_text,
       street_legend_goal_text,
+      practice_url,
       active
     FROM level_check_goals
     WHERE level_check_id = ANY($1::uuid[])
@@ -5240,6 +5261,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       rookieGoalText: g.rookie_goal_text || null,
       operatorGoalText: g.operator_goal_text || null,
       streetLegendGoalText: g.street_legend_goal_text || null,
+      practiceUrl: g.practice_url || null,
       mark: buildGoalMarkFromRows(marksByGoal[g.id])
     });
   }
@@ -7200,6 +7222,56 @@ app.delete("/api/teacher/subject-lesson-goals/:id", isAdmin, async (req, res) =>
     res.json({ success: true });
   } catch (err) {
     console.error("❌ DELETE subject-lesson-goals:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.patch("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const goalId = req.params.id;
+
+    if (!Object.prototype.hasOwnProperty.call(req.body, "practiceUrl")) {
+      return res.json({ success: false, message: "practiceUrl fehlt." });
+    }
+
+    const normalized = normalizePracticeUrlInput(req.body.practiceUrl);
+    if (normalized && !isValidPracticeUrl(normalized)) {
+      return res.json({
+        success: false,
+        message: "Bitte gib eine vollständige Webadresse ein."
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE level_check_goals g
+      SET practice_url = $1, updated_at = NOW()
+      FROM level_checks lc
+      LEFT JOIN classes c ON c.id = lc.class_id
+      WHERE g.id = $2
+        AND g.level_check_id = lc.id
+        AND (g.school_id = $3 OR lc.school_id = $3 OR c.school_id = $3)
+      RETURNING g.id, g.goal_text, g.practice_url
+    `,
+      [normalized, goalId, schoolId]
+    );
+
+    if (!result.rows.length) {
+      return res.json({ success: false, message: "Unterthema nicht gefunden." });
+    }
+
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      goal: {
+        id: row.id,
+        text: row.goal_text,
+        practiceUrl: row.practice_url || null
+      }
+    });
+  } catch (err) {
+    console.error("❌ PATCH levelcheck-goals:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });

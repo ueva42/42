@@ -97,6 +97,84 @@
       .replace(/"/g, "&quot;");
   }
 
+  function normalizePracticeUrl(raw) {
+    if (raw == null) return "";
+    return String(raw).trim();
+  }
+
+  function isValidPracticeUrl(url) {
+    const value = normalizePracticeUrl(url);
+    if (!value) return false;
+    try {
+      const parsed = new URL(value);
+      return (parsed.protocol === "http:" || parsed.protocol === "https:") && Boolean(parsed.hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  function resolvePracticeUrl(raw) {
+    const value = normalizePracticeUrl(raw);
+    return isValidPracticeUrl(value) ? value : null;
+  }
+
+  function resolvePracticeAction(practiceUrl) {
+    const url = resolvePracticeUrl(practiceUrl);
+    if (!url) return { kind: "fallback" };
+    try {
+      const parsed = url.startsWith("/") ? new URL(url, window.location.origin) : new URL(url);
+      if (parsed.origin === window.location.origin) {
+        return { kind: "internal", url: parsed.href, path: parsed.pathname + parsed.search + parsed.hash };
+      }
+      return { kind: "external", url: parsed.href };
+    } catch {
+      return { kind: "fallback" };
+    }
+  }
+
+  function followPracticeUrl(practiceUrl) {
+    const action = resolvePracticeAction(practiceUrl);
+    if (action.kind === "external") {
+      window.open(action.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (action.kind === "internal") {
+      const match = String(action.path || "").match(/^\/student\/([a-z0-9-]+)/i);
+      if (match && window.StudentRouter?.navigateToSection) {
+        window.StudentRouter.navigateToSection(match[1]);
+        return;
+      }
+      window.location.assign(action.url);
+      return;
+    }
+    window.StudentRouter?.navigateToSection("levelplan");
+  }
+
+  function renderPracticeLink(practiceUrl, label = "Übungsseite öffnen", className = "zielpfad-practice-link") {
+    if (!resolvePracticeUrl(practiceUrl)) return "";
+    return `<button type="button" class="${className}" data-zs-practice-url="${escapeHtml(resolvePracticeUrl(practiceUrl))}">${escapeHtml(label)}</button>`;
+  }
+
+  function groupItemsByGoal(items) {
+    const groups = [];
+    const seen = new Map();
+    for (const item of items || []) {
+      const key = String(item.goalId || item.goalText || "");
+      if (!seen.has(key)) {
+        const group = {
+          goalId: item.goalId,
+          goalText: item.goalText,
+          practiceUrl: resolvePracticeUrl(item.practiceUrl),
+          items: []
+        };
+        seen.set(key, group);
+        groups.push(group);
+      }
+      seen.get(key).items.push(item);
+    }
+    return groups;
+  }
+
   function formatGradeLabel(value) {
     return String(value ?? "").replace(".", ",");
   }
@@ -821,7 +899,11 @@
           <p class="zielpfad-next-card__text">${escapeHtml(next.taskText)}</p>
           <p class="zielpfad-next-card__why">${escapeHtml(nextStepReason(next, topic.targetGrade))}</p>
           <div class="zielpfad-actions">
-            <button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Jetzt weiterarbeiten</button>
+            ${
+              resolvePracticeUrl(next.practiceUrl)
+                ? `<button type="button" class="zielpfad-btn" data-zs-practice-url="${escapeHtml(resolvePracticeUrl(next.practiceUrl))}">Jetzt üben</button>`
+                : `<button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Aufgabenübersicht öffnen</button>`
+            }
           </div>
         </article>
       </section>`;
@@ -929,9 +1011,18 @@
           <span class="zielpfad-badge ${tierBadgeClass(item.tier)}">${escapeHtml(badge)}</span>
         </div>
         <div class="zielpfad-actions">
-          <button type="button" class="zielpfad-btn zielpfad-btn--sm" data-zs-goto-levelplan>Aufgabe starten</button>
+          <button type="button" class="zielpfad-btn zielpfad-btn--sm" data-zs-goto-levelplan>Aufgabe ansehen</button>
         </div>
       </article>`;
+  }
+
+  function renderGoalPracticeBar(practiceUrl, goalText) {
+    if (!resolvePracticeUrl(practiceUrl)) return "";
+    return `
+      <div class="zielpfad-goal-practice">
+        <span class="zielpfad-goal-practice__label">${escapeHtml(goalText)}</span>
+        ${renderPracticeLink(practiceUrl, "Übungsseite öffnen", "zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm")}
+      </div>`;
   }
 
   function renderGoalTasks(topic) {
@@ -973,17 +1064,27 @@
         <p class="zielpfad-block__sub">Diese Aufgaben brauchst du für Zielnote ${escapeHtml(targetLabel)}.</p>
         ${groups
           .map((group) => {
-            const cards = group.items
-              .map((item) => {
-                const card = renderTaskCard(item, globalIndex, topic);
-                globalIndex += 1;
-                return card;
+            const goalGroups = groupItemsByGoal(group.items);
+            const blocks = goalGroups
+              .map((goalGroup) => {
+                const cards = goalGroup.items
+                  .map((item) => {
+                    const card = renderTaskCard(item, globalIndex, topic);
+                    globalIndex += 1;
+                    return card;
+                  })
+                  .join("");
+                return `
+              <div class="zielpfad-goal-cluster">
+                ${renderGoalPracticeBar(goalGroup.practiceUrl, goalGroup.goalText)}
+                <div class="zielpfad-task-grid">${cards}</div>
+              </div>`;
               })
               .join("");
             return `
               <div class="zielpfad-task-group">
                 <h4 class="zielpfad-task-group__title">${escapeHtml(group.title)}</h4>
-                <div class="zielpfad-task-grid">${cards}</div>
+                ${blocks}
               </div>`;
           })
           .join("")}
@@ -1410,6 +1511,12 @@
     root.querySelectorAll("[data-zs-goto-levelplan]").forEach((btn) => {
       btn.addEventListener("click", () => {
         window.StudentRouter?.navigateToSection("levelplan");
+      });
+    });
+
+    root.querySelectorAll("[data-zs-practice-url]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        followPracticeUrl(btn.dataset.zsPracticeUrl);
       });
     });
 
