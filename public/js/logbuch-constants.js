@@ -178,19 +178,33 @@ window.LOGBUCH = {
     nacharbeit: { label: "Nacharbeit", class: "status-nacharbeit" }
   },
 
-  /** Spiegel von server.js TARGET_GRADE_RULES – nur für Anzeige, nicht ändern ohne Server-Sync */
+  /** Zentrale Zielnoten-Matrix – Spiegel von server.js TARGET_GRADE_RULES / getGradeRequirements */
   TARGET_GRADE_RULES: {
-    "1": { street_legend: 0.8 },
-    "1.5": { operator: 1, street_legend: 0.65 },
-    "2": { operator: 1, street_legend: 0.5 },
-    "2.5": { operator: 1, street_legend: 0.25 },
-    "3": { operator: 0.8 },
-    "3.5": { rookie: 1, operator: 0.5 },
-    "4": { rookie: 0.8 },
-    "4.5": { rookie: 1 },
-    "5": { rookie: 0.6 },
-    "5.5": { rookie: 0.5 },
-    "6": { rookie: 0.4 }
+    "1": { rookie: 1, operator: 1, street_legend: 0.8 },
+    "1.5": { rookie: 1, operator: 1, street_legend: 0.65 },
+    "2": { rookie: 1, operator: 1, street_legend: 0.5 },
+    "2.5": { rookie: 1, operator: 1, street_legend: 0.25 },
+    "3": { rookie: 1, operator: 0.8, street_legend: 0 },
+    "3.5": { rookie: 1, operator: 0.5, street_legend: 0 },
+    "4": { rookie: 0.8, operator: 0, street_legend: 0 },
+    "4.5": { rookie: 0.6, operator: 0, street_legend: 0 },
+    "5": { rookie: 0.4, operator: 0, street_legend: 0 },
+    "5.5": { rookie: 0.2, operator: 0, street_legend: 0 },
+    "6": { rookie: 0, operator: 0, street_legend: 0 }
+  },
+
+  getGradeRequirements(targetGrade) {
+    const key = String(targetGrade ?? "")
+      .trim()
+      .replace(",", ".")
+      .replace("−", "-");
+    const rules = this.TARGET_GRADE_RULES[key];
+    if (!rules) return null;
+    return {
+      rookie: Number(rules.rookie) || 0,
+      operator: Number(rules.operator) || 0,
+      street_legend: Number(rules.street_legend) || 0
+    };
   },
 
   ZIELPFAD_PRIMARY_GRADES: ["3", "2", "1"],

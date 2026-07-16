@@ -82,21 +82,35 @@ const LEVEL_CHECK_XP = {
   street_legend: 12
 };
 
-// Pro Überthema: Anteil der Unterthemen (Häkchen im Levelplan) pro Tier.
-// Halbe Noten sind feste Zwischenstufen zwischen den ganzen Noten (keine Interpolation).
+// Zentrale Zielnoten-Matrix (Anteil der Unterthemen pro Tier).
+// Quelle der Wahrheit – Admin gibt keine Prozente ein. Keys: "1"…"6" bzw. "1.5"….
 const TARGET_GRADE_RULES = {
-  "1": { street_legend: 0.8 },
-  "1.5": { operator: 1, street_legend: 0.65 },
-  "2": { operator: 1, street_legend: 0.5 },
-  "2.5": { operator: 1, street_legend: 0.25 },
-  "3": { operator: 0.8 },
-  "3.5": { rookie: 1, operator: 0.5 },
-  "4": { rookie: 0.8 },
-  "4.5": { rookie: 1 },
-  "5": { rookie: 0.6 },
-  "5.5": { rookie: 0.5 },
-  "6": { rookie: 0.4 }
+  "1": { rookie: 1, operator: 1, street_legend: 0.8 },
+  "1.5": { rookie: 1, operator: 1, street_legend: 0.65 },
+  "2": { rookie: 1, operator: 1, street_legend: 0.5 },
+  "2.5": { rookie: 1, operator: 1, street_legend: 0.25 },
+  "3": { rookie: 1, operator: 0.8, street_legend: 0 },
+  "3.5": { rookie: 1, operator: 0.5, street_legend: 0 },
+  "4": { rookie: 0.8, operator: 0, street_legend: 0 },
+  "4.5": { rookie: 0.6, operator: 0, street_legend: 0 },
+  "5": { rookie: 0.4, operator: 0, street_legend: 0 },
+  "5.5": { rookie: 0.2, operator: 0, street_legend: 0 },
+  "6": { rookie: 0, operator: 0, street_legend: 0 }
 };
+
+/** Liefert immer { rookie, operator, street_legend } als Anteile 0–1. */
+function getGradeRequirements(targetGrade) {
+  const key = normalizeTargetGradeKey(targetGrade);
+  if (!key || !TARGET_GRADE_RULES[key]) {
+    return null;
+  }
+  const rules = TARGET_GRADE_RULES[key];
+  return {
+    rookie: Number(rules.rookie) || 0,
+    operator: Number(rules.operator) || 0,
+    street_legend: Number(rules.street_legend) || 0
+  };
+}
 
 const TARGET_GRADE_ORDER = [];
 for (let i = 2; i <= 12; i++) {
@@ -233,12 +247,10 @@ function normalizeTargetGradeKey(raw) {
 
 function gradeRequirementsMet(totalGoals, markCounts, gradeKey) {
   const total = Math.max(0, Number(totalGoals) || 0);
-  const key = normalizeTargetGradeKey(gradeKey);
-  if (!total || !key) return false;
+  const rules = getGradeRequirements(gradeKey);
+  if (!total || !rules) return false;
 
-  const rules = TARGET_GRADE_RULES[key];
   for (const tier of LEVEL_CHECK_TIERS) {
-    if (rules[tier] == null) continue;
     const required = Math.ceil(total * rules[tier]);
     if ((markCounts[tier] ?? 0) < required) return false;
   }
@@ -305,30 +317,14 @@ function countGoalMarksCumulative(goals) {
   return countGoalMarksByTier(goals);
 }
 
-function expandGradeRulesForDisplay(rules) {
-  if (!rules) return {};
-  const out = { ...rules };
-  // Rookie → Operator → Street Legend: höhere Stufe setzt niedrigere auf 100 % voraus.
-  if (out.street_legend != null) {
-    out.operator = Math.max(out.operator ?? 0, 1);
-    out.rookie = Math.max(out.rookie ?? 0, 1);
-  } else if (out.operator != null) {
-    out.rookie = Math.max(out.rookie ?? 0, 1);
-  }
-  return out;
-}
-
 function recommendedTierCounts(totalGoals, targetGradeKey) {
   const total = Math.max(0, Number(totalGoals) || 0);
-  const key = normalizeTargetGradeKey(targetGradeKey);
-  if (!key || !total) return null;
+  const rules = getGradeRequirements(targetGradeKey);
+  if (!rules || !total) return null;
 
-  const rules = expandGradeRulesForDisplay(TARGET_GRADE_RULES[key]);
   const out = {};
   for (const tier of LEVEL_CHECK_TIERS) {
-    if (rules[tier] != null) {
-      out[tier] = Math.ceil(total * rules[tier]);
-    }
+    out[tier] = Math.ceil(total * rules[tier]);
   }
   return out;
 }
@@ -509,9 +505,9 @@ function buildGoalWorkItems(check, targetGradeKey) {
 }
 
 function tierPathLabelForGoal(tier, requiredCount) {
-  if (tier === "rookie") return requiredCount > 0 ? "Dein Mindestweg" : "Grundlage";
+  if (requiredCount > 0) return "Für dein Ziel empfohlen";
   if (tier === "operator") return "Nächste Herausforderung";
-  return "Bonus-Challenge";
+  return "Freiwillige Vertiefung";
 }
 
 function buildAllGoalWorkItems(check, targetGradeKey) {
