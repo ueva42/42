@@ -296,15 +296,78 @@
 
   function levelProgressForTarget(topic, tier) {
     const profile = gradeRuleProfile(topic?.targetGrade);
-    const pctRequired = profile?.[tier] != null ? Math.round(profile[tier] * 100) : 0;
+    const pctRequired = profile?.[tier] != null ? Math.round(profile[tier] * 100) : null;
     const totalGoals = Math.max(0, Number(topic?.totalGoals) || 0);
     const recommended = recommendedTierCounts(totalGoals, topic?.targetGrade || "");
     const requiredTasks = recommended?.[tier] ?? 0;
     const tierInfo = (topic?.tiers || []).find((t) => t.id === tier);
-    const completed = Math.min(tierInfo?.current ?? 0, requiredTasks);
-    const open = Math.max(0, requiredTasks - completed);
-    const progressPct = requiredTasks > 0 ? Math.round((completed / requiredTasks) * 100) : 0;
-    return { pctRequired, requiredTasks, completed, open, progressPct, hasProfile: !!profile };
+    const actualCurrent = tierInfo?.current ?? 0;
+    const actualPct = totalGoals > 0 ? Math.round((actualCurrent / totalGoals) * 100) : 0;
+    const minimumCompleted = Math.min(actualCurrent, requiredTasks);
+    const minimumOpen = Math.max(0, requiredTasks - minimumCompleted);
+    return {
+      pctRequired,
+      requiredTasks,
+      actualCurrent,
+      actualPct,
+      minimumOpen,
+      totalGoals,
+      hasProfile: !!profile,
+      isVoluntaryTier: requiredTasks === 0
+    };
+  }
+
+  function tierPathLabel(tier, requiredCount) {
+    if (tier === "rookie") return requiredCount > 0 ? "Dein Mindestweg" : "Grundlage";
+    if (tier === "operator") return "Nächste Herausforderung";
+    return "Bonus-Challenge";
+  }
+
+  function tierBadgeClassForItem(item) {
+    const label = item?.pathLabel;
+    if (label === "Dein Mindestweg") return "zielpfad-badge--minimum";
+    if (label === "Nächste Herausforderung") return "zielpfad-badge--challenge";
+    if (label === "Bonus-Challenge") return "zielpfad-badge--bonus";
+    return "zielpfad-badge--foundation";
+  }
+
+  function taskIsOpen(item) {
+    return item && item.status !== "sicher" && item.status !== "geschafft";
+  }
+
+  function allWorkItemsForTopic(topic) {
+    if (Array.isArray(topic?.allWorkItems) && topic.allWorkItems.length) {
+      return topic.allWorkItems;
+    }
+    return topic?.workItems || [];
+  }
+
+  function pickChallengeNext(topic) {
+    const open = allWorkItemsForTopic(topic).filter(
+      (item) => item.pathSection === "voluntary" && taskIsOpen(item)
+    );
+    return open.find((item) => item.tier === "operator") || open.find((item) => item.tier === "street_legend") || null;
+  }
+
+  function pickMinimumNext(topic) {
+    return (topic?.workItems || []).find(taskIsOpen) || null;
+  }
+
+  function renderMinimumPathHint(topic) {
+    const profile = gradeRuleProfile(topic?.targetGrade);
+    if (!profile) {
+      return "Alle Aufgaben sind jederzeit für dich sichtbar und erreichbar.";
+    }
+    const parts = [];
+    for (const tier of LEVEL_CHECK_TIER_ORDER) {
+      if (profile[tier] != null && profile[tier] > 0) {
+        parts.push(`${Math.round(profile[tier] * 100)} % ${LEVEL_CHECK_TIER_LABELS[tier]}`);
+      }
+    }
+    if (!parts.length) {
+      return `Zielnote ${formatGradeLabel(topic.targetGrade)}: Alle Level stehen dir zur freiwilligen Vertiefung offen.`;
+    }
+    return `Dein Mindestweg für Zielnote ${formatGradeLabel(topic.targetGrade)}: mindestens ${parts.join(", ")}. Schwierigere Aufgaben kannst du jederzeit freiwillig bearbeiten.`;
   }
 
   /**
@@ -412,20 +475,10 @@
     };
   }
 
-  function tierBadgeLabel(tier, targetGrade) {
-    const tg = targetGrade != null ? formatGradeLabel(targetGrade) : "";
-    if (tier === "rookie" || tier === "operator") {
-      return tg ? `Für deine Zielnote ${tg} erforderlich` : "Für deine Zielnote erforderlich";
-    }
-    if (tier === "street_legend") {
-      return tg ? `Zusätzliche Vorbereitung für deine Zielnote ${tg}` : "Zusätzliche Vorbereitung";
-    }
-    return "";
-  }
-
   function tierBadgeClass(tier) {
-    if (tier === "rookie" || tier === "operator") return "zielpfad-badge--foundation";
-    return "zielpfad-badge--extra";
+    if (tier === "rookie") return "zielpfad-badge--minimum";
+    if (tier === "operator") return "zielpfad-badge--challenge";
+    return "zielpfad-badge--bonus";
   }
 
   function taskOrderLabel(index) {
@@ -669,7 +722,7 @@
             <p class="plan-app-hero__eyebrow">Zielsetzung</p>
             <h2 class="plan-app-hero__title">Mein Zielpfad</h2>
             <p class="plan-app-hero__meta zielpfad-hero__sub">
-              Sieh, welche Aufgaben du für deine Zielnote noch brauchst.
+              Sieh deinen Mindestweg – und alle Aufgaben, die du freiwillig weiter bearbeiten kannst.
             </p>
             ${
               topic
@@ -717,27 +770,33 @@
     const cards = LEVEL_CHECK_TIER_ORDER.map((tier) => {
       const p = levelProgressForTarget(topic, tier);
       const label = LEVEL_CHECK_TIER_LABELS[tier] || tier;
+      const goalHint =
+        p.isVoluntaryTier || p.pctRequired == null
+          ? "Freiwillige Vertiefung"
+          : `${p.pctRequired} %`;
       return `
-        <article class="grade-goal-card ${p.requiredTasks === 0 ? "is-unavailable" : ""}" style="--grade-accent:${tierAccents[tier]}">
-          <div class="grade-goal-ring" style="--progress:${p.progressPct}; --accent:${tierAccents[tier]}">
+        <article class="grade-goal-card" style="--grade-accent:${tierAccents[tier]}">
+          <div class="grade-goal-ring" style="--progress:${p.actualPct}; --accent:${tierAccents[tier]}">
             <div class="grade-goal-ring__inside">
               <span class="grade-goal-ring__grade">${escapeHtml(label)}</span>
-              <strong>${p.requiredTasks > 0 ? `${p.progressPct} %` : "–"}</strong>
+              <strong>${p.actualPct} %</strong>
             </div>
           </div>
           <div class="grade-goal-card__text">
             <strong>${escapeHtml(label)}</strong>
-            <span>${p.pctRequired} % für deine Zielnote vorgesehen</span>
-            ${p.requiredTasks > 0
-              ? `<span>${p.completed} / ${p.requiredTasks} Aufgaben geschafft</span><small>Noch ${p.open} offen</small>`
-              : `<small>Für deine Zielnote nicht erforderlich</small>`}
+            <span>Für dein Ziel empfohlen: ${escapeHtml(goalHint)}</span>
+            <span>Dein Fortschritt: ${p.actualPct} %</span>
+            <small>${p.actualCurrent} / ${p.totalGoals} Aufgaben geschafft${
+              p.requiredTasks > 0 && p.minimumOpen > 0 ? ` · Mindestweg: noch ${p.minimumOpen} offen` : ""
+            }</small>
           </div>
         </article>`;
     }).join("");
 
     return `
       <section class="zielpfad-block">
-        <h3 class="zielpfad-block__title">Dein Weg zur Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))}</h3>
+        <h3 class="zielpfad-block__title">Dein Mindestweg für Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))}</h3>
+        <p class="zielpfad-block__sub">Die Zielnote zeigt deinen Mindestweg – nicht deine Obergrenze. Alle Level bleiben sichtbar.</p>
         <div class="grade-goal-grid">${cards}</div>
       </section>`;
   }
@@ -850,28 +909,30 @@
       </div>`;
   }
 
-  function nextStepReason(item, targetGrade) {
-    const tg = formatGradeLabel(targetGrade);
-    if (item.tier === "rookie" || item.tier === "operator") {
-      return `Diese Aufgabe ist als Grundlage für deine Zielnote ${tg} vorgesehen.`;
+  function renderNextStepActions(item, fallbackLabel) {
+    if (!item) return "";
+    if (resolvePracticeUrl(item.practiceUrl)) {
+      return `<button type="button" class="zielpfad-btn zielpfad-btn--sm" data-zs-practice-url="${escapeHtml(resolvePracticeUrl(item.practiceUrl))}">Jetzt üben</button>`;
     }
-    return `Diese Aufgabe ergänzt deinen Pfad für deine Zielnote ${tg}.`;
+    return `<button type="button" class="zielpfad-btn zielpfad-btn--sm" data-zs-goto-levelplan>${escapeHtml(fallbackLabel)}</button>`;
   }
 
   function renderNextStep(topic) {
     if (!topic?.targetGrade) return "";
 
-    const items = topic.workItems || [];
-    const next = items[0];
+    const minimumNext = pickMinimumNext(topic);
+    const challengeNext = pickChallengeNext(topic);
+    const targetLabel = formatGradeLabel(topic.targetGradeLabel || topic.targetGrade);
 
-    if (!next) {
+    if (!minimumNext && !challengeNext) {
       if (topic.onTrack) {
         return `
           <section class="zielpfad-block zielpfad-next">
-            <h3 class="zielpfad-block__title">Dein nächster Schritt</h3>
+            <h3 class="zielpfad-block__title">Dein nächster sinnvoller Schritt</h3>
             <article class="zielpfad-next-card zielpfad-next-card--done">
-              <p class="zielpfad-next-card__eyebrow">Alles geschafft</p>
-              <p class="zielpfad-next-card__text">Du bist on track für Zielnote ${escapeHtml(topic.targetGradeLabel || topic.targetGrade)}.</p>
+              <p class="zielpfad-next-card__eyebrow">Mindestweg geschafft</p>
+              <p class="zielpfad-next-card__text">Ziel erreicht – möchtest du weitergehen?</p>
+              <p class="zielpfad-next-card__hint">Dein Mindestweg für Zielnote ${escapeHtml(targetLabel)} ist erfüllt. Alle weiteren Aufgaben sind freiwillige Vertiefung.</p>
               <div class="zielpfad-actions">
                 <button type="button" class="zielpfad-btn zielpfad-btn--ghost" data-zs-goto-levelplan>Mein Lernstand öffnen</button>
               </div>
@@ -880,10 +941,9 @@
       }
       return `
         <section class="zielpfad-block zielpfad-next">
-          <h3 class="zielpfad-block__title">Dein nächster Schritt</h3>
+          <h3 class="zielpfad-block__title">Dein nächster sinnvoller Schritt</h3>
           <article class="zielpfad-next-card zielpfad-next-card--empty">
-            <p class="zielpfad-next-card__text">Für dieses Ziel ist aktuell kein nächster Schritt hinterlegt.</p>
-            <p class="zielpfad-next-card__hint">Markiere deinen Fortschritt im Mein Lernstand – dann erscheinen hier die passenden Aufgaben.</p>
+            <p class="zielpfad-next-card__text">Markiere deinen Fortschritt im Mein Lernstand – dann erscheinen hier passende Vorschläge.</p>
             <div class="zielpfad-actions">
               <button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Mein Lernstand öffnen</button>
             </div>
@@ -893,19 +953,44 @@
 
     return `
       <section class="zielpfad-block zielpfad-next">
-        <h3 class="zielpfad-block__title">Dein nächster Schritt</h3>
-        <article class="zielpfad-next-card">
-          <p class="zielpfad-next-card__eyebrow">${escapeHtml(next.tierLabel)} · ${escapeHtml(next.goalText)}</p>
-          <p class="zielpfad-next-card__text">${escapeHtml(next.taskText)}</p>
-          <p class="zielpfad-next-card__why">${escapeHtml(nextStepReason(next, topic.targetGrade))}</p>
-          <div class="zielpfad-actions">
+        <h3 class="zielpfad-block__title">Dein nächster sinnvoller Schritt</h3>
+        <div class="zielpfad-next-dual">
+          <article class="zielpfad-next-card zielpfad-next-card--path">
+            <p class="zielpfad-next-card__eyebrow">Für dein Ziel</p>
             ${
-              resolvePracticeUrl(next.practiceUrl)
-                ? `<button type="button" class="zielpfad-btn" data-zs-practice-url="${escapeHtml(resolvePracticeUrl(next.practiceUrl))}">Jetzt üben</button>`
-                : `<button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Aufgabenübersicht öffnen</button>`
+              minimumNext
+                ? `
+              <p class="zielpfad-next-card__text">${escapeHtml(minimumNext.taskText)}</p>
+              <p class="zielpfad-next-card__meta">${escapeHtml(minimumNext.tierLabel)} · ${escapeHtml(minimumNext.goalText)}</p>
+              <span class="zielpfad-badge ${tierBadgeClassForItem(minimumNext)}">${escapeHtml(minimumNext.pathLabel || "Dein Mindestweg")}</span>
+              <div class="zielpfad-actions">
+                ${renderNextStepActions(minimumNext, "Für mein Ziel weiterarbeiten")}
+              </div>`
+                : `
+              <p class="zielpfad-next-card__text">Mindestweg geschafft ✓</p>
+              <p class="zielpfad-next-card__hint">Für Zielnote ${escapeHtml(targetLabel)} reicht dein aktueller Stand.</p>`
             }
-          </div>
-        </article>
+          </article>
+          <article class="zielpfad-next-card zielpfad-next-card--path">
+            <p class="zielpfad-next-card__eyebrow">Du möchtest weitergehen?</p>
+            ${
+              challengeNext
+                ? `
+              <p class="zielpfad-next-card__text">${escapeHtml(challengeNext.taskText)}</p>
+              <p class="zielpfad-next-card__meta">${escapeHtml(challengeNext.tierLabel)} · ${escapeHtml(challengeNext.goalText)}</p>
+              <span class="zielpfad-badge ${tierBadgeClassForItem(challengeNext)}">${escapeHtml(challengeNext.pathLabel || "Nächste Herausforderung")}</span>
+              <div class="zielpfad-actions">
+                ${renderNextStepActions(challengeNext, "Eine Herausforderung ausprobieren")}
+              </div>`
+                : `
+              <p class="zielpfad-next-card__text">Gerade keine freiwillige Herausforderung offen.</p>
+              <p class="zielpfad-next-card__hint">Schau im Mein Lernstand nach weiteren Operator- oder Street-Legend-Aufgaben.</p>
+              <div class="zielpfad-actions">
+                <button type="button" class="zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm" data-zs-goto-levelplan>Mein Lernstand öffnen</button>
+              </div>`
+            }
+          </article>
+        </div>
       </section>`;
   }
 
@@ -913,29 +998,28 @@
     if (!topic?.targetGrade) return "";
 
     const items = topic.workItems || [];
-    const foundationOpen = items.filter((i) => i.tier === "rookie" || i.tier === "operator").length;
-    const operatorOpen = items.filter((i) => i.tier === "operator").length;
-    const streetOpen = items.filter((i) => i.tier === "street_legend").length;
+    const minimumOpen = items.length;
+    const voluntaryOpen = allWorkItemsForTopic(topic).filter(
+      (item) => item.pathSection === "voluntary" && taskIsOpen(item)
+    ).length;
     const prog = topicTaskProgress(topic);
     const pct =
       prog.hasRecommended && prog.total > 0
         ? Math.round((prog.completed / prog.total) * 100)
         : null;
-    const openTotal = items.length;
     const proofsDone = Math.max(0, (topic.totalGoals || 0) - (topic.unmarked || 0));
 
     const stats = [
-      { value: foundationOpen, label: foundationOpen === 1 ? "Grundlage offen" : "Grundlagen offen" },
-      { value: operatorOpen, label: operatorOpen === 1 ? "Operator-Aufgabe offen" : "Operator-Aufgaben offen" },
-      { value: streetOpen, label: streetOpen === 1 ? "Street-Legend-Aufgabe offen" : "Street-Legend-Aufgaben offen" },
+      { value: minimumOpen, label: minimumOpen === 1 ? "Mindestweg offen" : "Mindestweg offen" },
+      { value: voluntaryOpen, label: voluntaryOpen === 1 ? "Herausforderung offen" : "Herausforderungen offen" },
       { value: proofsDone, label: "Nachweise im Lernstand" }
     ];
 
     const summaryLine =
-      openTotal > 0
-        ? `Für deine Zielnote fehlen noch ${openTotal} Aufgabe${openTotal === 1 ? "" : "n"}.`
+      minimumOpen > 0
+        ? `Für deinen Mindestweg fehlen noch ${minimumOpen} Aufgabe${minimumOpen === 1 ? "" : "n"}.`
         : topic.onTrack
-          ? "Du bist on track – weiter so!"
+          ? "Mindestweg geschafft – du kannst freiwillig weitergehen!"
           : "Markiere deinen Fortschritt im Mein Lernstand.";
 
     return `
@@ -956,7 +1040,7 @@
               pct != null
                 ? `<div class="zielpfad-missing-stat zielpfad-missing-stat--accent">
                     <strong>${pct} %</strong>
-                    <span>bis zur Zielnote</span>
+                    <span>Mindestweg</span>
                   </div>`
                 : ""
             }
@@ -971,56 +1055,45 @@
       </section>`;
   }
 
-  function groupWorkItems(items, targetGrade) {
-    const foundation = items.filter((i) => i.tier === "rookie" || i.tier === "operator");
-    const street = items.filter((i) => i.tier === "street_legend");
-    const tg = targetGrade != null ? formatGradeLabel(targetGrade) : "";
-    const groups = [];
+  function renderGoalReachedBanner(topic) {
+    if (!topic?.onTrack || !topic?.targetGrade) return "";
+    return `
+      <article class="zielpfad-goal-reached">
+        <h4 class="zielpfad-goal-reached__title">Ziel erreicht – möchtest du weitergehen?</h4>
+        <p class="zielpfad-goal-reached__text">Dein Mindestweg für Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))} ist geschafft. Probiere freiwillig anspruchsvollere Aufgaben aus.</p>
+      </article>`;
+  }
 
-    if (foundation.length) {
-      groups.push({
-        title: tg ? `Grundlage für Zielnote ${tg}` : "Grundlage",
-        items: foundation
-      });
-    }
-
-    if (street.length) {
-      groups.push({
-        title: tg ? `Zusätzliche Vorbereitung für Zielnote ${tg}` : "Zusätzlich",
-        items: street
-      });
-    }
-
-    if (!groups.length && items.length) groups.push({ title: "Aufgaben für dein Ziel", items });
-
-    return groups;
+  function sortWorkItemsByTier(items) {
+    const order = { rookie: 0, operator: 1, street_legend: 2 };
+    return items.slice().sort((a, b) => (order[a.tier] ?? 0) - (order[b.tier] ?? 0));
   }
 
   function renderTaskCard(item, index, topic) {
-    const badge = tierBadgeLabel(item.tier, topic.targetGrade);
+    const badge = item.pathLabel || tierPathLabel(item.tier, item.isMinimumPath ? 1 : 0);
     return `
       <article class="zielpfad-task-card zielpfad-task-card--${item.status === "sicher" ? "sicher" : item.status === "in_arbeit" ? "arbeit" : "offen"}">
         <div class="zielpfad-task-card__head">
-          <span class="zielpfad-order-badge">${escapeHtml(taskOrderLabel(index))}</span>
+          <span class="zielpfad-tier-badge">${escapeHtml(item.tierLabel)}</span>
           <span class="zielpfad-status ${statusBadgeForGoal(item.status)}">${escapeHtml(statusLabelForGoal(item.status))}</span>
         </div>
-        <p class="zielpfad-task-card__subject">${escapeHtml(item.goalText)}</p>
         <p class="zielpfad-task-card__text">${escapeHtml(item.taskText)}</p>
         <div class="zielpfad-task-card__meta">
-          <span class="zielpfad-tier-badge">${escapeHtml(item.tierLabel)}</span>
-          <span class="zielpfad-badge ${tierBadgeClass(item.tier)}">${escapeHtml(badge)}</span>
+          <span class="zielpfad-badge ${tierBadgeClassForItem(item)}">${escapeHtml(badge)}</span>
         </div>
         <div class="zielpfad-actions">
           <button type="button" class="zielpfad-btn zielpfad-btn--sm" data-zs-goto-levelplan>Aufgabe ansehen</button>
+          ${renderPracticeLink(item.practiceUrl, "Übungsseite", "zielpfad-practice-link")}
         </div>
       </article>`;
   }
 
   function renderGoalPracticeBar(practiceUrl, goalText) {
     if (!resolvePracticeUrl(practiceUrl)) return "";
+    const label = String(goalText || "").trim();
     return `
       <div class="zielpfad-goal-practice">
-        <span class="zielpfad-goal-practice__label">${escapeHtml(goalText)}</span>
+        ${label ? `<span class="zielpfad-goal-practice__label">${escapeHtml(label)}</span>` : ""}
         ${renderPracticeLink(practiceUrl, "Übungsseite öffnen", "zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm")}
       </div>`;
   }
@@ -1028,63 +1101,35 @@
   function renderGoalTasks(topic) {
     if (!topic?.targetGrade) return "";
 
-    const items = topic.workItems || [];
-    const targetLabel = formatGradeLabel(topic.targetGradeLabel || topic.targetGrade);
+    const allItems = allWorkItemsForTopic(topic);
 
-    if (!items.length) {
-      if (topic.onTrack) {
-        return `
-          <section class="zielpfad-block">
-            <h3 class="zielpfad-block__title">Aufgaben für dein Ziel</h3>
-            <p class="zielpfad-block__sub">Diese Aufgaben brauchst du für Zielnote ${escapeHtml(targetLabel)}.</p>
-            <article class="zielpfad-task-empty zielpfad-task-empty--ok">
-              <p>Du bist on track für Zielnote ${escapeHtml(targetLabel)} – alle nötigen Aufgaben sind geschafft.</p>
-            </article>
-          </section>`;
-      }
+    if (!allItems.length) {
       return `
         <section class="zielpfad-block">
-          <h3 class="zielpfad-block__title">Aufgaben für dein Ziel</h3>
-          <p class="zielpfad-block__sub">Diese Aufgaben brauchst du für Zielnote ${escapeHtml(targetLabel)}.</p>
+          <h3 class="zielpfad-block__title">Alle Aufgaben</h3>
+          <p class="zielpfad-block__sub">${escapeHtml(renderMinimumPathHint(topic))}</p>
           <article class="zielpfad-task-empty">
-            <p>Markiere deine Fortschritte im Mein Lernstand – dann siehst du hier die passenden Aufgaben.</p>
-            <div class="zielpfad-actions">
-              <button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Mein Lernstand öffnen</button>
-            </div>
+            <p>Für dieses Thema sind noch keine Aufgaben hinterlegt.</p>
           </article>
         </section>`;
     }
 
-    const groups = groupWorkItems(items, topic.targetGrade);
-    let globalIndex = 0;
+    const goalGroups = groupItemsByGoal(allItems);
 
     return `
       <section class="zielpfad-block">
-        <h3 class="zielpfad-block__title">Aufgaben für dein Ziel</h3>
-        <p class="zielpfad-block__sub">Diese Aufgaben brauchst du für Zielnote ${escapeHtml(targetLabel)}.</p>
-        ${groups
-          .map((group) => {
-            const goalGroups = groupItemsByGoal(group.items);
-            const blocks = goalGroups
-              .map((goalGroup) => {
-                const cards = goalGroup.items
-                  .map((item) => {
-                    const card = renderTaskCard(item, globalIndex, topic);
-                    globalIndex += 1;
-                    return card;
-                  })
-                  .join("");
-                return `
-              <div class="zielpfad-goal-cluster">
-                ${renderGoalPracticeBar(goalGroup.practiceUrl, goalGroup.goalText)}
-                <div class="zielpfad-task-grid">${cards}</div>
-              </div>`;
-              })
-              .join("");
+        <h3 class="zielpfad-block__title">Alle Aufgaben</h3>
+        <p class="zielpfad-block__sub">${escapeHtml(renderMinimumPathHint(topic))}</p>
+        ${renderGoalReachedBanner(topic)}
+        ${goalGroups
+          .map((goalGroup) => {
+            const sorted = sortWorkItemsByTier(goalGroup.items);
+            const cards = sorted.map((item) => renderTaskCard(item, 0, topic)).join("");
             return `
-              <div class="zielpfad-task-group">
-                <h4 class="zielpfad-task-group__title">${escapeHtml(group.title)}</h4>
-                ${blocks}
+              <div class="zielpfad-goal-cluster">
+                <h4 class="zielpfad-goal-cluster__title">${escapeHtml(goalGroup.goalText)}</h4>
+                ${renderGoalPracticeBar(goalGroup.practiceUrl, "")}
+                <div class="zielpfad-task-grid zielpfad-task-grid--tiers">${cards}</div>
               </div>`;
           })
           .join("")}

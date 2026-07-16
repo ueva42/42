@@ -415,7 +415,8 @@ function buildTopicTargetProgress(check, targetsRow = null) {
     recommended,
     onTrack: allOnTrack,
     summary,
-    workItems: targetKey ? buildGoalWorkItems(check, targetKey) : []
+    workItems: targetKey ? buildGoalWorkItems(check, targetKey) : [],
+    allWorkItems: buildAllGoalWorkItems(check, targetKey)
   };
 }
 
@@ -489,6 +490,7 @@ function buildGoalWorkItems(check, targetGradeKey) {
 
     for (const goal of openGoals) {
       const taskText = tierGoalTextForGoal(goal, tier);
+      const requiredCount = recommended[tier] ?? 0;
       items.push({
         tier,
         tierLabel: LEVEL_CHECK_TIER_LABELS[tier],
@@ -496,7 +498,45 @@ function buildGoalWorkItems(check, targetGradeKey) {
         goalText: goal.text,
         taskText: (taskText && String(taskText).trim()) || goal.text,
         status: goalTierStatus(goal, tier),
-        practiceUrl: isValidPracticeUrl(goal.practiceUrl) ? normalizePracticeUrlInput(goal.practiceUrl) : null
+        practiceUrl: isValidPracticeUrl(goal.practiceUrl) ? normalizePracticeUrlInput(goal.practiceUrl) : null,
+        pathLabel: tierPathLabelForGoal(tier, requiredCount),
+        pathSection: requiredCount > 0 ? "minimum" : "voluntary",
+        isMinimumPath: requiredCount > 0
+      });
+    }
+  }
+  return items;
+}
+
+function tierPathLabelForGoal(tier, requiredCount) {
+  if (tier === "rookie") return requiredCount > 0 ? "Dein Mindestweg" : "Grundlage";
+  if (tier === "operator") return "Nächste Herausforderung";
+  return "Bonus-Challenge";
+}
+
+function buildAllGoalWorkItems(check, targetGradeKey) {
+  if (!check.goals?.length) return [];
+
+  const targetKey = normalizeTargetGradeKey(targetGradeKey);
+  const totalGoals = check.goals.length;
+  const recommended = targetKey ? recommendedTierCounts(totalGoals, targetKey) : null;
+
+  const items = [];
+  for (const goal of check.goals) {
+    for (const tier of LEVEL_CHECK_TIERS) {
+      const requiredCount = recommended?.[tier] ?? 0;
+      const taskText = tierGoalTextForGoal(goal, tier);
+      items.push({
+        tier,
+        tierLabel: LEVEL_CHECK_TIER_LABELS[tier],
+        goalId: goal.id,
+        goalText: goal.text,
+        taskText: (taskText && String(taskText).trim()) || goal.text,
+        status: goalTierStatus(goal, tier),
+        practiceUrl: isValidPracticeUrl(goal.practiceUrl) ? normalizePracticeUrlInput(goal.practiceUrl) : null,
+        pathLabel: tierPathLabelForGoal(tier, requiredCount),
+        pathSection: requiredCount > 0 ? "minimum" : "voluntary",
+        isMinimumPath: requiredCount > 0
       });
     }
   }
@@ -5632,7 +5672,8 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
           recommended: null,
           onTrack: null,
           summary: null,
-          workItems: []
+          workItems: [],
+          allWorkItems: []
         };
       }
     });

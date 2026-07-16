@@ -2697,6 +2697,86 @@ body.student-app {
   color: #cbd5e1;
 }
 
+.zielpfad-next-dual {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.zielpfad-next-card--path {
+  min-height: 100%;
+}
+
+.zielpfad-next-card__meta {
+  margin: 8px 0 10px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.zielpfad-badge--minimum {
+  color: #67e8f9;
+  border-color: rgba(34, 211, 238, 0.35);
+  background: rgba(34, 211, 238, 0.12);
+}
+
+.zielpfad-badge--challenge {
+  color: #c4b5fd;
+  border-color: rgba(168, 85, 247, 0.35);
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.zielpfad-badge--bonus {
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.zielpfad-badge--foundation {
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.zielpfad-goal-reached {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.zielpfad-goal-reached__title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: #bbf7d0;
+}
+
+.zielpfad-goal-reached__text {
+  margin: 0;
+  font-size: 13px;
+  color: #d1fae5;
+}
+
+.zielpfad-goal-cluster__title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #e2e8f0;
+}
+
+.zielpfad-task-grid--tiers {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .zielpfad-next-dual {
+    grid-template-columns: 1fr;
+  }
+
+  .zielpfad-task-grid--tiers {
+    grid-template-columns: 1fr;
+  }
+}
+
 .zielpfad-missing-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -8330,7 +8410,7 @@ h2 {
 <script src="/js/logbuch-levelplan.js?v=13"></script>
 <script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
-<script src="/js/logbuch-zielsetzung.js?v=16"></script>
+<script src="/js/logbuch-zielsetzung.js?v=17"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=5"></script>
 <script src="/js/logbuch-screens.js?v=4"></script>
 
