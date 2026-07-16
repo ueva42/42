@@ -234,17 +234,6 @@
         })
       : "";
 
-    const ringChecks = V
-      ? V.circularProgress({
-          completed: checked,
-          total: total || 1,
-          label: "Checks",
-          sublabel: `${checked} von ${total || 0}`,
-          size: 88,
-          accent: "#f59e0b"
-        })
-      : "";
-
     const ringXp = V
       ? V.circularProgress({
           completed: todayXp,
@@ -283,7 +272,6 @@
         <div class="today-kpi-grid today-kpi-grid--rings">
           <article class="kpi-ring-card">${ringProgress}</article>
           <article class="kpi-ring-card">${ringGoals}</article>
-          <article class="kpi-ring-card">${ringChecks}</article>
           <article class="kpi-ring-card">${ringXp}</article>
         </div>
       </section>`;
@@ -303,7 +291,7 @@
           completed: stepsDone,
           total: 3,
           size: 56,
-          accent: status.key === "done" ? "#22c55e" : status.key === "active" ? "#38bdf8" : "#f97316"
+          accent: status.key === "done" ? "#22c55e" : status.key === "active" ? "#38bdf8" : "#a855f7"
         })
       : "";
 

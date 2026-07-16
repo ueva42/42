@@ -12,7 +12,7 @@
     street_legend: "Street Legend"
   };
   const ZIELPFAD_PRIMARY_GRADES = C.ZIELPFAD_PRIMARY_GRADES || ["3", "2", "1"];
-  const GRADE_ACCENTS = { 3: "#22d3ee", 2: "#a855f7", 1: "#f59e0b" };
+  const GRADE_ACCENTS = { 3: "#22d3ee", 2: "#a855f7", 1: "#f472b6" };
 
   /** Fallback-Matrix – gleiche Werte wie server.js, falls Constants nicht geladen sind */
   const FALLBACK_GRADE_RULES = {
@@ -682,7 +682,7 @@
             fieldKey: "grow",
             title: "GROW",
             question: "Woran kannst du noch wachsen?",
-            accent: "#f97316",
+            accent: "#a855f7",
             options: growOptions
           })}
           ${renderChoiceCard({
@@ -808,7 +808,7 @@
         </section>`;
     }
 
-    const tierAccents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f59e0b" };
+    const tierAccents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f472b6" };
     let anyBeyond = false;
     const cards = LEVEL_CHECK_TIER_ORDER.map((tier) => {
       const p = levelProgressForTarget(topic, tier);
@@ -1114,7 +1114,7 @@
 
     const allItems = allWorkItemsForTopic(topic);
     const profile = getGradeRequirements(topic.targetGrade);
-    const tierAccents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f59e0b" };
+    const tierAccents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f472b6" };
 
     if (!allItems.length) {
       return `
@@ -1235,7 +1235,7 @@
           <p class="zielpfad-eval-card__question">Was hat schon gut funktioniert?</p>
           <div class="zielpfad-eval-card__value">${glow ? escapeHtml(glow) : "—"}</div>
         </article>
-        <article class="zielpfad-eval-card zielpfad-eval-card--grow" style="--eval-accent:#f97316">
+        <article class="zielpfad-eval-card zielpfad-eval-card--grow" style="--eval-accent:#a855f7">
           <h4 class="zielpfad-eval-card__title">GROW</h4>
           <p class="zielpfad-eval-card__question">Woran kannst du noch wachsen?</p>
           <div class="zielpfad-eval-card__value">${grow ? escapeHtml(grow) : "—"}</div>
@@ -1287,7 +1287,7 @@
                   total: prog.total,
                   label: "Fortschritt",
                   size: 88,
-                  accent: topic.onTrack ? "#22c55e" : "#f97316"
+                  accent: topic.onTrack ? "#22c55e" : "#a855f7"
                 })
               : ""
           }

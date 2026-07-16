@@ -142,11 +142,7 @@
         chartTitle: "Ziele pro Tag",
         chart: V.miniBarChart(byDay)
       }) +
-      `<div class="week-status-circles">
-        ${V.circularProgress({ completed: erreicht, total, label: "Erreicht", size: 92, accent: "#22c55e" })}
-        ${V.circularProgress({ completed: teilweise, total, label: "Teilweise", size: 92, accent: "#f59e0b" })}
-        ${V.circularProgress({ completed: offen, total, label: "Offen", size: 92, accent: "#64748b" })}
-      </div>`
+      ``
     );
   }
 
