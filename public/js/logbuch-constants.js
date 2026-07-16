@@ -194,11 +194,27 @@ window.LOGBUCH = {
   },
 
   getGradeRequirements(targetGrade) {
-    const key = String(targetGrade ?? "")
+    let key = String(targetGrade ?? "")
       .trim()
       .replace(",", ".")
       .replace("−", "-");
-    const rules = this.TARGET_GRADE_RULES[key];
+    if (!key) return null;
+    const rulesTable = (typeof window !== "undefined" && window.LogbuchConstants
+      ? window.LogbuchConstants.TARGET_GRADE_RULES
+      : null) || this.TARGET_GRADE_RULES;
+    if (rulesTable[key]) {
+      const rules = rulesTable[key];
+      return {
+        rookie: Number(rules.rookie) || 0,
+        operator: Number(rules.operator) || 0,
+        street_legend: Number(rules.street_legend) || 0
+      };
+    }
+    const num = Number(key);
+    if (!Number.isFinite(num) || num < 1 || num > 6) return null;
+    const halfStep = Math.round(num * 2) / 2;
+    key = Number.isInteger(halfStep) ? String(halfStep) : halfStep.toFixed(1);
+    const rules = rulesTable[key];
     if (!rules) return null;
     return {
       rookie: Number(rules.rookie) || 0,

@@ -471,22 +471,17 @@ function buildGoalWorkItems(check, targetGradeKey) {
 
   const items = [];
   for (const tier of LEVEL_CHECK_TIERS) {
-    const required = recommended[tier];
-    if (required == null) continue;
+    const requiredCount = recommended[tier] ?? 0;
+    if (requiredCount <= 0) continue;
 
-    const current = check.goals.filter((goal) =>
-      tierEntryIsMarked(goal.mark?.tiers?.[tier])
-    ).length;
-    const remaining = Math.max(0, required - current);
-    if (remaining <= 0) continue;
-
-    const openGoals = check.goals.filter(
+    const requiredGoals = check.goals.slice(0, requiredCount);
+    const openRequired = requiredGoals.filter(
       (goal) => !tierEntryIsMarked(goal.mark?.tiers?.[tier])
     );
+    if (!openRequired.length) continue;
 
-    for (const goal of openGoals) {
+    for (const goal of openRequired) {
       const taskText = tierGoalTextForGoal(goal, tier);
-      const requiredCount = recommended[tier] ?? 0;
       items.push({
         tier,
         tierLabel: LEVEL_CHECK_TIER_LABELS[tier],
@@ -494,20 +489,20 @@ function buildGoalWorkItems(check, targetGradeKey) {
         goalText: goal.text,
         taskText: (taskText && String(taskText).trim()) || goal.text,
         status: goalTierStatus(goal, tier),
-        practiceUrl: isValidPracticeUrl(goal.practiceUrl) ? normalizePracticeUrlInput(goal.practiceUrl) : null,
-        pathLabel: tierPathLabelForGoal(tier, requiredCount),
-        pathSection: requiredCount > 0 ? "minimum" : "voluntary",
-        isMinimumPath: requiredCount > 0
+        practiceUrl: isValidPracticeUrl(goal.practiceUrl)
+          ? normalizePracticeUrlInput(goal.practiceUrl)
+          : null,
+        pathLabel: "Für dein Ziel erforderlich",
+        pathSection: "required",
+        isMinimumPath: true
       });
     }
   }
   return items;
 }
 
-function tierPathLabelForGoal(tier, requiredCount) {
-  if (requiredCount > 0) return "Für dein Ziel empfohlen";
-  if (tier === "operator") return "Nächste Herausforderung";
-  return "Freiwillige Vertiefung";
+function tierPathLabelForGoal(isRequired) {
+  return isRequired ? "Für dein Ziel erforderlich" : "Herausforderung";
 }
 
 function buildAllGoalWorkItems(check, targetGradeKey) {
@@ -518,9 +513,10 @@ function buildAllGoalWorkItems(check, targetGradeKey) {
   const recommended = targetKey ? recommendedTierCounts(totalGoals, targetKey) : null;
 
   const items = [];
-  for (const goal of check.goals) {
-    for (const tier of LEVEL_CHECK_TIERS) {
-      const requiredCount = recommended?.[tier] ?? 0;
+  for (const tier of LEVEL_CHECK_TIERS) {
+    const requiredCount = recommended?.[tier] ?? 0;
+    check.goals.forEach((goal, index) => {
+      const isRequired = requiredCount > 0 && index < requiredCount;
       const taskText = tierGoalTextForGoal(goal, tier);
       items.push({
         tier,
@@ -529,12 +525,15 @@ function buildAllGoalWorkItems(check, targetGradeKey) {
         goalText: goal.text,
         taskText: (taskText && String(taskText).trim()) || goal.text,
         status: goalTierStatus(goal, tier),
-        practiceUrl: isValidPracticeUrl(goal.practiceUrl) ? normalizePracticeUrlInput(goal.practiceUrl) : null,
-        pathLabel: tierPathLabelForGoal(tier, requiredCount),
-        pathSection: requiredCount > 0 ? "minimum" : "voluntary",
-        isMinimumPath: requiredCount > 0
+        practiceUrl: isValidPracticeUrl(goal.practiceUrl)
+          ? normalizePracticeUrlInput(goal.practiceUrl)
+          : null,
+        pathLabel: tierPathLabelForGoal(isRequired),
+        pathSection: isRequired ? "required" : "challenge",
+        isMinimumPath: isRequired,
+        sortIndex: index
       });
-    }
+    });
   }
   return items;
 }

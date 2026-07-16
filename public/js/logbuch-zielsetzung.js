@@ -5,7 +5,6 @@
 (function () {
   const CUSTOM_OPTION = "__custom__";
   const C = window.LogbuchConstants || {};
-  const TARGET_GRADE_RULES = C.TARGET_GRADE_RULES || {};
   const LEVEL_CHECK_TIER_ORDER = C.LEVEL_CHECK_TIER_ORDER || ["rookie", "operator", "street_legend"];
   const LEVEL_CHECK_TIER_LABELS = C.LEVEL_CHECK_TIER_LABELS || {
     rookie: "Rookie",
@@ -15,6 +14,22 @@
   const ZIELPFAD_PRIMARY_GRADES = C.ZIELPFAD_PRIMARY_GRADES || ["3", "2", "1"];
   const GRADE_ACCENTS = { 3: "#22d3ee", 2: "#a855f7", 1: "#f59e0b" };
 
+  /** Fallback-Matrix – gleiche Werte wie server.js, falls Constants nicht geladen sind */
+  const FALLBACK_GRADE_RULES = {
+    "1": { rookie: 1, operator: 1, street_legend: 0.8 },
+    "1.5": { rookie: 1, operator: 1, street_legend: 0.65 },
+    "2": { rookie: 1, operator: 1, street_legend: 0.5 },
+    "2.5": { rookie: 1, operator: 1, street_legend: 0.25 },
+    "3": { rookie: 1, operator: 0.8, street_legend: 0 },
+    "3.5": { rookie: 1, operator: 0.5, street_legend: 0 },
+    "4": { rookie: 0.8, operator: 0, street_legend: 0 },
+    "4.5": { rookie: 0.6, operator: 0, street_legend: 0 },
+    "5": { rookie: 0.4, operator: 0, street_legend: 0 },
+    "5.5": { rookie: 0.2, operator: 0, street_legend: 0 },
+    "6": { rookie: 0, operator: 0, street_legend: 0 }
+  };
+  const TARGET_GRADE_RULES = C.TARGET_GRADE_RULES || FALLBACK_GRADE_RULES;
+
   const state = {
     data: null,
     selectedSubject: "",
@@ -22,22 +37,37 @@
     saving: null,
     modal: null,
     message: "",
-    error: ""
+    error: "",
+    showVoluntary: false
   };
 
   let initPromise = null;
   let initGeneration = 0;
   let loadRequestId = 0;
 
-  /** Zentrale Notenmatrix – nur über getGradeRequirements, keine eigene Matrix */
-  function getGradeRequirements(targetGrade) {
-    if (typeof C.getGradeRequirements === "function") {
-      return C.getGradeRequirements(targetGrade);
-    }
-    const key = String(targetGrade ?? "")
+  function normalizeGradeKey(raw) {
+    let key = String(raw ?? "")
       .trim()
-      .replace(",", ".");
-    const rules = TARGET_GRADE_RULES[key];
+      .replace(",", ".")
+      .replace("−", "-");
+    if (!key) return null;
+    if (TARGET_GRADE_RULES[key] || FALLBACK_GRADE_RULES[key]) return key;
+    const num = Number(key);
+    if (!Number.isFinite(num) || num < 1 || num > 6) return null;
+    const halfStep = Math.round(num * 2) / 2;
+    key = Number.isInteger(halfStep) ? String(halfStep) : halfStep.toFixed(1);
+    return TARGET_GRADE_RULES[key] || FALLBACK_GRADE_RULES[key] ? key : null;
+  }
+
+  /** Zentrale Notenmatrix – immer mit Fallback, nie „keine Anforderungen“ bei gültiger Note */
+  function getGradeRequirements(targetGrade) {
+    const key = normalizeGradeKey(targetGrade);
+    if (!key) return null;
+    if (typeof C.getGradeRequirements === "function") {
+      const fromConstants = C.getGradeRequirements(key);
+      if (fromConstants) return fromConstants;
+    }
+    const rules = TARGET_GRADE_RULES[key] || FALLBACK_GRADE_RULES[key];
     if (!rules) return null;
     return {
       rookie: Number(rules.rookie) || 0,
@@ -318,22 +348,21 @@
     };
   }
 
-  function tierPathLabel(tier, requiredCount) {
-    if (requiredCount > 0) return "Für dein Ziel empfohlen";
-    if (tier === "operator") return "Nächste Herausforderung";
-    return "Freiwillige Vertiefung";
+  function tierPathLabel(isRequired) {
+    return isRequired ? "Für dein Ziel erforderlich" : "Herausforderung";
   }
 
   function tierBadgeClassForItem(item) {
-    const label = item?.pathLabel;
-    if (label === "Für dein Ziel empfohlen" || label === "Dein Mindestweg") return "zielpfad-badge--minimum";
-    if (label === "Nächste Herausforderung") return "zielpfad-badge--challenge";
-    if (label === "Freiwillige Vertiefung" || label === "Bonus-Challenge") return "zielpfad-badge--bonus";
-    return "zielpfad-badge--foundation";
+    if (item?.isMinimumPath || item?.pathSection === "required") return "zielpfad-badge--minimum";
+    return "zielpfad-badge--challenge";
   }
 
   function taskIsOpen(item) {
     return item && item.status !== "sicher" && item.status !== "geschafft";
+  }
+
+  function itemIsRequired(item) {
+    return !!(item?.isMinimumPath || item?.pathSection === "required" || item?.pathSection === "minimum");
   }
 
   function allWorkItemsForTopic(topic) {
@@ -344,31 +373,26 @@
   }
 
   function pickChallengeNext(topic) {
-    const open = allWorkItemsForTopic(topic).filter(
-      (item) => item.pathSection === "voluntary" && taskIsOpen(item)
+    const open = allWorkItemsForTopic(topic)
+      .filter((item) => !itemIsRequired(item) && taskIsOpen(item))
+      .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
+    return (
+      open.find((item) => item.tier === "operator") ||
+      open.find((item) => item.tier === "street_legend") ||
+      open[0] ||
+      null
     );
-    return open.find((item) => item.tier === "operator") || open.find((item) => item.tier === "street_legend") || null;
   }
 
   function pickMinimumNext(topic) {
     return (topic?.workItems || []).find(taskIsOpen) || null;
   }
 
-  function renderMinimumPathHint(topic) {
-    const profile = getGradeRequirements(topic?.targetGrade);
-    if (!profile) {
-      return "Alle Aufgaben sind jederzeit für dich sichtbar und erreichbar.";
+  function actionButtonForItem(item, labelFallback) {
+    if (resolvePracticeUrl(item?.practiceUrl)) {
+      return `<button type="button" class="zielpfad-btn" data-zs-practice-url="${escapeHtml(resolvePracticeUrl(item.practiceUrl))}">Jetzt üben</button>`;
     }
-    const parts = [];
-    for (const tier of LEVEL_CHECK_TIER_ORDER) {
-      if (profile[tier] > 0) {
-        parts.push(`${Math.round(profile[tier] * 100)} % ${LEVEL_CHECK_TIER_LABELS[tier]}`);
-      }
-    }
-    if (!parts.length) {
-      return `Zielnote ${formatGradeLabel(topic.targetGrade)}: Alle Level stehen dir zur freiwilligen Vertiefung offen.`;
-    }
-    return `Für Zielnote ${formatGradeLabel(topic.targetGrade)} empfohlen: ${parts.join(", ")}. Alle Level bleiben sichtbar und erreichbar.`;
+    return `<button type="button" class="zielpfad-btn" data-zs-goto-levelplan>${escapeHtml(labelFallback)}</button>`;
   }
 
   /**
@@ -706,12 +730,19 @@
   function renderZielpfadHero(topic) {
     const subject = escapeHtml(state.selectedSubject || topic?.subject || "");
     const name = topic ? escapeHtml(topic.name) : "–";
-    const typePart = topic?.checkpointTypeLabel ? `${escapeHtml(topic.checkpointTypeLabel)}` : "Check";
+    const typePart = topic?.checkpointTypeLabel ? escapeHtml(topic.checkpointTypeLabel) : "Check";
     const datePart = topic?.checkpointDateLabel
-      ? `am ${escapeHtml(topic.checkpointDateLabel)}`
+      ? escapeHtml(topic.checkpointDateLabel)
       : "Termin folgt";
     const hasTarget = !!topic?.targetGrade;
-    const goalPart = hasTarget ? String(topic.targetGradeLabel || topic.targetGrade) : "Noch keine Zielnote festgelegt";
+    const goalPart = hasTarget
+      ? formatGradeLabel(topic.targetGradeLabel || topic.targetGrade)
+      : "Noch keine";
+    const hasAchieved = !!topic?.achievedGrade;
+    const achievedPart = hasAchieved
+      ? formatGradeLabel(topic.achievedGradeLabel || topic.achievedGrade)
+      : "Noch nicht eingetragen";
+    const past = topic ? isCheckpointPast(topic) : false;
 
     return `
       <article class="plan-app-hero zielpfad-hero">
@@ -720,25 +751,37 @@
             <img src="/icons/student/png/zielsetzung.png" alt="" loading="lazy">
           </div>
           <div class="plan-app-hero__copy">
-            <p class="plan-app-hero__eyebrow">Zielsetzung</p>
-            <h2 class="plan-app-hero__title">Mein Zielpfad</h2>
-            <p class="plan-app-hero__meta zielpfad-hero__sub">
-              Sieh deinen Mindestweg – und alle Aufgaben, die du freiwillig weiter bearbeiten kannst.
-            </p>
+            <p class="plan-app-hero__eyebrow">Mein Zielpfad</p>
+            <h2 class="plan-app-hero__title">${subject} · ${name}</h2>
+            <p class="plan-app-hero__meta">${typePart} · ${datePart}</p>
             ${
               topic
-                ? `<p class="zielpfad-hero__exam">
-                    <strong>${subject} · ${name}</strong><br>
-                    ${typePart} ${datePart}<br>
-                    <span class="zielpfad-hero__goal-label">DEINE ZIELNOTE</span>
-                    <strong class="zielpfad-hero__goal-value">${escapeHtml(goalPart)}</strong>
-                    <button
-                      type="button"
-                      class="zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm zielpfad-hero__goal-btn"
-                      data-zs-open-grade-modal="target"
-                      data-topic-id="${escapeHtml(topic.id)}"
-                    >${topic?.targetGrade ? "Zielnote ändern" : "Zielnote festlegen"}</button>
-                  </p>`
+                ? `<div class="zielpfad-hero__grades">
+                    <div class="zielpfad-hero__grade-box">
+                      <span class="zielpfad-hero__goal-label">Meine Zielnote</span>
+                      <strong class="zielpfad-hero__goal-value">${escapeHtml(goalPart)}</strong>
+                      <button
+                        type="button"
+                        class="zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm"
+                        data-zs-open-grade-modal="target"
+                        data-topic-id="${escapeHtml(topic.id)}"
+                      >${hasTarget ? "Zielnote ändern" : "Zielnote festlegen"}</button>
+                    </div>
+                    <div class="zielpfad-hero__grade-box">
+                      <span class="zielpfad-hero__goal-label">Erreichte Note</span>
+                      <strong class="zielpfad-hero__goal-value">${escapeHtml(achievedPart)}</strong>
+                      ${
+                        past || hasAchieved
+                          ? `<button
+                              type="button"
+                              class="zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm"
+                              data-zs-open-achieved-grade-modal
+                              data-topic-id="${escapeHtml(topic.id)}"
+                            >Ergebnis eintragen</button>`
+                          : `<span class="zielpfad-hero__later">Nach dem Check</span>`
+                      }
+                    </div>
+                  </div>`
                 : ""
             }
           </div>
@@ -754,15 +797,15 @@
     if (!topic.targetGrade) {
       return `
         <section class="zielpfad-block">
-          <h3 class="zielpfad-block__title">Dein Weg zur Zielnote</h3>
-          <p class="zielpfad-block__sub">Lege zuerst oben eine Zielnote fest.</p>
+          <h3 class="zielpfad-block__title">Dein Zielprofil</h3>
+          <p class="zielpfad-block__sub">Lege zuerst oben eine Zielnote fest – dann siehst du hier die Anteile für Rookie, Operator und Street Legend.</p>
         </section>`;
     }
     const profile = getGradeRequirements(topic.targetGrade);
     if (!profile) {
       return `
         <section class="zielpfad-block">
-          <h3 class="zielpfad-block__title">Dein Weg zur Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))}</h3>
+          <h3 class="zielpfad-block__title">Dein Zielprofil</h3>
           <p class="zielpfad-block__sub">Für die Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))} sind noch keine Anforderungen hinterlegt.</p>
         </section>`;
     }
@@ -773,35 +816,34 @@
       const p = levelProgressForTarget(topic, tier);
       if (p.goesBeyond) anyBeyond = true;
       const label = LEVEL_CHECK_TIER_LABELS[tier] || tier;
-      const ringPct = p.isVoluntaryTier ? 0 : p.pctRequired || 0;
-      const goalHint = p.isVoluntaryTier || !p.pctRequired
+      const barPct = p.isVoluntaryTier ? 0 : p.pctRequired || 0;
+      const goalLine = p.isVoluntaryTier
         ? "Freiwillige Vertiefung"
-        : `${p.pctRequired} % für dein Ziel empfohlen`;
+        : `${p.pctRequired} % für dein Ziel`;
+
       return `
-        <article class="grade-goal-card" style="--grade-accent:${tierAccents[tier]}">
-          <div class="grade-goal-ring" style="--progress:${ringPct}; --accent:${tierAccents[tier]}">
-            <div class="grade-goal-ring__inside">
-              <span class="grade-goal-ring__grade">${escapeHtml(label)}</span>
-              <strong>${p.isVoluntaryTier ? "–" : `${p.pctRequired} %`}</strong>
-            </div>
-          </div>
-          <div class="grade-goal-card__text">
+        <article class="zielpfad-bar-card" style="--grade-accent:${tierAccents[tier]}">
+          <div class="zielpfad-bar-card__head">
             <strong>${escapeHtml(label)}</strong>
-            <span>${escapeHtml(goalHint)}</span>
-            <span>Dein Stand: ${p.actualCurrent} von ${p.totalGoals} Aufgaben</span>
-            <small>${p.actualPct} % geschafft${
-              p.goesBeyond ? " · Stark – du gehst schon weiter!" : ""
-            }</small>
+            <span>${escapeHtml(goalLine)}</span>
+          </div>
+          <div class="zielpfad-bar" aria-hidden="true">
+            <div class="zielpfad-bar__fill" style="width:${barPct}%"></div>
+          </div>
+          <div class="zielpfad-bar-card__stand">
+            <span>Dein Stand</span>
+            <strong>${p.actualCurrent} von ${p.totalGoals} Aufgaben geschafft</strong>
+            <small>${p.actualPct} % bearbeitet${p.goesBeyond ? " · Stark – du gehst schon über dein Ziel hinaus!" : ""}</small>
           </div>
         </article>`;
     }).join("");
 
     return `
       <section class="zielpfad-block">
-        <h3 class="zielpfad-block__title">Dein Mindestweg für Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))}</h3>
-        <p class="zielpfad-block__sub">Die Zielnote zeigt die Empfehlung – nicht deine Obergrenze. Alle Level bleiben sichtbar.</p>
-        ${anyBeyond ? `<p class="zielpfad-beyond-hint">Stark – du gehst schon weiter!</p>` : ""}
-        <div class="grade-goal-grid">${cards}</div>
+        <h3 class="zielpfad-block__title">Dein Zielprofil</h3>
+        <p class="zielpfad-block__sub">So viel ist für Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))} in jedem Level vorgesehen.</p>
+        ${anyBeyond ? `<p class="zielpfad-beyond-hint">Stark – du gehst schon über dein Ziel hinaus!</p>` : ""}
+        <div class="zielpfad-bar-grid">${cards}</div>
       </section>`;
   }
 
@@ -918,55 +960,62 @@
 
     const minimumNext = pickMinimumNext(topic);
     const challengeNext = pickChallengeNext(topic);
-    const targetLabel = formatGradeLabel(topic.targetGradeLabel || topic.targetGrade);
-    const primary = minimumNext || challengeNext;
 
-    if (!primary) {
-      if (topic.onTrack) {
-        return `
-          <section class="zielpfad-block zielpfad-next">
-            <h3 class="zielpfad-block__title">Dein nächster sinnvoller Schritt</h3>
-            <article class="zielpfad-next-card zielpfad-next-card--done">
-              <p class="zielpfad-next-card__eyebrow">Empfehlung geschafft</p>
-              <p class="zielpfad-next-card__text">Stark – du gehst schon weiter!</p>
-              <p class="zielpfad-next-card__hint">Für Zielnote ${escapeHtml(targetLabel)} reicht dein Stand. Alle weiteren Aufgaben sind freiwillige Vertiefung.</p>
-              <div class="zielpfad-actions">
-                <button type="button" class="zielpfad-btn zielpfad-btn--ghost" data-zs-goto-levelplan>Zur Aufgabenübersicht</button>
-              </div>
-            </article>
-          </section>`;
-      }
+    if (!minimumNext && !challengeNext) {
       return `
         <section class="zielpfad-block zielpfad-next">
-          <h3 class="zielpfad-block__title">Dein nächster sinnvoller Schritt</h3>
-          <article class="zielpfad-next-card zielpfad-next-card--empty">
-            <p class="zielpfad-next-card__text">Markiere deinen Fortschritt im Mein Lernstand – dann erscheint hier die nächste Aufgabe.</p>
-            <div class="zielpfad-actions">
-              <button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Zur Aufgabenübersicht</button>
-            </div>
-          </article>
+          <div class="zielpfad-next-dual">
+            <article class="zielpfad-next-card zielpfad-next-card--done">
+              <p class="zielpfad-next-card__eyebrow">Dein nächster Schritt</p>
+              <p class="zielpfad-next-card__text">${
+                topic.onTrack
+                  ? "Ziel erreicht – stark gemacht!"
+                  : "Markiere deinen Fortschritt im Mein Lernstand."
+              }</p>
+              <div class="zielpfad-actions">
+                <button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Aufgabenübersicht öffnen</button>
+              </div>
+            </article>
+          </div>
         </section>`;
     }
 
     return `
       <section class="zielpfad-block zielpfad-next">
-        <h3 class="zielpfad-block__title">Dein nächster sinnvoller Schritt</h3>
-        <article class="zielpfad-next-card">
-          <p class="zielpfad-next-card__eyebrow">${escapeHtml(primary.pathLabel || primary.tierLabel)} · ${escapeHtml(primary.goalText)}</p>
-          <p class="zielpfad-next-card__text">${escapeHtml(primary.taskText)}</p>
-          <div class="zielpfad-actions">
+        <div class="zielpfad-next-dual">
+          <article class="zielpfad-next-card">
+            <p class="zielpfad-next-card__eyebrow">Dein nächster Schritt</p>
             ${
-              resolvePracticeUrl(primary.practiceUrl)
-                ? `<button type="button" class="zielpfad-btn" data-zs-practice-url="${escapeHtml(resolvePracticeUrl(primary.practiceUrl))}">Übungsseite öffnen</button>`
-                : `<button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Zur Aufgabenübersicht</button>`
+              minimumNext
+                ? `
+              <p class="zielpfad-next-card__meta">${escapeHtml(minimumNext.tierLabel)} · ${escapeHtml(minimumNext.goalText)}</p>
+              <p class="zielpfad-next-card__text">${escapeHtml(minimumNext.taskText)}</p>
+              <div class="zielpfad-actions">
+                ${actionButtonForItem(minimumNext, "Für mein Ziel weiterarbeiten")}
+              </div>`
+                : `
+              <p class="zielpfad-next-card__text">Ziel erreicht – stark gemacht!</p>
+              <p class="zielpfad-next-card__hint">Du kannst freiwillig weitergehen.</p>`
             }
+          </article>
+          <article class="zielpfad-next-card zielpfad-next-card--challenge">
+            <p class="zielpfad-next-card__eyebrow">Du möchtest weitergehen?</p>
             ${
-              minimumNext && challengeNext
-                ? `<button type="button" class="zielpfad-btn zielpfad-btn--ghost" data-zs-goto-levelplan>Eine Herausforderung ausprobieren</button>`
-                : ""
+              challengeNext
+                ? `
+              <p class="zielpfad-next-card__meta">${escapeHtml(challengeNext.tierLabel)} · ${escapeHtml(challengeNext.goalText)}</p>
+              <p class="zielpfad-next-card__text">${escapeHtml(challengeNext.taskText)}</p>
+              <div class="zielpfad-actions">
+                ${actionButtonForItem(challengeNext, "Herausforderung ausprobieren")}
+              </div>`
+                : `
+              <p class="zielpfad-next-card__text">Gerade keine offene Herausforderung.</p>
+              <div class="zielpfad-actions">
+                <button type="button" class="zielpfad-btn zielpfad-btn--ghost" data-zs-goto-levelplan>Aufgabenübersicht öffnen</button>
+              </div>`
             }
-          </div>
-        </article>
+          </article>
+        </div>
       </section>`;
   }
 
@@ -994,9 +1043,7 @@
         <section class="zielpfad-block">
           <article class="zielpfad-open-card zielpfad-open-card--ok">
             <h3 class="zielpfad-open-card__title">Für dein Ziel noch offen</h3>
-            <p class="zielpfad-open-card__text">Nichts mehr – dein empfohlener Anteil ist geschafft.${
-              topic.onTrack ? " Stark – du kannst freiwillig weitergehen!" : ""
-            }</p>
+            <p class="zielpfad-open-card__text">Nichts mehr – dein Zielanteil ist geschafft. Stark – du kannst freiwillig weitergehen!</p>
           </article>
         </section>`;
     }
@@ -1016,42 +1063,52 @@
     if (!topic?.onTrack || !topic?.targetGrade) return "";
     return `
       <article class="zielpfad-goal-reached">
-        <h4 class="zielpfad-goal-reached__title">Ziel erreicht – möchtest du weitergehen?</h4>
-        <p class="zielpfad-goal-reached__text">Dein Mindestweg für Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))} ist geschafft. Probiere freiwillig anspruchsvollere Aufgaben aus.</p>
+        <h4 class="zielpfad-goal-reached__title">Ziel erreicht – stark gemacht!</h4>
+        <p class="zielpfad-goal-reached__text">Du kannst weiterhin Herausforderungen ausprobieren.</p>
       </article>`;
   }
 
-  function sortWorkItemsByTier(items) {
-    const order = { rookie: 0, operator: 1, street_legend: 2 };
-    return items.slice().sort((a, b) => (order[a.tier] ?? 0) - (order[b.tier] ?? 0));
+  function taskActionLabel(item) {
+    if (item.status === "in_arbeit") return "Weiterarbeiten";
+    if (item.status === "sicher" || item.status === "geschafft") return "Aufgabe ansehen";
+    return "Aufgabe starten";
   }
 
-  function renderTaskCard(item, index, topic) {
-    const badge = item.pathLabel || tierPathLabel(item.tier, item.isMinimumPath ? 1 : 0);
+  function renderTaskRow(item) {
+    const isRequired = itemIsRequired(item);
     return `
-      <article class="zielpfad-task-card zielpfad-task-card--${item.status === "sicher" ? "sicher" : item.status === "in_arbeit" ? "arbeit" : "offen"}">
-        <div class="zielpfad-task-card__head">
-          <span class="zielpfad-tier-badge">${escapeHtml(item.tierLabel)}</span>
-          <span class="zielpfad-status ${statusBadgeForGoal(item.status)}">${escapeHtml(statusLabelForGoal(item.status))}</span>
+      <article class="zielpfad-task-row ${isRequired ? "is-required" : "is-challenge"} zielpfad-task-row--${item.status === "sicher" ? "sicher" : item.status === "in_arbeit" ? "arbeit" : "offen"}">
+        <div class="zielpfad-task-row__main">
+          <div class="zielpfad-task-row__tags">
+            <span class="zielpfad-tier-badge">${escapeHtml(item.tierLabel)}</span>
+            <span class="zielpfad-status ${statusBadgeForGoal(item.status)}">${escapeHtml(statusLabelForGoal(item.status))}</span>
+            <span class="zielpfad-badge ${tierBadgeClassForItem(item)}">${escapeHtml(item.pathLabel || tierPathLabel(isRequired))}</span>
+          </div>
+          <p class="zielpfad-task-row__subject">${escapeHtml(item.goalText)}</p>
+          <p class="zielpfad-task-row__text">${escapeHtml(item.taskText)}</p>
         </div>
-        <p class="zielpfad-task-card__text">${escapeHtml(item.taskText)}</p>
-        <div class="zielpfad-task-card__meta">
-          <span class="zielpfad-badge ${tierBadgeClassForItem(item)}">${escapeHtml(badge)}</span>
-        </div>
-        <div class="zielpfad-actions">
-          <button type="button" class="zielpfad-btn zielpfad-btn--sm" data-zs-goto-levelplan>Aufgabe ansehen</button>
-          ${renderPracticeLink(item.practiceUrl, "Übungsseite", "zielpfad-practice-link")}
+        <div class="zielpfad-task-row__actions">
+          ${
+            resolvePracticeUrl(item.practiceUrl)
+              ? `<button type="button" class="zielpfad-btn zielpfad-btn--sm" data-zs-practice-url="${escapeHtml(resolvePracticeUrl(item.practiceUrl))}">Jetzt üben</button>`
+              : `<button type="button" class="zielpfad-btn zielpfad-btn--sm" data-zs-goto-levelplan>${escapeHtml(taskActionLabel(item))}</button>`
+          }
         </div>
       </article>`;
   }
 
-  function renderGoalPracticeBar(practiceUrl, goalText) {
-    if (!resolvePracticeUrl(practiceUrl)) return "";
-    const label = String(goalText || "").trim();
+  function renderTaskGroup(title, items) {
+    if (!items.length) return "";
     return `
-      <div class="zielpfad-goal-practice">
-        ${label ? `<span class="zielpfad-goal-practice__label">${escapeHtml(label)}</span>` : ""}
-        ${renderPracticeLink(practiceUrl, "Übungsseite öffnen", "zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm")}
+      <div class="zielpfad-level-subgroup">
+        <h5 class="zielpfad-level-subgroup__title">${escapeHtml(title)}</h5>
+        <div class="zielpfad-task-rows">
+          ${items
+            .slice()
+            .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0))
+            .map(renderTaskRow)
+            .join("")}
+        </div>
       </div>`;
   }
 
@@ -1059,37 +1116,43 @@
     if (!topic?.targetGrade) return "";
 
     const allItems = allWorkItemsForTopic(topic);
+    const profile = getGradeRequirements(topic.targetGrade);
+    const tierAccents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f59e0b" };
 
     if (!allItems.length) {
       return `
         <section class="zielpfad-block">
-          <h3 class="zielpfad-block__title">Alle Aufgaben</h3>
-          <p class="zielpfad-block__sub">${escapeHtml(renderMinimumPathHint(topic))}</p>
+          <h3 class="zielpfad-block__title">Aufgaben</h3>
           <article class="zielpfad-task-empty">
             <p>Für dieses Thema sind noch keine Aufgaben hinterlegt.</p>
           </article>
         </section>`;
     }
 
-    const goalGroups = groupItemsByGoal(allItems);
+    const sections = LEVEL_CHECK_TIER_ORDER.map((tier) => {
+      const tierItems = allItems.filter((item) => item.tier === tier);
+      if (!tierItems.length) return "";
+      const pct = profile ? Math.round((profile[tier] || 0) * 100) : 0;
+      const required = tierItems.filter(itemIsRequired);
+      const challenge = tierItems.filter((item) => !itemIsRequired(item));
+      const label = LEVEL_CHECK_TIER_LABELS[tier] || tier;
+      const pctLine = pct > 0 ? `${pct} % für dein Ziel vorgesehen` : "Freiwillige Vertiefung";
+
+      return `
+        <section class="zielpfad-level-block" style="--grade-accent:${tierAccents[tier]}">
+          <div class="zielpfad-level-block__head">
+            <h3 class="zielpfad-level-block__title">${escapeHtml(label)}</h3>
+            <p class="zielpfad-level-block__sub">${escapeHtml(pctLine)}</p>
+          </div>
+          ${required.length ? renderTaskGroup("Für dein Ziel erforderlich", required) : ""}
+          ${challenge.length ? renderTaskGroup("Herausforderung", challenge) : ""}
+        </section>`;
+    }).join("");
 
     return `
       <section class="zielpfad-block">
-        <h3 class="zielpfad-block__title">Alle Aufgaben</h3>
-        <p class="zielpfad-block__sub">${escapeHtml(renderMinimumPathHint(topic))}</p>
         ${renderGoalReachedBanner(topic)}
-        ${goalGroups
-          .map((goalGroup) => {
-            const sorted = sortWorkItemsByTier(goalGroup.items);
-            const cards = sorted.map((item) => renderTaskCard(item, 0, topic)).join("");
-            return `
-              <div class="zielpfad-goal-cluster">
-                <h4 class="zielpfad-goal-cluster__title">${escapeHtml(goalGroup.goalText)}</h4>
-                ${renderGoalPracticeBar(goalGroup.practiceUrl, "")}
-                <div class="zielpfad-task-grid zielpfad-task-grid--tiers">${cards}</div>
-              </div>`;
-          })
-          .join("")}
+        ${sections}
       </section>`;
   }
 
@@ -1513,6 +1576,16 @@
     root.querySelectorAll("[data-zs-goto-levelplan]").forEach((btn) => {
       btn.addEventListener("click", () => {
         window.StudentRouter?.navigateToSection("levelplan");
+      });
+    });
+
+    root.querySelectorAll("[data-zs-toggle-voluntary]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.showVoluntary = !state.showVoluntary;
+        render();
+        if (state.showVoluntary) {
+          root.querySelector(".zielpfad-voluntary")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       });
     });
 

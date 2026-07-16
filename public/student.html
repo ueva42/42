@@ -2568,6 +2568,282 @@ body.student-app {
   opacity: 0.82;
 }
 
+.zielpfad-hero__grades {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.zielpfad-hero__grade-box {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  background: rgba(6, 11, 29, 0.55);
+}
+
+.zielpfad-hero__later {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.zielpfad-bar-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.zielpfad-bar-card {
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--grade-accent, #22d3ee) 35%, transparent);
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--grade-accent, #22d3ee) 18%, transparent), transparent 55%),
+    rgba(6, 11, 29, 0.92);
+  padding: 14px 16px;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--grade-accent, #22d3ee) 12%, transparent);
+}
+
+.zielpfad-bar-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.zielpfad-bar-card__head strong {
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f8fafc;
+}
+
+.zielpfad-bar-card__head span {
+  font-size: 13px;
+  color: color-mix(in srgb, var(--grade-accent, #22d3ee) 85%, #fff);
+  font-weight: 700;
+  text-align: right;
+}
+
+.zielpfad-bar {
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.zielpfad-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--grade-accent, #22d3ee) 70%, #fff),
+    var(--grade-accent, #22d3ee)
+  );
+  box-shadow: 0 0 16px color-mix(in srgb, var(--grade-accent, #22d3ee) 55%, transparent);
+  transition: width 0.35s ease;
+}
+
+.zielpfad-bar-card__stand {
+  display: grid;
+  gap: 2px;
+  margin-top: 10px;
+}
+
+.zielpfad-bar-card__stand > span {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.zielpfad-bar-card__stand strong {
+  font-size: 14px;
+  color: #e2e8f0;
+}
+
+.zielpfad-bar-card__stand small {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.zielpfad-level-block {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--grade-accent, #22d3ee) 28%, transparent);
+  background: rgba(8, 14, 35, 0.75);
+}
+
+.zielpfad-level-block__head {
+  margin-bottom: 12px;
+}
+
+.zielpfad-level-block__title {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--grade-accent, #22d3ee) 80%, #fff);
+}
+
+.zielpfad-level-block__sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.zielpfad-level-subgroup {
+  margin-top: 12px;
+}
+
+.zielpfad-level-subgroup__title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+}
+
+.zielpfad-task-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.zielpfad-task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(6, 11, 29, 0.85);
+}
+
+.zielpfad-task-row.is-required {
+  border-color: rgba(34, 211, 238, 0.28);
+}
+
+.zielpfad-task-row.is-challenge {
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.zielpfad-task-row__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.zielpfad-task-row__subject {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.zielpfad-task-row__text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+
+.zielpfad-task-row__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zielpfad-next-card--challenge {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+@media (max-width: 720px) {
+  .zielpfad-hero__grades {
+    grid-template-columns: 1fr;
+  }
+
+  .zielpfad-task-row {
+    grid-template-columns: 1fr;
+  }
+
+  .zielpfad-task-row__actions {
+    flex-direction: row;
+  }
+}
+
+.zielpfad-tier-grid {
+  margin-top: 4px;
+}
+
+.zielpfad-tier-card {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--grade-accent, #22d3ee) 16%, transparent), transparent 58%),
+    rgba(6, 11, 29, 0.95);
+  padding: 16px 12px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #e2e8f0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.zielpfad-tier-card__text {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+  width: 100%;
+}
+
+.zielpfad-tier-card__text strong {
+  font-size: 14px;
+  color: #f8fafc;
+}
+
+.zielpfad-tier-card__text span {
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.35;
+}
+
+.zielpfad-tier-card__text small {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.zielpfad-tier-card__stand {
+  color: #67e8f9 !important;
+}
+
+.zielpfad-task-card--goal {
+  border-color: rgba(34, 211, 238, 0.35);
+}
+
+.zielpfad-task-card--extra {
+  opacity: 0.92;
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.zielpfad-voluntary {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.zielpfad-goal-cluster__title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #e2e8f0;
+}
+
 .grade-goal-card.is-unavailable .grade-goal-ring__inside strong {
   font-size: 18px;
 }
@@ -8425,7 +8701,7 @@ h2 {
 </div>
 
 <script src="/js/auth-fetch.js?v=3"></script>
-<script src="/js/logbuch-constants.js?v=9"></script>
+<script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=18"></script>
@@ -8441,7 +8717,7 @@ h2 {
 <script src="/js/logbuch-levelplan.js?v=13"></script>
 <script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
-<script src="/js/logbuch-zielsetzung.js?v=18"></script>
+<script src="/js/logbuch-zielsetzung.js?v=20"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=5"></script>
 <script src="/js/logbuch-screens.js?v=4"></script>
 
