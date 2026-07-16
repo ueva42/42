@@ -2182,10 +2182,313 @@ body.student-app {
   font-weight: 700;
 }
 
+.zielpfad-hero__goal-label {
+  display: block;
+  margin-top: 8px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.zielpfad-hero__goal-value {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+  font-weight: 900;
+  color: #f8fafc;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+}
+
 .zielpfad-hero__visual img {
   opacity: 0.28;
   mask-image: linear-gradient(90deg, transparent 0%, #000 48%, #000 100%);
   filter: saturate(0.85) brightness(0.72);
+}
+
+.zielpfad-hero__goal-btn {
+  width: auto;
+}
+
+/* ============================================
+   ZIELNOTE MODAL (Dialog / Bottom Sheet)
+============================================ */
+.zielpfad-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.zielpfad-modal {
+  width: min(560px, 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(168, 85, 247, 0.18), transparent 42%),
+    rgba(8, 14, 35, 0.98);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.6),
+    0 0 28px rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  color: #f8fafc;
+  padding: 16px;
+  max-height: 85vh;
+  overflow: auto;
+}
+
+.zielpfad-modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.zielpfad-modal__titles {
+  display: grid;
+  gap: 6px;
+}
+
+.zielpfad-modal__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.zielpfad-modal__sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.zielpfad-modal__close {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(6, 11, 29, 0.9);
+  color: #f8fafc;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.zielpfad-modal__close:hover {
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.18);
+}
+
+.zielpfad-grade-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.zielpfad-grade-tile {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(circle at 40% 0%, rgba(34, 211, 238, 0.12), transparent 55%),
+    rgba(6, 11, 29, 0.92);
+  border-radius: 16px;
+  padding: 14px 10px;
+  cursor: pointer;
+  color: #f8fafc;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.zielpfad-grade-tile:hover {
+  transform: translateY(-1px);
+  border-color: rgba(34, 211, 238, 0.35);
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.16);
+}
+
+.zielpfad-grade-tile.is-selected {
+  border-color: rgba(34, 211, 238, 0.6);
+  box-shadow:
+    0 0 26px rgba(34, 211, 238, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.zielpfad-grade-tile.is-missing {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+.zielpfad-grade-tile__label {
+  display: block;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  font-size: 15px;
+  text-transform: uppercase;
+}
+
+.zielpfad-grade-tile__missing {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fdba74;
+}
+
+.zielpfad-modal__warn {
+  margin-top: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(249, 115, 22, 0.32);
+  background: rgba(249, 115, 22, 0.08);
+  padding: 12px;
+  color: #fdba74;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.zielpfad-modal__foot {
+  margin-top: 10px;
+}
+
+.zielpfad-modal__hint {
+  margin: 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+@media (max-width: 560px) {
+  .zielpfad-modal-backdrop {
+    align-items: flex-end;
+    justify-content: stretch;
+    padding: 0;
+  }
+
+  .zielpfad-modal {
+    width: 100%;
+    border-radius: 22px 22px 0 0;
+    padding: 14px 14px 18px;
+  }
+
+  .zielpfad-grade-tile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.zielpfad-eval {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.zielpfad-eval-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.zielpfad-eval-grid--archived {
+  grid-template-columns: 1fr;
+}
+
+.zielpfad-eval-card {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--eval-accent, #22d3ee) 18%, transparent), transparent 45%),
+    rgba(6, 11, 29, 0.92);
+  padding: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.zielpfad-eval-card__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--eval-accent, #22d3ee) 90%, #ffffff 10%);
+}
+
+.zielpfad-eval-card__question {
+  margin: 8px 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.zielpfad-eval-card__value {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #f8fafc;
+  white-space: pre-wrap;
+}
+
+.zielpfad-take-summary {
+  border-radius: 18px;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.14), transparent 52%),
+    rgba(6, 11, 29, 0.86);
+  padding: 14px;
+}
+
+.zielpfad-take-summary__title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.zielpfad-take-summary__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.zielpfad-take-item {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(6, 11, 29, 0.7);
+  padding: 10px 12px;
+}
+
+.zielpfad-take-item span {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.zielpfad-take-item strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  color: #f8fafc;
+  line-height: 1.35;
+}
+
+.zielpfad-take-summary__actions {
+  margin-top: 12px;
+}
+
+@media (max-width: 860px) {
+  .zielpfad-eval-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .zielpfad-block {
@@ -7990,7 +8293,7 @@ h2 {
 <script src="/js/logbuch-levelplan.js?v=13"></script>
 <script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
-<script src="/js/logbuch-zielsetzung.js?v=14"></script>
+<script src="/js/logbuch-zielsetzung.js?v=15"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=5"></script>
 <script src="/js/logbuch-screens.js?v=4"></script>
 

@@ -20,6 +20,7 @@
     selectedSubject: "",
     loading: false,
     saving: null,
+    modal: null,
     message: "",
     error: ""
   };
@@ -209,6 +210,25 @@
     return { completed, total, hasRecommended: true };
   }
 
+  function gradeRuleProfile(targetGrade) {
+    const key = String(targetGrade ?? "").replace(",", ".");
+    if (!key || !TARGET_GRADE_RULES[key]) return null;
+    return expandGradeRulesForDisplay(TARGET_GRADE_RULES[key]);
+  }
+
+  function levelProgressForTarget(topic, tier) {
+    const profile = gradeRuleProfile(topic?.targetGrade);
+    const pctRequired = profile?.[tier] != null ? Math.round(profile[tier] * 100) : 0;
+    const totalGoals = Math.max(0, Number(topic?.totalGoals) || 0);
+    const recommended = recommendedTierCounts(totalGoals, topic?.targetGrade || "");
+    const requiredTasks = recommended?.[tier] ?? 0;
+    const tierInfo = (topic?.tiers || []).find((t) => t.id === tier);
+    const completed = Math.min(tierInfo?.current ?? 0, requiredTasks);
+    const open = Math.max(0, requiredTasks - completed);
+    const progressPct = requiredTasks > 0 ? Math.round((completed / requiredTasks) * 100) : 0;
+    return { pctRequired, requiredTasks, completed, open, progressPct, hasProfile: !!profile };
+  }
+
   /**
    * Fortschrittsdaten für einen Zielnoten-Kreis.
    * Gewählte Zielnote: API-Werte (topicTaskProgress).
@@ -315,10 +335,12 @@
   }
 
   function tierBadgeLabel(tier, targetGrade) {
-    const target = String(targetGrade ?? "");
-    if (tier === "rookie" || tier === "operator") return "Grundlage für Note 3";
+    const tg = targetGrade != null ? formatGradeLabel(targetGrade) : "";
+    if (tier === "rookie" || tier === "operator") {
+      return tg ? `Für deine Zielnote ${tg} erforderlich` : "Für deine Zielnote erforderlich";
+    }
     if (tier === "street_legend") {
-      return target === "1" ? "Zusätzlich für Note 1" : "Zusätzlich für Note 2";
+      return tg ? `Zusätzliche Vorbereitung für deine Zielnote ${tg}` : "Zusätzliche Vorbereitung";
     }
     return "";
   }
@@ -427,19 +449,126 @@
 
   function renderFeedbackSection(topic) {
     if (!topic.achievedGrade) return "";
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+
+    const glowOptions = feedbackOptions("glow");
+    const growOptions = feedbackOptions("grow");
+    const nextOptions = feedbackOptions("nextGoal");
+
+    function labelFor(fieldKey, value) {
+      const options = fieldKey === "glow" ? glowOptions : fieldKey === "grow" ? growOptions : nextOptions;
+      const raw = String(value ?? "");
+      if (!raw) return "—";
+      const found = options.find((o) => String(o.value) === raw);
+      return found ? found.label : raw;
+    }
+
+    function renderChoiceCard({ fieldKey, title, question, accent, options }) {
+      const value = topic[fieldKey] || "";
+      const activeValue = resolveFeedbackSelectValue(value, options);
+      const isCustom = activeValue === CUSTOM_OPTION;
+      const saving = state.saving === `${topic.id}_${fieldKey}`;
+
+      const tiles = [
+        ...options.map((o) => ({
+          value: o.value,
+          icon: "◆",
+          title: o.label,
+          desc: o.desc || "",
+          accent
+        })),
+        {
+          value: CUSTOM_OPTION,
+          icon: "✍",
+          title: "Eigene Antwort…",
+          desc: "Freitext",
+          accent
+        }
+      ];
+
+      return `
+        <article class="zielpfad-eval-card" style="--eval-accent:${accent}" data-zs-reflection-field="${escapeHtml(fieldKey)}" data-topic-id="${escapeHtml(topic.id)}">
+          <h4 class="zielpfad-eval-card__title">${escapeHtml(title)}</h4>
+          <p class="zielpfad-eval-card__question">${escapeHtml(question)}</p>
+
+          ${V.strategyTileGrid(tiles, activeValue, "data-zs-select-reflection")}
+
+          <input
+            type="text"
+            class="zs-feedback-custom ${isCustom ? "" : "zs-feedback-custom-hidden"}"
+            data-topic-id="${escapeHtml(topic.id)}"
+            data-field="${escapeHtml(fieldKey)}"
+            maxlength="500"
+            placeholder="Eigene Antwort eingeben…"
+            value="${isCustom ? escapeHtml(value) : ""}"
+            ${saving || !isCustom ? "disabled" : ""}
+          />
+        </article>`;
+    }
+
+    const targetLabel = formatGradeLabel(topic.targetGradeLabel || topic.targetGrade);
+    const achievedLabel = formatGradeLabel(topic.achievedGradeLabel || topic.achievedGrade);
 
     return `
-      <div class="zs-feedback zielpfad-reflection">
-        <h5 class="zielpfad-block__title zielpfad-block__title--sm">Reflexion</h5>
-        ${renderFeedbackField(topic, "grow", "Grow", "Worin willst du besser werden?")}
-        ${renderFeedbackField(topic, "glow", "Glow", "Was hast du gut gemacht und willst beibehalten?")}
-        ${renderFeedbackField(
-          topic,
-          "nextGoal",
-          "Mein Ziel für die nächste Klassenarbeit",
-          "Worauf konzentrierst du dich als Nächstes?"
-        )}
-      </div>`;
+      <section class="zielpfad-eval">
+        <h3 class="zielpfad-block__title">Deine Auswertung</h3>
+
+        <div class="zielpfad-eval-grid">
+          ${renderChoiceCard({
+            fieldKey: "glow",
+            title: "GLOW",
+            question: "Was hat schon gut funktioniert und möchtest du beibehalten?",
+            accent: "#22c55e",
+            options: glowOptions
+          })}
+          ${renderChoiceCard({
+            fieldKey: "grow",
+            title: "GROW",
+            question: "Woran kannst du noch wachsen?",
+            accent: "#f97316",
+            options: growOptions
+          })}
+          ${renderChoiceCard({
+            fieldKey: "nextGoal",
+            title: "NEXT",
+            question: "Was machst du bei der nächsten Arbeit besser oder anders?",
+            accent: "#a855f7",
+            options: nextOptions
+          })}
+        </div>
+
+        <article class="zielpfad-take-summary">
+          <h4 class="zielpfad-take-summary__title">Das nehme ich mit</h4>
+          <div class="zielpfad-take-summary__grid">
+            <div class="zielpfad-take-item">
+              <span>Zielnote</span>
+              <strong>${escapeHtml(targetLabel)}</strong>
+            </div>
+            <div class="zielpfad-take-item">
+              <span>Erreichte Note</span>
+              <strong>${escapeHtml(achievedLabel)}</strong>
+            </div>
+            <div class="zielpfad-take-item">
+              <span>Glow</span>
+              <strong>${escapeHtml(labelFor("glow", topic.glow))}</strong>
+            </div>
+            <div class="zielpfad-take-item">
+              <span>Grow</span>
+              <strong>${escapeHtml(labelFor("grow", topic.grow))}</strong>
+            </div>
+            <div class="zielpfad-take-item">
+              <span>Next</span>
+              <strong>${escapeHtml(labelFor("nextGoal", topic.nextGoal))}</strong>
+            </div>
+          </div>
+          <div class="zielpfad-take-summary__actions">
+            <button type="button" class="zielpfad-btn" data-zs-noop-save-eval disabled>
+              Auswertung speichern
+            </button>
+          </div>
+        </article>
+      </section>`;
   }
 
   function renderZielpfadHero(topic) {
@@ -449,9 +578,8 @@
     const datePart = topic?.checkpointDateLabel
       ? `am ${escapeHtml(topic.checkpointDateLabel)}`
       : "Termin folgt";
-    const goalPart = topic?.targetGrade
-      ? `Dein Ziel: Note ${escapeHtml(topic.targetGradeLabel || topic.targetGrade)}`
-      : "Wähle deine Zielnote unten";
+    const hasTarget = !!topic?.targetGrade;
+    const goalPart = hasTarget ? String(topic.targetGradeLabel || topic.targetGrade) : "Noch keine Zielnote festgelegt";
 
     return `
       <article class="plan-app-hero zielpfad-hero">
@@ -470,7 +598,14 @@
                 ? `<p class="zielpfad-hero__exam">
                     <strong>${subject} · ${name}</strong><br>
                     ${typePart} ${datePart}<br>
-                    <span class="zielpfad-hero__goal">${goalPart}</span>
+                    <span class="zielpfad-hero__goal-label">DEINE ZIELNOTE</span>
+                    <strong class="zielpfad-hero__goal-value">${escapeHtml(goalPart)}</strong>
+                    <button
+                      type="button"
+                      class="zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm zielpfad-hero__goal-btn"
+                      data-zs-open-grade-modal="target"
+                      data-topic-id="${escapeHtml(topic.id)}"
+                    >${topic?.targetGrade ? "Zielnote ändern" : "Zielnote festlegen"}</button>
                   </p>`
                 : ""
             }
@@ -482,47 +617,167 @@
       </article>`;
   }
 
-  function renderGradeGoals(topic) {
-    const V = window.LogbuchVisuals;
-    if (!V || !topic) return "";
+  function renderLevelCards(topic) {
+    if (!topic) return "";
+    if (!topic.targetGrade) {
+      return `
+        <section class="zielpfad-block">
+          <h3 class="zielpfad-block__title">Dein Weg zur Zielnote</h3>
+          <p class="zielpfad-block__sub">Lege zuerst oben eine Zielnote fest.</p>
+        </section>`;
+    }
+    const profile = gradeRuleProfile(topic.targetGrade);
+    if (!profile) {
+      return `
+        <section class="zielpfad-block">
+          <h3 class="zielpfad-block__title">Dein Weg zur Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))}</h3>
+          <p class="zielpfad-block__sub">Für die Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))} sind noch keine Anforderungen hinterlegt.</p>
+        </section>`;
+    }
 
-    const selected = topic.targetGrade != null ? String(topic.targetGrade) : "";
-    const saving = state.saving === topic.id;
-
-    const cards = ZIELPFAD_PRIMARY_GRADES.map((grade) => {
-      const prog = gradeGoalProgress(topic, grade);
-      return V.gradeGoalCard({
-        grade,
-        percentage: prog.percentage,
-        completedTasks: prog.completedTasks,
-        totalTasks: prog.totalTasks,
-        openTasks: prog.openTasks,
-        selected: selected === grade,
-        accent: GRADE_ACCENTS[grade] || "#22d3ee",
-        unavailable: prog.unavailable
-      });
+    const tierAccents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f59e0b" };
+    const cards = LEVEL_CHECK_TIER_ORDER.map((tier) => {
+      const p = levelProgressForTarget(topic, tier);
+      const label = LEVEL_CHECK_TIER_LABELS[tier] || tier;
+      return `
+        <article class="grade-goal-card ${p.requiredTasks === 0 ? "is-unavailable" : ""}" style="--grade-accent:${tierAccents[tier]}">
+          <div class="grade-goal-ring" style="--progress:${p.progressPct}; --accent:${tierAccents[tier]}">
+            <div class="grade-goal-ring__inside">
+              <span class="grade-goal-ring__grade">${escapeHtml(label)}</span>
+              <strong>${p.requiredTasks > 0 ? `${p.progressPct} %` : "–"}</strong>
+            </div>
+          </div>
+          <div class="grade-goal-card__text">
+            <strong>${escapeHtml(label)}</strong>
+            <span>${p.pctRequired} % für deine Zielnote vorgesehen</span>
+            ${p.requiredTasks > 0
+              ? `<span>${p.completed} / ${p.requiredTasks} Aufgaben geschafft</span><small>Noch ${p.open} offen</small>`
+              : `<small>Für deine Zielnote nicht erforderlich</small>`}
+          </div>
+        </article>`;
     }).join("");
 
     return `
       <section class="zielpfad-block">
-        <h3 class="zielpfad-block__title">Deine Notenziele</h3>
-        <div class="grade-goal-grid ${saving ? "is-saving" : ""}" role="group" aria-label="Zielnote wählen">
-          ${cards}
-        </div>
-        ${
-          !selected
-            ? `<p class="zielpfad-hint">Tippe auf eine Zielnote – dann siehst du deinen Aufgabenpfad.</p>`
-            : ""
-        }
+        <h3 class="zielpfad-block__title">Dein Weg zur Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))}</h3>
+        <div class="grade-goal-grid">${cards}</div>
       </section>`;
   }
 
+  function renderTargetGradeModal() {
+    if (!state.modal || state.modal.type !== "targetGrade") return "";
+    const topic = findTopic(state.modal.topicId);
+    if (!topic) return "";
+
+    const options = gradeOptions();
+    const selected = topic.targetGrade != null ? String(topic.targetGrade) : "";
+
+    const hasSelectedProfile = selected ? !!gradeRuleProfile(selected) : true;
+    const selectedText = selected ? formatGradeLabel(selected) : "";
+
+    return `
+      <div class="zielpfad-modal-backdrop" role="dialog" aria-modal="true" aria-label="Zielnote auswählen">
+        <div class="zielpfad-modal">
+          <div class="zielpfad-modal__head">
+            <div class="zielpfad-modal__titles">
+              <h3 class="zielpfad-modal__title">Zielnote auswählen</h3>
+              <p class="zielpfad-modal__sub">Tippe eine Note an. Die Zielnote wird gespeichert.</p>
+            </div>
+            <button type="button" class="zielpfad-modal__close" data-zs-close-grade-modal>Schließen</button>
+          </div>
+
+          <div class="zielpfad-grade-tile-grid">
+            ${options
+              .map((g) => {
+                const val = String(g.value);
+                const profile = gradeRuleProfile(val);
+                const isMissing = !profile;
+                const isSel = selected && val === selected;
+                return `
+                  <button
+                    type="button"
+                    class="zielpfad-grade-tile ${isSel ? "is-selected" : ""} ${isMissing ? "is-missing" : ""}"
+                    data-zs-select-grade="target"
+                    data-topic-id="${escapeHtml(topic.id)}"
+                    data-grade="${escapeHtml(val)}"
+                    aria-pressed="${isSel ? "true" : "false"}"
+                  >
+                    <span class="zielpfad-grade-tile__label">${escapeHtml(g.label)}</span>
+                    ${
+                      isMissing
+                        ? `<span class="zielpfad-grade-tile__missing">Keine Anforderungen</span>`
+                        : ""
+                    }
+                  </button>`;
+              })
+              .join("")}
+          </div>
+
+          ${
+            selected && !hasSelectedProfile
+              ? `<div class="zielpfad-modal__warn">Für die Zielnote ${escapeHtml(selectedText)} sind noch keine Anforderungen hinterlegt.</div>`
+              : ""
+          }
+
+          <div class="zielpfad-modal__foot">
+            <p class="zielpfad-modal__hint">Hinweis: XP für Zielsetzung wird nur beim ersten Festlegen vergeben.</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderAchievedGradeModal() {
+    if (!state.modal || state.modal.type !== "achievedGrade") return "";
+    const topic = findTopic(state.modal.topicId);
+    if (!topic) return "";
+
+    const options = gradeOptions();
+    const selected = topic.achievedGrade != null ? String(topic.achievedGrade) : "";
+
+    return `
+      <div class="zielpfad-modal-backdrop" role="dialog" aria-modal="true" aria-label="Erreichte Note auswählen">
+        <div class="zielpfad-modal">
+          <div class="zielpfad-modal__head">
+            <div class="zielpfad-modal__titles">
+              <h3 class="zielpfad-modal__title">Erreichte Note auswählen</h3>
+              <p class="zielpfad-modal__sub">Setze deine erreichte Note für den Check.</p>
+            </div>
+            <button type="button" class="zielpfad-modal__close" data-zs-close-grade-modal>Schließen</button>
+          </div>
+
+          <div class="zielpfad-grade-tile-grid">
+            ${options
+              .map((g) => {
+                const val = String(g.value);
+                const isSel = selected && val === selected;
+                return `
+                  <button
+                    type="button"
+                    class="zielpfad-grade-tile ${isSel ? "is-selected" : ""}"
+                    data-zs-select-achieved-grade="1"
+                    data-topic-id="${escapeHtml(topic.id)}"
+                    data-grade="${escapeHtml(val)}"
+                    aria-pressed="${isSel ? "true" : "false"}"
+                  >
+                    <span class="zielpfad-grade-tile__label">${escapeHtml(g.label)}</span>
+                  </button>`;
+              })
+              .join("")}
+          </div>
+
+          <div class="zielpfad-modal__foot">
+            <p class="zielpfad-modal__hint">Hinweis: XP wird pro Feld nur einmal vergeben.</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
   function nextStepReason(item, targetGrade) {
-    const badge = tierBadgeLabel(item.tier, targetGrade);
-    if (badge.toLowerCase().includes("grundlage")) {
-      return `Diese Grundlage brauchst du für deine Zielnote ${formatGradeLabel(targetGrade)}.`;
+    const tg = formatGradeLabel(targetGrade);
+    if (item.tier === "rookie" || item.tier === "operator") {
+      return `Diese Aufgabe ist als Grundlage für deine Zielnote ${tg} vorgesehen.`;
     }
-    return `Diese Aufgabe gehört zu deinem Ziel: Note ${formatGradeLabel(targetGrade)}.`;
+    return `Diese Aufgabe ergänzt deinen Pfad für deine Zielnote ${tg}.`;
   }
 
   function renderNextStep(topic) {
@@ -635,29 +890,26 @@
   }
 
   function groupWorkItems(items, targetGrade) {
-    const target = String(targetGrade ?? "");
     const foundation = items.filter((i) => i.tier === "rookie" || i.tier === "operator");
     const street = items.filter((i) => i.tier === "street_legend");
+    const tg = targetGrade != null ? formatGradeLabel(targetGrade) : "";
     const groups = [];
 
     if (foundation.length) {
       groups.push({
-        title: "Grundlage für Zielnote 3",
+        title: tg ? `Grundlage für Zielnote ${tg}` : "Grundlage",
         items: foundation
       });
     }
 
-    if (street.length && (target === "2" || target === "1")) {
+    if (street.length) {
       groups.push({
-        title:
-          target === "1" ? "Zusätzlich für Zielnote 1" : "Zusätzlich für Zielnote 2",
+        title: tg ? `Zusätzliche Vorbereitung für Zielnote ${tg}` : "Zusätzlich",
         items: street
       });
     }
 
-    if (!groups.length && items.length) {
-      groups.push({ title: "Aufgaben für dein Ziel", items });
-    }
+    if (!groups.length && items.length) groups.push({ title: "Aufgaben für dein Ziel", items });
 
     return groups;
   }
@@ -750,16 +1002,15 @@
     if (!topic?.targetGrade) return "";
 
     const saving = state.saving === topic.id;
-    const achievedSelected =
-      topic.achievedGrade != null ? String(topic.achievedGrade) : "";
     const past = isCheckpointPast(topic);
     const targetLabel = formatGradeLabel(topic.targetGradeLabel || topic.targetGrade);
     const achievedLabel = topic.achievedGrade
       ? formatGradeLabel(topic.achievedGradeLabel || topic.achievedGrade)
       : null;
+    const hasAchieved = !!topic.achievedGrade;
 
     let body = "";
-    if (!past && !topic.achievedGrade) {
+    if (!past && !hasAchieved) {
       body = `<p class="zielpfad-result__pending">Ergebnis wird nach dem Check eingetragen.</p>`;
     } else {
       const diff =
@@ -788,9 +1039,15 @@
         </div>
         ${diffText ? `<p class="zielpfad-result__diff">${escapeHtml(diffText)}</p>` : ""}
         ${renderGoalResultBadge(topic)}
-        <div class="zielpfad-result__form">
-          ${renderAchievedGradeSelect(topic.id, achievedSelected, saving)}
-        </div>
+        ${
+          past && !hasAchieved
+            ? `<div class="zielpfad-result__form">
+                <button type="button" class="zielpfad-btn" data-zs-open-achieved-grade-modal data-topic-id="${escapeHtml(
+                  topic.id
+                )}" ${saving ? "disabled" : ""}>Ergebnis eintragen</button>
+              </div>`
+            : ""
+        }
         ${renderFeedbackSection(topic)}`;
     }
 
@@ -802,26 +1059,29 @@
   }
 
   function renderArchivedFeedback(topic) {
-    const rows = [
-      ["Grow", topic.grow, "Worin wolltest du besser werden?"],
-      ["Glow", topic.glow, "Was hast du gut gemacht?"],
-      ["Ziel für nächste Klassenarbeit", topic.nextGoal, "Dein Fokus für das nächste Mal"]
-    ].filter(([, value]) => String(value ?? "").trim());
-
-    if (!rows.length) return "";
+    const glow = topic.glow || "";
+    const grow = topic.grow || "";
+    const nextGoal = topic.nextGoal || "";
+    const hasAny = [glow, grow, nextGoal].some((v) => String(v ?? "").trim());
+    if (!hasAny) return "";
 
     return `
-      <div class="zs-feedback zs-feedback-archived zielpfad-archived-reflection">
-        ${rows
-          .map(
-            ([label, value, hint]) => `
-          <div class="zs-archived-reflection">
-            <div class="zs-archived-reflection-label">${escapeHtml(label)}</div>
-            ${hint ? `<div class="zs-archived-reflection-hint">${escapeHtml(hint)}</div>` : ""}
-            <div class="zs-archived-reflection-text">${escapeHtml(value)}</div>
-          </div>`
-          )
-          .join("")}
+      <div class="zielpfad-eval-grid zielpfad-eval-grid--archived">
+        <article class="zielpfad-eval-card zielpfad-eval-card--glow" style="--eval-accent:#22c55e">
+          <h4 class="zielpfad-eval-card__title">GLOW</h4>
+          <p class="zielpfad-eval-card__question">Was hat schon gut funktioniert?</p>
+          <div class="zielpfad-eval-card__value">${glow ? escapeHtml(glow) : "—"}</div>
+        </article>
+        <article class="zielpfad-eval-card zielpfad-eval-card--grow" style="--eval-accent:#f97316">
+          <h4 class="zielpfad-eval-card__title">GROW</h4>
+          <p class="zielpfad-eval-card__question">Woran kannst du noch wachsen?</p>
+          <div class="zielpfad-eval-card__value">${grow ? escapeHtml(grow) : "—"}</div>
+        </article>
+        <article class="zielpfad-eval-card zielpfad-eval-card--next" style="--eval-accent:#a855f7">
+          <h4 class="zielpfad-eval-card__title">NEXT</h4>
+          <p class="zielpfad-eval-card__question">Was machst du bei der nächsten Arbeit anders?</p>
+          <div class="zielpfad-eval-card__value">${nextGoal ? escapeHtml(nextGoal) : "—"}</div>
+        </article>
       </div>`;
   }
 
@@ -883,7 +1143,7 @@
   function renderTopicZielpfad(topic) {
     return `
       <div class="zielpfad-topic" data-topic-id="${escapeHtml(topic.id)}">
-        ${renderGradeGoals(topic)}
+        ${renderLevelCards(topic)}
         ${
           topic.targetGrade
             ? `${renderNextStep(topic)}
@@ -1006,6 +1266,8 @@
 
     const group = visibleGroups()[0];
     const { upcoming } = group ? splitTopicsForSubject(group) : { upcoming: null };
+    const modalHtml = renderTargetGradeModal();
+    const achievedModalHtml = renderAchievedGradeModal();
 
     root.innerHTML =
       V?.pageShell(`
@@ -1015,6 +1277,8 @@
           ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
           ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
           ${renderGrouped()}
+          ${modalHtml}
+          ${achievedModalHtml}
         </div>
       `) || "";
 
@@ -1030,16 +1294,78 @@
       });
     });
 
-    root.querySelectorAll("[data-grade-goal]").forEach((btn) => {
+    root.querySelectorAll("[data-zs-open-grade-modal]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const grade = btn.dataset.gradeGoal;
-        const group = visibleGroups()[0];
-        const { upcoming } = group ? splitTopicsForSubject(group) : { upcoming: null };
-        if (!upcoming || state.saving) return;
-        if (String(upcoming.targetGrade) === grade) return;
-        saveField(upcoming.id, "targetGradeKey", grade);
+        const topicId = btn.dataset.topicId;
+        if (!topicId) return;
+        state.modal = { type: "targetGrade", topicId };
+        state.message = "";
+        render();
       });
     });
+
+    root.querySelectorAll("[data-zs-close-grade-modal]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.modal = null;
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-zs-select-grade=\"target\"], [data-zs-select-grade]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const topicId = btn.dataset.topicId;
+        const grade = btn.dataset.grade;
+        if (!topicId || !grade) return;
+        state.modal = null;
+        saveField(topicId, "targetGradeKey", grade);
+      });
+    });
+
+    root.querySelectorAll("[data-zs-open-achieved-grade-modal]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const topicId = btn.dataset.topicId;
+        if (!topicId) return;
+        state.modal = { type: "achievedGrade", topicId };
+        state.message = "";
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-zs-select-achieved-grade]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const topicId = btn.dataset.topicId;
+        const grade = btn.dataset.grade;
+        if (!topicId || !grade) return;
+        state.modal = null;
+        saveField(topicId, "achievedGradeKey", grade);
+      });
+    });
+
+    // Reflection tiles (GLOW / GROW / NEXT) – wir speichern beim Tippen (Ausnahme: Eigene Antwort => Input anzeigen)
+    root
+      .querySelectorAll(".strategy-tile[data-zs-select-reflection]")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const card = btn.closest("[data-zs-reflection-field]");
+          if (!card) return;
+          const topicId = card.dataset.topicId;
+          const fieldKey = card.dataset.zsReflectionField;
+          const val = btn.dataset.zsSelectReflection;
+          if (!topicId || !fieldKey) return;
+
+          if (val === CUSTOM_OPTION) {
+            const input = card.querySelector(`.zs-feedback-custom[data-field="${fieldKey}"]`);
+            if (input) {
+              input.classList.remove("zs-feedback-custom-hidden");
+              input.disabled = false;
+              input.focus();
+            }
+            return;
+          }
+
+          saveField(topicId, mapFeedbackField(fieldKey), val);
+        });
+      });
 
     root.querySelectorAll(".zs-achieved-select").forEach((sel) => {
       sel.addEventListener("change", () => {
