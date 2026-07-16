@@ -2568,6 +2568,192 @@ body.student-app {
   opacity: 0.82;
 }
 
+.zielpfad-hero-panel {
+  margin-bottom: 18px;
+  padding: 20px 18px 22px;
+  border-radius: 24px;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.18), transparent 42%),
+    radial-gradient(circle at 88% 10%, rgba(168, 85, 247, 0.16), transparent 40%),
+    linear-gradient(160deg, rgba(8, 14, 35, 0.98), rgba(6, 11, 29, 0.92));
+  box-shadow:
+    0 0 40px rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.zielpfad-hero-panel__meta {
+  margin-bottom: 16px;
+}
+
+.zielpfad-hero-panel__eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.zielpfad-hero-panel__title {
+  margin: 6px 0 4px;
+  font-size: clamp(22px, 4vw, 30px);
+  line-height: 1.15;
+  color: #f8fafc;
+}
+
+.zielpfad-hero-panel__sub {
+  margin: 0;
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.zielpfad-hero-panel__grades {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.zielpfad-grade-glow {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  min-height: 180px;
+  padding: 18px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(6, 11, 29, 0.78);
+}
+
+.zielpfad-grade-glow--target {
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow:
+    0 0 34px rgba(34, 211, 238, 0.22),
+    inset 0 0 28px rgba(34, 211, 238, 0.08);
+}
+
+.zielpfad-grade-glow--achieved {
+  border-color: rgba(168, 85, 247, 0.42);
+  box-shadow:
+    0 0 34px rgba(168, 85, 247, 0.2),
+    inset 0 0 28px rgba(168, 85, 247, 0.08);
+}
+
+.zielpfad-grade-glow__label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.zielpfad-grade-glow__value {
+  font-size: clamp(36px, 7vw, 48px);
+  line-height: 1;
+  color: #f8fafc;
+  text-shadow: 0 0 24px rgba(34, 211, 238, 0.35);
+}
+
+.zielpfad-grade-glow--achieved .zielpfad-grade-glow__value {
+  text-shadow: 0 0 24px rgba(168, 85, 247, 0.35);
+}
+
+.zielpfad-grade-glow__value.is-muted {
+  font-size: clamp(18px, 3.4vw, 24px);
+  line-height: 1.2;
+  color: #cbd5e1;
+  text-shadow: none;
+}
+
+.zielpfad-grade-glow__hint {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.zielpfad-ring-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.zielpfad-ring-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 12px 18px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--grade-accent, #22d3ee) 40%, transparent);
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--grade-accent, #22d3ee) 18%, transparent), transparent 58%),
+    rgba(6, 11, 29, 0.94);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--grade-accent, #22d3ee) 18%, transparent);
+}
+
+.zielpfad-ring-card.is-voluntary {
+  opacity: 0.92;
+}
+
+.zielpfad-ring-card .grade-goal-ring {
+  width: 128px;
+}
+
+.zielpfad-ring-card__text {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  text-align: center;
+}
+
+.zielpfad-ring-card__text > strong {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #f8fafc;
+}
+
+.zielpfad-ring-card__text > span {
+  font-size: 13px;
+  color: color-mix(in srgb, var(--grade-accent, #22d3ee) 80%, #fff);
+  font-weight: 700;
+}
+
+.zielpfad-ring-card__stand {
+  display: grid;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.zielpfad-ring-card__stand > span {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.zielpfad-ring-card__stand strong {
+  font-size: 13px;
+  color: #e2e8f0;
+}
+
+.zielpfad-ring-card__stand small {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+@media (max-width: 720px) {
+  .zielpfad-hero-panel__grades {
+    grid-template-columns: 1fr;
+  }
+
+  .zielpfad-ring-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .zielpfad-hero__grades {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -8717,7 +8903,7 @@ h2 {
 <script src="/js/logbuch-levelplan.js?v=13"></script>
 <script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
-<script src="/js/logbuch-zielsetzung.js?v=20"></script>
+<script src="/js/logbuch-zielsetzung.js?v=21"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=5"></script>
 <script src="/js/logbuch-screens.js?v=4"></script>
 

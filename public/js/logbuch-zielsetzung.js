@@ -737,7 +737,7 @@
     const hasTarget = !!topic?.targetGrade;
     const goalPart = hasTarget
       ? formatGradeLabel(topic.targetGradeLabel || topic.targetGrade)
-      : "Noch keine";
+      : "–";
     const hasAchieved = !!topic?.achievedGrade;
     const achievedPart = hasAchieved
       ? formatGradeLabel(topic.achievedGradeLabel || topic.achievedGrade)
@@ -745,50 +745,48 @@
     const past = topic ? isCheckpointPast(topic) : false;
 
     return `
-      <article class="plan-app-hero zielpfad-hero">
-        <div class="plan-app-hero__content">
-          <div class="plan-app-hero__icon" aria-hidden="true">
-            <img src="/icons/student/png/zielsetzung.png" alt="" loading="lazy">
-          </div>
-          <div class="plan-app-hero__copy">
-            <p class="plan-app-hero__eyebrow">Mein Zielpfad</p>
-            <h2 class="plan-app-hero__title">${subject} · ${name}</h2>
-            <p class="plan-app-hero__meta">${typePart} · ${datePart}</p>
-            ${
-              topic
-                ? `<div class="zielpfad-hero__grades">
-                    <div class="zielpfad-hero__grade-box">
-                      <span class="zielpfad-hero__goal-label">Meine Zielnote</span>
-                      <strong class="zielpfad-hero__goal-value">${escapeHtml(goalPart)}</strong>
-                      <button
-                        type="button"
-                        class="zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm"
-                        data-zs-open-grade-modal="target"
-                        data-topic-id="${escapeHtml(topic.id)}"
-                      >${hasTarget ? "Zielnote ändern" : "Zielnote festlegen"}</button>
-                    </div>
-                    <div class="zielpfad-hero__grade-box">
-                      <span class="zielpfad-hero__goal-label">Erreichte Note</span>
-                      <strong class="zielpfad-hero__goal-value">${escapeHtml(achievedPart)}</strong>
-                      ${
-                        past || hasAchieved
-                          ? `<button
-                              type="button"
-                              class="zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm"
-                              data-zs-open-achieved-grade-modal
-                              data-topic-id="${escapeHtml(topic.id)}"
-                            >Ergebnis eintragen</button>`
-                          : `<span class="zielpfad-hero__later">Nach dem Check</span>`
-                      }
-                    </div>
-                  </div>`
-                : ""
-            }
-          </div>
+      <article class="zielpfad-hero-panel">
+        <div class="zielpfad-hero-panel__meta">
+          <p class="zielpfad-hero-panel__eyebrow">Mein Zielpfad</p>
+          <h2 class="zielpfad-hero-panel__title">${subject} · ${name}</h2>
+          <p class="zielpfad-hero-panel__sub">${typePart} · ${datePart}</p>
         </div>
-        <div class="plan-app-hero__visual zielpfad-hero__visual" aria-hidden="true">
-          <img src="/icons/student/hero/zielsetzung-hero.png" alt="" loading="lazy">
-        </div>
+        ${
+          topic
+            ? `<div class="zielpfad-hero-panel__grades">
+                <article class="zielpfad-grade-glow zielpfad-grade-glow--target">
+                  <span class="zielpfad-grade-glow__label">Meine Zielnote</span>
+                  <strong class="zielpfad-grade-glow__value">${escapeHtml(goalPart)}</strong>
+                  <p class="zielpfad-grade-glow__hint">${
+                    hasTarget ? "Darauf arbeite ich hin." : "Lege fest, worauf du hinarbeitest."
+                  }</p>
+                  <button
+                    type="button"
+                    class="zielpfad-btn"
+                    data-zs-open-grade-modal="target"
+                    data-topic-id="${escapeHtml(topic.id)}"
+                  >${hasTarget ? "Zielnote ändern" : "Zielnote festlegen"}</button>
+                </article>
+                <article class="zielpfad-grade-glow zielpfad-grade-glow--achieved">
+                  <span class="zielpfad-grade-glow__label">Erreichte Note</span>
+                  <strong class="zielpfad-grade-glow__value ${hasAchieved ? "" : "is-muted"}">${escapeHtml(achievedPart)}</strong>
+                  <p class="zielpfad-grade-glow__hint">${
+                    hasAchieved ? "Dein Ergebnis nach dem Check." : "Das trägst du nach dem Check ein."
+                  }</p>
+                  ${
+                    past || hasAchieved
+                      ? `<button
+                          type="button"
+                          class="zielpfad-btn zielpfad-btn--ghost"
+                          data-zs-open-achieved-grade-modal
+                          data-topic-id="${escapeHtml(topic.id)}"
+                        >Ergebnis eintragen</button>`
+                      : `<button type="button" class="zielpfad-btn zielpfad-btn--ghost" disabled>Ergebnis eintragen</button>`
+                  }
+                </article>
+              </div>`
+            : ""
+        }
       </article>`;
   }
 
@@ -798,7 +796,7 @@
       return `
         <section class="zielpfad-block">
           <h3 class="zielpfad-block__title">Dein Zielprofil</h3>
-          <p class="zielpfad-block__sub">Lege zuerst oben eine Zielnote fest – dann siehst du hier die Anteile für Rookie, Operator und Street Legend.</p>
+          <p class="zielpfad-block__sub">Lege zuerst oben eine Zielnote fest – dann siehst du hier die Kreise für Rookie, Operator und Street Legend.</p>
         </section>`;
     }
     const profile = getGradeRequirements(topic.targetGrade);
@@ -816,24 +814,30 @@
       const p = levelProgressForTarget(topic, tier);
       if (p.goesBeyond) anyBeyond = true;
       const label = LEVEL_CHECK_TIER_LABELS[tier] || tier;
-      const barPct = p.isVoluntaryTier ? 0 : p.pctRequired || 0;
+      const ringPct = p.isVoluntaryTier ? 0 : p.pctRequired || 0;
+      const centerValue = p.isVoluntaryTier ? "frei" : `${p.pctRequired} %`;
       const goalLine = p.isVoluntaryTier
         ? "Freiwillige Vertiefung"
         : `${p.pctRequired} % für dein Ziel`;
 
       return `
-        <article class="zielpfad-bar-card" style="--grade-accent:${tierAccents[tier]}">
-          <div class="zielpfad-bar-card__head">
+        <article class="zielpfad-ring-card ${p.isVoluntaryTier ? "is-voluntary" : ""}" style="--grade-accent:${tierAccents[tier]}">
+          <div class="grade-goal-ring" style="--progress:${ringPct}; --accent:${tierAccents[tier]}">
+            <div class="grade-goal-ring__inside">
+              <span class="grade-goal-ring__grade">${escapeHtml(label)}</span>
+              <strong>${escapeHtml(centerValue)}</strong>
+            </div>
+          </div>
+          <div class="zielpfad-ring-card__text">
             <strong>${escapeHtml(label)}</strong>
             <span>${escapeHtml(goalLine)}</span>
-          </div>
-          <div class="zielpfad-bar" aria-hidden="true">
-            <div class="zielpfad-bar__fill" style="width:${barPct}%"></div>
-          </div>
-          <div class="zielpfad-bar-card__stand">
-            <span>Dein Stand</span>
-            <strong>${p.actualCurrent} von ${p.totalGoals} Aufgaben geschafft</strong>
-            <small>${p.actualPct} % bearbeitet${p.goesBeyond ? " · Stark – du gehst schon über dein Ziel hinaus!" : ""}</small>
+            <div class="zielpfad-ring-card__stand">
+              <span>Dein Stand</span>
+              <strong>${p.actualCurrent} von ${p.totalGoals} Aufgaben geschafft</strong>
+              <small>${p.actualPct} % bearbeitet${
+                p.goesBeyond ? " · Stark – du gehst schon über dein Ziel hinaus!" : ""
+              }</small>
+            </div>
           </div>
         </article>`;
     }).join("");
@@ -841,9 +845,9 @@
     return `
       <section class="zielpfad-block">
         <h3 class="zielpfad-block__title">Dein Zielprofil</h3>
-        <p class="zielpfad-block__sub">So viel ist für Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))} in jedem Level vorgesehen.</p>
+        <p class="zielpfad-block__sub">Die Kreise zeigen die Vorgabe für Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))}. Darunter steht dein echter Stand.</p>
         ${anyBeyond ? `<p class="zielpfad-beyond-hint">Stark – du gehst schon über dein Ziel hinaus!</p>` : ""}
-        <div class="zielpfad-bar-grid">${cards}</div>
+        <div class="zielpfad-ring-grid">${cards}</div>
       </section>`;
   }
 
