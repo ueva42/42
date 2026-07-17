@@ -23,6 +23,23 @@
     "Religion/Ethik"
   ];
 
+  const MATERIAL_TYPE_OPTIONS = [
+    { id: "none", label: "Kein Material" },
+    { id: "url", label: "Webseite / Online-Aufgaben" },
+    { id: "reference", label: "Arbeitsblatt oder Buch" },
+    { id: "note", label: "Freier Materialhinweis" }
+  ];
+
+  const ACTIVE_LEVEL_PRESETS = [
+    { id: "rookie", label: "Nur Rookie", levels: ["rookie"] },
+    { id: "rookie_operator", label: "Rookie + Operator", levels: ["rookie", "operator"] },
+    {
+      id: "all",
+      label: "Alle drei Level",
+      levels: ["rookie", "operator", "street_legend"]
+    }
+  ];
+
   const state = {
     classId: null,
     subject: null,
@@ -30,10 +47,12 @@
     loading: false,
     error: "",
     editingGoalId: null,
-    draftUrls: {},
+    draftMaterials: {},
     savingGoalId: null,
+    savingLevels: false,
     goalMessage: "",
-    goalError: ""
+    goalError: "",
+    levelsMessage: ""
   };
 
   function escapeHtml(str) {
@@ -78,8 +97,67 @@
   }
 
   function draftForGoal(goal) {
-    if (state.draftUrls[goal.id] != null) return state.draftUrls[goal.id];
-    return goal.practiceUrl || "";
+    if (state.draftMaterials[goal.id]) return state.draftMaterials[goal.id];
+    const type = goal.materialType || (goal.practiceUrl ? "url" : "none");
+    return {
+      materialType: type,
+      materialLabel: goal.materialLabel || "",
+      materialNote: goal.materialNote || "",
+      practiceUrl: goal.practiceUrl || ""
+    };
+  }
+
+  function materialStatusLabel(goal) {
+    const draft = draftForGoal(goal);
+    if (draft.materialType === "none" && !draft.practiceUrl) return "Kein Material";
+    if (draft.materialType === "url") {
+      return isValidPracticeUrl(draft.practiceUrl)
+        ? draft.materialLabel || "Link hinterlegt"
+        : "Ungültiger Link";
+    }
+    if (draft.materialType === "reference") {
+      return [draft.materialLabel, draft.materialNote].filter(Boolean).join(" · ") || "Arbeitsblatt/Buch";
+    }
+    if (draft.materialType === "note") {
+      return draft.materialNote || draft.materialLabel || "Hinweis";
+    }
+    return "Material";
+  }
+
+  function renderMaterialStatusBadge(goal) {
+    const draft = draftForGoal(goal);
+    let tone = "none";
+    if (draft.materialType === "url" && isValidPracticeUrl(draft.practiceUrl)) tone = "ok";
+    else if (draft.materialType !== "none") tone = "ok";
+    else if (draft.materialType === "url" && draft.practiceUrl) tone = "bad";
+    return `<span class="kr-practice-status kr-practice-status--${tone}">${escapeHtml(materialStatusLabel(goal))}</span>`;
+  }
+
+  function activeLevelsKey() {
+    const levels = (state.data?.activeLevels || []).map((l) => l.id).join(",");
+    const preset = ACTIVE_LEVEL_PRESETS.find((p) => p.levels.join(",") === levels);
+    return preset?.id || "all";
+  }
+
+  function renderActiveLevelsPanel() {
+    const current = activeLevelsKey();
+    return `
+      <div class="kr-levels-panel">
+        <h3>Aktive Level für diese Klasse</h3>
+        <p class="hint">Gilt zentral für das Kompetenzraster. Nicht aktive Level werden im Schülerbereich ausgeblendet, Daten bleiben erhalten.</p>
+        <div class="kr-levels-presets">
+          ${ACTIVE_LEVEL_PRESETS.map(
+            (preset) => `
+            <button
+              type="button"
+              class="kr-levels-preset ${current === preset.id ? "is-active" : ""}"
+              data-kr-levels="${escapeHtml(preset.id)}"
+              ${state.savingLevels ? "disabled" : ""}
+            >${escapeHtml(preset.label)}</button>`
+          ).join("")}
+        </div>
+        ${state.levelsMessage ? `<p class="kr-practice-card__ok">${escapeHtml(state.levelsMessage)}</p>` : ""}
+      </div>`;
   }
 
   function subjectsList() {
@@ -119,56 +197,57 @@
     return null;
   }
 
-  function renderPracticeEditor(goal) {
+  function renderMaterialEditor(goal) {
     const draft = draftForGoal(goal);
-    const status = practiceUrlStatus(draft);
     const isSaving = state.savingGoalId === String(goal.id);
-    const testDisabled = !isValidPracticeUrl(draft);
+    const showUrl = draft.materialType === "url";
+    const showNote = draft.materialType === "reference" || draft.materialType === "note";
 
     return `
       <tr class="kr-practice-edit-row">
         <td colspan="5">
           <div class="kr-practice-card">
             <div class="kr-practice-card__head">
-              <h4>Übungsseite</h4>
-              <p class="hint">Ein Link pro Unterthema – wird im Schülerbereich auf „Mein Zielpfad“ verwendet.</p>
+              <h4>Material (optional)</h4>
+              <p class="hint">Link, Arbeitsblatt, Buch oder freier Hinweis – alles optional.</p>
             </div>
             <label class="kr-practice-card__field">
-              <span>Link zur Übungsseite</span>
-              <input
-                type="url"
-                class="kr-practice-input"
-                data-goal-id="${escapeHtml(goal.id)}"
-                placeholder="https://..."
-                value="${escapeHtml(draft)}"
-                spellcheck="false"
-                autocomplete="url"
-              >
+              <span>Materialart</span>
+              <select class="kr-material-type" data-goal-id="${escapeHtml(goal.id)}">
+                ${MATERIAL_TYPE_OPTIONS.map(
+                  (opt) =>
+                    `<option value="${escapeHtml(opt.id)}" ${draft.materialType === opt.id ? "selected" : ""}>${escapeHtml(opt.label)}</option>`
+                ).join("")}
+              </select>
             </label>
+            <label class="kr-practice-card__field">
+              <span>Bezeichnung</span>
+              <input type="text" class="kr-material-label" data-goal-id="${escapeHtml(goal.id)}" placeholder="z. B. Übungsseite, Arbeitsblatt 3, Buch" value="${escapeHtml(draft.materialLabel)}">
+            </label>
+            ${
+              showUrl
+                ? `<label class="kr-practice-card__field">
+              <span>URL</span>
+              <input type="url" class="kr-practice-input" data-goal-id="${escapeHtml(goal.id)}" placeholder="https://..." value="${escapeHtml(draft.practiceUrl)}" spellcheck="false" autocomplete="url">
+            </label>`
+                : ""
+            }
+            ${
+              showNote
+                ? `<label class="kr-practice-card__field">
+              <span>Materialhinweis</span>
+              <input type="text" class="kr-material-note" data-goal-id="${escapeHtml(goal.id)}" placeholder="z. B. Seite 84, Nr. 1–6" value="${escapeHtml(draft.materialNote)}">
+            </label>`
+                : ""
+            }
             <div class="kr-practice-card__meta">
-              ${renderPracticeStatusBadge(draft)}
+              ${renderMaterialStatusBadge(goal)}
               ${state.goalError && sameId(state.editingGoalId, goal.id) ? `<span class="kr-practice-card__err">${escapeHtml(state.goalError)}</span>` : ""}
               ${state.goalMessage && sameId(state.editingGoalId, goal.id) ? `<span class="kr-practice-card__ok">${escapeHtml(state.goalMessage)}</span>` : ""}
             </div>
             <div class="kr-practice-card__actions">
-              <button
-                type="button"
-                class="kr-practice-btn kr-practice-btn--ghost"
-                data-kr-test-url="${escapeHtml(goal.id)}"
-                ${testDisabled ? "disabled" : ""}
-              >Link testen</button>
-              <button
-                type="button"
-                class="kr-practice-btn"
-                data-kr-save-url="${escapeHtml(goal.id)}"
-                ${isSaving ? "disabled" : ""}
-              >${isSaving ? "Speichern…" : "Speichern"}</button>
-              <button
-                type="button"
-                class="kr-practice-btn kr-practice-btn--ghost"
-                data-kr-clear-url="${escapeHtml(goal.id)}"
-                ${isSaving ? "disabled" : ""}
-              >Entfernen</button>
+              <button type="button" class="kr-practice-btn" data-kr-save-material="${escapeHtml(goal.id)}" ${isSaving ? "disabled" : ""}>${isSaving ? "Speichern…" : "Speichern"}</button>
+              <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-kr-clear-material="${escapeHtml(goal.id)}" ${isSaving ? "disabled" : ""}>Entfernen</button>
               <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-kr-cancel-edit="${escapeHtml(goal.id)}">Schließen</button>
             </div>
           </div>
@@ -198,13 +277,13 @@
         <td>${escapeHtml(goal.operatorGoalText || "–")}</td>
         <td>${escapeHtml(goal.streetLegendGoalText || "–")}</td>
         <td class="kr-practice-cell">
-          ${renderPracticeStatusBadge(goal.practiceUrl)}
+          ${renderMaterialStatusBadge(goal)}
           <button type="button" class="kr-practice-edit-btn" data-kr-edit-goal="${escapeHtml(goal.id)}">
-            ${isEditing ? "Bearbeiten…" : "Bearbeiten"}
+            ${isEditing ? "Bearbeiten…" : "Material"}
           </button>
         </td>
       </tr>`;
-        return isEditing ? row + renderPracticeEditor(goal) : row;
+        return isEditing ? row + renderMaterialEditor(goal) : row;
       })
       .join("");
 
@@ -220,7 +299,7 @@
                 <th>Rookie</th>
                 <th>Operator</th>
                 <th>Street Legend</th>
-                <th>Übungsseite</th>
+                <th>Material</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -267,8 +346,7 @@
       <div class="panel">
         <h2>Levelplan</h2>
         <p class="hint">
-          Übersicht über importierte Themen und Zielstufen (Rookie, Operator, Street Legend).
-          Pro Unterthema kann optional eine Übungsseite hinterlegt werden.
+          Übersicht über importierte Themen und Zielstufen. Pro Unterthema kann optional Material hinterlegt werden.
         </p>
 
         <div class="tc-toolbar">
@@ -279,6 +357,8 @@
             <select id="lpSubjectSelect">${subjectOptions}</select>
           </label>
         </div>
+
+        ${renderActiveLevelsPanel()}
 
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
 
@@ -300,8 +380,9 @@
       .join("");
   }
 
-  function setDraft(goalId, value) {
-    state.draftUrls[goalId] = value;
+  function setDraft(goalId, patch) {
+    const current = draftForGoal({ id: goalId, ...findGoal(goalId) });
+    state.draftMaterials[goalId] = { ...current, ...patch };
   }
 
   function openEditor(goalId) {
@@ -310,8 +391,8 @@
     state.editingGoalId = goalId;
     state.goalMessage = "";
     state.goalError = "";
-    if (state.draftUrls[goalId] == null) {
-      state.draftUrls[goalId] = goal.practiceUrl || "";
+    if (!state.draftMaterials[goalId]) {
+      state.draftMaterials[goalId] = draftForGoal(goal);
     }
     render();
   }
@@ -323,9 +404,13 @@
     render();
   }
 
-  async function savePracticeUrl(goalId, value) {
-    const trimmed = normalizePracticeUrlInput(value);
-    if (trimmed && !isValidPracticeUrl(trimmed)) {
+  async function saveMaterial(goalId, draft) {
+    const materialType = draft.materialType || "none";
+    const materialLabel = String(draft.materialLabel || "").trim();
+    const materialNote = String(draft.materialNote || "").trim();
+    const practiceUrl = normalizePracticeUrlInput(draft.practiceUrl);
+
+    if (materialType === "url" && practiceUrl && !isValidPracticeUrl(practiceUrl)) {
       state.goalError = "Bitte gib eine vollständige Webadresse ein.";
       state.goalMessage = "";
       render();
@@ -341,7 +426,12 @@
       const res = await fetch(`/api/teacher/levelcheck-goals/${encodeURIComponent(goalId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ practiceUrl: trimmed || null })
+        body: JSON.stringify({
+          materialType,
+          materialLabel: materialLabel || null,
+          materialNote: materialNote || null,
+          practiceUrl: materialType === "url" ? practiceUrl || null : null
+        })
       });
       const data = await res.json();
       state.savingGoalId = null;
@@ -353,9 +443,11 @@
       }
 
       const goal = findGoal(goalId);
-      if (goal) goal.practiceUrl = data.goal?.practiceUrl || null;
-      state.draftUrls[goalId] = data.goal?.practiceUrl || "";
-      state.goalMessage = trimmed ? "Übungsseite gespeichert." : "Link entfernt.";
+      if (goal && data.goal) {
+        Object.assign(goal, data.goal);
+      }
+      state.draftMaterials[goalId] = draftForGoal(goal || { id: goalId, ...data.goal });
+      state.goalMessage = materialType === "none" ? "Material entfernt." : "Material gespeichert.";
       state.goalError = "";
       render();
     } catch (err) {
@@ -366,13 +458,46 @@
     }
   }
 
+  async function saveActiveLevels(presetId) {
+    const preset = ACTIVE_LEVEL_PRESETS.find((p) => p.id === presetId);
+    if (!preset || !state.classId) return;
+
+    state.savingLevels = true;
+    state.levelsMessage = "";
+    render();
+
+    try {
+      const res = await fetch(`/api/teacher/classes/${state.classId}/active-levels`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activeLevels: preset.levels })
+      });
+      const data = await res.json();
+      state.savingLevels = false;
+      if (!res.ok || !data.success) {
+        state.error = data.message || "Level-Einstellung konnte nicht gespeichert werden.";
+        render();
+        return;
+      }
+      if (state.data) state.data.activeLevels = data.activeLevels || [];
+      state.levelsMessage = "Aktive Level gespeichert.";
+      render();
+    } catch (err) {
+      console.error(err);
+      state.savingLevels = false;
+      state.error = "Netzwerkfehler.";
+      render();
+    }
+  }
+
   function bindHandlers(root) {
     root.querySelector("#lpClassSelect")?.addEventListener("change", (e) => {
       state.classId = Number(e.target.value);
       state.editingGoalId = null;
-      state.draftUrls = {};
+      state.draftMaterials = {};
       state.goalMessage = "";
       state.goalError = "";
+      state.levelsMessage = "";
       state.error = "";
       loadData();
     });
@@ -380,10 +505,14 @@
     root.querySelector("#lpSubjectSelect")?.addEventListener("change", (e) => {
       state.subject = e.target.value;
       state.editingGoalId = null;
-      state.draftUrls = {};
+      state.draftMaterials = {};
       state.goalMessage = "";
       state.goalError = "";
       render();
+    });
+
+    root.querySelectorAll("[data-kr-levels]").forEach((btn) => {
+      btn.addEventListener("click", () => saveActiveLevels(btn.dataset.krLevels));
     });
 
     root.querySelectorAll("[data-kr-edit-goal]").forEach((btn) => {
@@ -394,43 +523,42 @@
       btn.addEventListener("click", closeEditor);
     });
 
+    root.querySelectorAll(".kr-material-type").forEach((select) => {
+      select.addEventListener("change", () => {
+        setDraft(select.dataset.goalId, { materialType: select.value });
+        render();
+      });
+    });
+
+    root.querySelectorAll(".kr-material-label").forEach((input) => {
+      input.addEventListener("input", () => setDraft(input.dataset.goalId, { materialLabel: input.value }));
+    });
+
+    root.querySelectorAll(".kr-material-note").forEach((input) => {
+      input.addEventListener("input", () => setDraft(input.dataset.goalId, { materialNote: input.value }));
+    });
+
     root.querySelectorAll(".kr-practice-input").forEach((input) => {
-      input.addEventListener("input", () => {
-        setDraft(input.dataset.goalId, input.value);
-        const card = input.closest(".kr-practice-card");
-        const meta = card?.querySelector(".kr-practice-card__meta");
-        const testBtn = card?.querySelector("[data-kr-test-url]");
-        const draft = normalizePracticeUrlInput(input.value);
-        if (meta) {
-          const existing = meta.querySelector(".kr-practice-status");
-          if (existing) existing.outerHTML = renderPracticeStatusBadge(draft);
-        }
-        if (testBtn) testBtn.disabled = !isValidPracticeUrl(draft);
+      input.addEventListener("input", () => setDraft(input.dataset.goalId, { practiceUrl: input.value }));
+    });
+
+    root.querySelectorAll("[data-kr-save-material]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const goalId = btn.dataset.krSaveMaterial;
+        const goal = findGoal(goalId);
+        saveMaterial(goalId, draftForGoal(goal || { id: goalId }));
       });
     });
 
-    root.querySelectorAll("[data-kr-test-url]").forEach((btn) => {
+    root.querySelectorAll("[data-kr-clear-material]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const goalId = btn.dataset.krTestUrl;
-        const draft = normalizePracticeUrlInput(draftForGoal({ id: goalId }));
-        if (!isValidPracticeUrl(draft)) return;
-        window.open(draft, "_blank", "noopener,noreferrer");
-      });
-    });
-
-    root.querySelectorAll("[data-kr-save-url]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const goalId = btn.dataset.krSaveUrl;
-        const input = root.querySelector(`.kr-practice-input[data-goal-id="${goalId}"]`);
-        savePracticeUrl(goalId, input?.value ?? draftForGoal({ id: goalId }));
-      });
-    });
-
-    root.querySelectorAll("[data-kr-clear-url]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const goalId = btn.dataset.krClearUrl;
-        setDraft(goalId, "");
-        savePracticeUrl(goalId, "");
+        const goalId = btn.dataset.krClearMaterial;
+        saveMaterial(goalId, {
+          materialType: "none",
+          materialLabel: "",
+          materialNote: "",
+          practiceUrl: ""
+        });
       });
     });
   }

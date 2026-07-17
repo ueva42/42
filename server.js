@@ -76,6 +76,8 @@ const LEVEL_STATUS_LABELS = {
   in_arbeit: "in Arbeit",
   sicher: "sicher"
 };
+const MATERIAL_TYPES = ["none", "url", "reference", "note"];
+const DEFAULT_ACTIVE_LEVELS = ["rookie", "operator", "street_legend"];
 const LEVEL_CHECK_XP = {
   rookie: 5,
   operator: 8,
@@ -277,6 +279,58 @@ function normalizeLevelStatus(raw) {
   if (key === "in_arbeit" || key === "inarbeit") return "in_arbeit";
   if (key === "sicher") return "sicher";
   return "offen";
+}
+
+function normalizeMaterialType(raw) {
+  const key = String(raw || "none")
+    .trim()
+    .toLowerCase();
+  return MATERIAL_TYPES.includes(key) ? key : "none";
+}
+
+function normalizeActiveLevels(raw) {
+  let arr = raw;
+  if (typeof raw === "string") {
+    try {
+      arr = JSON.parse(raw);
+    } catch {
+      arr = null;
+    }
+  }
+  if (!Array.isArray(arr) || !arr.length) return [...DEFAULT_ACTIVE_LEVELS];
+  const filtered = arr.filter((tier) => LEVEL_CHECK_TIERS.includes(tier));
+  return filtered.length ? filtered : [...DEFAULT_ACTIVE_LEVELS];
+}
+
+function mapGoalMaterialFields(row) {
+  let materialType = normalizeMaterialType(row.material_type);
+  const practiceUrl = row.practice_url || null;
+  if (materialType === "none" && practiceUrl) materialType = "url";
+  const materialLabel = row.material_label || null;
+  const materialNote = row.material_note || null;
+  return {
+    practiceUrl,
+    materialType,
+    materialLabel,
+    materialNote,
+    material: buildGoalMaterialPayload(materialType, materialLabel, materialNote, practiceUrl)
+  };
+}
+
+function buildGoalMaterialPayload(materialType, materialLabel, materialNote, practiceUrl) {
+  const type = normalizeMaterialType(materialType);
+  if (type === "none") return null;
+  return {
+    type,
+    label: materialLabel || null,
+    note: materialNote || null,
+    url: type === "url" ? practiceUrl || null : null
+  };
+}
+
+async function getClassActiveLevels(classId) {
+  const classRes = await pool.query(`SELECT active_levels FROM classes WHERE id=$1`, [classId]);
+  return normalizeActiveLevels(classRes.rows[0]?.active_levels);
 }
 
 function levelStatusIsMarked(status) {
@@ -2197,6 +2251,11 @@ async function migrate() {
     )
   `);
   await ensureColumn("classes", "school_id", "INTEGER");
+  await ensureColumn(
+    "classes",
+    "active_levels",
+    `JSONB DEFAULT '["rookie","operator","street_legend"]'::jsonb`
+  );
 
   // MISSIONEN
   await pool.query(`
@@ -2665,6 +2724,9 @@ async function migrate() {
   await ensureColumn("level_check_goals", "operator_goal_text", "TEXT");
   await ensureColumn("level_check_goals", "street_legend_goal_text", "TEXT");
   await ensureColumn("level_check_goals", "practice_url", "TEXT");
+  await ensureColumn("level_check_goals", "material_type", "TEXT DEFAULT 'none'");
+  await ensureColumn("level_check_goals", "material_label", "TEXT");
+  await ensureColumn("level_check_goals", "material_note", "TEXT");
   await ensureColumn("level_check_goals", "active", "BOOLEAN DEFAULT true");
   await ensureColumn("level_check_goals", "updated_at", "TIMESTAMP DEFAULT NOW()");
 
@@ -5260,6 +5322,9 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       operator_goal_text,
       street_legend_goal_text,
       practice_url,
+      material_type,
+      material_label,
+      material_note,
       active
     FROM level_check_goals
     WHERE level_check_id = ANY($1::uuid[])
@@ -5296,7 +5361,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       rookieGoalText: g.rookie_goal_text || null,
       operatorGoalText: g.operator_goal_text || null,
       streetLegendGoalText: g.street_legend_goal_text || null,
-      practiceUrl: g.practice_url || null,
+      ...mapGoalMaterialFields(g),
       mark: buildGoalMarkFromRows(marksByGoal[g.id])
     });
   }
@@ -5601,11 +5666,16 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
     const checkIds = checks.map((c) => c.id);
     const targetsByCheck = await fetchTargetGradesByCheck(studentId, checkIds);
     const checksWithTargets = attachTargetProgressToChecks(checks, targetsByCheck);
+    const activeLevels = await getClassActiveLevels(classId);
 
     res.json({
       hasClass: true,
       grouped: groupLevelChecksBySubject(checksWithTargets),
-      tiers: levelCheckTiersPayload(false),
+      activeLevels: activeLevels.map((id) => ({
+        id,
+        label: LEVEL_CHECK_TIER_LABELS[id]
+      })),
+      tiers: levelCheckTiersPayload(false).filter((t) => activeLevels.includes(t.id)),
       gradeOptions: TARGET_GRADE_OPTIONS,
       statusOptions: LEVEL_STATUS_VALUES.map((id) => ({
         id,
@@ -6259,12 +6329,17 @@ app.get("/api/teacher/levelchecks", isAdmin, async (req, res) => {
     }
 
     const checks = await getLevelChecksForClass(classId, schoolId);
+    const activeLevels = await getClassActiveLevels(classId);
 
     res.json({
       classId,
       className: classRes.rows[0].name,
       subjects: LOG_SUBJECTS,
-      tiers: levelCheckTiersPayload(true),
+      activeLevels: activeLevels.map((id) => ({
+        id,
+        label: LEVEL_CHECK_TIER_LABELS[id]
+      })),
+      tiers: levelCheckTiersPayload(true).filter((t) => activeLevels.includes(t.id)),
       checkpointTypeOptions: CHECKPOINT_TYPE_OPTIONS,
       levelChecks: checks
     });
@@ -7266,31 +7341,68 @@ app.patch("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const goalId = req.params.id;
+    const hasPracticeUrl = Object.prototype.hasOwnProperty.call(req.body, "practiceUrl");
+    const hasMaterialType = Object.prototype.hasOwnProperty.call(req.body, "materialType");
+    const hasMaterialLabel = Object.prototype.hasOwnProperty.call(req.body, "materialLabel");
+    const hasMaterialNote = Object.prototype.hasOwnProperty.call(req.body, "materialNote");
 
-    if (!Object.prototype.hasOwnProperty.call(req.body, "practiceUrl")) {
-      return res.json({ success: false, message: "practiceUrl fehlt." });
+    if (!hasPracticeUrl && !hasMaterialType && !hasMaterialLabel && !hasMaterialNote) {
+      return res.json({ success: false, message: "Keine Felder zum Aktualisieren." });
     }
 
-    const normalized = normalizePracticeUrlInput(req.body.practiceUrl);
-    if (normalized && !isValidPracticeUrl(normalized)) {
-      return res.json({
-        success: false,
-        message: "Bitte gib eine vollständige Webadresse ein."
-      });
+    const sets = [];
+    const params = [];
+    let paramIndex = 1;
+
+    if (hasMaterialType) {
+      sets.push(`material_type = $${paramIndex++}`);
+      params.push(normalizeMaterialType(req.body.materialType));
     }
+    if (hasMaterialLabel) {
+      sets.push(`material_label = $${paramIndex++}`);
+      const label = normalizeFeedbackText(req.body.materialLabel);
+      params.push(label || null);
+    }
+    if (hasMaterialNote) {
+      sets.push(`material_note = $${paramIndex++}`);
+      const note = normalizeFeedbackText(req.body.materialNote);
+      params.push(note || null);
+    }
+    if (hasPracticeUrl) {
+      const normalized = normalizePracticeUrlInput(req.body.practiceUrl);
+      if (normalized && !isValidPracticeUrl(normalized)) {
+        return res.json({
+          success: false,
+          message: "Bitte gib eine vollständige Webadresse ein."
+        });
+      }
+      sets.push(`practice_url = $${paramIndex++}`);
+      params.push(normalized);
+    }
+
+    sets.push("updated_at = NOW()");
+    const goalParam = paramIndex++;
+    const schoolParam = paramIndex++;
+    params.push(goalId, schoolId);
 
     const result = await pool.query(
       `
       UPDATE level_check_goals g
-      SET practice_url = $1, updated_at = NOW()
+      SET ${sets.join(", ")}
       FROM level_checks lc
       LEFT JOIN classes c ON c.id = lc.class_id
-      WHERE g.id = $2
+      WHERE g.id = $${goalParam}
         AND g.level_check_id = lc.id
-        AND (g.school_id = $3 OR lc.school_id = $3 OR c.school_id = $3)
-      RETURNING g.id, g.goal_text, g.practice_url
+        AND (g.school_id = $${schoolParam} OR lc.school_id = $${schoolParam} OR c.school_id = $${schoolParam})
+      RETURNING
+        g.id,
+        g.goal_text,
+        g.practice_url,
+        g.material_type,
+        g.material_label,
+        g.material_note
     `,
-      [normalized, goalId, schoolId]
+      params
     );
 
     if (!result.rows.length) {
@@ -7298,16 +7410,56 @@ app.patch("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
     }
 
     const row = result.rows[0];
+    const materialFields = mapGoalMaterialFields(row);
     res.json({
       success: true,
       goal: {
         id: row.id,
         text: row.goal_text,
-        practiceUrl: row.practice_url || null
+        ...materialFields
       }
     });
   } catch (err) {
     console.error("❌ PATCH levelcheck-goals:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.patch("/api/teacher/classes/:classId/active-levels", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.params.classId);
+    if (!classId) {
+      return res.json({ success: false, message: "classId fehlt." });
+    }
+
+    const activeLevels = normalizeActiveLevels(req.body.activeLevels);
+    const result = await pool.query(
+      `
+      UPDATE classes
+      SET active_levels = $1::jsonb
+      WHERE id = $2 AND school_id = $3
+      RETURNING id, name, active_levels
+    `,
+      [JSON.stringify(activeLevels), classId, schoolId]
+    );
+
+    if (!result.rows.length) {
+      return res.json({ success: false, message: "Klasse nicht gefunden." });
+    }
+
+    const normalized = normalizeActiveLevels(result.rows[0].active_levels);
+    res.json({
+      success: true,
+      classId: result.rows[0].id,
+      className: result.rows[0].name,
+      activeLevels: normalized.map((id) => ({
+        id,
+        label: LEVEL_CHECK_TIER_LABELS[id]
+      }))
+    });
+  } catch (err) {
+    console.error("❌ PATCH classes active-levels:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });

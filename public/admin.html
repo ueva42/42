@@ -446,6 +446,55 @@
       background: rgba(15,23,42,0.35);
     }
 
+    .kr-levels-panel {
+      margin: 16px 0 20px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(34, 211, 238, 0.22);
+      background: rgba(15, 23, 42, 0.55);
+    }
+
+    .kr-levels-panel h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+    }
+
+    .kr-levels-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .kr-levels-preset {
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(2, 6, 23, 0.7);
+      color: #e2e8f0;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .kr-levels-preset.is-active {
+      border-color: rgba(34, 211, 238, 0.5);
+      color: #a5f3fc;
+      box-shadow: 0 0 16px rgba(34, 211, 238, 0.18);
+    }
+
+    .kr-material-type,
+    .kr-material-label,
+    .kr-material-note {
+      width: 100%;
+      min-height: 38px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(2, 6, 23, 0.75);
+      color: #e2e8f0;
+      padding: 8px 10px;
+    }
+
     /* ================================
        CONTENT-BEREICH
     ================================== */
@@ -1529,7 +1578,7 @@
 <script src="/js/teacher-week.js"></script>
 <script src="/js/teacher-was-goals.js?v=4"></script>
 <script src="/js/teacher-levelplan-import.js?v=4"></script>
-<script src="/js/teacher-levelplan.js?v=2"></script>
+<script src="/js/teacher-levelplan.js?v=3"></script>
 <script src="/js/teacher-competencies.js?v=19"></script>
 <script src="/js/teacher-termine.js?v=1"></script>
 
