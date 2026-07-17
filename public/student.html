@@ -5408,6 +5408,28 @@ body.student-app .card.section > h2 {
   color: #94a3b8;
 }
 
+.lp-dash__featured-meta {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.lp-dash__featured-meta strong {
+  color: #a5f3fc;
+}
+
+.lp-dash__link {
+  color: #a5f3fc;
+  font-weight: 700;
+}
+
+.lp-dash__split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .lp-dash__ring .circular-progress-wrap {
   align-items: center;
 }
@@ -5761,6 +5783,10 @@ body.student-app .card.section > h2 {
 @media (max-width: 900px) {
   .lp-dash__row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lp-dash__split {
+    grid-template-columns: 1fr;
   }
 
   .lp-content__desktop {
@@ -9623,7 +9649,7 @@ h2 {
 <script src="/js/logbuch-reflect.js?v=5"></script>
 <script src="/js/logbuch-today.js?v=27"></script>
 <script src="/js/logbuch-week.js?v=6"></script>
-<script src="/js/logbuch-levelplan.js?v=15"></script>
+<script src="/js/logbuch-levelplan.js?v=16"></script>
 <script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=23"></script>

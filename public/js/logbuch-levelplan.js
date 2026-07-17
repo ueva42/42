@@ -151,30 +151,95 @@
     }
   }
 
-  function computeProgress() {
-    let total = 0;
-    let sicher = 0;
-    let inArbeit = 0;
-    const tiers = activeTiers();
-    for (const group of state.data?.grouped || []) {
-      for (const lc of group.levelChecks || []) {
-        for (const goal of lc.goals || []) {
-          for (const tier of tiers) {
-            total++;
-            const st = tierStatus(goal, tier.id);
-            if (st === "sicher") sicher++;
-            else if (st === "in_arbeit") inArbeit++;
-          }
-        }
-      }
+  function formatGradeLabel(key) {
+    if (!key) return "–";
+    return String(key).replace(".", ",");
+  }
+
+  function recommendedTierCounts(totalGoals, targetGradeKey) {
+    const rules = window.LOGBUCH?.getGradeRequirements?.(targetGradeKey);
+    const total = Math.max(0, Number(totalGoals) || 0);
+    if (!rules || !total) return null;
+    const out = {};
+    for (const tier of TIER_META) {
+      out[tier.id] = Math.ceil(total * (Number(rules[tier.id]) || 0));
     }
-    const offen = Math.max(0, total - sicher - inArbeit);
+    return out;
+  }
+
+  function computeTopicProgress(thema) {
+    const goals = thema?.goals || [];
+    const tiers = activeTiers();
+    const targetGrade = thema?.target?.targetGrade || null;
+    const recommended = targetGrade ? recommendedTierCounts(goals.length, targetGrade) : null;
+
+    const required = { total: 0, sicher: 0, inArbeit: 0, offen: 0 };
+    const challenge = { total: 0, sicher: 0, inArbeit: 0, offen: 0 };
+    const all = { total: 0, sicher: 0, inArbeit: 0, offen: 0 };
+
+    const bump = (bucket, status) => {
+      bucket.total++;
+      if (status === "sicher") bucket.sicher++;
+      else if (status === "in_arbeit") bucket.inArbeit++;
+      else bucket.offen++;
+    };
+
+    for (const tier of tiers) {
+      const requiredCount = recommended?.[tier.id] ?? 0;
+      goals.forEach((goal, index) => {
+        const status = tierStatus(goal, tier.id);
+        if (!targetGrade) {
+          bump(all, status);
+          return;
+        }
+        const isRequired = requiredCount > 0 && index < requiredCount;
+        bump(isRequired ? required : challenge, status);
+      });
+    }
+
+    const scope = targetGrade ? required : all;
+    const pct = scope.total ? Math.round((scope.sicher / scope.total) * 100) : 0;
+
     return {
-      total,
-      sicher,
-      inArbeit,
-      offen,
-      pct: total ? Math.round((sicher / total) * 100) : 0
+      goalCount: goals.length,
+      targetGrade,
+      targetGradeLabel: formatGradeLabel(thema?.target?.targetGradeLabel || targetGrade),
+      achievedGradeLabel: formatGradeLabel(
+        thema?.target?.achievedGradeLabel || thema?.target?.achievedGrade
+      ),
+      hasTarget: !!targetGrade,
+      required,
+      challenge,
+      all,
+      pct,
+      recommended
+    };
+  }
+
+  function computeProgress() {
+    const thema = selectedThema();
+    if (!thema) {
+      return {
+        total: 0,
+        sicher: 0,
+        inArbeit: 0,
+        offen: 0,
+        pct: 0,
+        goalCount: 0,
+        hasTarget: false
+      };
+    }
+    const p = computeTopicProgress(thema);
+    const bucket = p.hasTarget ? p.required : p.all;
+    return {
+      total: bucket.total,
+      sicher: bucket.sicher,
+      inArbeit: bucket.inArbeit,
+      offen: bucket.offen,
+      pct: p.pct,
+      goalCount: p.goalCount,
+      hasTarget: p.hasTarget,
+      topicProgress: p
     };
   }
 
@@ -377,45 +442,71 @@
 
   function renderOverview() {
     const visuals = V();
-    const { total, sicher, inArbeit, offen, pct } = computeProgress();
+    const thema = selectedThema();
+    if (!thema) return "";
+
+    const p = computeTopicProgress(thema);
+    const ringBucket = p.hasTarget ? p.required : p.all;
     const ring = visuals
       ? visuals.circularProgress({
-          completed: sicher,
-          total: total || 1,
-          label: "Gesamtfortschritt",
-          sublabel: `${sicher} von ${total}`,
+          completed: ringBucket.sicher,
+          total: ringBucket.total || 1,
+          label: p.hasTarget ? "Mindestweg" : "Themenfortschritt",
+          sublabel: `${ringBucket.sicher} von ${ringBucket.total}`,
           size: 96,
           accent: "#22c55e"
         })
+      : "";
+
+    const targetLine = p.hasTarget
+      ? `Zielnote ${escapeHtml(p.targetGradeLabel)} · Erreicht: ${escapeHtml(p.achievedGradeLabel)}`
+      : `Noch keine Zielnote – lege sie in <span class="lp-dash__link">Mein Zielpfad</span> fest.`;
+
+    const splitCards = p.hasTarget
+      ? `
+        <div class="lp-dash__split">
+          <article class="lp-dash__metric lp-dash__metric--cyan">
+            <p class="lp-dash__metric-label">Mindestweg</p>
+            <p class="lp-dash__metric-value">${p.required.sicher}/${p.required.total || 0}</p>
+            <p class="lp-dash__metric-sub">sicher für deine Zielnote</p>
+          </article>
+          <article class="lp-dash__metric lp-dash__metric--violet">
+            <p class="lp-dash__metric-label">Herausforderung</p>
+            <p class="lp-dash__metric-value">${p.challenge.sicher}/${p.challenge.total || 0}</p>
+            <p class="lp-dash__metric-sub">freiwillige Vertiefung</p>
+          </article>
+        </div>`
       : "";
 
     return `
       <section class="lp-dash" aria-label="Lernstand Überblick">
         <article class="lp-dash__featured">
           <div class="lp-dash__featured-copy">
-            <p class="lp-dash__featured-eyebrow">Mein Lernstand</p>
-            <h3 class="lp-dash__featured-title">Gesamtfortschritt</h3>
-            <p class="lp-dash__featured-sub">${total} Kompetenzen insgesamt</p>
+            <p class="lp-dash__featured-eyebrow">${escapeHtml(state.selectedSubject || "")} · Thema</p>
+            <h3 class="lp-dash__featured-title">${escapeHtml(thema.name)}</h3>
+            <p class="lp-dash__featured-sub">${p.goalCount} Unterthemen in diesem Thema</p>
+            <p class="lp-dash__featured-meta">${targetLine}</p>
           </div>
           <div class="lp-dash__ring">${ring}</div>
         </article>
+        ${splitCards}
         <div class="lp-dash__row">
           <article class="lp-dash__metric lp-dash__metric--green">
             <p class="lp-dash__metric-label">Sicher</p>
-            <p class="lp-dash__metric-value">${sicher}</p>
+            <p class="lp-dash__metric-value">${ringBucket.sicher}</p>
           </article>
           <article class="lp-dash__metric lp-dash__metric--cyan">
             <p class="lp-dash__metric-label">In Arbeit</p>
-            <p class="lp-dash__metric-value">${inArbeit}</p>
+            <p class="lp-dash__metric-value">${ringBucket.inArbeit}</p>
           </article>
           <article class="lp-dash__metric lp-dash__metric--muted">
             <p class="lp-dash__metric-label">Offen</p>
-            <p class="lp-dash__metric-value">${offen}</p>
+            <p class="lp-dash__metric-value">${ringBucket.offen}</p>
           </article>
           <article class="lp-dash__metric lp-dash__metric--violet">
-            <p class="lp-dash__metric-label">Kompetenzen</p>
-            <p class="lp-dash__metric-value">${total}</p>
-            <p class="lp-dash__metric-sub">${pct} % sicher</p>
+            <p class="lp-dash__metric-label">Unterthemen</p>
+            <p class="lp-dash__metric-value">${p.goalCount}</p>
+            <p class="lp-dash__metric-sub">nur dieses Thema</p>
           </article>
         </div>
       </section>`;
@@ -434,7 +525,10 @@
 
     const themaChips = themen.length
       ? visuals.chipBar(
-          themen.map((t) => ({ value: String(t.id), label: t.name })),
+          themen.map((t) => ({
+            value: String(t.id),
+            label: `${t.name} (${(t.goals || []).length})`
+          })),
           String(state.selectedThemaId),
           "data-lp-thema"
         )
