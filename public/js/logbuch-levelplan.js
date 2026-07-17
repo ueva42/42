@@ -229,6 +229,7 @@
       state.popover.tier === tier.id;
 
     return `
+      <div class="lp-status-wrap ${isOpen ? "is-open" : ""}">
         <button
           type="button"
           class="lp-status-cell ${meta.cellClass} ${busy ? "is-busy" : ""}"
@@ -237,6 +238,7 @@
           aria-label="${escapeHtml(tier.label)}: ${escapeHtml(meta.label)}"
           aria-haspopup="listbox"
           aria-expanded="${isOpen ? "true" : "false"}"
+          title="Klicken zum Ändern"
           ${busy ? "disabled" : ""}
         >
           <span class="lp-status-cell__icon" aria-hidden="true">${meta.icon}</span>
@@ -244,14 +246,16 @@
         </button>
         ${
           isOpen
-            ? `<div class="lp-status-popover" role="listbox" aria-label="Status wählen">
+            ? `<div class="lp-status-picker" role="listbox" aria-label="Status wählen">
                 ${statusOptions()
                   .map(
                     (opt) => `
                   <button
                     type="button"
-                    class="lp-status-popover__opt ${opt.id === status ? "is-active" : ""}"
+                    class="lp-status-picker__opt ${opt.id === status ? "is-active" : ""}"
                     data-lp-pick="${escapeHtml(opt.id)}"
+                    data-lp-pick-goal="${escapeHtml(goal.id)}"
+                    data-lp-pick-tier="${escapeHtml(tier.id)}"
                     role="option"
                     aria-selected="${opt.id === status ? "true" : "false"}"
                   >${escapeHtml(opt.label)}</button>`
@@ -259,7 +263,8 @@
                   .join("")}
               </div>`
             : ""
-        }`;
+        }
+      </div>`;
   }
 
   function renderStatusCell(goal, tier) {
@@ -496,6 +501,7 @@
 
     return `
       <div class="lp-content">
+        <p class="lp-table-hint">Tippe auf eine Zelle unter Rookie, Operator oder Street Legend – dann wählst du <strong>Offen</strong>, <strong>In Arbeit</strong> oder <strong>Sicher</strong>.</p>
         <div class="lp-content__desktop">${renderDesktopTable(goals)}</div>
         <div class="lp-content__mobile">${renderMobileCards(goals)}</div>
       </div>`;
@@ -595,11 +601,8 @@
     root.querySelectorAll("[data-lp-pick]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const pop = btn.closest(".lp-status-popover");
-        const cellBtn = pop?.previousElementSibling;
-        if (!cellBtn) return;
-        const goalId = cellBtn.dataset.lpStatus;
-        const tier = cellBtn.dataset.lpTier;
+        const goalId = btn.dataset.lpPickGoal;
+        const tier = btn.dataset.lpPickTier;
         const status = btn.dataset.lpPick;
         closePopover();
         setStatus(goalId, tier, status);
@@ -608,7 +611,10 @@
 
     if (state.popover) {
       const onDocClick = (e) => {
-        if (!e.target.closest(".lp-status-cell") && !e.target.closest(".lp-status-popover")) {
+        if (
+          !e.target.closest(".lp-status-wrap") &&
+          !e.target.closest(".lp-status-picker")
+        ) {
           closePopover();
           document.removeEventListener("click", onDocClick);
           render();
