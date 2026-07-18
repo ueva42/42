@@ -8274,8 +8274,8 @@ body.student-app .card.section > h2 {
 
 .zs-unmarked { margin: 10px 0 0; font-size: 11px; opacity: 0.55; }
 
-.zs-feedback {
 .zs-topic-hint-ok { color: #86efac; }
+
 .zs-feedback {
   margin-top: 14px;
   padding-top: 14px;
@@ -8421,130 +8421,291 @@ body.student-app .card.section > h2 {
   display: none !important;
 }
 
-#checkpoint-plan-screen-root,
-#checkpoint-plan-screen-root .mcp-app {
+#checkpoint-plan-screen-root {
+  --mcp-bg: #05091a;
+  --mcp-panel: #091126;
+  --mcp-panel-light: #0d1833;
+  --mcp-cyan: #22d3ee;
+  --mcp-blue: #3b82f6;
+  --mcp-purple: #a855f7;
+  --mcp-magenta: #ec4899;
+  --mcp-green: #22c55e;
+  --mcp-text: #f4f7ff;
+  --mcp-muted: #94a3b8;
   width: 100%;
   max-width: none;
+  color: var(--mcp-text);
 }
 
-.mcp-app {
+#checkpoint-plan-screen-root .mcp-app {
+  width: 100%;
+  max-width: 1340px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  color: #e2e8f0;
+  padding: 0 4px 24px;
+  box-sizing: border-box;
 }
 
-.mcp-head {
-  padding: 4px 2px 0;
-}
-
-.mcp-kicker {
+#checkpoint-plan-screen-root button {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
   margin: 0;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #67e8f9;
-}
-
-.mcp-head__title {
-  margin: 6px 0 0;
-  font-family: "Orbitron", system-ui;
-  font-size: clamp(1.2rem, 2.5vw, 1.5rem);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #f8fafc;
-}
-
-.mcp-head__sub {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: #94a3b8;
-}
-
-.mcp-next {
-  border-radius: 18px;
-  border: 1px solid rgba(34, 211, 238, 0.35);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.14), transparent 50%),
-    rgba(8, 14, 35, 0.95);
-  padding: 16px 18px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
-}
-
-.mcp-next--empty {
-  border-color: rgba(148, 163, 184, 0.2);
-}
-
-.mcp-next__row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.mcp-next__subject {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #67e8f9;
-}
-
-.mcp-next__title {
-  margin: 6px 0 0;
-  font-size: 1.25rem;
-  color: #f8fafc;
-}
-
-.mcp-next__meta {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: #94a3b8;
-}
-
-.mcp-filters {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mcp-filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.mcp-chip {
-  appearance: none;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(2, 6, 23, 0.75);
-  color: #cbd5e1;
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 700;
   cursor: pointer;
 }
 
-.mcp-chip.is-on {
-  border-color: rgba(34, 211, 238, 0.55);
-  color: #a5f3fc;
-  background: rgba(34, 211, 238, 0.12);
-  box-shadow: 0 0 16px rgba(34, 211, 238, 0.15);
+#checkpoint-plan-screen-root .mcp-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 22px;
+  min-height: 132px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  background:
+    linear-gradient(105deg, rgba(5, 9, 26, 0.97) 0%, rgba(9, 17, 38, 0.88) 48%, rgba(5, 9, 26, 0.55) 100%),
+    var(--mcp-panel);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
-.mcp-cal {
+#checkpoint-plan-screen-root .mcp-hero__content {
+  position: relative;
+  z-index: 2;
+  max-width: min(100%, 420px);
+}
+
+#checkpoint-plan-screen-root .mcp-kicker {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mcp-cyan);
+}
+
+#checkpoint-plan-screen-root .mcp-hero__title {
+  margin: 6px 0 0;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: clamp(1.25rem, 2.6vw, 1.65rem);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mcp-text);
+}
+
+#checkpoint-plan-screen-root .mcp-hero__sub {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--mcp-muted);
+}
+
+#checkpoint-plan-screen-root .mcp-hero__img {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(46%, 320px);
+  object-fit: cover;
+  object-position: center top;
+  z-index: 1;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 28%, #000 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 28%, #000 100%);
+}
+
+#checkpoint-plan-screen-root .mcp-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(5, 9, 26, 0.92) 42%, rgba(5, 9, 26, 0.35) 72%, rgba(5, 9, 26, 0.55) 100%);
+}
+
+#checkpoint-plan-screen-root .mcp-next {
+  position: relative;
+  border-radius: 22px;
+  border: 1px solid rgba(34, 211, 238, 0.38);
+  background:
+    radial-gradient(ellipse at 0% 0%, rgba(34, 211, 238, 0.16), transparent 48%),
+    radial-gradient(ellipse at 100% 100%, rgba(168, 85, 247, 0.14), transparent 46%),
+    var(--mcp-panel);
+  padding: 18px 20px;
+  box-shadow:
+    0 0 28px rgba(34, 211, 238, 0.12),
+    0 14px 36px rgba(0, 0, 0, 0.35);
+}
+
+#checkpoint-plan-screen-root .mcp-next--empty {
+  border-color: rgba(148, 163, 184, 0.22);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+#checkpoint-plan-screen-root .mcp-next__row {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+#checkpoint-plan-screen-root .mcp-next__main {
+  min-width: 0;
+  flex: 1;
+}
+
+#checkpoint-plan-screen-root .mcp-next__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+#checkpoint-plan-screen-root .mcp-next__subject {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mcp-cyan);
+}
+
+#checkpoint-plan-screen-root .mcp-next__title {
+  margin: 6px 0 0;
+  font-size: clamp(1.2rem, 2.4vw, 1.55rem);
+  font-weight: 700;
+  color: var(--mcp-text);
+  line-height: 1.25;
+}
+
+#checkpoint-plan-screen-root .mcp-next__meta {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--mcp-muted);
+}
+
+#checkpoint-plan-screen-root .mcp-next__countdown {
+  flex-shrink: 0;
+  min-width: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  background: rgba(34, 211, 238, 0.1);
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);
+  text-align: center;
+}
+
+#checkpoint-plan-screen-root .mcp-next__countdown-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mcp-muted);
+}
+
+#checkpoint-plan-screen-root .mcp-next__countdown-value {
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  color: var(--mcp-cyan);
+  text-transform: uppercase;
+}
+
+#checkpoint-plan-screen-root .mcp-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#checkpoint-plan-screen-root .mcp-filter-label {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mcp-muted);
+}
+
+#checkpoint-plan-screen-root .mcp-filter-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+
+#checkpoint-plan-screen-root .mcp-chip {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 999px !important;
+  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  background: rgba(2, 6, 23, 0.85) !important;
+  color: #cbd5e1 !important;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+#checkpoint-plan-screen-root .mcp-chip:hover {
+  border-color: rgba(34, 211, 238, 0.4) !important;
+  color: #e2e8f0 !important;
+}
+
+#checkpoint-plan-screen-root .mcp-chip.is-on {
+  border-color: rgba(34, 211, 238, 0.65) !important;
+  color: #a5f3fc !important;
+  background: rgba(34, 211, 238, 0.14) !important;
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.2);
+}
+
+#checkpoint-plan-screen-root .mcp-chip.is-on::before {
+  content: "✓ ";
+  font-weight: 800;
+}
+
+#checkpoint-plan-screen-root .mcp-dash {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+#checkpoint-plan-screen-root .mcp-panel {
   border-radius: 20px;
   border: 1px solid rgba(103, 132, 255, 0.22);
-  background: rgba(8, 14, 35, 0.95);
+  background: var(--mcp-panel);
   padding: 14px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
 }
 
-.mcp-cal__head {
+#checkpoint-plan-screen-root .mcp-panel__title {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mcp-cyan);
+}
+
+#checkpoint-plan-screen-root .mcp-cal__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -8552,233 +8713,222 @@ body.student-app .card.section > h2 {
   margin-bottom: 12px;
 }
 
-.mcp-cal__center {
+#checkpoint-plan-screen-root .mcp-cal__center {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 8px;
+}
+
+#checkpoint-plan-screen-root .mcp-cal__center h3 {
+  margin: 0;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 1.05rem;
+  color: var(--mcp-text);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+#checkpoint-plan-screen-root .mcp-nav {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px !important;
+  border: 1px solid rgba(148, 163, 184, 0.3) !important;
+  background: var(--mcp-panel-light) !important;
+  color: var(--mcp-text) !important;
+  font-size: 22px;
+  line-height: 1;
+  display: inline-grid;
+  place-items: center;
+}
+
+#checkpoint-plan-screen-root .mcp-nav:hover {
+  border-color: rgba(34, 211, 238, 0.45) !important;
+}
+
+#checkpoint-plan-screen-root .mcp-today {
+  min-height: 32px;
+  padding: 6px 14px;
+  border-radius: 999px !important;
+  border: 1px solid rgba(34, 211, 238, 0.45) !important;
+  background: rgba(34, 211, 238, 0.12) !important;
+  color: #a5f3fc !important;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+#checkpoint-plan-screen-root .mcp-cal__weekdays,
+#checkpoint-plan-screen-root .mcp-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
 }
 
-.mcp-cal__center h3 {
-  margin: 0;
-  font-family: "Orbitron", system-ui;
-  font-size: 1.05rem;
-  color: #f8fafc;
-  text-transform: capitalize;
+#checkpoint-plan-screen-root .mcp-cal__weekdays {
+  margin-bottom: 6px;
 }
 
-.mcp-nav,
-.mcp-today,
-.mcp-daydetail__x {
-  appearance: none;
-  cursor: pointer;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(2, 6, 23, 0.8);
-  color: #e2e8f0;
-}
-
-.mcp-nav {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  font-size: 22px;
-  line-height: 1;
-}
-
-.mcp-today {
-  border-radius: 999px;
-  padding: 4px 12px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  border-color: rgba(34, 211, 238, 0.4);
-  color: #a5f3fc;
-  background: rgba(34, 211, 238, 0.1);
-}
-
-.mcp-cal__table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 6px;
-  table-layout: fixed;
-}
-
-.mcp-cal__table th {
-  padding: 4px 0;
+#checkpoint-plan-screen-root .mcp-cal__weekday {
+  text-align: center;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #64748b;
-  text-align: center;
+  padding: 4px 0;
 }
 
-.mcp-cell {
-  vertical-align: top;
-  padding: 0;
-}
-
-.mcp-cell--empty {
-  border: none;
-}
-
-.mcp-daybtn {
-  appearance: none;
+#checkpoint-plan-screen-root .mcp-day {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
   width: 100%;
-  min-height: 58px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(2, 6, 23, 0.75);
-  color: #e2e8f0;
+  min-height: 64px;
   padding: 8px;
-  cursor: pointer;
+  border-radius: 12px !important;
+  border: 1px solid rgba(148, 163, 184, 0.16) !important;
+  background: rgba(2, 6, 23, 0.72) !important;
+  color: var(--mcp-text) !important;
   text-align: left;
+  box-sizing: border-box;
 }
 
-.mcp-cell.is-today .mcp-daybtn {
-  border-color: rgba(34, 211, 238, 0.55);
-  box-shadow: 0 0 14px rgba(34, 211, 238, 0.18);
+#checkpoint-plan-screen-root .mcp-day:hover {
+  border-color: rgba(34, 211, 238, 0.35) !important;
 }
 
-.mcp-cell.is-selected .mcp-daybtn {
-  border-color: rgba(34, 211, 238, 0.7);
-  background: rgba(34, 211, 238, 0.12);
+#checkpoint-plan-screen-root .mcp-day.is-out {
+  opacity: 0.38;
 }
 
-.mcp-cell.has-events .mcp-daybtn {
-  border-color: rgba(168, 85, 247, 0.3);
+#checkpoint-plan-screen-root .mcp-day.is-today {
+  border-color: rgba(34, 211, 238, 0.7) !important;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.22);
 }
 
-.mcp-daybtn__n {
-  font-size: 12px;
+#checkpoint-plan-screen-root .mcp-day.is-selected {
+  border-color: rgba(168, 85, 247, 0.65) !important;
+  background:
+    linear-gradient(145deg, rgba(34, 211, 238, 0.16), rgba(168, 85, 247, 0.18)) !important;
+}
+
+#checkpoint-plan-screen-root .mcp-day.has-events {
+  border-color: rgba(168, 85, 247, 0.32) !important;
+}
+
+#checkpoint-plan-screen-root .mcp-day__n {
+  font-size: 13px;
   font-weight: 800;
+  line-height: 1;
 }
 
-.mcp-daybtn__count {
-  position: absolute;
-  /* fallback without absolute parent issues */
-  margin-left: auto;
-  align-self: flex-end;
-  margin-top: -18px;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  display: inline-grid;
-  place-items: center;
+#checkpoint-plan-screen-root .mcp-day__today {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mcp-cyan);
+}
+
+#checkpoint-plan-screen-root .mcp-day__meta {
+  margin-top: auto;
   font-size: 10px;
-  font-weight: 800;
-  background: rgba(168, 85, 247, 0.28);
-  color: #e9d5ff;
+  font-weight: 700;
+  color: #c4b5fd;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.mcp-daybtn {
-  position: relative;
-}
-
-.mcp-daybtn__dots {
+#checkpoint-plan-screen-root .mcp-day__dots {
   display: flex;
   gap: 3px;
-  margin-top: auto;
+  margin-top: 2px;
 }
 
-.mcp-dot {
+#checkpoint-plan-screen-root .mcp-dot {
   width: 7px;
   height: 7px;
   border-radius: 999px;
   display: inline-block;
+  flex-shrink: 0;
 }
 
-.mcp-daydetail {
-  margin-top: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(34, 211, 238, 0.28);
-  background: rgba(2, 6, 23, 0.7);
-  padding: 12px;
-  display: grid;
-  gap: 8px;
-}
-
-.mcp-daydetail__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #f8fafc;
-}
-
-.mcp-daydetail__x {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  font-size: 18px;
-}
-
-.mcp-section {
+#checkpoint-plan-screen-root .mcp-upcoming {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: none;
 }
 
-.mcp-section__title {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #67e8f9;
-}
-
-.mcp-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.mcp-card {
+#checkpoint-plan-screen-root .mcp-card {
   border-radius: 16px;
-  border: 1px solid rgba(103, 132, 255, 0.2);
-  background: rgba(8, 14, 35, 0.95);
+  border: 1px solid rgba(103, 132, 255, 0.22);
+  background: var(--mcp-panel-light);
   padding: 14px;
 }
 
-.mcp-card__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+#checkpoint-plan-screen-root .mcp-card.is-next {
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.12);
 }
 
-.mcp-card__subject {
+#checkpoint-plan-screen-root .mcp-card.is-past {
+  border-color: rgba(148, 163, 184, 0.18);
+  opacity: 0.78;
+}
+
+#checkpoint-plan-screen-root .mcp-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#checkpoint-plan-screen-root .mcp-card__subject {
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #67e8f9;
+  color: var(--mcp-cyan);
 }
 
-.mcp-card__title {
+#checkpoint-plan-screen-root .mcp-card__countdown {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mcp-cyan);
+  white-space: nowrap;
+}
+
+#checkpoint-plan-screen-root .mcp-card__title {
   margin: 8px 0 0;
   font-size: 15px;
-  color: #f8fafc;
+  font-weight: 700;
+  color: var(--mcp-text);
+  line-height: 1.3;
 }
 
-.mcp-card__date {
+#checkpoint-plan-screen-root .mcp-card__date {
   margin: 8px 0 0;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--mcp-muted);
 }
 
-.mcp-pill {
+#checkpoint-plan-screen-root .mcp-pill {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
   padding: 2px 10px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--mcp-c, #22d3ee) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mcp-c, #22d3ee) 50%, transparent);
   background: color-mix(in srgb, var(--mcp-c, #22d3ee) 16%, transparent);
   color: #e2e8f0;
   font-size: 10px;
@@ -8788,45 +8938,184 @@ body.student-app .card.section > h2 {
   white-space: nowrap;
 }
 
-.mcp-past-toggle {
-  appearance: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+#checkpoint-plan-screen-root .mcp-more {
+  min-height: 44px;
   width: 100%;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(8, 14, 35, 0.9);
-  color: #e2e8f0;
-  padding: 12px 14px;
-  cursor: pointer;
+  border-radius: 12px !important;
+  border: 1px solid rgba(34, 211, 238, 0.35) !important;
+  background: rgba(34, 211, 238, 0.08) !important;
+  color: #a5f3fc !important;
   font-size: 13px;
   font-weight: 700;
 }
 
-.mcp-past-toggle__meta {
-  color: #94a3b8;
-  font-size: 12px;
+#checkpoint-plan-screen-root .mcp-more:hover {
+  background: rgba(34, 211, 238, 0.14) !important;
 }
 
-.mcp-muted {
+#checkpoint-plan-screen-root .mcp-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(2, 6, 23, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+#checkpoint-plan-screen-root .mcp-drawer {
+  position: fixed;
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--mcp-panel);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+#checkpoint-plan-screen-root .mcp-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--mcp-text);
+}
+
+#checkpoint-plan-screen-root .mcp-drawer__head strong {
+  font-size: 14px;
+}
+
+#checkpoint-plan-screen-root .mcp-drawer__x {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px !important;
+  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  background: var(--mcp-panel-light) !important;
+  color: var(--mcp-text) !important;
+  font-size: 20px;
+  display: inline-grid;
+  place-items: center;
+}
+
+#checkpoint-plan-screen-root .mcp-drawer__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: min(60vh, 420px);
+}
+
+@media (min-width: 901px) {
+  #checkpoint-plan-screen-root .mcp-drawer {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(440px, calc(100vw - 48px));
+    max-height: min(80vh, 560px);
+    border-radius: 20px;
+  }
+}
+
+@media (max-width: 900px) {
+  #checkpoint-plan-screen-root .mcp-drawer {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 20px 20px 0 0;
+    max-height: min(78vh, 560px);
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+
+#checkpoint-plan-screen-root .mcp-past {
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(8, 14, 35, 0.9);
+  overflow: hidden;
+}
+
+#checkpoint-plan-screen-root .mcp-past-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  color: var(--mcp-text) !important;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+#checkpoint-plan-screen-root .mcp-past-toggle__label {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+#checkpoint-plan-screen-root .mcp-past-toggle__meta {
+  color: var(--mcp-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#checkpoint-plan-screen-root .mcp-past__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
+#checkpoint-plan-screen-root .mcp-muted {
   margin: 0;
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--mcp-muted);
 }
 
-@media (max-width: 760px) {
-  .mcp-list {
+@media (max-width: 980px) {
+  #checkpoint-plan-screen-root .mcp-dash {
     grid-template-columns: 1fr;
   }
+}
 
-  .mcp-daybtn {
-    min-height: 48px;
+@media (max-width: 640px) {
+  #checkpoint-plan-screen-root .mcp-hero {
+    min-height: 120px;
+    padding: 16px;
+  }
+
+  #checkpoint-plan-screen-root .mcp-hero__img {
+    width: 42%;
+    opacity: 0.85;
+  }
+
+  #checkpoint-plan-screen-root .mcp-next__row {
+    flex-direction: column;
+  }
+
+  #checkpoint-plan-screen-root .mcp-next__countdown {
+    width: 100%;
+    min-width: 0;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 12px 14px;
+  }
+
+  #checkpoint-plan-screen-root .mcp-day {
+    min-height: 52px;
     padding: 6px;
   }
 
-  .mcp-cal__table {
-    border-spacing: 4px;
+  #checkpoint-plan-screen-root .mcp-cal__weekdays,
+  #checkpoint-plan-screen-root .mcp-cal__grid {
+    gap: 4px;
+  }
+
+  #checkpoint-plan-screen-root .mcp-day__meta {
+    display: none;
   }
 }
 
@@ -9883,7 +10172,7 @@ h2 {
 <script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=23"></script>
-<script src="/js/logbuch-checkpoint-plan.js?v=7"></script>
+<script src="/js/logbuch-checkpoint-plan.js?v=8"></script>
 <script src="/js/logbuch-screens.js?v=4"></script>
 
 <script>
