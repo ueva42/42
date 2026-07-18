@@ -8735,49 +8735,94 @@ let uploadedClassRewardImageUrl = null;
 
 // Alle Klassenbelohnungen abrufen
 app.get("/api/class/rewards", isAdmin, async (req, res) => {
-  const schoolId = req.session.user.school_id;
+  try {
+    const schoolId = req.session.user?.school_id;
+    if (!schoolId) {
+      return res.status(400).json({
+        success: false,
+        message: "Keine Schule in der Sitzung – bitte neu einloggen."
+      });
+    }
 
-  const r = await pool.query(
-    `
-    SELECT id,name,xp_required AS xp,image_url
-    FROM class_rewards
-    WHERE school_id=$1
-    ORDER BY xp_required ASC
-    `,
-    [schoolId]
-  );
+    // Orphans zurückholen: NULL oder Schule ohne Klassen (z.B. leeres ADSZ-Backfill)
+    await pool.query(
+      `
+      UPDATE class_rewards cr
+      SET school_id = $1
+      WHERE cr.school_id IS NULL
+         OR (
+           cr.school_id IS DISTINCT FROM $1
+           AND NOT EXISTS (
+             SELECT 1 FROM classes c WHERE c.school_id = cr.school_id
+           )
+         )
+      `,
+      [schoolId]
+    );
 
-  res.json(r.rows);
+    const r = await pool.query(
+      `
+      SELECT id, name, xp_required AS xp, image_url
+      FROM class_rewards
+      WHERE school_id = $1
+      ORDER BY xp_required ASC NULLS LAST, name ASC
+      `,
+      [schoolId]
+    );
+
+    res.json(r.rows);
+  } catch (err) {
+    console.error("❌ /api/class/rewards:", err);
+    res.status(500).json({
+      success: false,
+      message: "Klassenbelohnungen konnten nicht geladen werden."
+    });
+  }
 });
 
 // Neue Klassenbelohnung anlegen
 // VARIANTE C: xp ODER xpRequired ODER xp_required
 app.post("/api/class/rewards", isAdmin, async (req, res) => {
-  const schoolId = req.session.user.school_id;
-  const { name, xp, xpRequired, xp_required, imageUrl } = req.body;
+  try {
+    const schoolId = req.session.user?.school_id;
+    if (!schoolId) {
+      return res.json({
+        success: false,
+        message: "Keine Schule in der Sitzung – bitte neu einloggen."
+      });
+    }
 
-  const xpVal = Number(
-    xp !== undefined
-      ? xp
-      : xpRequired !== undefined
-        ? xpRequired
-        : xp_required
-  );
+    const { name, xp, xpRequired, xp_required, imageUrl } = req.body;
 
-  if (!name || !xpVal) {
-    return res.json({ success: false, message: "name oder xp fehlt" });
+    const xpVal = Number(
+      xp !== undefined
+        ? xp
+        : xpRequired !== undefined
+          ? xpRequired
+          : xp_required
+    );
+
+    if (!name || !xpVal) {
+      return res.json({ success: false, message: "name oder xp fehlt" });
+    }
+
+    const ins = await pool.query(
+      `
+      INSERT INTO class_rewards (name,xp_required,image_url,school_id)
+      VALUES ($1,$2,$3,$4)
+      RETURNING id
+      `,
+      [name, xpVal, imageUrl || null, schoolId]
+    );
+
+    res.json({ success: true, id: ins.rows[0].id });
+  } catch (err) {
+    console.error("❌ POST /api/class/rewards:", err);
+    res.status(500).json({
+      success: false,
+      message: "Klassenbelohnung konnte nicht gespeichert werden."
+    });
   }
-
-  const ins = await pool.query(
-    `
-    INSERT INTO class_rewards (name,xp_required,image_url,school_id)
-    VALUES ($1,$2,$3,$4)
-    RETURNING id
-    `,
-    [name, xpVal, imageUrl || null, schoolId]
-  );
-
-  res.json({ success: true, id: ins.rows[0].id });
 });
 
 // Bild-Upload für Klassenbelohnung
@@ -9057,16 +9102,33 @@ app.post("/api/admin/class-reward-round/:id/abort", isAdmin, handleDeleteClassRe
 // ADMIN – Klassen
 // -------------------------------------------------------
 app.get("/api/class", isAdmin, async (req, res) => {
-  const schoolId = req.session.user.school_id;
+  try {
+    const schoolId = req.session.user?.school_id;
+    if (!schoolId) {
+      return res.status(400).json({
+        success: false,
+        message: "Keine Schule in der Sitzung – bitte neu einloggen."
+      });
+    }
 
-  const r = await pool.query(`
-    SELECT id,name
-    FROM classes
-    WHERE school_id=$1
-    ORDER BY name ASC
-  `, [schoolId]);
+    const r = await pool.query(
+      `
+      SELECT id, name
+      FROM classes
+      WHERE school_id = $1
+      ORDER BY name ASC
+    `,
+      [schoolId]
+    );
 
-  res.json(r.rows);
+    res.json(r.rows);
+  } catch (err) {
+    console.error("❌ /api/class:", err);
+    res.status(500).json({
+      success: false,
+      message: "Klassen konnten nicht geladen werden."
+    });
+  }
 });
 
 app.post("/api/class", isAdmin, async (req, res) => {

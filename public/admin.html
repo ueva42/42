@@ -577,12 +577,18 @@
       margin: 4px 4px 6px 0;
       background: #020617;
       color: #e5e7eb;
-      border-radius: 999px;
+      border-radius: 10px;
       border: 1px solid #4b5563;
-      min-width: 150px;
+      min-width: 180px;
+      max-width: 100%;
       font-size: 13px;
       outline: none;
       transition: border 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      appearance: auto;
+      -webkit-appearance: menulist;
+      position: relative;
+      z-index: 2;
+      pointer-events: auto;
     }
 
     input:focus, select:focus {
@@ -1619,6 +1625,17 @@ const ROUTE_TABS = {
   "/teacher/levelchecks": "competenciesTab"
 };
 
+const HASH_TABS = {
+  xp: "xpTab",
+  classProgress: "classProgressTab",
+  class: "classTab",
+  mission: "missionTab",
+  bonus: "bonusTab",
+  character: "characterTab",
+  level: "levelTab",
+  profile: "profileTab"
+};
+
 const TAB_NAV_SECTIONS = {
   classTab: "klasse",
   xpTab: "klasse",
@@ -1709,6 +1726,14 @@ function showTab(id, ev, options = {}) {
     if (location.pathname !== url) {
       history.pushState({ tab: id }, "", url);
     }
+  } else if (!options.skipHistory) {
+    const hashEntry = Object.entries(HASH_TABS).find(([, tabId]) => tabId === id);
+    if (hashEntry) {
+      const next = `#${hashEntry[0]}`;
+      if (location.hash !== next) {
+        history.replaceState({ tab: id }, "", next);
+      }
+    }
   }
 
   if (id === "dashboardTab" && window.TeacherDashboard) TeacherDashboard.init();
@@ -1733,7 +1758,8 @@ function showTab(id, ev, options = {}) {
 }
 
 function initAdminRoute() {
-  const tab = ROUTE_TABS[location.pathname] || "dashboardTab";
+  const hash = String(location.hash || "").replace(/^#/, "");
+  const tab = HASH_TABS[hash] || ROUTE_TABS[location.pathname] || "dashboardTab";
   showTab(tab, null, { skipHistory: true });
 }
 
@@ -2332,26 +2358,69 @@ let currentRoundId = null;
 let currentRoundStatus = null;
 
 async function loadClassProgressInit() {
-  // Klassen laden
-  const r = await fetch("/api/class", { credentials: "same-origin" });
-  const classes = await r.json();
-
+  const info = document.getElementById("classProgressInfo");
   const sel = document.getElementById("progressClassSelect");
-  sel.innerHTML = "";
+  if (!sel) return;
 
-  classes.forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c.id;
-    opt.textContent = c.name;
-    sel.appendChild(opt);
-  });
+  try {
+    const r = await fetch("/api/class", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    const classes = await r.json();
 
-  if (classes.length > 0) {
-    sel.value = classes[0].id;
+    sel.innerHTML = "";
+
+    if (!r.ok || !Array.isArray(classes)) {
+      sel.innerHTML = `<option value="">— Klassen nicht ladbar —</option>`;
+      if (info) {
+        info.textContent =
+          classes?.message ||
+          "Klassen konnten nicht geladen werden. Bitte neu einloggen.";
+      }
+      await loadClassRewards();
+      return;
+    }
+
+    if (!classes.length) {
+      const cached =
+        (Array.isArray(window.__tdClasses) && window.__tdClasses) ||
+        (Array.isArray(window.__lpClasses) && window.__lpClasses) ||
+        [];
+      if (cached.length) {
+        cached.forEach((c) => {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = c.name;
+          sel.appendChild(opt);
+        });
+        sel.value = String(cached[0].id);
+      } else {
+        sel.innerHTML = `<option value="">— Keine Klasse angelegt —</option>`;
+        if (info) {
+          info.textContent =
+            "Lege unter „Klassen & Schüler“ zuerst eine Klasse an.";
+        }
+        await loadClassRewards();
+        return;
+      }
+    } else {
+      classes.forEach((c) => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.name;
+        sel.appendChild(opt);
+      });
+      sel.value = String(classes[0].id);
+    }
+
+    await loadClassRewards();
+    await loadAdminClassProgress();
+  } catch (err) {
+    console.error("loadClassProgressInit", err);
+    sel.innerHTML = `<option value="">— Fehler —</option>`;
+    if (info) info.textContent = "Fehler beim Laden der Klassen.";
   }
-
-  await loadClassRewards();
-  await loadAdminClassProgress();
 }
 
 async function loadAdminClassProgress() {
@@ -2565,68 +2634,117 @@ function renderClassProgressActions(status, round, optionCount) {
 
 async function uploadClassRewardImage() {
   const file = document.getElementById("classRewardImage").files[0];
-  if (!file) return;
+  if (!file) {
+    alert("Bitte zuerst ein Bild auswählen.");
+    return;
+  }
 
   const form = new FormData();
   form.append("image", file);
 
-  const r = await fetch("/api/class/rewards/upload", {
-    method: "POST",
-    body: form
-  });
-  const data = await r.json();
-  if (data.success) {
-    uploadedClassRewardImageUrl = data.url;
+  try {
+    const r = await fetch("/api/class/rewards/upload", {
+      method: "POST",
+      body: form,
+      credentials: "same-origin"
+    });
+    const data = await r.json();
+    if (data.success) {
+      uploadedClassRewardImageUrl = data.url;
+      alert("Bild hochgeladen.");
+    } else {
+      alert(data.message || "Upload fehlgeschlagen.");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Upload fehlgeschlagen.");
   }
 }
 
 async function addClassReward() {
   const name = document.getElementById("classRewardName").value.trim();
   const xp = Number(document.getElementById("classRewardXp").value);
-  if (!name || !xp) return;
+  if (!name || !xp) {
+    alert("Bitte Name und XP angeben.");
+    return;
+  }
 
-  await fetch("/api/class/rewards", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ name, xp, imageUrl: uploadedClassRewardImageUrl })
-  });
+  try {
+    const res = await fetch("/api/class/rewards", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ name, xp, imageUrl: uploadedClassRewardImageUrl })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      alert(data.message || "Speichern fehlgeschlagen.");
+      return;
+    }
 
-  uploadedClassRewardImageUrl = null;
-  document.getElementById("classRewardName").value = "";
-  document.getElementById("classRewardXp").value = "";
-  document.getElementById("classRewardImage").value = "";
+    uploadedClassRewardImageUrl = null;
+    document.getElementById("classRewardName").value = "";
+    document.getElementById("classRewardXp").value = "";
+    document.getElementById("classRewardImage").value = "";
 
-  await loadClassRewards();
+    await loadClassRewards();
+  } catch (err) {
+    console.error(err);
+    alert("Technischer Fehler beim Speichern.");
+  }
 }
 
 async function loadClassRewards() {
-  const r = await fetch("/api/class/rewards");
-  const rewards = await r.json();
-  classRewardsCache = rewards;
-
-  // Select für Voting-Runden
   const sel = document.getElementById("classRewardSelect");
-  sel.innerHTML = "";
-  rewards.forEach(b => {
-    const opt = document.createElement("option");
-    opt.value = b.id;
-    opt.textContent = `${b.name} (${b.xp} XP)`;
-    sel.appendChild(opt);
-  });
-
-  // Tabelle
   const tbody = document.querySelector("#classRewardTable tbody");
-  tbody.innerHTML = "";
-  rewards.forEach(b => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${b.image_url ? `<img class="thumb" src="${b.image_url}">` : "—"}</td>
-      <td>${b.name}</td>
-      <td>${b.xp}</td>
-      <td><button class="delete" onclick="deleteClassReward(${b.id})">X</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
+  if (!sel || !tbody) return;
+
+  try {
+    const r = await fetch("/api/class/rewards", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    const rewards = await r.json();
+
+    if (!r.ok || !Array.isArray(rewards)) {
+      classRewardsCache = [];
+      sel.innerHTML = `<option value="">— Belohnungen nicht ladbar —</option>`;
+      tbody.innerHTML = `<tr><td colspan="4">${rewards?.message || "Belohnungen konnten nicht geladen werden."}</td></tr>`;
+      return;
+    }
+
+    classRewardsCache = rewards;
+    sel.innerHTML = "";
+    tbody.innerHTML = "";
+
+    if (!rewards.length) {
+      sel.innerHTML = `<option value="">— Noch keine Klassenbelohnung —</option>`;
+      tbody.innerHTML =
+        `<tr><td colspan="4">Noch keine Klassenbelohnungen angelegt. Lege unten eine neue an.</td></tr>`;
+      return;
+    }
+
+    rewards.forEach((b) => {
+      const opt = document.createElement("option");
+      opt.value = b.id;
+      opt.textContent = `${b.name} (${b.xp} XP)`;
+      sel.appendChild(opt);
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${b.image_url ? `<img class="thumb" src="${b.image_url}">` : "—"}</td>
+        <td>${b.name}</td>
+        <td>${b.xp}</td>
+        <td><button class="delete" onclick="deleteClassReward(${b.id})">X</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    console.error("loadClassRewards", err);
+    classRewardsCache = [];
+    sel.innerHTML = `<option value="">— Fehler —</option>`;
+    tbody.innerHTML = `<tr><td colspan="4">Fehler beim Laden der Belohnungen.</td></tr>`;
+  }
 }
 
 async function deleteClassReward(id) {
