@@ -3794,17 +3794,16 @@ body.student-app {
   color: #94a3b8;
 }
 
-/* Bonuskarten / Missionen: kompakte Vorschaubilder (Portrait-Art) */
+/* Bonuskarten / Missionen: gut sichtbare Vorschaubilder */
 .mission-card__media,
 .reward-card__media {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 96px;
-  max-height: 96px;
-  margin: 0 0 10px;
-  padding: 6px;
+  height: 168px;
+  margin: 0 0 12px;
+  padding: 0;
   box-sizing: border-box;
   border-radius: 12px;
   overflow: hidden;
@@ -3817,14 +3816,14 @@ body.student-app {
 .goal-card .mission-card__img,
 .goal-card .reward-card__img {
   display: block;
-  width: auto !important;
-  height: auto !important;
-  max-width: 100% !important;
-  max-height: 84px !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   object-fit: contain !important;
   object-position: center;
-  border-radius: 8px;
-  margin: 0 auto;
+  border-radius: 0;
+  margin: 0;
 }
 
 .goal-card:has(.mission-card__img) .goal-card__progress,
@@ -9398,9 +9397,9 @@ h2 {
 .mission-img {
   display: block;
   width: auto;
-  max-width: 140px;
+  max-width: 220px;
   height: auto;
-  max-height: 140px;
+  max-height: 220px;
   border-radius: 14px;
   object-fit: contain;
   margin: 0 auto 10px;
