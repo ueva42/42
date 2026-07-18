@@ -222,22 +222,18 @@
   function renderTile(ui, tile, size) {
     const large = size === "large";
     const iconSrc = icon(tile.slug);
-    const heroSrc = hero(tile.slug);
     return `
       <button type="button"
-        class="hub-tile dashboard-card app-card hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
+        class="hub-tile hub-tile--clean dashboard-card app-card hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
         data-hub-section="${ui.escapeHtml(tile.section)}">
-        <span class="hub-tile-glow" aria-hidden="true"></span>
-        <span class="hub-tile-shine" aria-hidden="true"></span>
-        <img class="page-hero__image dashboard-card__hero" src="${heroSrc}" alt="" loading="lazy" decoding="async" aria-hidden="true" onerror="this.style.display='none'">
         <div class="hub-tile-content dashboard-card__content card-content">
           ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
-          <div class="student-section-icon" aria-hidden="true">
-            <img src="${iconSrc}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">
-          </div>
           <span class="hub-tile-title">${ui.escapeHtml(tile.title)}</span>
           <span class="hub-tile-text">${ui.escapeHtml(tile.text)}</span>
           <span class="hub-tile-cta">${ui.escapeHtml(tile.cta)} <span class="hub-tile-arrow">→</span></span>
+        </div>
+        <div class="hub-tile-icon" aria-hidden="true">
+          <img src="${iconSrc}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">
         </div>
       </button>`;
   }
