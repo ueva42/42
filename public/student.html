@@ -3794,13 +3794,43 @@ body.student-app {
   color: #94a3b8;
 }
 
-.mission-card__img,
-.reward-card__img {
+/* Bonuskarten / Missionen: kompakte Vorschaubilder (Portrait-Art) */
+.mission-card__media,
+.reward-card__media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  max-height: 120px;
-  object-fit: cover;
+  height: 96px;
+  max-height: 96px;
+  margin: 0 0 10px;
+  padding: 6px;
+  box-sizing: border-box;
   border-radius: 12px;
-  margin-bottom: 10px;
+  overflow: hidden;
+  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.mission-card__img,
+.reward-card__img,
+.goal-card .mission-card__img,
+.goal-card .reward-card__img {
+  display: block;
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 84px !important;
+  object-fit: contain !important;
+  object-position: center;
+  border-radius: 8px;
+  margin: 0 auto;
+}
+
+.goal-card:has(.mission-card__img) .goal-card__progress,
+.goal-card:has(.reward-card__img) .goal-card__progress,
+.goal-card .goal-card__progress {
+  margin: 8px 0;
 }
 
 .mission-card .status-badge,
@@ -4074,6 +4104,12 @@ body.student-app {
 @media (min-width: 640px) {
   .goal-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .goal-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -9333,22 +9369,23 @@ h2 {
   display: block;
 }
 
-/* Bilder für Missionen & Belohnungen */
+/* Bilder für Missionen & Belohnungen (Legacy-Carousel) */
 .class-reward-img {
-  width: 180px;
+  width: auto;
+  max-width: 140px;
   height: auto;
-  max-height: 320px;
-  object-fit: cover;
-  border-radius: 14px;
-  margin-bottom: 6px;
+  max-height: 140px;
+  object-fit: contain;
+  border-radius: 12px;
+  margin: 0 auto 8px;
   display: block;
 }
 
 .class-reward-no-img {
-  width: 180px;
-  height: 120px;
-  border-radius: 14px;
-  margin-bottom: 6px;
+  width: 140px;
+  height: 96px;
+  border-radius: 12px;
+  margin: 0 auto 8px;
   background: rgba(15, 23, 42, 0.8);
   border: 1px dashed rgba(148, 163, 184, 0.4);
   display: flex;
@@ -9359,16 +9396,18 @@ h2 {
 }
 
 .mission-img {
-  width: 250px;
+  display: block;
+  width: auto;
+  max-width: 140px;
   height: auto;
-  max-height: 420px;
-  border-radius: 30px;
-  object-fit: cover;
-  margin-bottom: 10px;
+  max-height: 140px;
+  border-radius: 14px;
+  object-fit: contain;
+  margin: 0 auto 10px;
   box-shadow:
-    0 0 0 4px #020617,
-    0 0 0 5px #a855f7,
-    0 0 24px rgba(168,85,247,0.9);
+    0 0 0 3px #020617,
+    0 0 0 4px rgba(168, 85, 247, 0.65),
+    0 0 18px rgba(168, 85, 247, 0.45);
 }
 
 .carousel-arrow {
@@ -10159,7 +10198,7 @@ h2 {
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=20"></script>
-<script src="/js/logbuch-visuals.js?v=8"></script>
+<script src="/js/logbuch-visuals.js?v=9"></script>
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>

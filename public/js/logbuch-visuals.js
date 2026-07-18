@@ -348,7 +348,11 @@ window.LogbuchVisuals = {
         return `
           <article class="student-card goal-card ${doneMission ? "goal-card--ok" : "goal-card--open"}">
             <div class="card-content">
-              ${item.image_url ? `<img class="mission-card__img" src="${V.escape(item.image_url)}" alt="">` : ""}
+              ${
+                item.image_url
+                  ? `<div class="mission-card__media"><img class="mission-card__img" src="${V.escape(item.image_url)}" alt=""></div>`
+                  : ""
+              }
               <p class="goal-card__subject">${V.escape(item.name)}</p>
               <p class="goal-card__what">${goal} XP Belohnung</p>
               <div class="goal-card__progress">
@@ -356,7 +360,7 @@ window.LogbuchVisuals = {
                   completed: stepsDone,
                   total: goal,
                   label: "Mission",
-                  size: 88,
+                  size: 64,
                   accent: doneMission ? "#22c55e" : "var(--accent, #a855f7)"
                 })}
               </div>
@@ -418,7 +422,11 @@ window.LogbuchVisuals = {
         return `
           <article class="student-card goal-card ${can ? "goal-card--ok" : "goal-card--open"}">
             <div class="card-content">
-              ${item.image_url ? `<img class="reward-card__img" src="${V.escape(item.image_url)}" alt="">` : ""}
+              ${
+                item.image_url
+                  ? `<div class="reward-card__media"><img class="reward-card__img" src="${V.escape(item.image_url)}" alt=""></div>`
+                  : ""
+              }
               <p class="goal-card__subject">${V.escape(item.name)}</p>
               <p class="goal-card__what">${cost} XP</p>
               <div class="goal-card__progress">
@@ -426,7 +434,7 @@ window.LogbuchVisuals = {
                   completed: can ? cost : progXp,
                   total: cost || 1,
                   label: can ? "Freigeschaltet" : "XP gesammelt",
-                  size: 88,
+                  size: 64,
                   accent: can ? "#22c55e" : "#f59e0b",
                   emptyHint: "Noch keine XP für diese Belohnung."
                 })}
