@@ -53,13 +53,15 @@ window.LogbuchVisuals = {
 
     const doneAll = t != null && t > 0 && (c ?? 0) >= t;
     let hintText = "";
-    if (t === 0) {
+    if (value != null) {
+      hintText = sublabel || "";
+    } else if (t === 0) {
       hintText = emptyHint || "Noch keine Aufgaben eingetragen.";
     } else if (sublabel) {
       hintText = sublabel;
     } else if (doneAll) {
       hintText = "Alles geschafft!";
-    } else if (label) {
+    } else if (label && t != null) {
       hintText = `${c ?? 0} von ${t} ${label}`.trim();
     }
 

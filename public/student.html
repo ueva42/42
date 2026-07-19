@@ -751,8 +751,13 @@ body.student-app .notif-panel {
   max-width: 58%;
 }
 
+.dashboard-feature-card--hub .dashboard-feature-card__content,
 .dashboard-feature-card--xp .dashboard-feature-card__content {
-  max-width: 62%;
+  max-width: 56%;
+}
+
+.dashboard-feature-card--xp .dashboard-feature-card__content {
+  max-width: 58%;
 }
 
 /* Seamless right-edge artwork (same approach as hub tiles) */
@@ -769,13 +774,12 @@ body.student-app .notif-panel {
   border-radius: 0;
   box-shadow: none;
   display: block;
-  background:
-    radial-gradient(circle at 70% 40%, var(--accent-soft, rgba(34, 211, 238, 0.12)), transparent 55%),
-    linear-gradient(160deg, #071126 0%, #05091a 100%);
+  background: transparent;
 }
 
+.dashboard-feature-card--hub .dashboard-feature-card__visual,
 .dashboard-feature-card--xp .dashboard-feature-card__visual {
-  width: 42%;
+  width: 52%;
 }
 
 .dashboard-feature-card__visual img {
@@ -790,7 +794,7 @@ body.student-app .notif-panel {
   box-sizing: border-box;
   z-index: 1;
   opacity: 1;
-  filter: brightness(0.92) contrast(1.08) saturate(1.05);
+  filter: brightness(0.94) contrast(1.06) saturate(1.04);
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0%,
@@ -805,6 +809,23 @@ body.student-app .notif-panel {
     black 28%,
     black 100%
   );
+}
+
+/* Hub + XP heroes: fade all edges so black PNG frames disappear */
+.dashboard-feature-card--hub .dashboard-feature-card__visual img,
+.dashboard-feature-card--xp .dashboard-feature-card__visual img {
+  object-fit: cover;
+  object-position: center right;
+  padding: 0;
+  filter: brightness(0.9) contrast(1.1) saturate(1.05);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.35) 10%, black 26%, black 100%),
+    linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.35) 10%, black 26%, black 100%),
+    linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%);
+  mask-composite: intersect;
 }
 
 .dashboard-feature-card__visual::before {
@@ -824,6 +845,17 @@ body.student-app .notif-panel {
     rgba(5, 10, 28, 0.88) 36%,
     rgba(5, 10, 28, 0.22) 62%,
     transparent 82%
+  );
+}
+
+.dashboard-feature-card--hub::after,
+.dashboard-feature-card--xp::after {
+  background: linear-gradient(
+    90deg,
+    rgba(5, 10, 28, 0.98) 0%,
+    rgba(5, 10, 28, 0.92) 40%,
+    rgba(5, 10, 28, 0.35) 60%,
+    transparent 78%
   );
 }
 
@@ -869,7 +901,7 @@ body.student-app .notif-panel {
 
 .hub-hero-card-inner {
   padding: 30px;
-  max-width: none;
+  max-width: 56%;
 }
 
 .hub-hero-card__icon {
@@ -881,6 +913,8 @@ body.student-app .notif-panel {
 
 .hub-hero-greeting-title {
   margin: 0;
+  display: inline-block;
+  max-width: 100%;
   font-family: "Orbitron", system-ui;
   font-size: clamp(1rem, 2vw, 1.15rem);
   line-height: 1.25;
@@ -888,6 +922,8 @@ body.student-app .notif-panel {
   text-transform: uppercase;
   color: #f1f5f9;
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .dashboard-feature-card--hub .page-eyebrow {
@@ -896,8 +932,52 @@ body.student-app .notif-panel {
 }
 
 .hub-xp-panel__content {
-  padding: 18px 20px;
-  max-width: none;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 220px;
+}
+
+.hub-xp-panel-label {
+  margin: 0 0 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #c4b5fd;
+}
+
+.hub-xp-level {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f1f5ff;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.hub-xp-meta {
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e2e8f0;
+  line-height: 1.4;
+}
+
+.hub-xp-track {
+  margin-top: 14px;
+  max-width: 280px;
+}
+
+.hub-xp-next {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #aebbd4;
+  line-height: 1.4;
 }
 
 .hub-xp-panel-body {
@@ -926,33 +1006,6 @@ body.student-app .notif-panel {
   font-size: 9px;
 }
 
-.hub-xp-panel-copy {
-  padding-top: 4px;
-}
-
-.hub-xp-meta {
-  margin: 0;
-  font-size: 13px;
-  color: #cbd5e1;
-  line-height: 1.4;
-}
-
-.hub-xp-next {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: #94a3b8;
-  line-height: 1.4;
-}
-
-.hub-xp-panel-label {
-  margin: 0 0 12px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #c4b5fd;
-}
-
 .hub-xp-panel-row {
   display: flex;
   align-items: flex-start;
@@ -963,6 +1016,7 @@ body.student-app .notif-panel {
 .hub-xp-panel-copy {
   flex: 1;
   min-width: 0;
+  padding-top: 4px;
 }
 
 .hub-level-badge-wrap {
@@ -1940,9 +1994,10 @@ body.student-app .notif-panel {
 }
 
 .hub-xp-next {
-  margin: 8px 0 0;
-  font-size: 14px;
-  color: #94a3b8;
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #aebbd4;
+  line-height: 1.4;
 }
 
 .hub-xp-emblem {
@@ -2175,6 +2230,8 @@ body.student-app {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #f1f5f9;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .page-hero__sub,
@@ -4709,7 +4766,7 @@ body.student-app {
   .hub-xp-panel__content,
   .hub-status-card__content,
   .dashboard-feature-card__content {
-    max-width: 100%;
+    max-width: min(70%, 100%);
   }
 
   .student-section-icon,
@@ -10459,8 +10516,8 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=24"></script>
-<script src="/js/logbuch-visuals.js?v=9"></script>
+<script src="/js/logbuch-hub.js?v=25"></script>
+<script src="/js/logbuch-visuals.js?v=10"></script>
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>

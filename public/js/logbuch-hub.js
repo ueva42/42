@@ -329,28 +329,19 @@
   }
 
   function renderXpPanel(ui, p) {
-    const V = window.LogbuchVisuals;
-    const xpPct = p.xpPct ?? 0;
-    const levelCircle = V
-      ? V.circularProgress({
-          value: xpPct,
-          label: p.levelName || "Level",
-          size: 88,
-          accent: "#d946ef"
-        })
-      : "";
+    const xpPct = Math.max(0, Math.min(100, Number(p.xpPct) || 0));
+    const levelName = p.levelName && p.levelName !== "—" ? p.levelName : "Level";
 
     return `
       <aside class="dashboard-feature-card dashboard-feature-card--xp hub-accent-violet">
         <div class="dashboard-feature-card__content hub-xp-panel__content">
           <p class="hub-xp-panel-label">XP-Fortschritt</p>
-          <div class="hub-xp-panel-body hub-xp-panel-body--compact">
-            ${levelCircle}
-            <div class="hub-xp-panel-copy">
-              <p class="hub-xp-meta" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</p>
-              <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
-            </div>
+          <p class="hub-xp-level" id="hubXpLevel">${ui.escapeHtml(levelName)}</p>
+          <p class="hub-xp-meta" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</p>
+          <div class="hub-progress-track hub-progress-track-lg hub-xp-track" aria-hidden="true">
+            <div class="hub-progress-fill hub-progress-fill-xp" id="hubXpFill" style="width:${xpPct}%"></div>
           </div>
+          <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
         </div>
         ${featureVisual(DASHBOARD_HERO.xp)}
       </aside>`;
@@ -458,6 +449,11 @@
     set("topbarLevel", p.levelName || "–");
     set("hubHeroNext", p.nextLevelLabel || "–");
     set("hubXpMeta", p.xpProgressLabel || "–");
+    set("hubXpLevel", p.levelName && p.levelName !== "—" ? p.levelName : "Level");
+    const xpFill = document.getElementById("hubXpFill");
+    if (xpFill) {
+      xpFill.style.width = `${Math.max(0, Math.min(100, Number(p.xpPct) || 0))}%`;
+    }
 
     const stats = todayStats(state.blocks);
     const remaining = Math.max(0, stats.total - stats.done);
