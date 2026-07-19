@@ -682,12 +682,8 @@ body.student-app .notif-panel {
   gap: 24px;
 }
 
-.hub-hero-grid--secondary {
-  grid-template-columns: 1fr;
-}
-
 @media (min-width: 1024px) {
-  .hub-hero-grid:not(.hub-hero-grid--secondary) {
+  .hub-hero-grid {
     grid-template-columns: 1fr 360px;
   }
 }
@@ -1008,15 +1004,15 @@ body.student-app .notif-panel {
 }
 
 .hub-hero-btn--primary {
-  border: 1px solid rgba(34, 211, 238, 0.4);
-  background: linear-gradient(135deg, rgba(34, 211, 238, 0.18), rgba(168, 85, 247, 0.16));
-  color: #a5f3fc;
-  box-shadow: 0 0 18px rgba(34, 211, 238, 0.14);
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  background: rgba(249, 115, 22, 0.14);
+  color: #fed7aa;
+  box-shadow: 0 0 18px rgba(249, 115, 22, 0.12);
 }
 
 .hub-hero-btn--primary:hover {
-  background: linear-gradient(135deg, rgba(34, 211, 238, 0.26), rgba(168, 85, 247, 0.22));
-  border-color: rgba(34, 211, 238, 0.55);
+  background: rgba(249, 115, 22, 0.22);
+  border-color: rgba(251, 146, 60, 0.5);
   transform: translateY(-1px);
 }
 
@@ -1334,139 +1330,6 @@ body.student-app .notif-panel {
 .hub-tile-sm .hub-tile-art.sol-hero__art {
   width: min(42%, 180px);
   opacity: 0.95;
-}
-
-/* Dashboard command hero with character */
-.hub-command-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.85fr);
-  gap: 0;
-  min-height: 300px;
-  border-radius: 28px;
-  border: 1px solid rgba(34, 211, 238, 0.28);
-  background:
-    radial-gradient(circle at 78% 30%, rgba(34, 211, 238, 0.16), transparent 42%),
-    radial-gradient(circle at 92% 85%, rgba(168, 85, 247, 0.2), transparent 46%),
-    linear-gradient(135deg, #091126 0%, #05091a 55%, #0a1024 100%);
-  box-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.45),
-    0 0 40px rgba(34, 211, 238, 0.1);
-  overflow: hidden;
-}
-
-.hub-command-hero__main {
-  position: relative;
-  z-index: 3;
-  padding: 22px 20px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-
-.hub-command-hero__figure {
-  position: relative;
-  z-index: 2;
-  min-height: 280px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 12px 12px 0;
-  background:
-    radial-gradient(circle at 50% 40%, rgba(34, 211, 238, 0.18), transparent 50%),
-    radial-gradient(circle at 60% 90%, rgba(168, 85, 247, 0.22), transparent 48%),
-    linear-gradient(180deg, rgba(11, 21, 48, 0.35), rgba(5, 9, 26, 0.15));
-}
-
-.hub-command-hero__figure-img {
-  width: auto;
-  max-width: 100%;
-  height: min(320px, 46vw);
-  max-height: 340px;
-  object-fit: contain;
-  object-position: center;
-  display: block;
-  filter: drop-shadow(0 12px 28px rgba(34, 211, 238, 0.22));
-}
-
-.hub-command-hero__figure-fallback {
-  width: 100%;
-  height: 100%;
-  max-height: 320px;
-  object-fit: contain;
-  object-position: center;
-  opacity: 0.92;
-}
-
-.hub-status-panel {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.hub-status-pill {
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(2, 6, 23, 0.55);
-  min-width: 0;
-}
-
-.hub-status-pill__label {
-  display: block;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #94a3b8;
-  margin-bottom: 4px;
-}
-
-.hub-status-pill__value {
-  display: block;
-  font-size: 14px;
-  font-weight: 700;
-  color: #f4f7ff;
-  line-height: 1.25;
-  word-break: break-word;
-}
-
-.hub-status-pill--wide {
-  grid-column: 1 / -1;
-}
-
-.hub-skill-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.hub-skill-chip {
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(34, 211, 238, 0.28);
-  background: rgba(34, 211, 238, 0.1);
-  color: #a5f3fc;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-@media (max-width: 900px) {
-  .hub-command-hero {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
-
-  .hub-command-hero__figure {
-    order: -1;
-    min-height: 200px;
-    max-height: 240px;
-  }
-
-  .hub-command-hero__figure-img {
-    height: 220px;
-  }
 }
 
 @media (max-width: 720px) {
@@ -4128,19 +3991,9 @@ body.student-app {
 }
 
 .character-profile-card .char-img {
-  display: block;
-  width: 100%;
-  max-width: 280px;
-  max-height: 320px;
-  margin: 0 auto 12px;
-  object-fit: contain;
-  object-position: center;
-  border-radius: 16px;
-  background:
-    radial-gradient(circle at 50% 30%, rgba(34, 211, 238, 0.16), transparent 55%),
-    linear-gradient(160deg, #0b1530 0%, #05091a 100%);
-  padding: 12px;
-  box-sizing: border-box;
+  max-width: 180px;
+  border-radius: 18px;
+  margin-bottom: 10px;
 }
 
 .character-profile-card .char-name {
@@ -4718,7 +4571,7 @@ body.student-app {
     height: auto;
     opacity: 0.9;
     object-fit: contain;
-    object-position: center bottom;
+    object-position: center;
   }
 
   .page-hero::after,
@@ -10487,7 +10340,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=22"></script>
+<script src="/js/logbuch-hub.js?v=23"></script>
 <script src="/js/logbuch-visuals.js?v=9"></script>
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
