@@ -51,18 +51,28 @@ body {
 a { color: inherit; }
 
 /* ============================================
-   LOADING SCREEN – Optimiert
+   LOADING SCREEN – Neon city (CSS UI over bg)
 ============================================ */
 .loading-overlay {
   position: fixed;
   inset: 0;
-  background: radial-gradient(circle at center, #020617 0%, #111827 100%);
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
   opacity: 1;
   transition: opacity 0.8s ease;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(2, 6, 23, 0.72) 0%,
+      rgba(2, 6, 23, 0.82) 48%,
+      rgba(2, 6, 23, 0.9) 100%
+    ),
+    url("/icons/login/login-background.png?v=1");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .loading-overlay.hide {
@@ -70,98 +80,117 @@ a { color: inherit; }
   pointer-events: none;
 }
 
-.loading-overlay::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(255,255,255,0.03) 0px,
-    rgba(255,255,255,0.03) 1px,
-    rgba(0,0,0,0.05) 2px
-  );
-  animation: scanMove 8s linear infinite;
-  opacity: 0.35;
-}
-
-@keyframes scanMove {
-  0%   { transform: translateY(0); }
-  100% { transform: translateY(-100%); }
-}
-
 .loading-content {
   text-align: center;
-  max-width: 780px;
-  width: 90%;
+  width: min(92vw, 520px);
+  padding: 24px 18px;
+  position: relative;
+  z-index: 1;
 }
 
-.loading-image {
-  max-width: 100%;
-  border-radius: 22px;
-  margin: 0 auto 20px auto;
-  opacity: 0;
-  animation: loaderImageFade 5.6s ease forwards;
-  box-shadow:
-    0 0 0 4px rgba(0,0,0,0.8),
-    0 0 22px #f97316,
-    0 0 44px rgba(249,115,22,0.5),
-    0 0 70px rgba(249,115,22,0.25);
+.loading-brand {
+  margin: 0 0 28px;
 }
 
-@keyframes loaderImageFade {
-  0%   { opacity: 0; }
-  15%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { opacity: 0; }
+.loading-brand__kicker {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #f8fafc;
 }
 
-.loading-bar {
-  width: 80%;
-  max-width: 540px;
-  height: 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.4);
-  background: rgba(8,15,30,0.95);
-  margin: 0 auto;
-  overflow: hidden;
-  box-shadow:
-    0 0 10px rgba(255,255,255,0.4),
-    0 0 25px rgba(252,211,77,0.25);
+.loading-brand__title {
+  margin: 8px 0 0;
+  font-family: "Orbitron", system-ui;
+  font-size: clamp(2.2rem, 8vw, 3.4rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f8fafc;
+  text-shadow:
+    0 0 18px rgba(34, 211, 238, 0.55),
+    0 0 40px rgba(34, 211, 238, 0.28);
+  border: none;
+  padding: 0;
 }
 
-.loading-bar-fill {
-  width: 0%;
-  height: 100%;
-  background: linear-gradient(90deg,
-    #22c55e,
-    #a3e635,
-    #facc15,
-    #fb923c,
-    #f97316,
-    #c084fc
-  );
-  box-shadow: 0 0 20px rgba(249,115,22,0.95);
-  animation: loadingA 3s ease-in-out forwards;
+.loading-brand__edition {
+  margin: 12px auto 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Orbitron", system-ui;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #e879f9;
 }
 
-@keyframes loadingA {
-  0%   { width: 0%; }
-  20%  { width: 35%; }
-  50%  { width: 70%; }
-  75%  { width: 85%; }
-  100% { width: 100%; }
+.loading-brand__edition::before,
+.loading-brand__edition::after {
+  content: "";
+  width: 28px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #e879f9, transparent);
 }
 
 .loading-hint {
-  margin-top: 12px;
+  margin: 0 0 14px;
   font-size: 14px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #e5e7eb;
-  opacity: 0.92;
-  text-shadow: 0 0 6px rgba(255,255,255,0.25);
+  letter-spacing: 0.06em;
+  color: #e2e8f0;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
 }
+
+.loading-track {
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.12);
+  position: relative;
+}
+
+.loading-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #a855f7, #ec4899, #f59e0b);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.55);
+  animation: loadingIndeterminate 1.6s ease-in-out infinite;
+}
+
+@keyframes loadingIndeterminate {
+  0% { left: -42%; width: 42%; }
+  50% { left: 28%; width: 48%; }
+  100% { left: 100%; width: 42%; }
+}
+
+.loading-bolt {
+  margin: 22px auto 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #f5d0fe;
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(232, 121, 249, 0.45);
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.35);
+  font-size: 13px;
+}
+
+/* legacy aliases kept for older selectors */
+.loading-image { display: none !important; }
+.loading-bar { display: none !important; }
+.loading-bar-fill { display: none !important; }
 
 body.student-app {
   display: block;
@@ -10072,9 +10101,7 @@ h2 {
 
   .character-choice-card { width: 130px; }
 
-  .loading-image { border-radius: 18px; }
-
-  .loading-hint { font-size: 11px; }
+  .loading-hint { font-size: 13px; }
 
   .notif-wrap{ top: 70px; right: 14px; }
 }
@@ -10086,9 +10113,16 @@ h2 {
 <!-- LOADING OVERLAY -->
 <div id="loadingOverlay" class="loading-overlay">
   <div class="loading-content">
-    <img src="/assets/loading-screen.png" alt="Streets of Logic Loading" class="loading-image">
-    <div class="loading-bar"><div class="loading-bar-fill"></div></div>
-    <div class="loading-hint">Lädt deine Streets of Logic – XP-Daten …</div>
+    <div class="loading-brand">
+      <p class="loading-brand__kicker">Streets of</p>
+      <h1 class="loading-brand__title">Logic</h1>
+      <p class="loading-brand__edition">XP Edition</p>
+    </div>
+    <p class="loading-hint">Mission wird vorbereitet …</p>
+    <div class="loading-track" aria-hidden="true">
+      <div class="loading-fill"></div>
+    </div>
+    <div class="loading-bolt" aria-hidden="true">⚡</div>
   </div>
 </div>
 
@@ -10545,12 +10579,9 @@ function hideLoader() {
 }
 
 window.addEventListener("load", () => {
-  const img = document.querySelector(".loading-image");
-  if (!img) { setTimeout(hideLoader, 5000); return; }
-  img.onload = () => { setTimeout(hideLoader, 4800); };
-  if (img.complete) img.onload();
+  setTimeout(hideLoader, 2200);
 });
-setTimeout(hideLoader, 7000);
+setTimeout(hideLoader, 5000);
 
 /* ============================================
    MENU
