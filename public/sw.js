@@ -1,4 +1,4 @@
-const CACHE_VERSION = "sol-logbuch-v7";
+const CACHE_VERSION = "sol-logbuch-v8";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;

@@ -7,6 +7,20 @@
   const icon = (slug) => `/icons/student/png/${slug}.png`;
   const hero = (slug) => `/icons/student/hero/${slug}-hero.png?v=6`;
 
+  /** Central artwork mapping for hub tiles (fit/position only — assets stay fixed). */
+  const TILE_ARTWORK = {
+    "mein-tag": { fit: "contain", position: "center right" },
+    "meine-woche": { fit: "contain", position: "center right" },
+    zielsetzung: { fit: "contain", position: "center" },
+    lernstand: { fit: "contain", position: "center" },
+    "taktik-deck": { fit: "contain", position: "center" },
+    "meine-checks": { fit: "contain", position: "center" },
+    missionen: { fit: "contain", position: "center" },
+    belohnungen: { fit: "contain", position: "center" },
+    charakter: { fit: "contain", position: "center" },
+    "xp-historie": { fit: "contain", position: "center" }
+  };
+
   const DASHBOARD_HERO = {
     hub: "/icons/student/hero/dein-hub-hero.png?v=6",
     xp: "/icons/student/hero/xp-fortschritt-hero.png?v=6",
@@ -223,15 +237,18 @@
     const large = size === "large";
     const iconSrc = icon(tile.slug);
     const heroSrc = hero(tile.slug);
+    const art = TILE_ARTWORK[tile.slug] || { fit: "contain", position: "center" };
+    const fit = art.fit === "cover" ? "cover" : "contain";
+    const position = ui.escapeHtml(art.position || "center");
     return `
       <button type="button"
-        class="hub-tile dashboard-card app-card hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""} sol-hero"
+        class="hub-tile dashboard-card app-card hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
         data-hub-section="${ui.escapeHtml(tile.section)}">
         <span class="hub-tile-glow" aria-hidden="true"></span>
         <span class="hub-tile-shine" aria-hidden="true"></span>
-        <span class="sol-hero__art hub-tile-art" aria-hidden="true">
-          <img class="sol-hero__img page-hero__image dashboard-card__hero" src="${heroSrc}" alt="" loading="lazy" decoding="async" onerror="this.closest('.sol-hero__art')?.remove()">
-        </span>
+        <div class="dashboard-card__artwork hub-tile-art" data-fit="${fit}" aria-hidden="true">
+          <img class="dashboard-card__hero" src="${heroSrc}" alt="" loading="lazy" decoding="async" style="--art-position: ${position}" onerror="this.closest('.dashboard-card__artwork')?.remove()">
+        </div>
         <div class="hub-tile-content dashboard-card__content card-content">
           ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
           <div class="student-section-icon" aria-hidden="true">

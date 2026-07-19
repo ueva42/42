@@ -1154,10 +1154,10 @@ body.student-app .notif-panel {
 .hub-block-label {
   margin: 0 0 16px;
   font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0.22em;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #cbd5e1;
+  color: #dce6ff;
 }
 
 .hub-grid-main {
@@ -1188,13 +1188,14 @@ body.student-app .notif-panel {
   border: 1px solid color-mix(in srgb, var(--accent, #fff) 45%, transparent);
   background:
     radial-gradient(circle at 85% 35%, var(--accent-soft, rgba(255, 255, 255, 0.08)), transparent 35%),
-    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.98));
-  color: #fff;
+    linear-gradient(135deg, #0a1228 0%, #071126 55%, #05091a 100%);
+  color: #f1f5ff;
   cursor: pointer;
   box-shadow:
     0 18px 50px rgba(0, 0, 0, 0.35),
     0 0 35px color-mix(in srgb, var(--accent, #fff) 18%, transparent);
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  isolation: isolate;
 }
 
 .hub-tile:hover {
@@ -1205,18 +1206,101 @@ body.student-app .notif-panel {
     0 0 48px color-mix(in srgb, var(--accent, #fff) 28%, transparent);
 }
 
-.hub-tile-content {
+.hub-tile-content,
+.hub-tile .dashboard-card__content {
   position: relative;
-  z-index: 2;
+  z-index: 4;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  max-width: 58%;
+  max-width: 56%;
   min-height: 100%;
+  opacity: 1;
+}
+
+/* Seamless right-edge artwork for dashboard tiles */
+.hub-tile .dashboard-card__artwork {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 52%;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background:
+    radial-gradient(circle at 70% 40%, var(--accent-soft, rgba(34, 211, 238, 0.14)), transparent 55%),
+    linear-gradient(160deg, #071126 0%, #05091a 100%);
+}
+
+.hub-tile .dashboard-card__artwork img,
+.hub-tile .dashboard-card__hero {
+  position: absolute !important;
+  inset: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  display: block;
+  object-fit: contain;
+  object-position: var(--art-position, center right);
+  opacity: 1 !important;
+  transform: none !important;
+  padding: 8px 12px 8px 0;
+  box-sizing: border-box;
+  filter: brightness(0.92) contrast(1.08) saturate(1.05);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.45) 12%,
+    black 28%,
+    black 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.45) 12%,
+    black 28%,
+    black 100%
+  );
+}
+
+.hub-tile .dashboard-card__artwork[data-fit="cover"] img {
+  object-fit: cover;
+  padding: 0;
+}
+
+.hub-tile-sm .dashboard-card__artwork {
+  width: 46%;
+}
+
+.hub-tile-lg .dashboard-card__artwork {
+  width: 54%;
+}
+
+/* Soft blend over artwork — never above text */
+.hub-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    rgba(5, 10, 28, 0.98) 0%,
+    rgba(5, 10, 28, 0.9) 38%,
+    rgba(5, 10, 28, 0.25) 63%,
+    transparent 82%
+  );
 }
 
 /* ============================================
-   SOL HERO SYSTEM – Background + Artwork layers
+   SOL HERO SYSTEM – page heroes (subpages)
 ============================================ */
 .sol-hero {
   --sol-hero-bg: #05091a;
@@ -1232,35 +1316,25 @@ body.student-app .notif-panel {
 .sol-hero__art {
   position: absolute;
   z-index: 1;
-  right: 8px;
-  top: 8px;
-  bottom: 8px;
-  width: min(44%, 320px);
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(48%, 340px);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 18px;
+  border-radius: 0;
   overflow: hidden;
   pointer-events: none;
+  border: none;
+  box-shadow: none;
   background:
-    radial-gradient(circle at 50% 30%, rgba(34, 211, 238, 0.16), transparent 55%),
-    radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.18), transparent 50%),
-    linear-gradient(160deg, #0b1530 0%, #05091a 55%, #07101f 100%);
-  border: 1px solid rgba(103, 232, 249, 0.12);
-  box-shadow:
-    inset 0 0 24px rgba(34, 211, 238, 0.06),
-    0 0 28px rgba(15, 23, 42, 0.45);
+    radial-gradient(circle at 50% 30%, rgba(34, 211, 238, 0.12), transparent 55%),
+    linear-gradient(160deg, #071126 0%, #05091a 100%);
 }
 
 .sol-hero__art::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background:
-    linear-gradient(135deg, rgba(34, 211, 238, 0.08), transparent 42%),
-    linear-gradient(225deg, rgba(168, 85, 247, 0.1), transparent 46%);
-  pointer-events: none;
+  content: none;
 }
 
 .sol-hero__img,
@@ -1280,8 +1354,21 @@ body.student-app .notif-panel {
   object-position: center !important;
   opacity: 1 !important;
   transform: none !important;
-  -webkit-mask-image: none !important;
-  mask-image: none !important;
+  filter: brightness(0.92) contrast(1.08) saturate(1.05);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.45) 14%,
+    black 32%,
+    black 100%
+  ) !important;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.45) 14%,
+    black 32%,
+    black 100%
+  ) !important;
   display: block;
 }
 
@@ -1316,30 +1403,13 @@ body.student-app .notif-panel {
   );
 }
 
-.hub-tile-art.sol-hero__art {
-  width: min(46%, 280px);
-  right: 6px;
-  top: 6px;
-  bottom: 6px;
-}
-
-.hub-tile-lg .hub-tile-art.sol-hero__art {
-  width: min(48%, 340px);
-}
-
-.hub-tile-sm .hub-tile-art.sol-hero__art {
-  width: min(42%, 180px);
-  opacity: 0.95;
-}
-
 @media (max-width: 720px) {
   .sol-hero--page {
     min-height: 132px;
   }
 
   .sol-hero__art {
-    width: min(40%, 160px);
-    opacity: 0.9;
+    width: min(42%, 170px);
   }
 
   .page-hero__content,
@@ -1349,7 +1419,6 @@ body.student-app .notif-panel {
   }
 }
 
-.hub-tile,
 .dashboard-card,
 .empty-state-card.dashboard-card {
   position: relative;
@@ -1357,8 +1426,7 @@ body.student-app .notif-panel {
   isolation: isolate;
 }
 
-.hub-tile::after,
-.dashboard-card::after,
+.dashboard-card:not(.hub-tile)::after,
 .page-hero::after,
 .empty-state-card.dashboard-card::after {
   content: "";
@@ -1369,15 +1437,14 @@ body.student-app .notif-panel {
   background:
     linear-gradient(
       90deg,
-      rgba(3, 7, 18, 0.72) 0%,
-      rgba(3, 7, 18, 0.45) 44%,
-      rgba(3, 7, 18, 0.12) 58%,
+      rgba(3, 7, 18, 0.55) 0%,
+      rgba(3, 7, 18, 0.28) 44%,
+      rgba(3, 7, 18, 0.08) 58%,
       transparent 72%
     );
 }
 
-.dashboard-card__content,
-.hub-tile-content {
+.dashboard-card__content:not(.hub-tile-content) {
   position: relative;
   z-index: 4;
   max-width: 56%;
@@ -1391,6 +1458,7 @@ body.student-app .notif-panel {
   display: grid;
   place-items: center;
   margin-bottom: 16px;
+  opacity: 1;
 }
 
 .student-section-icon img,
@@ -1399,7 +1467,8 @@ body.student-app .notif-panel {
   height: 100%;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 0 16px var(--accent-glow, rgba(255, 255, 255, 0.25)));
+  opacity: 1;
+  filter: drop-shadow(0 0 16px var(--accent-glow, rgba(255, 255, 255, 0.35)));
 }
 
 .hub-tile-sm .student-section-icon,
@@ -1441,6 +1510,7 @@ body.student-app .notif-panel {
   filter: blur(32px);
   pointer-events: none;
   opacity: 0.55;
+  z-index: 0;
 }
 
 .hub-tile-shine {
@@ -1449,6 +1519,7 @@ body.student-app .notif-panel {
   pointer-events: none;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, transparent 42%);
   opacity: 0.7;
+  z-index: 0;
 }
 
 .hub-tile-lg {
@@ -1461,18 +1532,7 @@ body.student-app .notif-panel {
 }
 
 .hub-tile-sm .hub-tile-content {
-  max-width: 68%;
-}
-
-.hub-tile-sm .hub-tile-hero {
-  width: 48%;
-  max-width: 180px;
-  opacity: 0.55;
-  right: -8px;
-}
-
-.hub-tile-sm:hover .hub-tile-hero {
-  opacity: 0.68;
+  max-width: 62%;
 }
 
 .hub-tile-badge {
@@ -1499,9 +1559,10 @@ body.student-app .notif-panel {
   max-width: 100%;
   font-size: 13px;
   line-height: 1.5;
-  color: #f1f5f9;
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
+  color: #aebbd4;
+  text-shadow: none;
   flex: 1;
+  opacity: 1;
 }
 
 .hub-tile-title {
@@ -1511,7 +1572,9 @@ body.student-app .notif-panel {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+  color: #f1f5ff;
+  text-shadow: none;
+  opacity: 1;
 }
 
 .hub-tile-lg .hub-tile-title {
@@ -1531,17 +1594,18 @@ body.student-app .notif-panel {
   margin-top: auto;
   padding: 7px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
   font-size: 12px;
   font-weight: 700;
-  color: #e2e8f0;
+  color: #eef4ff;
+  opacity: 1;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .hub-tile:hover .hub-tile-cta {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .hub-tile-arrow {
@@ -1559,9 +1623,8 @@ body.student-app .notif-panel {
   --tile-glow: rgba(249, 115, 22, 0.35);
   --tile-glow-strong: rgba(249, 115, 22, 0.45);
 }
-.hub-accent-orange .hub-tile-title { color: #fdba74; }
-.hub-accent-orange .hub-tile-text { color: #fff7ed; }
-.hub-accent-orange .hub-tile-cta { border-color: rgba(251, 146, 60, 0.25); color: #fed7aa; }
+.hub-accent-orange .hub-tile-title { color: #ffd4a8; }
+.hub-accent-orange .hub-tile-cta { border-color: rgba(251, 146, 60, 0.35); color: #eef4ff; }
 
 .hub-accent-purple {
   --accent: #a855f7;
@@ -1570,8 +1633,8 @@ body.student-app .notif-panel {
   --tile-glow: rgba(168, 85, 247, 0.35);
   --tile-glow-strong: rgba(168, 85, 247, 0.45);
 }
-.hub-accent-purple .hub-tile-title { color: #c4b5fd; }
-.hub-accent-purple .hub-tile-cta { border-color: rgba(196, 181, 253, 0.25); color: #ddd6fe; }
+.hub-accent-purple .hub-tile-title { color: #e4d4ff; }
+.hub-accent-purple .hub-tile-cta { border-color: rgba(196, 181, 253, 0.35); color: #eef4ff; }
 
 .hub-accent-blue {
   --accent: #3b82f6;
@@ -1580,8 +1643,8 @@ body.student-app .notif-panel {
   --tile-glow: rgba(56, 189, 248, 0.3);
   --tile-glow-strong: rgba(56, 189, 248, 0.4);
 }
-.hub-accent-blue .hub-tile-title { color: #7dd3fc; }
-.hub-accent-blue .hub-tile-cta { border-color: rgba(125, 211, 252, 0.22); color: #bae6fd; }
+.hub-accent-blue .hub-tile-title { color: #c7e7ff; }
+.hub-accent-blue .hub-tile-cta { border-color: rgba(125, 211, 252, 0.35); color: #eef4ff; }
 
 .hub-accent-green {
   --accent: #22c55e;
@@ -1590,8 +1653,8 @@ body.student-app .notif-panel {
   --tile-glow: rgba(52, 211, 153, 0.28);
   --tile-glow-strong: rgba(52, 211, 153, 0.38);
 }
-.hub-accent-green .hub-tile-title { color: #6ee7b7; }
-.hub-accent-green .hub-tile-cta { border-color: rgba(110, 231, 183, 0.22); color: #a7f3d0; }
+.hub-accent-green .hub-tile-title { color: #b6f5d4; }
+.hub-accent-green .hub-tile-cta { border-color: rgba(110, 231, 183, 0.35); color: #eef4ff; }
 
 .hub-accent-cyan {
   --accent: #22d3ee;
@@ -1600,8 +1663,8 @@ body.student-app .notif-panel {
   --tile-glow: rgba(34, 211, 238, 0.28);
   --tile-glow-strong: rgba(34, 211, 238, 0.38);
 }
-.hub-accent-cyan .hub-tile-title { color: #67e8f9; }
-.hub-accent-cyan .hub-tile-cta { border-color: rgba(103, 232, 249, 0.22); color: #a5f3fc; }
+.hub-accent-cyan .hub-tile-title { color: #b8f4ff; }
+.hub-accent-cyan .hub-tile-cta { border-color: rgba(103, 232, 249, 0.35); color: #eef4ff; }
 
 .hub-accent-teal {
   --accent: #06b6d4;
@@ -1610,8 +1673,8 @@ body.student-app .notif-panel {
   --tile-glow: rgba(6, 182, 212, 0.28);
   --tile-glow-strong: rgba(6, 182, 212, 0.38);
 }
-.hub-accent-teal .hub-tile-title { color: #67e8f9; }
-.hub-accent-teal .hub-tile-cta { border-color: rgba(103, 232, 249, 0.22); color: #a5f3fc; }
+.hub-accent-teal .hub-tile-title { color: #b8f4ff; }
+.hub-accent-teal .hub-tile-cta { border-color: rgba(103, 232, 249, 0.35); color: #eef4ff; }
 
 .hub-accent-pink {
   --accent: #ec4899;
@@ -1620,8 +1683,8 @@ body.student-app .notif-panel {
   --tile-glow: rgba(236, 72, 153, 0.32);
   --tile-glow-strong: rgba(236, 72, 153, 0.42);
 }
-.hub-accent-pink .hub-tile-title { color: #f9a8d4; }
-.hub-accent-pink .hub-tile-cta { border-color: rgba(249, 168, 212, 0.25); color: #fbcfe8; }
+.hub-accent-pink .hub-tile-title { color: #ffd0ea; }
+.hub-accent-pink .hub-tile-cta { border-color: rgba(249, 168, 212, 0.35); color: #eef4ff; }
 
 .hub-accent-gold {
   --accent: #f59e0b;
@@ -1630,8 +1693,8 @@ body.student-app .notif-panel {
   --tile-glow: rgba(245, 158, 11, 0.3);
   --tile-glow-strong: rgba(245, 158, 11, 0.4);
 }
-.hub-accent-gold .hub-tile-title { color: #fcd34d; }
-.hub-accent-gold .hub-tile-cta { border-color: rgba(252, 211, 77, 0.22); color: #fde68a; }
+.hub-accent-gold .hub-tile-title { color: #ffe7a3; }
+.hub-accent-gold .hub-tile-cta { border-color: rgba(252, 211, 77, 0.35); color: #eef4ff; }
 
 .hub-accent-violet {
   --accent: #8b5cf6;
@@ -1640,8 +1703,8 @@ body.student-app .notif-panel {
   --tile-glow: rgba(139, 92, 246, 0.32);
   --tile-glow-strong: rgba(139, 92, 246, 0.42);
 }
-.hub-accent-violet .hub-tile-title { color: #c4b5fd; }
-.hub-accent-violet .hub-tile-cta { border-color: rgba(196, 181, 253, 0.22); color: #ddd6fe; }
+.hub-accent-violet .hub-tile-title { color: #e4d4ff; }
+.hub-accent-violet .hub-tile-cta { border-color: rgba(196, 181, 253, 0.35); color: #eef4ff; }
 
 .hub-accent-magenta {
   --accent: #d946ef;
@@ -1650,13 +1713,13 @@ body.student-app .notif-panel {
   --tile-glow: rgba(217, 70, 239, 0.32);
   --tile-glow-strong: rgba(217, 70, 239, 0.42);
 }
-.hub-accent-magenta .hub-tile-title { color: #f0abfc; }
-.hub-accent-magenta .hub-tile-cta { border-color: rgba(240, 171, 252, 0.22); color: #f5d0fe; }
+.hub-accent-magenta .hub-tile-title { color: #f5d0fe; }
+.hub-accent-magenta .hub-tile-cta { border-color: rgba(240, 171, 252, 0.35); color: #eef4ff; }
 
 .hub-tile-featured {
   background:
     radial-gradient(circle at 85% 35%, rgba(236, 72, 153, 0.18), transparent 35%),
-    linear-gradient(135deg, rgba(76, 29, 149, 0.35), rgba(2, 6, 23, 0.96));
+    linear-gradient(135deg, #1a0f2e 0%, #071126 55%, #05091a 100%);
   border-color: rgba(244, 114, 182, 0.4);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 0 32px rgba(236, 72, 153, 0.14);
 }
@@ -1670,15 +1733,8 @@ body.student-app .notif-panel {
     max-width: 58%;
   }
 
-  .hub-tile-hero {
-    width: 42%;
-    opacity: 0.18;
-    right: 8px;
-    bottom: 8px;
-  }
-
-  .hub-tile:hover .hub-tile-hero {
-    opacity: 0.24;
+  .hub-tile .dashboard-card__artwork {
+    width: 48%;
   }
 }
 
@@ -1974,7 +2030,7 @@ body.student-app {
 .page-hero__image,
 .dashboard-card__hero,
 .hub-tile-hero {
-  /* Legacy absolute heroes: prefer art-stage wrappers (.sol-hero__art). */
+  /* Legacy absolute heroes: prefer art-stage wrappers. */
   position: absolute;
   z-index: 1;
   right: 8px;
@@ -1991,9 +2047,15 @@ body.student-app {
   transform: none;
 }
 
+/* Hub tiles use seamless artwork — don't apply legacy dimming */
+.hub-tile .dashboard-card__hero,
+.hub-tile .hero-art {
+  opacity: 1;
+}
+
 .app-card:hover .hero-art,
 .app-card:hover .page-hero__image,
-.app-card:hover .dashboard-card__hero {
+.app-card:not(.hub-tile):hover .dashboard-card__hero {
   opacity: 1;
   transform: none;
 }
@@ -2002,7 +2064,7 @@ body.student-app {
 .page-hero__content,
 .hub-tile-content {
   position: relative;
-  z-index: 3;
+  z-index: 4;
 }
 
 .page-hero {
@@ -4041,11 +4103,11 @@ body.student-app {
 .card-content,
 .page-hero__content {
   position: relative;
-  z-index: 2;
+  z-index: 4;
 }
 
 .card-hero-art,
-.dashboard-card__hero {
+.dashboard-card:not(.hub-tile) .dashboard-card__hero {
   position: absolute;
   z-index: 1;
   right: 0;
@@ -10340,7 +10402,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=23"></script>
+<script src="/js/logbuch-hub.js?v=24"></script>
 <script src="/js/logbuch-visuals.js?v=9"></script>
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
