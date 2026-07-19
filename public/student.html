@@ -682,8 +682,12 @@ body.student-app .notif-panel {
   gap: 24px;
 }
 
+.hub-hero-grid--secondary {
+  grid-template-columns: 1fr;
+}
+
 @media (min-width: 1024px) {
-  .hub-hero-grid {
+  .hub-hero-grid:not(.hub-hero-grid--secondary) {
     grid-template-columns: 1fr 360px;
   }
 }
@@ -740,14 +744,23 @@ body.student-app .notif-panel {
   position: relative;
   min-width: 0;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(34, 211, 238, 0.14), transparent 55%),
+    radial-gradient(circle at 70% 80%, rgba(168, 85, 247, 0.16), transparent 48%),
+    linear-gradient(160deg, #0b1530 0%, #05091a 100%);
 }
 
 .dashboard-feature-card__visual img {
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
-  object-position: center;
+  object-fit: contain;
+  object-position: center bottom;
+  position: relative;
+  z-index: 1;
 }
 
 .dashboard-feature-card__visual::before {
@@ -756,13 +769,12 @@ body.student-app .notif-panel {
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  background:
-    linear-gradient(
-      90deg,
-      rgba(3, 7, 18, 0.94) 0%,
-      rgba(3, 7, 18, 0.40) 30%,
-      rgba(3, 7, 18, 0.04) 70%
-    );
+  background: linear-gradient(
+    90deg,
+    rgba(3, 7, 18, 0.72) 0%,
+    rgba(3, 7, 18, 0.2) 36%,
+    rgba(3, 7, 18, 0.02) 70%
+  );
 }
 
 @media (max-width: 1023px) and (min-width: 761px) {
@@ -996,15 +1008,15 @@ body.student-app .notif-panel {
 }
 
 .hub-hero-btn--primary {
-  border: 1px solid rgba(251, 146, 60, 0.35);
-  background: rgba(249, 115, 22, 0.14);
-  color: #fed7aa;
-  box-shadow: 0 0 18px rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.18), rgba(168, 85, 247, 0.16));
+  color: #a5f3fc;
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.14);
 }
 
 .hub-hero-btn--primary:hover {
-  background: rgba(249, 115, 22, 0.22);
-  border-color: rgba(251, 146, 60, 0.5);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.26), rgba(168, 85, 247, 0.22));
+  border-color: rgba(34, 211, 238, 0.55);
   transform: translateY(-1px);
 }
 
@@ -1207,34 +1219,271 @@ body.student-app .notif-panel {
   min-height: 100%;
 }
 
-.hub-tile-hero,
-.hero-art,
-.page-hero__image,
-.dashboard-card__hero {
-  position: absolute;
-  z-index: 1;
-  right: 0;
-  top: 0;
-  width: 48%;
-  height: 100%;
-  max-width: none;
-  object-fit: cover;
-  object-position: center;
-  pointer-events: none;
-  user-select: none;
-  opacity: 0.82;
-  transform: none;
-  -webkit-mask-image: none;
-  mask-image: none;
-  transition: opacity 180ms ease;
+/* ============================================
+   SOL HERO SYSTEM – Background + Artwork layers
+============================================ */
+.sol-hero {
+  --sol-hero-bg: #05091a;
+  --sol-hero-panel: #091126;
+  --sol-hero-cyan: #22d3ee;
+  --sol-hero-purple: #a855f7;
+  --sol-hero-blue: #3b82f6;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
 }
 
-.hub-tile:hover .hub-tile-hero,
-.hub-tile:hover .page-hero__image,
-.app-card:hover .hero-art,
-.app-card:hover .dashboard-card__hero {
-  opacity: 0.88;
-  transform: none;
+.sol-hero__art {
+  position: absolute;
+  z-index: 1;
+  right: 8px;
+  top: 8px;
+  bottom: 8px;
+  width: min(44%, 320px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(34, 211, 238, 0.16), transparent 55%),
+    radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.18), transparent 50%),
+    linear-gradient(160deg, #0b1530 0%, #05091a 55%, #07101f 100%);
+  border: 1px solid rgba(103, 232, 249, 0.12);
+  box-shadow:
+    inset 0 0 24px rgba(34, 211, 238, 0.06),
+    0 0 28px rgba(15, 23, 42, 0.45);
+}
+
+.sol-hero__art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.08), transparent 42%),
+    linear-gradient(225deg, rgba(168, 85, 247, 0.1), transparent 46%);
+  pointer-events: none;
+}
+
+.sol-hero__img,
+.sol-hero__art .page-hero__image,
+.sol-hero__art .hub-tile-hero,
+.sol-hero__art .dashboard-card__hero,
+.sol-hero__art .hero-art {
+  position: relative !important;
+  z-index: 1;
+  inset: auto !important;
+  right: auto !important;
+  top: auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  opacity: 1 !important;
+  transform: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+  display: block;
+}
+
+.sol-hero--page {
+  min-height: 148px;
+  align-items: center;
+  padding: 18px 20px;
+  margin: -18px -20px 20px;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--accent, #22d3ee) 28%, transparent);
+  background:
+    radial-gradient(circle at 88% 40%, var(--accent-soft, rgba(34, 211, 238, 0.12)), transparent 42%),
+    linear-gradient(135deg, rgba(9, 17, 38, 0.98), rgba(5, 9, 26, 0.99));
+}
+
+.sol-hero--page .page-hero__content {
+  max-width: min(58%, 520px);
+  z-index: 3;
+}
+
+.sol-hero--page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(5, 9, 26, 0.55) 0%,
+    rgba(5, 9, 26, 0.22) 42%,
+    transparent 68%
+  );
+}
+
+.hub-tile-art.sol-hero__art {
+  width: min(46%, 280px);
+  right: 6px;
+  top: 6px;
+  bottom: 6px;
+}
+
+.hub-tile-lg .hub-tile-art.sol-hero__art {
+  width: min(48%, 340px);
+}
+
+.hub-tile-sm .hub-tile-art.sol-hero__art {
+  width: min(42%, 180px);
+  opacity: 0.95;
+}
+
+/* Dashboard command hero with character */
+.hub-command-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.85fr);
+  gap: 0;
+  min-height: 300px;
+  border-radius: 28px;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  background:
+    radial-gradient(circle at 78% 30%, rgba(34, 211, 238, 0.16), transparent 42%),
+    radial-gradient(circle at 92% 85%, rgba(168, 85, 247, 0.2), transparent 46%),
+    linear-gradient(135deg, #091126 0%, #05091a 55%, #0a1024 100%);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.45),
+    0 0 40px rgba(34, 211, 238, 0.1);
+  overflow: hidden;
+}
+
+.hub-command-hero__main {
+  position: relative;
+  z-index: 3;
+  padding: 22px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.hub-command-hero__figure {
+  position: relative;
+  z-index: 2;
+  min-height: 280px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px 12px 0;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(34, 211, 238, 0.18), transparent 50%),
+    radial-gradient(circle at 60% 90%, rgba(168, 85, 247, 0.22), transparent 48%),
+    linear-gradient(180deg, rgba(11, 21, 48, 0.35), rgba(5, 9, 26, 0.15));
+}
+
+.hub-command-hero__figure-img {
+  width: auto;
+  max-width: 100%;
+  height: min(320px, 46vw);
+  max-height: 340px;
+  object-fit: contain;
+  object-position: center bottom;
+  display: block;
+  filter: drop-shadow(0 12px 28px rgba(34, 211, 238, 0.22));
+}
+
+.hub-command-hero__figure-fallback {
+  width: 100%;
+  height: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  object-position: center bottom;
+  opacity: 0.92;
+}
+
+.hub-status-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hub-status-pill {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(2, 6, 23, 0.55);
+  min-width: 0;
+}
+
+.hub-status-pill__label {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.hub-status-pill__value {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f4f7ff;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.hub-status-pill--wide {
+  grid-column: 1 / -1;
+}
+
+.hub-skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hub-skill-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  background: rgba(34, 211, 238, 0.1);
+  color: #a5f3fc;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 900px) {
+  .hub-command-hero {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .hub-command-hero__figure {
+    order: -1;
+    min-height: 200px;
+    max-height: 240px;
+  }
+
+  .hub-command-hero__figure-img {
+    height: 220px;
+  }
+}
+
+@media (max-width: 720px) {
+  .sol-hero--page {
+    min-height: 132px;
+  }
+
+  .sol-hero__art {
+    width: min(40%, 160px);
+    opacity: 0.9;
+  }
+
+  .page-hero__content,
+  .dashboard-card__content,
+  .hub-tile-content {
+    max-width: min(62%, 100%);
+  }
 }
 
 .hub-tile,
@@ -1860,29 +2109,29 @@ body.student-app {
 
 .hero-art,
 .page-hero__image,
-.dashboard-card__hero {
+.dashboard-card__hero,
+.hub-tile-hero {
+  /* Legacy absolute heroes: prefer art-stage wrappers (.sol-hero__art). */
   position: absolute;
   z-index: 1;
-  right: 0;
-  top: 0;
-  width: 48%;
-  height: 100%;
-  max-width: none;
-  object-fit: cover;
-  object-position: center;
+  right: 8px;
+  top: 8px;
+  bottom: 8px;
+  width: 44%;
+  max-width: 320px;
+  height: auto;
+  object-fit: contain;
+  object-position: center bottom;
   pointer-events: none;
   user-select: none;
-  opacity: 0.82;
+  opacity: 0.95;
   transform: none;
-  -webkit-mask-image: none;
-  mask-image: none;
-  transition: opacity 0.18s ease;
 }
 
 .app-card:hover .hero-art,
 .app-card:hover .page-hero__image,
 .app-card:hover .dashboard-card__hero {
-  opacity: 0.88;
+  opacity: 1;
   transform: none;
 }
 
@@ -1890,24 +2139,26 @@ body.student-app {
 .page-hero__content,
 .hub-tile-content {
   position: relative;
-  z-index: 2;
+  z-index: 3;
 }
 
 .page-hero {
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  border-radius: 28px;
+  border-radius: 24px;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin: -18px -20px 20px;
-  padding: 18px 20px 16px;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent, #fff) 25%, transparent);
+  padding: 18px 20px;
+  min-height: 148px;
+  border: 1px solid color-mix(in srgb, var(--accent, #22d3ee) 28%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent, #22d3ee) 28%, transparent);
   background:
-    radial-gradient(circle at 88% 40%, var(--accent-soft, rgba(255, 255, 255, 0.08)), transparent 42%),
-    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.98));
+    radial-gradient(circle at 88% 40%, var(--accent-soft, rgba(34, 211, 238, 0.12)), transparent 42%),
+    linear-gradient(135deg, rgba(9, 17, 38, 0.98), rgba(5, 9, 26, 0.99));
 }
 
 .page-hero__content {
@@ -3877,9 +4128,19 @@ body.student-app {
 }
 
 .character-profile-card .char-img {
-  max-width: 180px;
-  border-radius: 18px;
-  margin-bottom: 10px;
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  max-height: 320px;
+  margin: 0 auto 12px;
+  object-fit: contain;
+  object-position: center bottom;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(34, 211, 238, 0.16), transparent 55%),
+    linear-gradient(160deg, #0b1530 0%, #05091a 100%);
+  padding: 12px;
+  box-sizing: border-box;
 }
 
 .character-profile-card .char-name {
@@ -4443,29 +4704,33 @@ body.student-app {
   .page-hero__content,
   .dashboard-card__content,
   .hub-tile-content {
-    max-width: 100%;
+    max-width: min(62%, 100%);
   }
 
   .page-hero__image,
   .dashboard-card__hero,
   .hub-tile-hero,
   .hero-art {
-    width: 72%;
-    right: -24%;
-    opacity: 0.36;
+    width: min(40%, 150px);
+    right: 6px;
+    top: 6px;
+    bottom: 6px;
+    height: auto;
+    opacity: 0.9;
+    object-fit: contain;
+    object-position: center bottom;
   }
 
   .page-hero::after,
   .dashboard-card::after,
   .hub-tile::after,
   .empty-state-card.dashboard-card::after {
-    background:
-      linear-gradient(
-        90deg,
-        rgba(3, 7, 18, 0.88) 0%,
-        rgba(3, 7, 18, 0.62) 62%,
-        rgba(3, 7, 18, 0.28) 100%
-      );
+    background: linear-gradient(
+      90deg,
+      rgba(5, 9, 26, 0.72) 0%,
+      rgba(5, 9, 26, 0.35) 58%,
+      rgba(5, 9, 26, 0.12) 100%
+    );
   }
 
   .hub-hero-card-inner,
@@ -9923,7 +10188,7 @@ h2 {
 
   <!-- MEIN TAG -->
   <div id="today-section" class="card section logbuch-screen student-screen student-screen--orange" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -9932,7 +10197,9 @@ h2 {
         <h2 class="page-hero__title">Mein Tag</h2>
         <p class="page-hero__sub">Deine heutigen Aufgaben auf einen Blick.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="today-status-panel" class="today-status-panel">
       <div id="userCard" class="today-status-user"></div>
@@ -9947,7 +10214,7 @@ h2 {
 
   <!-- WOCHE -->
   <div id="week-section" class="card section logbuch-screen logbuch-phase-week student-screen student-screen--purple" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/meine-woche.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -9956,14 +10223,16 @@ h2 {
         <h2 class="page-hero__title">Meine Woche</h2>
         <p class="page-hero__sub">Dein Lernplan für diese Woche.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/meine-woche-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/meine-woche-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="week-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- ZIELSETZUNG -->
   <div id="zielsetzung-section" class="card section logbuch-screen student-screen student-screen--cyan" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/zielsetzung.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -9972,14 +10241,16 @@ h2 {
         <h2 class="page-hero__title">Zielsetzung</h2>
         <p class="page-hero__sub">Setze Ziele und verfolge deinen Fortschritt.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/zielsetzung-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/zielsetzung-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="zielsetzung-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- LEVELPLAN -->
   <div id="levelplan-section" class="card section logbuch-screen student-screen student-screen--cyan" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/lernstand.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -9988,14 +10259,16 @@ h2 {
         <h2 class="page-hero__title">Mein Lernstand</h2>
         <p class="page-hero__sub">Sieh deine Entwicklung und was du schon sicher kannst.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/lernstand-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/lernstand-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="levelplan-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- TAKTIK-DECK -->
   <div id="taktik-deck-section" class="card section logbuch-screen student-screen student-screen--pink" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/taktik-deck.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -10004,14 +10277,16 @@ h2 {
         <h2 class="page-hero__title">Taktik-Deck</h2>
         <p class="page-hero__sub">Deine Strategien für jede Lernherausforderung.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/taktik-deck-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/taktik-deck-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="taktik-deck-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- CHECKPOINT-PLAN -->
   <div id="checkpoint-plan-section" class="card section logbuch-screen student-screen student-screen--cyan" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/meine-checks.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -10020,14 +10295,16 @@ h2 {
         <h2 class="page-hero__title">Meine Checks</h2>
         <p class="page-hero__sub">Tests, Klassenarbeiten und wichtige Termine im Blick.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/meine-checks-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/meine-checks-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="checkpoint-plan-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- PLANEN -->
   <div id="plan-section" class="card section logbuch-screen logbuch-phase-plan student-screen student-screen--cyan" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -10036,14 +10313,16 @@ h2 {
         <h2 class="page-hero__title">Tagesziel setzen</h2>
         <p class="page-hero__sub">Lege dein Tagesziel für diese Stunde fest.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="plan-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- ZWISCHEN-CHECK -->
   <div id="check-section" class="card section logbuch-screen logbuch-phase-check student-screen student-screen--violet" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -10052,14 +10331,16 @@ h2 {
         <h2 class="page-hero__title">Zwischen-Check</h2>
         <p class="page-hero__sub">Wie läuft's gerade in deiner Stunde?</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="check-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- TAGESABSCHLUSS -->
   <div id="reflect-section" class="card section logbuch-screen logbuch-phase-reflect student-screen student-screen--green" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -10068,14 +10349,16 @@ h2 {
         <h2 class="page-hero__title">Tagesabschluss</h2>
         <p class="page-hero__sub">Reflektiere, was du gelernt hast.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="reflect-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- CHARAKTER -->
   <div id="charakter-section" class="card section student-screen student-screen--blue" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/charakter.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -10084,14 +10367,16 @@ h2 {
         <h2 class="page-hero__title">Charakter</h2>
         <p class="page-hero__sub">Passe deinen Charakter an und zeig deinen Style.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/charakter-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/charakter-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="charakter-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- MISSIONEN -->
   <div id="missionen-section" class="card section student-screen student-screen--violet" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/missionen.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -10100,14 +10385,16 @@ h2 {
         <h2 class="page-hero__title">Missionen</h2>
         <p class="page-hero__sub">Nimm Herausforderungen an und sammle XP.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/missionen-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/missionen-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="missionCarousel"></div>
   </div>
 
   <!-- BELOHNUNGEN -->
   <div id="belohnungen-section" class="card section student-screen student-screen--gold" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/belohnungen.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -10116,7 +10403,9 @@ h2 {
         <h2 class="page-hero__title">Belohnungen</h2>
         <p class="page-hero__sub">Schalte Extras frei und feiere Erfolge.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/belohnungen-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/belohnungen-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div style="margin-bottom:16px;font-size:13px;opacity:0.85;display:none;"></div>
     <div id="rewardCarousel"></div>
@@ -10124,7 +10413,7 @@ h2 {
 
   <!-- XP HISTORIE -->
   <div id="xp-section" class="card section student-screen student-screen--magenta" style="display:none;">
-    <header class="page-hero">
+    <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
           <img src="/icons/student/png/xp-historie.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
@@ -10133,7 +10422,9 @@ h2 {
         <h2 class="page-hero__title">XP-Historie</h2>
         <p class="page-hero__sub">Verfolge deine XP und Lernstatistiken.</p>
       </div>
-      <img class="page-hero__image" src="/icons/student/hero/xp-historie-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+            <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/xp-historie-hero.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
     </header>
     <div id="xpLog"></div>
   </div>
@@ -10196,7 +10487,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=20"></script>
+<script src="/js/logbuch-hub.js?v=21"></script>
 <script src="/js/logbuch-visuals.js?v=9"></script>
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
@@ -10430,7 +10721,7 @@ initNotifUI();
 ============================================ */
 let xpPerMission = {};
 
-function updateStudentProfile(u, levels, character) {
+function updateStudentProfile(u, levels, character, traits) {
   const xp = Number(u.xp);
   const sorted = [...(levels || [])].sort((a, b) => Number(a.min_xp) - Number(b.min_xp));
   let current = sorted[0] || null;
@@ -10455,6 +10746,16 @@ function updateStudentProfile(u, levels, character) {
     nextLevelLabel = `Noch ${nextMin - xp} XP bis ${next.name}`;
   }
 
+  let traitList = traits;
+  if (typeof traitList === "string") {
+    try {
+      traitList = JSON.parse(traitList);
+    } catch (_) {
+      traitList = [];
+    }
+  }
+  if (!Array.isArray(traitList)) traitList = [];
+
   window.__studentProfile = {
     name: u.name,
     xp: u.xp,
@@ -10462,6 +10763,9 @@ function updateStudentProfile(u, levels, character) {
     nextLevelLabel,
     xpProgressLabel,
     xpPct,
+    characterImage: character?.image_url || null,
+    characterName: character?.name || null,
+    traits: traitList,
     todayXp: (__latestXpLog || [])
       .filter((e) => String(e.created_at).slice(0, 10) === new Date().toISOString().slice(0, 10))
       .reduce((sum, e) => sum + Number(e.amount || 0), 0)
@@ -10547,7 +10851,7 @@ window.loadMe = async function loadMe() {
   }
 
   renderLevelBar(data.levels || [], u.xp);
-  updateStudentProfile(u, data.levels || [], data.character);
+  updateStudentProfile(u, data.levels || [], data.character, data.traits);
   renderLevelBar(data.levels || [], u.xp);
 
   if (window.LogbuchVisuals && xpDiv) {

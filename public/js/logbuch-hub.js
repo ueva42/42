@@ -225,11 +225,13 @@
     const heroSrc = hero(tile.slug);
     return `
       <button type="button"
-        class="hub-tile dashboard-card app-card hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
+        class="hub-tile dashboard-card app-card hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""} sol-hero"
         data-hub-section="${ui.escapeHtml(tile.section)}">
         <span class="hub-tile-glow" aria-hidden="true"></span>
         <span class="hub-tile-shine" aria-hidden="true"></span>
-        <img class="page-hero__image dashboard-card__hero" src="${heroSrc}" alt="" loading="lazy" decoding="async" aria-hidden="true" onerror="this.style.display='none'">
+        <span class="sol-hero__art hub-tile-art" aria-hidden="true">
+          <img class="sol-hero__img page-hero__image dashboard-card__hero" src="${heroSrc}" alt="" loading="lazy" decoding="async" onerror="this.closest('.sol-hero__art')?.remove()">
+        </span>
         <div class="hub-tile-content dashboard-card__content card-content">
           ${tile.featured ? `<span class="hub-tile-badge">Empfohlen</span>` : ""}
           <div class="student-section-icon" aria-hidden="true">
@@ -267,7 +269,7 @@
           label: "Tagesfokus",
           sublabel: remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft!",
           size: 104,
-          accent: stats.done >= missionTotal && missionTotal > 0 ? "#22c55e" : "#f97316"
+          accent: stats.done >= missionTotal && missionTotal > 0 ? "#22c55e" : "#22d3ee"
         })
       : "";
 
@@ -289,7 +291,7 @@
           ${featureVisual(DASHBOARD_HERO.mission)}
         </div>
 
-        <div class="dashboard-feature-card dashboard-feature-card--focus hub-accent-orange">
+        <div class="dashboard-feature-card dashboard-feature-card--focus hub-accent-cyan">
           <div class="dashboard-feature-card__content hub-status-card__content">
             <p class="hub-block-label">Täglicher Fokus</p>
             <div class="hub-status-card__body">
@@ -309,6 +311,83 @@
       </section>`;
   }
 
+  function renderCommandHero(ui, p, stats, step) {
+    const firstName = firstNameFromProfile(p);
+    const remaining = Math.max(0, (stats.total || 0) - (stats.done || 0));
+    const traits = Array.isArray(p.traits) ? p.traits.slice(0, 5) : [];
+    const charImg = p.characterImage || "";
+    const charName = p.characterName || "Charakter";
+    const ctaLabel =
+      step.label === "Heute starten" || step.label === "Mein Tag ansehen"
+        ? "Heute starten"
+        : step.label;
+
+    const skillChips = traits.length
+      ? traits
+          .map((t) => `<span class="hub-skill-chip">${ui.escapeHtml(t)}</span>`)
+          .join("")
+      : `<span class="hub-skill-chip">Fokus</span><span class="hub-skill-chip">Dranbleiben</span><span class="hub-skill-chip">Check-Profi</span>`;
+
+    const figure = charImg
+      ? `<img class="hub-command-hero__figure-img" src="${ui.escapeHtml(charImg)}" alt="${ui.escapeHtml(charName)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${DASHBOARD_HERO.hub}';this.classList.add('hub-command-hero__figure-fallback')">`
+      : `<img class="hub-command-hero__figure-img hub-command-hero__figure-fallback" src="${DASHBOARD_HERO.hub}" alt="" aria-hidden="true" loading="lazy" decoding="async">`;
+
+    return `
+      <section class="hub-command-hero sol-hero" aria-label="Dein Hub">
+        <div class="hub-command-hero__main">
+          <div>
+            <p class="page-eyebrow">Dein Hub</p>
+            <h2 class="page-hero__title hub-hero-greeting-title" id="hubGreetingTitle">Hey ${ui.escapeHtml(firstName)}!</h2>
+            <p class="page-hero__sub hub-hero-sub">
+              Bereit, heute etwas zu lernen und XP zu sammeln?
+            </p>
+          </div>
+
+          <div class="hub-status-panel" aria-label="Status">
+            <div class="hub-status-pill">
+              <span class="hub-status-pill__label">Level</span>
+              <span class="hub-status-pill__value" id="hubStatusLevel">${ui.escapeHtml(p.levelName || "–")}</span>
+            </div>
+            <div class="hub-status-pill">
+              <span class="hub-status-pill__label">XP</span>
+              <span class="hub-status-pill__value" id="hubStatusXp">${ui.escapeHtml(p.xpProgressLabel || `${Number(p.xp || 0).toLocaleString("de-DE")} XP`)}</span>
+            </div>
+            <div class="hub-status-pill">
+              <span class="hub-status-pill__label">Rang</span>
+              <span class="hub-status-pill__value" id="hubStatusRank">${ui.escapeHtml(p.levelName || "Rookie")}</span>
+            </div>
+            <div class="hub-status-pill">
+              <span class="hub-status-pill__label">Heute</span>
+              <span class="hub-status-pill__value" id="hubStatusToday">${
+                remaining > 0
+                  ? `${remaining} Ziel${remaining === 1 ? "" : "e"} offen`
+                  : stats.total
+                    ? "Alles erledigt"
+                    : "Noch keine Stunden"
+              }</span>
+            </div>
+            <div class="hub-status-pill hub-status-pill--wide">
+              <span class="hub-status-pill__label">Skills</span>
+              <div class="hub-skill-chips" id="hubStatusSkills">${skillChips}</div>
+            </div>
+          </div>
+
+          <div class="hub-hero-actions">
+            <button type="button" class="hub-hero-btn hub-hero-btn--primary" id="hubNextBtn" data-hub-action="next">
+              ${ui.escapeHtml(ctaLabel)} <span aria-hidden="true">→</span>
+            </button>
+            <button type="button" class="hub-hero-btn hub-hero-btn--secondary" id="hubBriefingBtn">
+              Start-Briefing ansehen
+            </button>
+          </div>
+          <p class="hub-hero-hint" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
+        </div>
+        <div class="hub-command-hero__figure" aria-hidden="${charImg ? "false" : "true"}">
+          ${figure}
+        </div>
+      </section>`;
+  }
+
   function renderXpPanel(ui, p) {
     const V = window.LogbuchVisuals;
     const xpPct = p.xpPct ?? 0;
@@ -317,7 +396,7 @@
           value: xpPct,
           label: p.levelName || "Level",
           size: 88,
-          accent: "#d946ef"
+          accent: "#a855f7"
         })
       : "";
 
@@ -345,34 +424,11 @@
     const stats = todayStats(state.blocks);
     const step = state.nextStep || computeNextStep(state.blocks, state.todayDate);
 
-    const firstName = firstNameFromProfile(p);
-
     root.innerHTML = `
       <div class="hub-page">
-        <section class="hub-hero-grid">
-          <div class="dashboard-feature-card dashboard-feature-card--hub hub-accent-orange">
-            <div class="dashboard-feature-card__content hub-hero-card-inner">
-              <div class="student-section-icon hub-hero-card__icon" aria-hidden="true">
-                <img src="${icon("mein-tag")}" alt="" aria-hidden="true">
-              </div>
-              <p class="page-eyebrow">Dein Hub</p>
-              <h2 class="page-hero__title hub-hero-greeting-title" id="hubGreetingTitle">Hey ${ui.escapeHtml(firstName)}!</h2>
-              <p class="page-hero__sub hub-hero-sub">
-                Bereit, heute etwas zu lernen und XP zu sammeln?
-              </p>
-              <div class="hub-hero-actions">
-                <button type="button" class="hub-hero-btn hub-hero-btn--primary" id="hubNextBtn" data-hub-action="next">
-                  ${ui.escapeHtml(step.label === "Heute starten" || step.label === "Mein Tag ansehen" ? "Heute starten" : step.label)} <span aria-hidden="true">→</span>
-                </button>
-                <button type="button" class="hub-hero-btn hub-hero-btn--secondary" id="hubBriefingBtn">
-                  Start-Briefing ansehen
-                </button>
-              </div>
-              <p class="hub-hero-hint" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
-            </div>
-            ${featureVisual(DASHBOARD_HERO.hub)}
-          </div>
+        ${renderCommandHero(ui, p, stats, step)}
 
+        <section class="hub-hero-grid hub-hero-grid--secondary">
           ${renderXpPanel(ui, p)}
         </section>
 
@@ -439,10 +495,30 @@
     set("topbarLevel", p.levelName || "–");
     set("hubHeroNext", p.nextLevelLabel || "–");
     set("hubXpMeta", p.xpProgressLabel || "–");
+    set("hubStatusLevel", p.levelName || "–");
+    set("hubStatusXp", p.xpProgressLabel || `${Number(p.xp || 0).toLocaleString("de-DE")} XP`);
+    set("hubStatusRank", p.levelName || "Rookie");
+
+    const skills = document.getElementById("hubStatusSkills");
+    if (skills && Array.isArray(p.traits) && p.traits.length) {
+      const ui = UI();
+      skills.innerHTML = p.traits
+        .slice(0, 5)
+        .map((t) => `<span class="hub-skill-chip">${ui.escapeHtml(t)}</span>`)
+        .join("");
+    }
 
     const stats = todayStats(state.blocks);
     const remaining = Math.max(0, stats.total - stats.done);
     set("hubFocusMeta", `${remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft"} · ${stats.done}/${stats.total || 0} Reflexionen`);
+    set(
+      "hubStatusToday",
+      remaining > 0
+        ? `${remaining} Ziel${remaining === 1 ? "" : "e"} offen`
+        : stats.total
+          ? "Alles erledigt"
+          : "Noch keine Stunden"
+    );
 
     const focusText = document.getElementById("hubFocusText");
     if (focusText) {
