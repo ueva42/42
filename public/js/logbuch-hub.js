@@ -5,13 +5,13 @@
   const UI = () => window.LogbuchUI;
 
   const icon = (slug) => `/icons/student/png/${slug}.png`;
-  const hero = (slug) => `/icons/student/hero/${slug}-hero.png`;
+  const hero = (slug) => `/icons/student/hero/${slug}-hero.png?v=6`;
 
   const DASHBOARD_HERO = {
-    hub: "/icons/student/hero/dein-hub-hero.png",
-    xp: "/icons/student/hero/xp-fortschritt-hero.png",
-    mission: "/icons/student/hero/tages-mission-hero.png",
-    focus: "/icons/student/hero/taeglicher-fokus-hero.png"
+    hub: "/icons/student/hero/dein-hub-hero.png?v=6",
+    xp: "/icons/student/hero/xp-fortschritt-hero.png?v=6",
+    mission: "/icons/student/hero/tages-mission-hero.png?v=6",
+    focus: "/icons/student/hero/taeglicher-fokus-hero.png?v=6"
   };
 
   function featureVisual(src) {

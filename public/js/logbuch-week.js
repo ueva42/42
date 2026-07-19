@@ -207,7 +207,7 @@
     if (!rows.length) {
       return `
         <div class="student-card empty-state-card dashboard-card">
-          <img class="page-hero__image dashboard-card__hero" src="/icons/student/hero/meine-woche-hero.png" alt="" aria-hidden="true">
+          <img class="page-hero__image dashboard-card__hero" src="/icons/student/hero/meine-woche-hero.png?v=6" alt="" aria-hidden="true">
           <div class="card-content dashboard-card__content">
             <p class="empty-state-card__eyebrow">Keine Ziele</p>
             <h3 class="empty-state-card__title">Noch keine Ziele in dieser Woche.</h3>

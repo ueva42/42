@@ -1358,7 +1358,7 @@
         V?.emptyState({
           title: "Bitte wähle zuerst ein Fach.",
           text: "Danach siehst du deinen Zielpfad für die anstehende Klassenarbeit.",
-          heroSrc: "/icons/student/hero/zielsetzung-hero.png"
+          heroSrc: "/icons/student/hero/zielsetzung-hero.png?v=6"
         }) || ""
       );
     }

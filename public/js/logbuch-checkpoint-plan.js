@@ -192,7 +192,7 @@
         </div>
         <img
           class="mcp-hero__img"
-          src="/icons/student/hero/meine-checks-hero.png"
+          src="/icons/student/hero/meine-checks-hero.png?v=6"
           alt=""
           aria-hidden="true"
           onerror="this.style.display='none'"

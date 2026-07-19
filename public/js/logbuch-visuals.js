@@ -329,7 +329,7 @@ window.LogbuchVisuals = {
         this.emptyState({
           title: "Keine Missionen verfügbar.",
           text: "Deine Lehrkraft kann Missionen im Admin-Bereich anlegen.",
-          heroSrc: "/icons/student/hero/missionen-hero.png"
+          heroSrc: "/icons/student/hero/missionen-hero.png?v=6"
         })
       );
       return;
@@ -405,7 +405,7 @@ window.LogbuchVisuals = {
         this.emptyState({
           title: "Keine Belohnungen verfügbar.",
           text: "Belohnungen werden von deiner Lehrkraft freigeschaltet.",
-          heroSrc: "/icons/student/hero/belohnungen-hero.png"
+          heroSrc: "/icons/student/hero/belohnungen-hero.png?v=6"
         })
       );
       return;

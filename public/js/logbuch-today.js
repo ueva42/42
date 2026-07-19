@@ -244,7 +244,7 @@
             <button type="button" class="today-arrow" data-dir="next" aria-label="Nächster Tag">›</button>
           </div>
           <div class="today-overview-hero__visual" aria-hidden="true">
-            <img src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true" loading="lazy">
+            <img src="/icons/student/hero/mein-tag-hero.png?v=6" alt="" aria-hidden="true" loading="lazy">
           </div>
         </article>
 
@@ -458,7 +458,7 @@
 
     return `
       <div class="student-card empty-state-card dashboard-card">
-        <img class="page-hero__image dashboard-card__hero" src="/icons/student/hero/mein-tag-hero.png" alt="" aria-hidden="true">
+        <img class="page-hero__image dashboard-card__hero" src="/icons/student/hero/mein-tag-hero.png?v=6" alt="" aria-hidden="true">
         <div class="card-content dashboard-card__content">
           <p class="empty-state-card__eyebrow">Keine Stunden</p>
           <h3 class="empty-state-card__title">Heute ist noch nichts eingetragen.</h3>

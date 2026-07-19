@@ -492,7 +492,7 @@
           </div>
         </div>
         <div class="plan-app-hero__visual" aria-hidden="true">
-          <img src="/icons/student/hero/meine-checks-hero.png" alt="" aria-hidden="true" loading="lazy">
+          <img src="/icons/student/hero/meine-checks-hero.png?v=6" alt="" aria-hidden="true" loading="lazy">
         </div>
         <nav class="phase-rail" aria-label="Lernschritte">
           <span class="phase-rail__item is-done">1 · Tagesziel</span>

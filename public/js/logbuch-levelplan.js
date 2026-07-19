@@ -555,7 +555,7 @@
         visuals?.emptyState({
           title: "Dir ist noch keine Klasse zugeordnet.",
           text: "Bitte wende dich an deine Lehrkraft.",
-          heroSrc: "/icons/student/hero/lernstand-hero.png"
+          heroSrc: "/icons/student/hero/lernstand-hero.png?v=6"
         }) || ""
       );
     }
@@ -566,7 +566,7 @@
         visuals?.emptyState({
           title: "Noch kein Levelplan importiert.",
           text: "Deine Lehrkraft legt den Plan im Admin-Bereich an.",
-          heroSrc: "/icons/student/hero/lernstand-hero.png"
+          heroSrc: "/icons/student/hero/lernstand-hero.png?v=6"
         }) || ""
       );
     }

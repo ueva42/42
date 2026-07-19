@@ -1,4 +1,4 @@
-const CACHE_VERSION = "sol-logbuch-v5";
+const CACHE_VERSION = "sol-logbuch-v6";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -154,6 +154,11 @@ self.addEventListener("fetch", (event) => {
   const destination = request.destination;
 
   if (destination === "image") {
+    // Hero-Assets immer network-first, damit neue Dateien mit gleichem Namen nicht aus dem Image-Cache kommen
+    if (url.pathname.startsWith("/icons/student/hero/")) {
+      event.respondWith(networkFirstAsset(request, IMAGE_CACHE, 120));
+      return;
+    }
     event.respondWith(staleWhileRevalidate(request, IMAGE_CACHE, 120));
     return;
   }
