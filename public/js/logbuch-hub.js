@@ -15,10 +15,10 @@
     lernstand: { fit: "contain", position: "center" },
     "taktik-deck": { fit: "contain", position: "center" },
     "meine-checks": { fit: "contain", position: "center" },
-    missionen: { fit: "contain", position: "center" },
-    belohnungen: { fit: "contain", position: "center" },
-    charakter: { fit: "contain", position: "center" },
-    "xp-historie": { fit: "contain", position: "center" }
+    "missionen": { fit: "cover", position: "center right" },
+    belohnungen: { fit: "cover", position: "center right" },
+    charakter: { fit: "cover", position: "center right" },
+    "xp-historie": { fit: "cover", position: "center right" }
   };
 
   const DASHBOARD_HERO = {

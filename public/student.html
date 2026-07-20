@@ -1415,7 +1415,35 @@ body.student-app .notif-panel {
 }
 
 .hub-tile-sm .dashboard-card__artwork {
-  width: 46%;
+  width: 52%;
+  background: transparent;
+}
+
+.hub-tile-sm .dashboard-card__artwork img,
+.hub-tile-sm .dashboard-card__hero {
+  object-fit: cover;
+  object-position: center right;
+  padding: 0;
+  filter: brightness(0.9) contrast(1.12) saturate(1.06);
+  /* Soften all edges so black PNG frames disappear on compact tiles */
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 8%, black 24%, black 100%),
+    linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 8%, black 24%, black 100%),
+    linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+  mask-composite: intersect;
+}
+
+.hub-tile-sm::after {
+  background: linear-gradient(
+    90deg,
+    rgba(5, 10, 28, 0.98) 0%,
+    rgba(5, 10, 28, 0.92) 42%,
+    rgba(5, 10, 28, 0.35) 62%,
+    transparent 80%
+  );
 }
 
 .hub-tile-lg .dashboard-card__artwork {
@@ -10550,7 +10578,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=25"></script>
+<script src="/js/logbuch-hub.js?v=26"></script>
 <script src="/js/logbuch-visuals.js?v=10"></script>
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
