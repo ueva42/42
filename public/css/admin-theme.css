@@ -167,8 +167,11 @@ body.admin-app .nav-item.active svg {
 }
 
 body.admin-app .nav-item-logout {
-  background: rgba(127, 29, 29, 0.35);
-  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(127, 29, 29, 0.45);
+  border-color: rgba(248, 113, 113, 0.5);
+  margin-top: 10px;
+  position: relative;
+  z-index: 2;
 }
 
 body.admin-app .nav-item-logout svg {
