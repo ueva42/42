@@ -9,13 +9,13 @@
 
   /** Central artwork mapping for hub tiles (fit/position only — assets stay fixed). */
   const TILE_ARTWORK = {
-    "mein-tag": { fit: "contain", position: "center right" },
-    "meine-woche": { fit: "contain", position: "center right" },
-    zielsetzung: { fit: "contain", position: "center" },
-    lernstand: { fit: "contain", position: "center" },
-    "taktik-deck": { fit: "contain", position: "center" },
-    "meine-checks": { fit: "contain", position: "center" },
-    "missionen": { fit: "cover", position: "center right" },
+    "mein-tag": { fit: "cover", position: "center right" },
+    "meine-woche": { fit: "cover", position: "center right" },
+    zielsetzung: { fit: "cover", position: "center right" },
+    lernstand: { fit: "cover", position: "center right" },
+    "taktik-deck": { fit: "cover", position: "center right" },
+    "meine-checks": { fit: "cover", position: "center right" },
+    missionen: { fit: "cover", position: "center right" },
     belohnungen: { fit: "cover", position: "center right" },
     charakter: { fit: "cover", position: "center right" },
     "xp-historie": { fit: "cover", position: "center right" }

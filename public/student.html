@@ -840,9 +840,11 @@ body.student-app .notif-panel {
   );
 }
 
-/* Hub + XP heroes: fade all edges so black PNG frames disappear */
+/* Hub / XP / Mission / Fokus: fade all edges so black PNG frames disappear */
 .dashboard-feature-card--hub .dashboard-feature-card__visual img,
-.dashboard-feature-card--xp .dashboard-feature-card__visual img {
+.dashboard-feature-card--xp .dashboard-feature-card__visual img,
+.dashboard-feature-card--mission .dashboard-feature-card__visual img,
+.dashboard-feature-card--focus .dashboard-feature-card__visual img {
   object-fit: cover;
   object-position: center right;
   padding: 0;
@@ -1298,6 +1300,8 @@ body.student-app .notif-panel {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #dce6ff;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .hub-grid-main {
@@ -1371,9 +1375,7 @@ body.student-app .notif-panel {
   border: none;
   border-radius: 0;
   box-shadow: none;
-  background:
-    radial-gradient(circle at 70% 40%, var(--accent-soft, rgba(34, 211, 238, 0.14)), transparent 55%),
-    linear-gradient(160deg, #071126 0%, #05091a 100%);
+  background: transparent;
 }
 
 .hub-tile .dashboard-card__artwork img,
@@ -1386,46 +1388,13 @@ body.student-app .notif-panel {
   height: 100% !important;
   max-width: none !important;
   display: block;
-  object-fit: contain;
+  object-fit: cover;
   object-position: var(--art-position, center right);
   opacity: 1 !important;
   transform: none !important;
-  padding: 8px 12px 8px 0;
+  padding: 0;
   box-sizing: border-box;
-  filter: brightness(0.92) contrast(1.08) saturate(1.05);
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    rgba(0, 0, 0, 0.45) 12%,
-    black 28%,
-    black 100%
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    rgba(0, 0, 0, 0.45) 12%,
-    black 28%,
-    black 100%
-  );
-}
-
-.hub-tile .dashboard-card__artwork[data-fit="cover"] img {
-  object-fit: cover;
-  padding: 0;
-}
-
-.hub-tile-sm .dashboard-card__artwork {
-  width: 52%;
-  background: transparent;
-}
-
-.hub-tile-sm .dashboard-card__artwork img,
-.hub-tile-sm .dashboard-card__hero {
-  object-fit: cover;
-  object-position: center right;
-  padding: 0;
-  filter: brightness(0.9) contrast(1.12) saturate(1.06);
-  /* Soften all edges so black PNG frames disappear on compact tiles */
+  filter: brightness(0.9) contrast(1.1) saturate(1.05);
   -webkit-mask-image:
     linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 8%, black 24%, black 100%),
     linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
@@ -1436,12 +1405,22 @@ body.student-app .notif-panel {
   mask-composite: intersect;
 }
 
-.hub-tile-sm::after {
+.hub-tile .dashboard-card__artwork[data-fit="contain"] img {
+  object-fit: contain;
+  padding: 8px 12px 8px 0;
+}
+
+.hub-tile-sm .dashboard-card__artwork {
+  width: 52%;
+}
+
+.hub-tile-sm::after,
+.hub-tile-lg::after {
   background: linear-gradient(
     90deg,
     rgba(5, 10, 28, 0.98) 0%,
-    rgba(5, 10, 28, 0.92) 42%,
-    rgba(5, 10, 28, 0.35) 62%,
+    rgba(5, 10, 28, 0.92) 40%,
+    rgba(5, 10, 28, 0.32) 62%,
     transparent 80%
   );
 }
@@ -10578,7 +10557,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=26"></script>
+<script src="/js/logbuch-hub.js?v=27"></script>
 <script src="/js/logbuch-visuals.js?v=10"></script>
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
