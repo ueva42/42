@@ -1,0 +1,533 @@
+/**
+ * Streets of Logic – Admin visual theme (skin only).
+ * Scoped to body.admin-app. Does not change layout, JS, or structure.
+ */
+body.admin-app {
+  --admin-bg: #050817;
+  --admin-bg-secondary: #071126;
+  --admin-surface: #0a1429;
+  --admin-surface-raised: #0d1933;
+  --admin-surface-hover: #111f3d;
+  --admin-border: rgba(107, 137, 197, 0.24);
+  --admin-border-active: rgba(34, 211, 238, 0.5);
+  --admin-text: #f3f7ff;
+  --admin-text-normal: #d7e0f0;
+  --admin-text-secondary: #aebbd3;
+  --admin-text-muted: #8592ad;
+  --admin-cyan: #22d3ee;
+  --admin-blue: #3b82f6;
+  --admin-violet: #8b5cf6;
+  --admin-success: #2ddf84;
+  --admin-warning: #f59e0b;
+  --admin-danger: #f05269;
+  --admin-glow: rgba(34, 211, 238, 0.18);
+
+  color: var(--admin-text-normal);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(37, 99, 235, 0.1), transparent 34%),
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.08), transparent 30%),
+    var(--admin-bg);
+  font-family: "IBM Plex Sans", "Roboto", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ---------- Typography ---------- */
+body.admin-app h1,
+body.admin-app h2,
+body.admin-app h3,
+body.admin-app h4 {
+  color: var(--admin-text);
+  text-shadow: none;
+}
+
+body.admin-app h1 {
+  font-family: "Orbitron", system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  color: var(--admin-text);
+}
+
+body.admin-app h2 {
+  color: var(--admin-text);
+}
+
+body.admin-app h3 {
+  color: var(--admin-text-normal);
+}
+
+body.admin-app .page-subtitle,
+body.admin-app .hint,
+body.admin-app .panel small,
+body.admin-app .td-date-sub,
+body.admin-app .tc-hint,
+body.admin-app .tc-levelcheck-subject {
+  color: var(--admin-text-muted);
+  opacity: 1;
+}
+
+body.admin-app .msg-ok,
+body.admin-app .tt-msg-ok,
+body.admin-app .tc-msg-ok,
+body.admin-app .lpi-status-ok,
+body.admin-app .kr-practice-card__ok {
+  color: var(--admin-success);
+}
+
+body.admin-app .msg-error,
+body.admin-app .tt-msg-error,
+body.admin-app .tc-msg-err,
+body.admin-app .lpi-status-warn,
+body.admin-app .kr-practice-card__err {
+  color: #fecaca;
+}
+
+/* ---------- Sidebar / navigation ---------- */
+body.admin-app .sidebar {
+  background:
+    linear-gradient(180deg, rgba(13, 25, 51, 0.98), rgba(5, 9, 26, 0.99));
+  border-right: 1px solid var(--admin-border);
+  box-shadow: 8px 0 28px rgba(0, 0, 0, 0.28);
+}
+
+body.admin-app .sidebar-logo-orb {
+  background:
+    radial-gradient(circle at 30% 20%, #67e8f9 0, #3b82f6 35%, #8b5cf6 70%, #050817 100%);
+  box-shadow:
+    0 0 12px rgba(34, 211, 238, 0.45),
+    0 0 22px rgba(139, 92, 246, 0.28);
+  border: 2px solid rgba(107, 137, 197, 0.35);
+}
+
+body.admin-app .sidebar-title {
+  font-family: "Orbitron", system-ui, sans-serif;
+  color: var(--admin-text);
+  text-shadow: none;
+  letter-spacing: 0.1em;
+}
+
+body.admin-app .sidebar-subtitle {
+  color: var(--admin-text-muted);
+}
+
+body.admin-app .nav-section-title,
+body.admin-app .nav-section-toggle {
+  color: var(--admin-text-muted);
+}
+
+body.admin-app .nav-section-toggle:hover {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--admin-text-secondary);
+}
+
+body.admin-app .nav-section-collapsible {
+  border-top-color: var(--admin-border);
+}
+
+body.admin-app .nav-section-collapsible.has-active-tab .nav-section-toggle {
+  color: var(--admin-text-secondary);
+}
+
+body.admin-app .nav-item {
+  background: rgba(5, 12, 29, 0.72);
+  border: 1px solid var(--admin-border);
+  box-shadow: none;
+  color: var(--admin-text-secondary);
+}
+
+body.admin-app .nav-item svg {
+  fill: var(--admin-cyan);
+}
+
+body.admin-app .nav-label {
+  color: var(--admin-text-secondary);
+}
+
+body.admin-app .nav-item:hover {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(34, 211, 238, 0.35);
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.12);
+  transform: translateX(3px);
+}
+
+body.admin-app .nav-item:hover .nav-label {
+  color: var(--admin-text);
+}
+
+body.admin-app .nav-item.active {
+  background: linear-gradient(120deg, rgba(37, 99, 235, 0.45), rgba(139, 92, 246, 0.4));
+  border-color: var(--admin-border-active);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.22);
+}
+
+body.admin-app .nav-item.active .nav-label {
+  color: #fff;
+  font-weight: 600;
+}
+
+body.admin-app .nav-item.active svg {
+  fill: #fff;
+}
+
+body.admin-app .nav-item-logout {
+  background: rgba(127, 29, 29, 0.35);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+body.admin-app .nav-item-logout svg {
+  fill: #fecaca;
+}
+
+body.admin-app .nav-item-logout .nav-label {
+  color: #fecaca;
+}
+
+body.admin-app .nav-item-logout:hover {
+  background: rgba(185, 28, 28, 0.55);
+  box-shadow: 0 0 14px rgba(248, 113, 113, 0.25);
+}
+
+/* ---------- Surfaces / panels ---------- */
+body.admin-app .panel,
+body.admin-app .kr-practice-card,
+body.admin-app .kr-levels-panel,
+body.admin-app .cp-action-bar,
+body.admin-app .tc-add-form,
+body.admin-app .tc-levelcheck-card,
+body.admin-app .tc-topic-goal-group,
+body.admin-app .tc-was-goal-item,
+body.admin-app .tc-checkpoint-item,
+body.admin-app .slg-defaults,
+body.admin-app .td-timetable-slot,
+body.admin-app .tt-day-col,
+body.admin-app .tt-slot {
+  background: linear-gradient(145deg, rgba(13, 25, 51, 0.96), rgba(8, 17, 37, 0.96));
+  border: 1px solid var(--admin-border);
+  outline: none;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.2);
+}
+
+body.admin-app .panel::before {
+  border-color: rgba(148, 163, 184, 0.06);
+}
+
+body.admin-app .panel h3,
+body.admin-app .tc-levelcheck-name,
+body.admin-app .td-date,
+body.admin-app .tt-day-head {
+  color: var(--admin-text);
+}
+
+body.admin-app .tt-day-head,
+body.admin-app .tt-slot-time {
+  color: var(--admin-cyan);
+}
+
+body.admin-app .tc-topic-goal-title,
+body.admin-app .tc-checkpoint-group-title {
+  color: var(--admin-cyan);
+}
+
+body.admin-app .tc-checkpoint-item-active {
+  border-color: var(--admin-border-active);
+}
+
+body.admin-app .tc-edit-btn {
+  border-color: rgba(34, 211, 238, 0.4);
+  background: rgba(34, 211, 238, 0.1);
+  color: #a5f3fc;
+}
+
+body.admin-app .tc-edit-btn:hover {
+  background: rgba(34, 211, 238, 0.18);
+}
+
+body.admin-app .tc-link-btn {
+  color: #93c5fd;
+}
+
+/* ---------- Forms ---------- */
+body.admin-app input,
+body.admin-app select,
+body.admin-app textarea,
+body.admin-app .kr-practice-input,
+body.admin-app .kr-material-type,
+body.admin-app .kr-material-label,
+body.admin-app .kr-material-note,
+body.admin-app .tt-input,
+body.admin-app .tc-add-grid input,
+body.admin-app .tc-add-grid select,
+body.admin-app .tc-status-select,
+body.admin-app .tc-linked-select,
+body.admin-app .tc-checkpoint-date,
+body.admin-app .tc-checkpoint-row input,
+body.admin-app .tc-checkpoint-row select,
+body.admin-app .tc-goal-input,
+body.admin-app .lpi-textarea {
+  border: 1px solid rgba(125, 145, 185, 0.32);
+  background: rgba(5, 12, 29, 0.82);
+  color: var(--admin-text);
+  box-shadow: none;
+}
+
+body.admin-app input:focus,
+body.admin-app select:focus,
+body.admin-app textarea:focus,
+body.admin-app .kr-practice-input:focus,
+body.admin-app .tt-input:focus,
+body.admin-app .lpi-textarea:focus {
+  outline: none;
+  border-color: var(--admin-cyan);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+  background: rgba(5, 12, 29, 0.9);
+}
+
+body.admin-app input::placeholder,
+body.admin-app textarea::placeholder {
+  color: var(--admin-text-muted);
+}
+
+/* ---------- Buttons ---------- */
+body.admin-app button.action,
+body.admin-app .kr-practice-btn,
+body.admin-app .td-retry-btn {
+  background: linear-gradient(120deg, #2563eb 0%, #7c3aed 55%, #8b5cf6 100%);
+  color: #fff;
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.28);
+  transform: none;
+  text-shadow: none;
+}
+
+body.admin-app button.action:hover,
+body.admin-app .kr-practice-btn:hover,
+body.admin-app .td-retry-btn:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.28);
+}
+
+body.admin-app button.action:active,
+body.admin-app .kr-practice-btn:active {
+  transform: translateY(0);
+  filter: brightness(0.96);
+}
+
+body.admin-app .kr-practice-btn--ghost,
+body.admin-app .td-arrow,
+body.admin-app .kr-levels-preset {
+  background: rgba(5, 12, 29, 0.82);
+  color: var(--admin-text-normal);
+  border: 1px solid var(--admin-border);
+  box-shadow: none;
+}
+
+body.admin-app .td-arrow:hover,
+body.admin-app .kr-levels-preset:hover,
+body.admin-app .kr-practice-edit-btn:hover {
+  border-color: var(--admin-border-active);
+  color: var(--admin-text);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.14);
+}
+
+body.admin-app .kr-levels-preset.is-active {
+  border-color: var(--admin-border-active);
+  color: #a5f3fc;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.16);
+}
+
+body.admin-app button.delete,
+body.admin-app .tc-delete-btn,
+body.admin-app #modalDelete {
+  background: linear-gradient(120deg, #ef4444, #b91c1c);
+  color: #fef2f2;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  transform: none;
+}
+
+body.admin-app button.delete:hover,
+body.admin-app .tc-delete-btn:hover,
+body.admin-app #modalDelete:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 0 14px rgba(248, 113, 113, 0.3);
+}
+
+body.admin-app #modalBack {
+  background: linear-gradient(120deg, #2563eb, #0ea5e9);
+  color: #fff;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.25);
+}
+
+body.admin-app .kr-practice-edit-btn {
+  background: rgba(5, 12, 29, 0.7);
+  border-color: var(--admin-border);
+  color: var(--admin-text-normal);
+}
+
+/* ---------- Tables ---------- */
+body.admin-app table tbody tr {
+  background: linear-gradient(145deg, rgba(13, 25, 51, 0.92), rgba(8, 17, 37, 0.94));
+  border: 1px solid var(--admin-border);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+body.admin-app thead tr th,
+body.admin-app .td-table th,
+body.admin-app .tc-table th,
+body.admin-app .lpi-table th {
+  color: var(--admin-text-secondary);
+  opacity: 1;
+  background: rgba(13, 25, 51, 0.65);
+}
+
+body.admin-app .td-table th,
+body.admin-app .td-table td,
+body.admin-app .tc-table th,
+body.admin-app .tc-table td,
+body.admin-app .td-detail-table th,
+body.admin-app .td-detail-table td,
+body.admin-app .tw-table th,
+body.admin-app .tw-table td,
+body.admin-app .lpi-table th,
+body.admin-app .lpi-table td {
+  border-color: var(--admin-border);
+  color: var(--admin-text-normal);
+}
+
+body.admin-app .td-row:hover,
+body.admin-app .kr-practice-edit-row td {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+body.admin-app .lpi-table-scroll {
+  border-color: var(--admin-border);
+}
+
+body.admin-app .thumb {
+  border-color: var(--admin-cyan);
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.35);
+}
+
+/* ---------- Progress / status ---------- */
+body.admin-app .progress-outer {
+  border-color: rgba(34, 211, 238, 0.45);
+  background: rgba(5, 12, 29, 0.9);
+}
+
+body.admin-app .progress-inner {
+  background: linear-gradient(90deg, #2563eb, #8b5cf6, #22d3ee);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.35);
+}
+
+body.admin-app .kr-practice-status--ok,
+body.admin-app .tc-when-upcoming,
+body.admin-app .td-hint-green {
+  color: #86efac;
+  border-color: rgba(45, 223, 132, 0.35);
+  background: rgba(45, 223, 132, 0.12);
+}
+
+body.admin-app .kr-practice-status--bad,
+body.admin-app .td-hint-red {
+  color: #fecaca;
+  border-color: rgba(240, 82, 105, 0.35);
+  background: rgba(240, 82, 105, 0.12);
+}
+
+body.admin-app .td-hint-yellow {
+  color: #fde68a;
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.16);
+}
+
+body.admin-app .td-hint-blue,
+body.admin-app .kr-practice-status--none,
+body.admin-app .tc-when-past {
+  color: #bfdbfe;
+  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+body.admin-app .tc-tier-pill,
+body.admin-app .slg-badge {
+  border-color: var(--admin-border);
+  background: rgba(13, 25, 51, 0.7);
+  color: var(--admin-text-secondary);
+}
+
+body.admin-app .slg-badge-custom {
+  border-color: rgba(45, 223, 132, 0.45);
+  color: #bbf7d0;
+}
+
+/* ---------- Dialogs / modals ---------- */
+body.admin-app .td-modal-overlay {
+  background: rgba(2, 6, 23, 0.86);
+}
+
+body.admin-app .td-modal,
+body.admin-app #imgModal-inner {
+  background: linear-gradient(145deg, rgba(13, 25, 51, 0.98), rgba(8, 17, 37, 0.98));
+  border: 1px solid var(--admin-border-active);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), 0 0 24px rgba(34, 211, 238, 0.12);
+}
+
+body.admin-app .td-modal-head h3,
+body.admin-app .td-modal-close {
+  color: var(--admin-text);
+}
+
+body.admin-app #modalImg {
+  border-color: var(--admin-cyan);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.35);
+}
+
+body.admin-app .td-modal-sub,
+body.admin-app .tab-placeholder,
+body.admin-app .td-loading,
+body.admin-app .td-empty,
+body.admin-app .td-error,
+body.admin-app .tt-loading,
+body.admin-app .tt-error,
+body.admin-app .tt-empty,
+body.admin-app .tw-loading,
+body.admin-app .tw-error,
+body.admin-app .tw-empty,
+body.admin-app .tc-loading,
+body.admin-app .tc-error,
+body.admin-app .tc-empty {
+  color: var(--admin-text-secondary);
+  opacity: 1;
+}
+
+/* ---------- Week heatmap cells kept semantic ---------- */
+body.admin-app .tw-lvl-0 {
+  background: #1e293b;
+}
+
+body.admin-app .tw-corner,
+body.admin-app .tw-student-name,
+body.admin-app .tw-day-name {
+  color: var(--admin-text-normal);
+}
+
+body.admin-app .tc-goal-item {
+  background: rgba(5, 12, 29, 0.65);
+  color: var(--admin-text-normal);
+}
+
+body.admin-app .tc-was-goals-block,
+body.admin-app .tc-linked-block,
+body.admin-app .kr-topic-block {
+  border-top-color: var(--admin-border);
+}
+
+/* ---------- Content area ---------- */
+body.admin-app .content {
+  background: transparent;
+}
+
+body.admin-app .td-timetable-slot-free,
+body.admin-app .tt-slot-free {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.45);
+}
