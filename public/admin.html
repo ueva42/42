@@ -1409,6 +1409,7 @@
       <div class="panel">
         <h3>Klassenliste</h3>
         <select id="classManageSelect" onchange="loadClassStudents()"></select>
+        <button class="action" onclick="renameClass()">Umbenennen</button>
         <button class="delete" onclick="deleteClass()">Klasse löschen</button>
         <!-- Passwortkarten-Button -->
         <button class="action" onclick="printPasswordCards()">Passwortkarten drucken</button>
@@ -1999,6 +2000,28 @@ async function addClass() {
   });
 
   document.getElementById("newClassName").value = "";
+  loadClassesForManage();
+  loadXPInit();
+}
+
+async function renameClass() {
+  const sel = document.getElementById("classManageSelect");
+  const id = sel?.value;
+  if (!id) return;
+  const currentName = sel.options[sel.selectedIndex]?.text || "";
+  const newName = prompt("Neuer Klassenname:", currentName);
+  if (!newName || newName.trim() === currentName) return;
+
+  const r = await fetch(`/api/class/${id}`, {
+    method: "PATCH",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name: newName.trim() })
+  });
+  const data = await r.json();
+  if (!data.success) {
+    alert(data.message || "Umbenennen fehlgeschlagen.");
+    return;
+  }
   loadClassesForManage();
   loadXPInit();
 }

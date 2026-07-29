@@ -9221,6 +9221,28 @@ app.post("/api/class", isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+app.patch("/api/class/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const id = Number(req.params.id);
+    const name = String(req.body.name || "").trim();
+    if (!name) return res.json({ success: false, message: "Name darf nicht leer sein." });
+
+    const r = await pool.query(
+      "UPDATE classes SET name = $1 WHERE id = $2 AND school_id = $3 RETURNING id, name",
+      [name, id, schoolId]
+    );
+    if (!r.rows.length) return res.json({ success: false, message: "Klasse nicht gefunden." });
+    res.json({ success: true, class: r.rows[0] });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.json({ success: false, message: "Eine Klasse mit diesem Namen existiert bereits." });
+    }
+    console.error("❌ PATCH /api/class/:id:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
 app.delete("/api/class/:id", isAdmin, async (req, res) => {
   const schoolId = req.session.user.school_id;
   const id = Number(req.params.id);
