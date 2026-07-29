@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <title>Mein Lernstand</title>
+  <defs>
+    <linearGradient id="g" x1="48" y1="32" x2="210" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#86EFAC"/><stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+    <radialGradient id="r" cx="50%" cy="42%" r="62%">
+      <stop offset="0" stop-color="#86EFAC" stop-opacity=".36"/>
+      <stop offset=".55" stop-color="#22C55E" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#r)" opacity=".75"/>
+  <rect x="31" y="31" width="194" height="194" rx="42" stroke="url(#g)" stroke-width="4" opacity=".55"/>
+  <g filter="url(#glow)" stroke="url(#g)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M62 188h132"/><rect x="73" y="134" width="22" height="54" rx="6"/>
+    <rect x="117" y="104" width="22" height="84" rx="6"/><rect x="161" y="72" width="22" height="116" rx="6"/>
+    <path d="M68 95c26 4 49-6 68-28 18 22 39 31 63 27"/><path d="M181 74l20 19-24 5"/>
+  </g>
+</svg>

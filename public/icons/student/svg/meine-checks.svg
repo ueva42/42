@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <title>Meine Checks</title>
+  <defs>
+    <linearGradient id="g" x1="48" y1="32" x2="210" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67E8F9"/><stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <radialGradient id="r" cx="50%" cy="42%" r="62%">
+      <stop offset="0" stop-color="#67E8F9" stop-opacity=".36"/>
+      <stop offset=".55" stop-color="#0EA5E9" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#r)" opacity=".75"/>
+  <rect x="31" y="31" width="194" height="194" rx="42" stroke="url(#g)" stroke-width="4" opacity=".55"/>
+  <g filter="url(#glow)" stroke="url(#g)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M78 196V62"/><path d="M82 70c31-18 52 20 88 0v72c-36 20-57-18-88 0z" fill="url(#g)" fill-opacity=".18"/>
+    <path d="M82 70c31-18 52 20 88 0"/><path d="M82 142c31-18 52 20 88 0"/><path d="M169 70v72"/><path d="M68 196h126"/>
+  </g>
+</svg>

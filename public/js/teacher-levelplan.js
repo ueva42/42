@@ -52,7 +52,11 @@
     savingLevels: false,
     goalMessage: "",
     goalError: "",
-    levelsMessage: ""
+    levelsMessage: "",
+    copyTargetClassId: null,
+    copyBusy: false,
+    copyMessage: "",
+    copyError: ""
   };
 
   function escapeHtml(str) {
@@ -308,6 +312,33 @@
       </div>`;
   }
 
+  function renderCopyPanel() {
+    if (!state.classId || !state.subject) return "";
+    const classes = window.__lpClasses || [];
+    const targetOptions = classes
+      .filter((c) => !sameId(c.id, state.classId))
+      .map(
+        (c) =>
+          `<option value="${c.id}" ${sameId(c.id, state.copyTargetClassId) ? "selected" : ""}>${escapeHtml(c.name)}</option>`
+      )
+      .join("");
+    if (!targetOptions) return "";
+
+    return `
+      <div class="kr-levels-panel" style="margin-top:1.2em">
+        <h3>Levelplan auf andere Klasse kopieren</h3>
+        <p class="hint">Kopiert alle Themen und Ziele des aktuellen Fachs in die Zielklasse. Bestehende gleichnamige Themen werden aktualisiert.</p>
+        <div class="tc-toolbar" style="align-items:flex-end;gap:.6em;flex-wrap:wrap">
+          <label>Zielklasse:
+            <select id="lpCopyTargetClass">${targetOptions}</select>
+          </label>
+          <button type="button" id="lpCopyBtn" class="kr-practice-btn" ${state.copyBusy ? "disabled" : ""}>${state.copyBusy ? "Kopiere…" : "Kopieren"}</button>
+        </div>
+        ${state.copyError ? `<p class="kr-practice-card__err" style="margin-top:.4em">${escapeHtml(state.copyError)}</p>` : ""}
+        ${state.copyMessage ? `<p class="kr-practice-card__ok" style="margin-top:.4em">${escapeHtml(state.copyMessage)}</p>` : ""}
+      </div>`;
+  }
+
   function renderContent() {
     const topics = topicsForSubject();
     if (!topics.length) {
@@ -359,6 +390,8 @@
         </div>
 
         ${renderActiveLevelsPanel()}
+
+        ${renderCopyPanel()}
 
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
 
@@ -458,6 +491,42 @@
     }
   }
 
+  async function copyLevelplan() {
+    const targetId = state.copyTargetClassId ||
+      (window.__lpClasses || []).filter((c) => !sameId(c.id, state.classId))[0]?.id;
+    if (!targetId || !state.classId || !state.subject) return;
+
+    state.copyBusy = true;
+    state.copyMessage = "";
+    state.copyError = "";
+    render();
+
+    try {
+      const res = await fetch("/api/teacher/levelplan-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceClassId: state.classId,
+          targetClassId: targetId,
+          subject: state.subject
+        })
+      });
+      const data = await res.json();
+      state.copyBusy = false;
+      if (!res.ok || !data.success) {
+        state.copyError = data.message || "Kopieren fehlgeschlagen.";
+      } else {
+        state.copyMessage = data.message || "Levelplan kopiert.";
+      }
+      render();
+    } catch (err) {
+      console.error(err);
+      state.copyBusy = false;
+      state.copyError = "Netzwerkfehler beim Kopieren.";
+      render();
+    }
+  }
+
   async function saveActiveLevels(presetId) {
     const preset = ACTIVE_LEVEL_PRESETS.find((p) => p.id === presetId);
     if (!preset || !state.classId) return;
@@ -510,6 +579,12 @@
       state.goalError = "";
       render();
     });
+
+    root.querySelector("#lpCopyTargetClass")?.addEventListener("change", (e) => {
+      state.copyTargetClassId = Number(e.target.value);
+    });
+
+    root.querySelector("#lpCopyBtn")?.addEventListener("click", () => copyLevelplan());
 
     root.querySelectorAll("[data-kr-levels]").forEach((btn) => {
       btn.addEventListener("click", () => saveActiveLevels(btn.dataset.krLevels));

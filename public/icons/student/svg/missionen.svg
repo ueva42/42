@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <title>Missionen</title>
+  <defs>
+    <linearGradient id="g" x1="48" y1="32" x2="210" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C084FC"/><stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <radialGradient id="r" cx="50%" cy="42%" r="62%">
+      <stop offset="0" stop-color="#C084FC" stop-opacity=".36"/>
+      <stop offset=".55" stop-color="#7C3AED" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#r)" opacity=".75"/>
+  <rect x="31" y="31" width="194" height="194" rx="42" stroke="url(#g)" stroke-width="4" opacity=".55"/>
+  <g filter="url(#glow)" stroke="url(#g)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="128" cy="128" r="58"/><circle cx="128" cy="128" r="25"/>
+    <path d="M128 54v28"/><path d="M128 174v28"/><path d="M54 128h28"/><path d="M174 128h28"/><path d="M128 128h.5"/>
+  </g>
+</svg>

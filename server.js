@@ -7203,6 +7203,81 @@ app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
+// TEACHER: Levelplan auf andere Klasse kopieren
+// -------------------------------------------------------
+app.post("/api/teacher/levelplan-copy", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const sourceClassId = Number(req.body.sourceClassId);
+    const targetClassId = Number(req.body.targetClassId);
+    const subject = String(req.body.subject || "").trim();
+
+    if (!sourceClassId || !targetClassId || !subject) {
+      return res.json({ success: false, message: "Quellklasse, Zielklasse und Fach sind erforderlich." });
+    }
+    if (sourceClassId === targetClassId) {
+      return res.json({ success: false, message: "Quell- und Zielklasse dürfen nicht identisch sein." });
+    }
+
+    const classCheck = await pool.query(
+      "SELECT id FROM classes WHERE id = ANY($1) AND school_id = $2",
+      [[sourceClassId, targetClassId], schoolId]
+    );
+    if (classCheck.rows.length < 2) {
+      return res.json({ success: false, message: "Klasse nicht gefunden." });
+    }
+
+    const topics = await pool.query(
+      `SELECT id, subject, name FROM level_checks
+       WHERE class_id = $1 AND (school_id = $2 OR school_id IS NULL)
+         AND lower(trim(subject)) = lower(trim($3))
+       ORDER BY sort_order, created_at`,
+      [sourceClassId, schoolId, subject]
+    );
+
+    if (!topics.rows.length) {
+      return res.json({ success: false, message: "Keine Themen für dieses Fach in der Quellklasse gefunden." });
+    }
+
+    const rows = [];
+    for (const topic of topics.rows) {
+      const goals = await pool.query(
+        `SELECT goal_text, rookie_goal_text, operator_goal_text, street_legend_goal_text
+         FROM level_check_goals
+         WHERE level_check_id = $1 AND active = true
+         ORDER BY sort_order`,
+        [topic.id]
+      );
+      for (const g of goals.rows) {
+        rows.push({
+          fach: topic.subject,
+          thema: topic.name,
+          unterthema: g.goal_text,
+          rookieZiel: g.rookie_goal_text || "",
+          operatorZiel: g.operator_goal_text || "",
+          streetLegendZiel: g.street_legend_goal_text || "",
+          status: "OK"
+        });
+      }
+    }
+
+    if (!rows.length) {
+      return res.json({ success: false, message: "Keine Ziele zum Kopieren gefunden." });
+    }
+
+    const result = await importLevelplanRows(targetClassId, schoolId, rows);
+    res.json({
+      success: true,
+      ...result,
+      message: `${result.created} neu angelegt, ${result.updated} aktualisiert.`
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/levelplan-copy:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
 // TEACHER: Wie-Ziele pro Fach
 // -------------------------------------------------------
 app.get("/api/teacher/subject-lesson-goals", isAdmin, async (req, res) => {

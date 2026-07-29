@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <title>XP-Historie</title>
+  <defs>
+    <linearGradient id="g" x1="48" y1="32" x2="210" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C084FC"/><stop offset="1" stop-color="#EC4899"/>
+    </linearGradient>
+    <radialGradient id="r" cx="50%" cy="42%" r="62%">
+      <stop offset="0" stop-color="#C084FC" stop-opacity=".36"/>
+      <stop offset=".55" stop-color="#EC4899" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#r)" opacity=".75"/>
+  <rect x="31" y="31" width="194" height="194" rx="42" stroke="url(#g)" stroke-width="4" opacity=".55"/>
+  <g filter="url(#glow)" stroke="url(#g)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M64 188h132"/><path d="M80 162l34-38 31 25 45-61"/><path d="M165 88h25v25"/>
+    <path d="M67 76l30 52"/><path d="M97 76l-30 52"/><path d="M119 76v52"/><path d="M119 76h27c18 0 18 28 0 28h-27"/>
+  </g>
+</svg>
