@@ -1795,6 +1795,66 @@ function addDaysIso(dateStr, days) {
   return d.toISOString().slice(0, 10);
 }
 
+function nextSchoolDayIso(dateStr) {
+  let next = addDaysIso(dateStr, 1);
+  for (let i = 0; i < 8; i++) {
+    const day = new Date(`${next}T12:00:00`).getDay();
+    if (day >= 1 && day <= 5) return next;
+    next = addDaysIso(next, 1);
+  }
+  return next;
+}
+
+function mapHomeworkRow(row) {
+  return {
+    id: row.id,
+    subject: row.subject,
+    title: row.title,
+    assignedDate: normalizeIsoDate(row.assigned_date),
+    dueDate: normalizeIsoDate(row.due_date),
+    done: !!row.done,
+    doneNote: row.done_note || null,
+    doneAt: row.done_at || null,
+    createdAt: row.created_at
+  };
+}
+
+async function fetchHomeworkForDate(studentId, date) {
+  const today = todayIsoDate();
+  const includeOverdue = date === today;
+
+  const r = await pool.query(
+    `
+    SELECT id, subject, title, assigned_date, due_date, done, done_note, done_at, created_at
+    FROM student_homework
+    WHERE user_id = $1
+      AND (
+        due_date = $2
+        OR assigned_date = $2
+        OR ($3::boolean AND due_date < $2 AND done = false)
+      )
+    ORDER BY done ASC, due_date ASC, subject ASC, created_at ASC
+  `,
+    [studentId, date, includeOverdue]
+  );
+  const rows = r.rows.map(mapHomeworkRow);
+  const due = rows.filter(
+    (h) => h.dueDate === date || (includeOverdue && !h.done && h.dueDate < date)
+  );
+  // dedupe by id
+  const dueIds = new Set();
+  const dueUnique = [];
+  for (const h of due) {
+    if (dueIds.has(h.id)) continue;
+    dueIds.add(h.id);
+    dueUnique.push(h);
+  }
+  return {
+    due: dueUnique,
+    assigned: rows.filter((h) => h.assignedDate === date)
+  };
+}
+
 function mondayOfWeek(dateStr) {
   const d = new Date(`${dateStr}T12:00:00`);
   const jsDay = d.getDay();
@@ -2880,6 +2940,32 @@ async function migrate() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_student_checkpoints_user_date
     ON student_checkpoints (user_id, checkpoint_date)
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS student_homework (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      subject TEXT NOT NULL,
+      title TEXT NOT NULL,
+      assigned_date DATE NOT NULL,
+      due_date DATE NOT NULL,
+      done BOOLEAN NOT NULL DEFAULT false,
+      done_note TEXT,
+      done_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_student_homework_user_due
+    ON student_homework (user_id, due_date)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_student_homework_user_assigned
+    ON student_homework (user_id, assigned_date)
   `);
 
   await pool.query(`
@@ -4299,6 +4385,20 @@ app.get("/api/student/log/week", isStudent, async (req, res) => {
       [studentId, weekStart]
     );
 
+    const hwRes = await pool.query(
+      `
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE done)::int AS done,
+        COUNT(*) FILTER (WHERE NOT done)::int AS open
+      FROM student_homework
+      WHERE user_id = $1
+        AND due_date >= $2
+        AND due_date <= $3
+    `,
+      [studentId, weekStart, weekEnd]
+    );
+
     res.json({
       weekStart,
       weekEnd,
@@ -4315,7 +4415,12 @@ app.get("/api/student/log/week", isStudent, async (req, res) => {
       weekStrategyHelped: LOG_WEEK_STRATEGY_HELPED,
       howGoals: LOG_HOW_GOALS,
       howGoalsBySubject,
-      weekReflection: weekReflectionRes.rows[0] || null
+      weekReflection: weekReflectionRes.rows[0] || null,
+      homeworkStats: {
+        total: hwRes.rows[0]?.total || 0,
+        done: hwRes.rows[0]?.done || 0,
+        open: hwRes.rows[0]?.open || 0
+      }
     });
   } catch (err) {
     console.error("❌ /api/student/log/week:", err);
@@ -4562,6 +4667,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     };
 
     const timetableSubjects = timetableSubjectsFromRows(timetable);
+    const homework = await fetchHomeworkForDate(studentId, date);
 
     res.json({
       date,
@@ -4574,13 +4680,137 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       className,
       timetable: uniqueTimetableSlots,
       timetableSubjects,
+      subjects: LOG_SUBJECTS,
       entries,
       blocks,
-      phases
+      phases,
+      homework,
+      nextSchoolDay: nextSchoolDayIso(date)
     });
   } catch (err) {
     console.error("❌ /api/student/log/today:", err);
     res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+// -------------------------------------------------------
+// STUDENT: Selbst vergebene Hausaufgaben
+// -------------------------------------------------------
+app.post("/api/student/homework", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const subject = String(req.body.subject || "").trim();
+    const title = String(req.body.title || "").trim();
+    const assignedDate = isoDateOrToday(req.body.assignedDate) || todayIsoDate();
+    const dueDate =
+      normalizeIsoDate(req.body.dueDate) || nextSchoolDayIso(assignedDate);
+
+    if (!subject || !LOG_SUBJECTS.includes(subject)) {
+      return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
+    }
+    if (!title || title.length < 2) {
+      return res.json({ success: false, message: "Bitte eine kurze Aufgabe eingeben." });
+    }
+    if (title.length > 300) {
+      return res.json({ success: false, message: "Aufgabe ist zu lang (max. 300 Zeichen)." });
+    }
+    if (assignedDate !== todayIsoDate()) {
+      return res.json({ success: false, message: "Hausaufgaben kannst du nur für heute setzen." });
+    }
+
+    const ins = await pool.query(
+      `
+      INSERT INTO student_homework
+        (school_id, user_id, subject, title, assigned_date, due_date)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, subject, title, assigned_date, due_date, done, done_note, done_at, created_at
+    `,
+      [schoolId, studentId, subject, title.slice(0, 300), assignedDate, dueDate]
+    );
+
+    res.json({ success: true, homework: mapHomeworkRow(ins.rows[0]) });
+  } catch (err) {
+    console.error("❌ POST /api/student/homework:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.patch("/api/student/homework/:id", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.json({ success: false, message: "ID fehlt." });
+
+    const existing = await pool.query(
+      `SELECT id, due_date, done FROM student_homework WHERE id = $1 AND user_id = $2`,
+      [id, studentId]
+    );
+    if (!existing.rows.length) {
+      return res.json({ success: false, message: "Hausaufgabe nicht gefunden." });
+    }
+
+    const done = req.body.done === true || req.body.done === false ? !!req.body.done : null;
+    if (done === null) {
+      return res.json({ success: false, message: "Kein Update übergeben." });
+    }
+
+    const dueDate = normalizeIsoDate(existing.rows[0].due_date);
+    if (done && dueDate && dueDate > todayIsoDate()) {
+      return res.json({
+        success: false,
+        message: "Erledigen geht ab dem Fälligkeitstag."
+      });
+    }
+
+    const doneNote =
+      done && req.body.doneNote != null
+        ? String(req.body.doneNote).trim().slice(0, 400) || null
+        : done
+          ? null
+          : null;
+
+    const upd = await pool.query(
+      `
+      UPDATE student_homework
+      SET done = $1,
+          done_note = CASE WHEN $1 THEN $2 ELSE NULL END,
+          done_at = CASE WHEN $1 THEN NOW() ELSE NULL END
+      WHERE id = $3 AND user_id = $4
+      RETURNING id, subject, title, assigned_date, due_date, done, done_note, done_at, created_at
+    `,
+      [done, doneNote, id, studentId]
+    );
+
+    res.json({ success: true, homework: mapHomeworkRow(upd.rows[0]) });
+  } catch (err) {
+    console.error("❌ PATCH /api/student/homework/:id:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.delete("/api/student/homework/:id", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const id = String(req.params.id || "").trim();
+    const del = await pool.query(
+      `
+      DELETE FROM student_homework
+      WHERE id = $1 AND user_id = $2 AND done = false
+      RETURNING id
+    `,
+      [id, studentId]
+    );
+    if (!del.rows.length) {
+      return res.json({
+        success: false,
+        message: "Löschen nicht möglich (fehlt oder schon erledigt)."
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE /api/student/homework/:id:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
 

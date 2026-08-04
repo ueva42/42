@@ -103,9 +103,10 @@
     }
   }
 
-  function renderStats(stats, xp, rows) {
+  function renderStats(stats, xp, rows, homeworkStats) {
     const V = window.LogbuchVisuals;
     const total = stats.gesetzt || 0;
+    const hw = homeworkStats || { total: 0, done: 0, open: 0 };
 
     const statHtml = V
       ? V.statCards([
@@ -125,8 +126,10 @@
     }));
 
     const erreicht = stats.erreicht || 0;
-    const teilweise = stats.teilweise || 0;
-    const offen = stats.offen || 0;
+    const hwLine =
+      hw.total > 0
+        ? `<p class="week-hw-summary">Hausaufgaben diese Woche: <strong>${hw.done}/${hw.total}</strong> erledigt${hw.open ? ` · ${hw.open} offen` : ""}</p>`
+        : "";
 
     return (
       V.progressPanel({
@@ -141,8 +144,7 @@
         stats: statHtml,
         chartTitle: "Ziele pro Tag",
         chart: V.miniBarChart(byDay)
-      }) +
-      ``
+      }) + hwLine
     );
   }
 
@@ -473,7 +475,7 @@
     root.innerHTML = `
       <div class="student-page week-shell" id="weekSwipeArea">
         ${renderWeekNav(d)}
-        ${renderStats(d.stats, d.xpThisWeek, d.rows)}
+        ${renderStats(d.stats, d.xpThisWeek, d.rows, d.homeworkStats)}
 
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="weekSlidePanel">

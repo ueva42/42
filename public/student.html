@@ -5730,6 +5730,246 @@ body.student-app .card.section > h2 {
   box-shadow: 0 0 20px rgba(34, 211, 238, 0.55);
 }
 
+.hw-panel {
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 18px;
+}
+
+.hw-block {
+  border-radius: 20px;
+  border: 1px solid rgba(86, 147, 255, 0.28);
+  background:
+    radial-gradient(ellipse 70% 100% at 100% 0%, rgba(168, 85, 247, 0.12), transparent 55%),
+    linear-gradient(145deg, rgba(8, 16, 36, 0.96), rgba(5, 10, 24, 0.96));
+  padding: 16px 16px 14px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+.hw-block--empty {
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.hw-block__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.hw-block__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.hw-block__sub {
+  margin: 0;
+  font-size: 12px;
+  color: #67e8f9;
+  white-space: nowrap;
+}
+
+.hw-block__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.hw-form {
+  display: grid;
+  gap: 8px;
+}
+
+.hw-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.hw-select,
+.hw-input {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(5, 12, 30, 0.85);
+  color: #f8fafc;
+  font: inherit;
+  font-size: 14px;
+  padding: 0 12px;
+  outline: none;
+}
+
+.hw-select:focus,
+.hw-input:focus {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+}
+
+.hw-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.hw-list--assigned {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.hw-item {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.55);
+  padding: 10px 12px;
+}
+
+.hw-item--done {
+  opacity: 0.78;
+  border-color: rgba(34, 197, 94, 0.28);
+}
+
+.hw-item__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.hw-item__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.hw-item__check {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hw-item__check--open {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+}
+
+.hw-item__subject {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.hw-item__title {
+  margin: 3px 0 0;
+  font-size: 14px;
+  color: #e2e8f0;
+  line-height: 1.35;
+}
+
+.hw-item__note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.hw-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.hw-btn {
+  min-height: 36px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+}
+
+.hw-btn-icon {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hw-btn-icon:hover {
+  color: #fca5a5;
+  background: rgba(127, 29, 29, 0.25);
+}
+
+.hw-item__overdue {
+  margin-left: 6px;
+  color: #fb923c;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.hw-item__done-tag {
+  margin-left: auto;
+  color: #4ade80;
+  font-weight: 700;
+}
+
+.hw-complete-form {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  display: grid;
+  gap: 8px;
+}
+
+.hw-complete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hw-msg {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.hw-msg--ok { color: #86efac; }
+.hw-msg--err { color: #fca5a5; }
+
+.week-hw-summary {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(86, 147, 255, 0.25);
+  background: rgba(8, 16, 36, 0.7);
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.week-hw-summary strong {
+  color: #e2e8f0;
+}
+
 .lp-dash {
   display: flex;
   flex-direction: column;
@@ -10565,8 +10805,8 @@ h2 {
 <script src="/js/logbuch-plan.js?v=19"></script>
 <script src="/js/logbuch-check.js?v=8"></script>
 <script src="/js/logbuch-reflect.js?v=5"></script>
-<script src="/js/logbuch-today.js?v=27"></script>
-<script src="/js/logbuch-week.js?v=6"></script>
+<script src="/js/logbuch-today.js?v=28"></script>
+<script src="/js/logbuch-week.js?v=7"></script>
 <script src="/js/logbuch-levelplan.js?v=16"></script>
 <script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>

@@ -8,7 +8,14 @@
     date: null,
     data: null,
     loading: false,
-    slideDir: null
+    slideDir: null,
+    hwSubject: "",
+    hwTitle: "",
+    hwBusy: false,
+    hwMessage: "",
+    hwError: "",
+    hwCompletingId: null,
+    hwNoteDraft: ""
   };
 
   function todayIso() {
@@ -199,6 +206,176 @@
 
   function lessonStepCount(phases) {
     return [phases.plan, phases.check, phases.reflect].filter(Boolean).length;
+  }
+
+  function homeworkSubjects() {
+    const fromApi = state.data?.subjects;
+    const fromTimetable = (state.data?.timetableSubjects || []).filter(Boolean);
+    const list =
+      Array.isArray(fromApi) && fromApi.length
+        ? fromApi
+        : window.LOGBUCH?.SUBJECTS || [];
+    const preferred = fromTimetable.filter((s) => list.includes(s));
+    const rest = list.filter((s) => !preferred.includes(s));
+    return [...preferred, ...rest];
+  }
+
+  function formatDueHint(dueDate) {
+    if (!dueDate) return "";
+    if (dueDate === todayIso()) return "heute";
+    const d = new Date(`${dueDate}T12:00:00`);
+    return d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+  }
+
+  function renderHomeworkItem(hw, editable) {
+    const ui = UI();
+    const isCompleting = state.hwCompletingId === String(hw.id);
+    const overdue = !hw.done && hw.dueDate && hw.dueDate < todayIso();
+    const overdueTag = overdue
+      ? `<span class="hw-item__overdue">überfällig</span>`
+      : "";
+
+    if (hw.done) {
+      return `
+        <li class="hw-item hw-item--done">
+          <div class="hw-item__main">
+            <span class="hw-item__check" aria-hidden="true">✓</span>
+            <div>
+              <p class="hw-item__subject">${ui.escapeHtml(hw.subject)}</p>
+              <p class="hw-item__title">${ui.escapeHtml(hw.title)}</p>
+              ${hw.doneNote ? `<p class="hw-item__note">${ui.escapeHtml(hw.doneNote)}</p>` : ""}
+            </div>
+          </div>
+        </li>`;
+    }
+
+    if (!editable) {
+      return `
+        <li class="hw-item">
+          <div class="hw-item__main">
+            <span class="hw-item__check hw-item__check--open" aria-hidden="true">○</span>
+            <div>
+              <p class="hw-item__subject">${ui.escapeHtml(hw.subject)} ${overdueTag}</p>
+              <p class="hw-item__title">${ui.escapeHtml(hw.title)}</p>
+            </div>
+          </div>
+        </li>`;
+    }
+
+    return `
+      <li class="hw-item ${isCompleting ? "is-editing" : ""}">
+        <div class="hw-item__main">
+          <span class="hw-item__check hw-item__check--open" aria-hidden="true">○</span>
+          <div class="hw-item__copy">
+            <p class="hw-item__subject">${ui.escapeHtml(hw.subject)} ${overdueTag}</p>
+            <p class="hw-item__title">${ui.escapeHtml(hw.title)}</p>
+          </div>
+          <div class="hw-item__actions">
+            <button type="button" class="today-app-btn today-app-btn--ghost hw-btn" data-hw-complete="${ui.escapeHtml(hw.id)}">Erledigt</button>
+            <button type="button" class="hw-btn-icon" data-hw-delete="${ui.escapeHtml(hw.id)}" aria-label="Löschen" title="Löschen">×</button>
+          </div>
+        </div>
+        ${
+          isCompleting
+            ? `<div class="hw-complete-form">
+                <label class="hw-label" for="hwNote_${ui.escapeHtml(hw.id)}">Kurz dokumentieren (optional)</label>
+                <input id="hwNote_${ui.escapeHtml(hw.id)}" class="hw-input" type="text" maxlength="400" placeholder="z. B. Aufgaben 1–4 erledigt" value="${ui.escapeHtml(state.hwNoteDraft)}" data-hw-note-input>
+                <div class="hw-complete-actions">
+                  <button type="button" class="today-app-btn" data-hw-confirm="${ui.escapeHtml(hw.id)}" ${state.hwBusy ? "disabled" : ""}>${state.hwBusy ? "Speichern…" : "Abhaken"}</button>
+                  <button type="button" class="today-app-btn today-app-btn--ghost" data-hw-cancel>Abbrechen</button>
+                </div>
+              </div>`
+            : ""
+        }
+      </li>`;
+  }
+
+  function renderHomeworkPanel(editable) {
+    const ui = UI();
+    const hw = state.data?.homework || { due: [], assigned: [] };
+    const due = hw.due || [];
+    const assigned = hw.assigned || [];
+    const openDue = due.filter((h) => !h.done);
+    const subjects = homeworkSubjects();
+    const selectedSubject = state.hwSubject || subjects[0] || "";
+    const dueHint = formatDueHint(state.data?.nextSchoolDay);
+
+    const subjectOptions = subjects
+      .map(
+        (s) =>
+          `<option value="${ui.escapeHtml(s)}" ${s === selectedSubject ? "selected" : ""}>${ui.escapeHtml(s)}</option>`
+      )
+      .join("");
+
+    const dueSection =
+      due.length > 0
+        ? `
+      <div class="hw-block">
+        <div class="hw-block__head">
+          <h3 class="hw-block__title">Hausaufgaben für heute</h3>
+          <p class="hw-block__sub">${openDue.length ? `${openDue.length} offen` : "Alles erledigt ✓"}</p>
+        </div>
+        <ul class="hw-list">${due.map((h) => renderHomeworkItem(h, editable)).join("")}</ul>
+      </div>`
+        : editable
+          ? `
+      <div class="hw-block hw-block--empty">
+        <h3 class="hw-block__title">Hausaufgaben für heute</h3>
+        <p class="hw-block__hint">Keine fälligen Aufgaben – super. Du kannst unten welche für morgen setzen.</p>
+      </div>`
+          : "";
+
+    const assignSection = editable
+      ? `
+      <div class="hw-block">
+        <div class="hw-block__head">
+          <h3 class="hw-block__title">Für morgen vormerken</h3>
+          <p class="hw-block__sub">Fällig ${ui.escapeHtml(dueHint || "nächster Schultag")}</p>
+        </div>
+        <p class="hw-block__hint">Was hast du dir aus der Schule mitgenommen? Vergib dir selbst eine Aufgabe.</p>
+        <div class="hw-form">
+          <label class="hw-label" for="hwSubjectSelect">Fach</label>
+          <select id="hwSubjectSelect" class="hw-select">${subjectOptions}</select>
+          <label class="hw-label" for="hwTitleInput">Aufgabe</label>
+          <input id="hwTitleInput" class="hw-input" type="text" maxlength="300" placeholder="z. B. Mathe S. 42 Nr. 3–6" value="${ui.escapeHtml(state.hwTitle)}">
+          <button type="button" class="today-app-btn" id="hwAddBtn" ${state.hwBusy ? "disabled" : ""}>${state.hwBusy ? "Speichern…" : "Hausaufgabe setzen"}</button>
+        </div>
+        ${state.hwError ? `<p class="hw-msg hw-msg--err">${ui.escapeHtml(state.hwError)}</p>` : ""}
+        ${state.hwMessage ? `<p class="hw-msg hw-msg--ok">${ui.escapeHtml(state.hwMessage)}</p>` : ""}
+        ${
+          assigned.length
+            ? `<ul class="hw-list hw-list--assigned">
+                ${assigned
+                  .map(
+                    (h) => `
+                  <li class="hw-item hw-item--assigned">
+                    <div class="hw-item__main">
+                      <div>
+                        <p class="hw-item__subject">${ui.escapeHtml(h.subject)} · bis ${ui.escapeHtml(formatDueHint(h.dueDate))}</p>
+                        <p class="hw-item__title">${ui.escapeHtml(h.title)}</p>
+                      </div>
+                      ${
+                        !h.done
+                          ? `<button type="button" class="hw-btn-icon" data-hw-delete="${ui.escapeHtml(h.id)}" aria-label="Löschen" title="Löschen">×</button>`
+                          : `<span class="hw-item__done-tag">✓</span>`
+                      }
+                    </div>
+                  </li>`
+                  )
+                  .join("")}
+              </ul>`
+            : ""
+        }
+      </div>`
+      : "";
+
+    if (!dueSection && !assignSection) return "";
+
+    return `
+      <section class="hw-panel" aria-label="Hausaufgaben">
+        ${dueSection}
+        ${assignSection}
+      </section>`;
   }
 
   function renderTodayOverview(d, blockList, editable) {
@@ -513,6 +690,8 @@
       <div class="student-page today-shell today-app" id="todaySwipeArea">
         ${blockList.length ? renderTodayOverview(d, blockList, editable) : renderDayNav(d)}
 
+        ${renderHomeworkPanel(editable)}
+
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="todaySlidePanel">
             <div class="today-lesson-list">
@@ -562,12 +741,151 @@
       });
     });
 
+    root.querySelector("#hwSubjectSelect")?.addEventListener("change", (e) => {
+      state.hwSubject = e.target.value;
+    });
+
+    root.querySelector("#hwTitleInput")?.addEventListener("input", (e) => {
+      state.hwTitle = e.target.value;
+    });
+
+    root.querySelector("#hwAddBtn")?.addEventListener("click", () => addHomework());
+
+    root.querySelectorAll("[data-hw-complete]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.hwCompletingId = btn.dataset.hwComplete;
+        state.hwNoteDraft = "";
+        state.hwError = "";
+        state.hwMessage = "";
+        render();
+      });
+    });
+
+    root.querySelector("[data-hw-note-input]")?.addEventListener("input", (e) => {
+      state.hwNoteDraft = e.target.value;
+    });
+
+    root.querySelector("[data-hw-cancel]")?.addEventListener("click", () => {
+      state.hwCompletingId = null;
+      state.hwNoteDraft = "";
+      render();
+    });
+
+    root.querySelectorAll("[data-hw-confirm]").forEach((btn) => {
+      btn.addEventListener("click", () => completeHomework(btn.dataset.hwConfirm));
+    });
+
+    root.querySelectorAll("[data-hw-delete]").forEach((btn) => {
+      btn.addEventListener("click", () => deleteHomework(btn.dataset.hwDelete));
+    });
+
     const swipeArea = root.querySelector("#todaySwipeArea");
     if (swipeArea && window.LogbuchSwipe) {
       window.LogbuchSwipe.attach(swipeArea, {
         onSwipeLeft: () => navigateDay(1),
         onSwipeRight: () => navigateDay(-1)
       });
+    }
+  }
+
+  async function addHomework() {
+    const subject = state.hwSubject || homeworkSubjects()[0] || "";
+    const title = String(state.hwTitle || "").trim();
+    state.hwError = "";
+    state.hwMessage = "";
+
+    if (!subject || !title) {
+      state.hwError = "Bitte Fach und Aufgabe angeben.";
+      render();
+      return;
+    }
+
+    state.hwBusy = true;
+    render();
+
+    try {
+      const res = await fetch("/api/student/homework", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject,
+          title,
+          assignedDate: state.date,
+          dueDate: state.data?.nextSchoolDay
+        })
+      });
+      const data = await res.json();
+      state.hwBusy = false;
+      if (!data.success) {
+        state.hwError = data.message || "Speichern fehlgeschlagen.";
+        render();
+        return;
+      }
+      state.hwTitle = "";
+      state.hwMessage = "Gesetzt – morgen kannst du sie abhaken.";
+      await loadDay(state.date);
+    } catch (err) {
+      console.error(err);
+      state.hwBusy = false;
+      state.hwError = "Netzwerkfehler.";
+      render();
+    }
+  }
+
+  async function completeHomework(id) {
+    state.hwBusy = true;
+    state.hwError = "";
+    render();
+    try {
+      const res = await fetch(`/api/student/homework/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          done: true,
+          doneNote: state.hwNoteDraft || null
+        })
+      });
+      const data = await res.json();
+      state.hwBusy = false;
+      if (!data.success) {
+        state.hwError = data.message || "Abhaken fehlgeschlagen.";
+        render();
+        return;
+      }
+      state.hwCompletingId = null;
+      state.hwNoteDraft = "";
+      state.hwMessage = "Erledigt – dokumentiert.";
+      await loadDay(state.date);
+    } catch (err) {
+      console.error(err);
+      state.hwBusy = false;
+      state.hwError = "Netzwerkfehler.";
+      render();
+    }
+  }
+
+  async function deleteHomework(id) {
+    if (!window.confirm("Diese Hausaufgabe löschen?")) return;
+    state.hwBusy = true;
+    render();
+    try {
+      const res = await fetch(`/api/student/homework/${encodeURIComponent(id)}`, {
+        method: "DELETE"
+      });
+      const data = await res.json();
+      state.hwBusy = false;
+      if (!data.success) {
+        state.hwError = data.message || "Löschen fehlgeschlagen.";
+        render();
+        return;
+      }
+      state.hwMessage = "";
+      await loadDay(state.date);
+    } catch (err) {
+      console.error(err);
+      state.hwBusy = false;
+      state.hwError = "Netzwerkfehler.";
+      render();
     }
   }
 
@@ -594,6 +912,10 @@
 
   function navigateDay(delta) {
     if (state.loading) return;
+    state.hwCompletingId = null;
+    state.hwNoteDraft = "";
+    state.hwMessage = "";
+    state.hwError = "";
     const next = addSchoolDays(state.date || todayIso(), delta);
     const dir = delta > 0 ? "from-right" : "from-left";
     loadDay(next, dir);
