@@ -4720,15 +4720,17 @@ body.student-app {
 .reflection-chip {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border-radius: 14px;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(2, 6, 23, 0.55);
 }
 
 .reflection-chip__label {
+  margin: 0;
   font-size: 13px;
+  font-weight: 600;
   color: #e2e8f0;
   line-height: 1.35;
 }
@@ -4739,6 +4741,24 @@ body.student-app {
   letter-spacing: 0.04em;
   text-transform: capitalize;
   color: color-mix(in srgb, var(--accent, #fff) 75%, #fff);
+}
+
+.reflection-chip--app .choice-chip-group,
+.week-form-card .choice-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.week-form-card .choice-chip {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  max-width: 100%;
 }
 
 .reflection-chip .logbuch-select {
@@ -10802,11 +10822,11 @@ h2 {
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-plan.js?v=19"></script>
+<script src="/js/logbuch-plan.js?v=20"></script>
 <script src="/js/logbuch-check.js?v=8"></script>
 <script src="/js/logbuch-reflect.js?v=5"></script>
 <script src="/js/logbuch-today.js?v=28"></script>
-<script src="/js/logbuch-week.js?v=7"></script>
+<script src="/js/logbuch-week.js?v=8"></script>
 <script src="/js/logbuch-levelplan.js?v=16"></script>
 <script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>

@@ -1325,10 +1325,19 @@ function levelGoalTextForOption(option, tier) {
 }
 
 function howGoalForSentence(howGoalText) {
-  let text = String(howGoalText || "").trim();
-  if (text.toLowerCase().startsWith("ich ")) text = text.slice(4);
-  if (text.endsWith(".")) text = text.slice(0, -1);
-  return text.trim();
+  const parts = String(howGoalText || "")
+    .split(/\s*·\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const cleaned = parts
+    .map((part) => {
+      let text = part;
+      if (text.toLowerCase().startsWith("ich ")) text = text.slice(4);
+      if (text.endsWith(".")) text = text.slice(0, -1);
+      return text.trim();
+    })
+    .filter(Boolean);
+  return cleaned.join(" und ");
 }
 
 function buildPlanSentence(whatGoalText, howGoalText) {
@@ -1342,6 +1351,56 @@ function isAllowedHowGoal(goal, allowedGoals) {
   if (!goal) return false;
   if (Array.isArray(allowedGoals) && allowedGoals.includes(goal)) return true;
   return LOG_HOW_GOALS.includes(goal);
+}
+
+function normalizeMultiSelectValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((v) => String(v || "").trim()).filter(Boolean);
+  }
+  if (value == null || value === "") return [];
+  const text = String(value).trim();
+  if (!text) return [];
+  if (text.includes(" · ")) {
+    return text.split(/\s*·\s*/).map((s) => s.trim()).filter(Boolean);
+  }
+  return [text];
+}
+
+function joinMultiSelectValue(items) {
+  return items.length ? items.join(" · ") : null;
+}
+
+function normalizeHowGoalsInput(howGoalText, goal) {
+  const fromHow = normalizeMultiSelectValue(howGoalText);
+  if (fromHow.length) return fromHow;
+  return normalizeMultiSelectValue(goal);
+}
+
+function areAllowedHowGoals(goals, allowedGoals) {
+  if (!goals.length || goals.length > 3) return false;
+  return goals.every((g) => isAllowedHowGoal(g, allowedGoals));
+}
+
+function normalizeStrategiesInput(strategy) {
+  return normalizeMultiSelectValue(strategy);
+}
+
+function areAllowedStrategies(strategies) {
+  if (!strategies.length || strategies.length > 3) return false;
+  return strategies.every((s) => LOG_STRATEGIES.includes(s));
+}
+
+function parsePlanBStrategyText(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const items = normalizeMultiSelectValue(value);
+  if (!items.length) return null;
+  if (items.length > 3) return { error: "Bitte höchstens 3 Plan-B-Auswahlen." };
+  for (const item of items) {
+    if (!LOG_PLAN_B_OPTIONS.includes(item)) {
+      return { error: "Ungültiger Plan B." };
+    }
+  }
+  return joinMultiSelectValue(items);
 }
 
 function pickUpcomingLevelCheck(checks, subject = null) {
@@ -1428,16 +1487,6 @@ const LOG_PLAN_B_OPTIONS = [
   "Ich starte mit einer einfachen Rookie-Aufgabe.",
   "Ich arbeite 5 Minuten konzentriert an einer kleinen Aufgabe."
 ];
-
-function parsePlanBStrategyText(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const clean = String(value).trim();
-  if (!clean) return null;
-  if (!LOG_PLAN_B_OPTIONS.includes(clean)) {
-    return { error: "Ungültiger Plan B." };
-  }
-  return clean;
-}
 
 const LOG_WEEK_STRATEGIES = [
   "Gegeben und gesucht markieren",
@@ -3821,14 +3870,15 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       }
     }
 
-    const normalizedHowGoal = String(howGoalText || goal || "").trim();
+    const howGoals = normalizeHowGoalsInput(howGoalText, goal);
+    const normalizedHowGoal = joinMultiSelectValue(howGoals);
     const { classId, schoolId: classSchoolId } = await getStudentClassContext(studentId);
     const effectiveSchoolId = classSchoolId || schoolId;
     const allowedHowGoals = await getLessonGoalsForSubject(effectiveSchoolId, subject);
-    if (!isAllowedHowGoal(normalizedHowGoal, allowedHowGoals)) {
+    if (!areAllowedHowGoals(howGoals, allowedHowGoals)) {
       return res.json({
         success: false,
-        message: "Bitte ein gültiges Wie-Ziel wählen."
+        message: "Bitte 1–3 gültige Start-Ziele wählen."
       });
     }
 
@@ -3921,9 +3971,11 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       }
     }
 
-    if (strategy && !LOG_STRATEGIES.includes(strategy)) {
-      return res.json({ success: false, message: "Ungültige Lernstrategie." });
+    const strategyList = normalizeStrategiesInput(strategy);
+    if (!areAllowedStrategies(strategyList)) {
+      return res.json({ success: false, message: "Bitte 1–3 gültige Kontroll-Strategien wählen." });
     }
+    const normalizedStrategy = joinMultiSelectValue(strategyList);
 
     const confidence =
       confidenceBefore === null || confidenceBefore === undefined
@@ -3994,7 +4046,7 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         normalizedHowGoal,
         JSON.stringify(cleanWorkGoals),
         socialForm || null,
-        strategy || null,
+        normalizedStrategy,
         confidence,
         cleanDetailsText,
         finalCheckpointId,
@@ -4064,14 +4116,15 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
     }
 
-    const normalizedHowGoal = String(howGoalText || goal || "").trim();
+    const howGoals = normalizeHowGoalsInput(howGoalText, goal);
+    const normalizedHowGoal = joinMultiSelectValue(howGoals);
     const { classId, schoolId: classSchoolId } = await getStudentClassContext(studentId);
     const effectiveSchoolId = classSchoolId || schoolId;
     const allowedHowGoals = await getLessonGoalsForSubject(effectiveSchoolId, subject);
-    if (!isAllowedHowGoal(normalizedHowGoal, allowedHowGoals)) {
+    if (!areAllowedHowGoals(howGoals, allowedHowGoals)) {
       return res.json({
         success: false,
-        message: "Bitte ein gültiges Wie-Ziel wählen."
+        message: "Bitte 1–3 gültige Start-Ziele wählen."
       });
     }
 
@@ -4161,9 +4214,11 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       }
     }
 
-    if (strategy && !LOG_STRATEGIES.includes(strategy)) {
-      return res.json({ success: false, message: "Ungültige Lernstrategie." });
+    const strategyList = normalizeStrategiesInput(strategy);
+    if (!areAllowedStrategies(strategyList)) {
+      return res.json({ success: false, message: "Bitte 1–3 gültige Kontroll-Strategien wählen." });
     }
+    const normalizedStrategy = joinMultiSelectValue(strategyList);
 
     const confidence =
       confidenceBefore === null || confidenceBefore === undefined
@@ -4226,7 +4281,7 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
         normalizedHowGoal,
         JSON.stringify(cleanWorkGoals),
         socialForm || null,
-        strategy || null,
+        normalizedStrategy,
         confidence,
         cleanDetailsText,
         finalCheckpointId,

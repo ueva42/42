@@ -57,9 +57,9 @@
     selectedLevel: null,
     levelGoalText: "",
     howGoalText: null,
-    startGoalText: null,
-    controlGoalText: null,
-    planBStrategyText: null,
+    startGoals: [],
+    controlGoals: [],
+    planBStrategies: [],
     workGoals: [],
     socialForm: null,
     confidenceBefore: null,
@@ -335,7 +335,31 @@
   }
 
   function syncStartGoalFromHowGoal() {
-    state.howGoalText = state.startGoalText;
+    state.howGoalText = joinMulti(state.startGoals);
+  }
+
+  function toggleMulti(list, value, max = 3) {
+    const idx = list.indexOf(value);
+    if (idx >= 0) list.splice(idx, 1);
+    else if (list.length < max) list.push(value);
+  }
+
+  function joinMulti(list) {
+    return (list || []).filter(Boolean).join(" · ") || null;
+  }
+
+  function parseMulti(text, allowedValues) {
+    if (Array.isArray(text)) {
+      return text.filter((v) => !allowedValues || allowedValues.includes(v));
+    }
+    if (!text) return [];
+    const raw = String(text).trim();
+    if (!raw) return [];
+    if (allowedValues?.includes(raw)) return [raw];
+    const parts = raw.split(/\s*·\s*/).map((s) => s.trim()).filter(Boolean);
+    const matched = parts.filter((p) => !allowedValues || allowedValues.includes(p));
+    if (matched.length) return matched;
+    return allowedValues ? [] : parts;
   }
 
   function controlLabel(value) {
@@ -425,10 +449,9 @@
 
   function refreshHowGoals() {
     state.howGoals = howGoalsForLevel(state.selectedLevel, state.howGoalsBase);
-    if (state.startGoalText && !state.howGoals.includes(state.startGoalText)) {
-      state.startGoalText = null;
-      state.howGoalText = null;
-    }
+    const allowed = new Set(state.howGoals);
+    state.startGoals = state.startGoals.filter((g) => allowed.has(g));
+    state.howGoalText = joinMulti(state.startGoals);
   }
 
   function syncLevelGoalText() {
@@ -449,8 +472,10 @@
       state.whatGoalId &&
       state.selectedLevel &&
       state.levelGoalText &&
-      state.startGoalText &&
-      state.controlGoalText &&
+      state.startGoals.length >= 1 &&
+      state.startGoals.length <= 3 &&
+      state.controlGoals.length >= 1 &&
+      state.controlGoals.length <= 3 &&
       state.workGoals.length >= 1 &&
       state.workGoals.length <= 3 &&
       checkpointSatisfied() &&
@@ -469,9 +494,9 @@
         <section class="way-section way-section--start">
           <header class="way-section__head">
             <h4 class="way-section__title">Ich starte so</h4>
-            <p class="way-section__hint">Genau 1 Auswahl</p>
+            <p class="way-section__hint">1 bis 3 Auswahlen</p>
           </header>
-          ${V.strategyTileGrid(startGoalTiles(), state.startGoalText, "data-start-goal")}
+          ${V.strategyTileGrid(startGoalTiles(), state.startGoals, "data-start-goal", { multi: true })}
         </section>
 
         <section class="way-section way-section--work">
@@ -485,17 +510,17 @@
         <section class="way-section way-section--control">
           <header class="way-section__head">
             <h4 class="way-section__title">Ich kontrolliere so</h4>
-            <p class="way-section__hint">Genau 1 Auswahl</p>
+            <p class="way-section__hint">1 bis 3 Auswahlen</p>
           </header>
-          ${V.strategyTileGrid(controlGoalTiles(), state.controlGoalText, "data-control-goal")}
+          ${V.strategyTileGrid(controlGoalTiles(), state.controlGoals, "data-control-goal", { multi: true })}
         </section>
 
         <section class="way-section way-section--planb">
           <header class="way-section__head">
             <h4 class="way-section__title">Plan B, wenn ich hänge</h4>
-            <p class="way-section__hint">Genau 1 Auswahl · optional</p>
+            <p class="way-section__hint">bis 3 Auswahlen · optional</p>
           </header>
-          ${V.strategyTileGrid(planBTilesAll(), state.planBStrategyText, "data-plan-b")}
+          ${V.strategyTileGrid(planBTilesAll(), state.planBStrategies, "data-plan-b", { multi: true })}
         </section>
       </div>`;
   }
@@ -563,8 +588,11 @@
 
   function dailyGoalBlockHtml(ui, entry) {
     const levelGoal = entry?.level_goal_text || state.levelGoalText;
-    const howGoal = entry?.how_goal_text || entry?.goal || state.howGoalText;
+    const howGoal =
+      entry?.how_goal_text || entry?.goal || state.howGoalText || joinMulti(state.startGoals);
     const details = entry?.details_text || state.detailsText;
+    const planB =
+      entry?.plan_b_strategy_text || joinMulti(state.planBStrategies);
     if (!levelGoal || !howGoal) return "";
 
     return `
@@ -579,8 +607,8 @@
               : ""
           }
           ${
-            (entry?.plan_b_strategy_text || state.planBStrategyText)
-              ? `<p><strong>Plan B, wenn ich hänge:</strong><br>${ui.escapeHtml(entry?.plan_b_strategy_text || state.planBStrategyText)}</p>`
+            planB
+              ? `<p><strong>Plan B, wenn ich hänge:</strong><br>${ui.escapeHtml(planB)}</p>`
               : ""
           }
         </div>
@@ -632,12 +660,15 @@
       return tile.title;
     });
 
-    const controlTile = CONTROL_STRATEGY_TILES.find((t) => t.value === state.controlGoalText);
+    const controlLines = state.controlGoals.map((g) => {
+      const tile = CONTROL_STRATEGY_TILES.find((t) => t.value === g);
+      return tile?.desc || `Ich kontrolliere: ${controlLabel(g)}`;
+    });
 
     const wegLines = [
-      state.startGoalText,
+      ...state.startGoals,
       ...arbeitLines.map((line) => `Ich arbeite: ${line}`),
-      controlTile?.desc || (state.controlGoalText ? `Ich kontrolliere: ${controlLabel(state.controlGoalText)}` : null)
+      ...controlLines
     ].filter(Boolean);
 
     return `
@@ -657,10 +688,10 @@
           </ul>
         </div>
         ${
-          state.planBStrategyText
+          state.planBStrategies.length
             ? `<div class="mission-summary__block">
                 <p class="mission-summary__label">Mein Plan B</p>
-                <p class="mission-summary__value">${ui.escapeHtml(state.planBStrategyText)}</p>
+                <p class="mission-summary__value">${ui.escapeHtml(joinMulti(state.planBStrategies))}</p>
               </div>`
             : ""
         }
@@ -772,19 +803,24 @@
     state.whatGoalText = entry.what_goal_text || "";
     state.selectedLevel = entry.selected_level;
     state.levelGoalText = entry.level_goal_text || "";
+
     const how = entry.how_goal_text || entry.goal || null;
-    const howCat = how ? howGoalTile(how).cat : null;
-    state.startGoalText = howCat === "starten" || !howCat ? how : null;
-    state.howGoalText = state.startGoalText;
-    if (!state.startGoalText && how) {
-      state.startGoalText = how;
-      state.howGoalText = how;
+    const startAllowed = HOW_GOAL_OPTIONS;
+    state.startGoals = parseMulti(how, startAllowed);
+    if (!state.startGoals.length && how) {
+      const howCat = howGoalTile(how).cat;
+      if (howCat === "starten" || !howCat) state.startGoals = [how];
     }
-    state.controlGoalText = entry.strategy || null;
-    if (!state.controlGoalText && how && howCat === "kontrollieren") {
-      state.controlGoalText = HOW_TO_CONTROL_STRATEGY[how] || null;
+    state.howGoalText = joinMulti(state.startGoals);
+
+    const controlAllowed = CONTROL_STRATEGY_TILES.map((t) => t.value);
+    state.controlGoals = parseMulti(entry.strategy, controlAllowed);
+    if (!state.controlGoals.length && how) {
+      const mapped = HOW_TO_CONTROL_STRATEGY[how];
+      if (mapped) state.controlGoals = [mapped];
     }
-    state.planBStrategyText = entry.plan_b_strategy_text || null;
+
+    state.planBStrategies = parseMulti(entry.plan_b_strategy_text, PLAN_B());
     state.detailsText = entry.details_text || entry.freitext || "";
     state.workGoals = Array.isArray(entry.work_goals) ? entry.work_goals : [];
     state.socialForm = entry.social_form || null;
@@ -995,7 +1031,7 @@
   function bindChipGroups(root) {
     bindChoiceChips(root, "[data-level]", (btn) => {
       state.selectedLevel = btn.dataset.level;
-      state.startGoalText = null;
+      state.startGoals = [];
       state.howGoalText = null;
       syncLevelGoalText();
       refreshHowGoals();
@@ -1003,10 +1039,21 @@
     });
 
     bindChoiceChips(root, "[data-start-goal]", (btn) => {
-      state.startGoalText = btn.dataset.startGoal;
+      toggleMulti(state.startGoals, btn.dataset.startGoal, 3);
       syncStartGoalFromHowGoal();
       root.querySelectorAll("[data-start-goal]").forEach((chip) => {
-        chip.classList.toggle("is-active", chip.dataset.startGoal === state.startGoalText);
+        chip.classList.toggle("is-active", state.startGoals.includes(chip.dataset.startGoal));
+        const check = chip.querySelector(".strategy-tile__check");
+        if (state.startGoals.includes(chip.dataset.startGoal)) {
+          if (!check) {
+            chip.insertAdjacentHTML(
+              "afterbegin",
+              `<span class="strategy-tile__check" aria-hidden="true">✓</span>`
+            );
+          }
+        } else {
+          check?.remove();
+        }
       });
       updatePlanningPreview(root);
       const submitBtn = root.querySelector("#planSubmitBtn");
@@ -1014,9 +1061,19 @@
     });
 
     bindChoiceChips(root, "[data-control-goal]", (btn) => {
-      state.controlGoalText = btn.dataset.controlGoal;
+      toggleMulti(state.controlGoals, btn.dataset.controlGoal, 3);
       root.querySelectorAll("[data-control-goal]").forEach((chip) => {
-        chip.classList.toggle("is-active", chip.dataset.controlGoal === state.controlGoalText);
+        const active = state.controlGoals.includes(chip.dataset.controlGoal);
+        chip.classList.toggle("is-active", active);
+        const check = chip.querySelector(".strategy-tile__check");
+        if (active && !check) {
+          chip.insertAdjacentHTML(
+            "afterbegin",
+            `<span class="strategy-tile__check" aria-hidden="true">✓</span>`
+          );
+        } else if (!active) {
+          check?.remove();
+        }
       });
       updatePlanningPreview(root);
       const submitBtn = root.querySelector("#planSubmitBtn");
@@ -1024,10 +1081,19 @@
     });
 
     bindChoiceChips(root, "[data-plan-b]", (btn) => {
-      state.planBStrategyText =
-        state.planBStrategyText === btn.dataset.planB ? null : btn.dataset.planB;
+      toggleMulti(state.planBStrategies, btn.dataset.planB, 3);
       root.querySelectorAll("[data-plan-b]").forEach((chip) => {
-        chip.classList.toggle("is-active", chip.dataset.planB === state.planBStrategyText);
+        const active = state.planBStrategies.includes(chip.dataset.planB);
+        chip.classList.toggle("is-active", active);
+        const check = chip.querySelector(".strategy-tile__check");
+        if (active && !check) {
+          chip.insertAdjacentHTML(
+            "afterbegin",
+            `<span class="strategy-tile__check" aria-hidden="true">✓</span>`
+          );
+        } else if (!active) {
+          check?.remove();
+        }
       });
       updatePlanningPreview(root);
     });
@@ -1069,9 +1135,10 @@
         state.whatGoalText = "";
         state.selectedLevel = null;
         state.levelGoalText = "";
-        state.startGoalText = null;
+        state.startGoals = [];
         state.howGoalText = null;
-        state.controlGoalText = null;
+        state.controlGoals = [];
+        state.planBStrategies = [];
         state.selectedCheckpointId = null;
         await loadContext();
         render();
@@ -1082,9 +1149,9 @@
         state.whatGoalText = "";
         state.selectedLevel = null;
         state.levelGoalText = "";
-        state.startGoalText = null;
+        state.startGoals = [];
         state.howGoalText = null;
-        state.controlGoalText = null;
+        state.controlGoals = [];
         await loadContext();
         render();
         return;
@@ -1092,17 +1159,17 @@
       if (field === "whatGoalId") {
         state.selectedLevel = null;
         state.levelGoalText = "";
-        state.startGoalText = null;
+        state.startGoals = [];
         state.howGoalText = null;
-        state.controlGoalText = null;
+        state.controlGoals = [];
         syncLevelGoalText();
         render();
         return;
       }
       if (field === "selectedLevel") {
-        state.startGoalText = null;
+        state.startGoals = [];
         state.howGoalText = null;
-        state.controlGoalText = null;
+        state.controlGoals = [];
         syncLevelGoalText();
         refreshHowGoals();
         render();
@@ -1162,8 +1229,8 @@
       render();
       return;
     }
-    if (!state.startGoalText) {
-      state.errorMsg = "Bitte wähle, wie du startest.";
+    if (!state.startGoals.length) {
+      state.errorMsg = "Bitte wähle, wie du startest (1–3 Karten).";
       render();
       return;
     }
@@ -1172,8 +1239,8 @@
       render();
       return;
     }
-    if (!state.controlGoalText) {
-      state.errorMsg = "Bitte wähle, wie du kontrollierst.";
+    if (!state.controlGoals.length) {
+      state.errorMsg = "Bitte wähle, wie du kontrollierst (1–3 Karten).";
       render();
       return;
     }
@@ -1189,6 +1256,9 @@
     render();
 
     const checkpoint = pickedCheckpoint();
+    const howJoined = joinMulti(state.startGoals);
+    const strategyJoined = joinMulti(state.controlGoals);
+    const planBJoined = joinMulti(state.planBStrategies);
 
     try {
       const isEdit = !!state.editingEntryId;
@@ -1210,15 +1280,15 @@
           whatGoalId: state.whatGoalId,
           whatGoalText: state.whatGoalText.trim(),
           selectedLevel: state.selectedLevel,
-          howGoalText: state.startGoalText,
-          goal: state.startGoalText,
+          howGoalText: state.startGoals,
+          goal: howJoined,
           detailsText: state.detailsText.trim() || null,
           workGoals: state.workGoals,
           socialForm: state.socialForm,
-          strategy: state.controlGoalText || null,
+          strategy: state.controlGoals,
           confidenceBefore:
             state.confidenceBefore != null ? Number(state.confidenceBefore) : null,
-          planBStrategyText: state.planBStrategyText || null,
+          planBStrategyText: planBJoined,
           freitext: state.detailsText.trim() || null
         })
       });
@@ -1291,9 +1361,9 @@
       state.subject = data.suggestedSubject;
     }
 
-    if (state.startGoalText && !state.howGoals.includes(state.startGoalText)) {
-      state.startGoalText = null;
-      state.howGoalText = null;
+    if (state.startGoals.length) {
+      state.startGoals = state.startGoals.filter((g) => state.howGoals.includes(g));
+      state.howGoalText = joinMulti(state.startGoals);
     }
     if (state.whatGoalId) {
       const picked = state.whatGoalOptions.find((g) => String(g.id) === String(state.whatGoalId));
@@ -1320,9 +1390,12 @@
     state.selectedLevel = null;
     state.levelGoalText = "";
     state.howGoalText = null;
-    state.startGoalText = null;
-    state.controlGoalText = null;
-    state.planBStrategyText = window.LogbuchStrategies?.rememberedPlanB() || null;
+    state.startGoals = [];
+    state.controlGoals = [];
+    state.planBStrategies = parseMulti(
+      window.LogbuchStrategies?.rememberedPlanB() || null,
+      PLAN_B()
+    );
     state.workGoals = [];
     state.socialForm = null;
     state.confidenceBefore = null;

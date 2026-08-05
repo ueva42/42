@@ -277,6 +277,7 @@
   }
 
   function renderOpenGoalsSection(ui, openGoals, readonly) {
+    const V = window.LogbuchVisuals;
     const chips =
       openGoals?.length > 0
         ? `<div class="open-goal-chips">${openGoals
@@ -287,7 +288,7 @@
     let nextWeekField = "";
     if (!readonly) {
       const options = (openGoals || []).map((g) => ({
-        value: g.entryId,
+        value: String(g.entryId),
         label: g.openGoalLabel
       }));
       if (!options.length) {
@@ -296,14 +297,18 @@
           label: "Ich starte nächste Woche mit einem neuen Ziel."
         });
       }
+      const active = state.nextWeekGoalId || options[0]?.value || null;
       nextWeekField = ui.fieldWrap(
         ui.fieldLabel("Woran arbeite ich nächste Woche weiter?"),
-        ui.select(
-          "nextWeekGoalId",
-          options,
-          state.nextWeekGoalId || (options[0]?.value ?? null),
-          { phase: "week", placeholder: "Bitte wählen…" }
-        )
+        V
+          ? V.choiceChipGroup(options, {
+              activeValue: active,
+              attrName: "data-next-week-goal"
+            })
+          : ui.select("nextWeekGoalId", options, active, {
+              phase: "week",
+              placeholder: "Bitte wählen…"
+            })
       );
     } else if (state.data.weekReflection?.next_week_goal_text) {
       nextWeekField = `<p class="week-readonly-text"><strong>Nächste Woche:</strong> ${ui.escapeHtml(state.data.weekReflection.next_week_goal_text)}</p>`;
@@ -320,6 +325,7 @@
   }
 
   function renderDistractionsSection(ui, items, levels, readonly) {
+    const V = window.LogbuchVisuals;
     const wasters = readonly ? state.data.weekReflection?.time_wasters || {} : state.timeWasters;
 
     const chips = items
@@ -331,17 +337,24 @@
               <span class="reflection-chip__value">${ui.escapeHtml(wasters[item] || "–")}</span>
             </div>`;
         }
-        const opts = levels.map((level) => ({ value: level, label: level }));
+        const levelOpts = levels.map((level) => ({ value: level, label: level }));
         return `
-          <div class="reflection-chip">
-            <label class="reflection-chip__label" for="tw-${ui.escapeHtml(item)}">${ui.escapeHtml(item)}</label>
-            ${ui.select(`tw-${item}`, opts, wasters[item], {
-              id: `tw-${item}`,
-              dataField: "timeWaster",
-              dataItem: item,
-              phase: "week",
-              placeholder: "Bitte wählen…"
-            })}
+          <div class="reflection-chip reflection-chip--app" data-time-waster-item="${ui.escapeHtml(item)}">
+            <p class="reflection-chip__label">${ui.escapeHtml(item)}</p>
+            ${
+              V
+                ? V.choiceChipGroup(levelOpts, {
+                    activeValue: wasters[item],
+                    attrName: "data-time-waster-level"
+                  })
+                : ui.select(`tw-${item}`, levelOpts, wasters[item], {
+                    id: `tw-${item}`,
+                    dataField: "timeWaster",
+                    dataItem: item,
+                    phase: "week",
+                    placeholder: "Bitte wählen…"
+                  })
+            }
           </div>`;
       })
       .join("");
@@ -350,13 +363,14 @@
       <div class="student-card week-form-card">
         <div class="card-content">
           <h3 class="section-block__title">Was hat mich beim Lernen gestört?</h3>
-          <p class="week-matrix-hint">Wie oft kam das diese Woche vor?</p>
+          <p class="week-matrix-hint">Tippe, wie oft das diese Woche vorkam.</p>
           <div class="reflection-chip-grid">${chips}</div>
         </div>
       </div>`;
   }
 
   function renderStrategySection(ui, d, readonly) {
+    const V = window.LogbuchVisuals;
     const usedHint =
       d.usedStrategies?.length > 0
         ? `<p class="week-strategy-hint">Diese Woche genutzt: ${ui.escapeHtml(d.usedStrategies.join(", "))}</p>`
@@ -385,25 +399,36 @@
           ${usedHint}
           ${ui.fieldWrap(
             ui.fieldLabel("Welche Strategie hat dir geholfen?", { required: true }),
-            ui.select("weeklyHelpfulStrategy", strategyOpts, state.weeklyHelpfulStrategy, {
-              phase: "week",
-              placeholder: "Bitte wählen…"
-            })
+            V
+              ? V.choiceChipGroup(strategyOpts, {
+                  activeValue: state.weeklyHelpfulStrategy,
+                  attrName: "data-week-strategy"
+                })
+              : ui.select("weeklyHelpfulStrategy", strategyOpts, state.weeklyHelpfulStrategy, {
+                  phase: "week",
+                  placeholder: "Bitte wählen…"
+                })
           )}
           ${ui.fieldWrap(
             ui.fieldLabel("Hat sie geholfen?", { required: true }),
-            ui.select(
-              "weeklyStrategyHelpedAnswer",
-              helpedOpts,
-              state.weeklyStrategyHelpedAnswer,
-              { phase: "week", placeholder: "Bitte wählen…" }
-            )
+            V
+              ? V.choiceChipGroup(helpedOpts, {
+                  activeValue: state.weeklyStrategyHelpedAnswer,
+                  attrName: "data-week-helped"
+                })
+              : ui.select(
+                  "weeklyStrategyHelpedAnswer",
+                  helpedOpts,
+                  state.weeklyStrategyHelpedAnswer,
+                  { phase: "week", placeholder: "Bitte wählen…" }
+                )
           )}
         </div>
       </div>`;
   }
 
   function renderPlanSection(ui, d, readonly) {
+    const V = window.LogbuchVisuals;
     const howGoals = howGoalsForSelectedEntry().map((g) => ({ value: g, label: g }));
 
     if (readonly) {
@@ -420,16 +445,29 @@
     }
 
     const hasOpen = (d.openGoals || []).length > 0;
+    const focusOptions = (d.openGoals || []).map((g) => ({
+      value: g.openGoalLabel,
+      label: g.openGoalLabel
+    }));
+    const focusActive =
+      state.nextWeekFocusGoalText ||
+      (state.nextWeekGoalId
+        ? d.openGoals.find((g) => String(g.entryId) === String(state.nextWeekGoalId))
+            ?.openGoalLabel
+        : d.openGoals[0]?.openGoalLabel);
+
     const focusControl = hasOpen
-      ? ui.select(
-          "nextWeekFocusGoalText",
-          (d.openGoals || []).map((g) => ({ value: g.openGoalLabel, label: g.openGoalLabel })),
-          state.nextWeekFocusGoalText ||
-            (state.nextWeekGoalId
-              ? d.openGoals.find((g) => String(g.entryId) === String(state.nextWeekGoalId))?.openGoalLabel
-              : d.openGoals[0]?.openGoalLabel),
-          { phase: "week", placeholder: "Bitte wählen…" }
-        )
+      ? V
+        ? V.choiceChipGroup(focusOptions, {
+            activeValue: focusActive,
+            attrName: "data-week-focus"
+          })
+        : ui.select(
+            "nextWeekFocusGoalText",
+            focusOptions,
+            focusActive,
+            { phase: "week", placeholder: "Bitte wählen…" }
+          )
       : `<input type="text" class="logbuch-input" id="weekFocusGoalFree" maxlength="300"
           placeholder="Mein wichtigstes Ziel für nächste Woche …"
           value="${ui.escapeHtml(state.nextWeekFocusGoalText)}">`;
@@ -444,10 +482,15 @@
           )}
           ${ui.fieldWrap(
             ui.fieldLabel("Wie arbeite ich daran?", { required: true }),
-            ui.select("nextWeekHowGoalText", howGoals, state.nextWeekHowGoalText, {
-              phase: "week",
-              placeholder: "Bitte wählen…"
-            })
+            V
+              ? V.choiceChipGroup(howGoals, {
+                  activeValue: state.nextWeekHowGoalText,
+                  attrName: "data-week-how"
+                })
+              : ui.select("nextWeekHowGoalText", howGoals, state.nextWeekHowGoalText, {
+                  phase: "week",
+                  placeholder: "Bitte wählen…"
+                })
           )}
         </div>
       </div>`;
@@ -546,6 +589,78 @@
       btn.addEventListener("click", () => {
         state.selectedDay = btn.dataset.weekDay;
         render();
+      });
+    });
+
+    root.querySelectorAll("[data-next-week-goal]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.nextWeekGoalId = btn.dataset.nextWeekGoal;
+        syncNextWeekFromSelection();
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-time-waster-level]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const wrap = btn.closest("[data-time-waster-item]");
+        const item = wrap?.dataset.timeWasterItem;
+        if (!item) return;
+        state.timeWasters[item] = btn.dataset.timeWasterLevel;
+        wrap.querySelectorAll("[data-time-waster-level]").forEach((chip) => {
+          chip.classList.toggle(
+            "is-active",
+            chip.dataset.timeWasterLevel === state.timeWasters[item]
+          );
+        });
+      });
+    });
+
+    root.querySelectorAll("[data-week-strategy]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.weeklyHelpfulStrategy = btn.dataset.weekStrategy;
+        root.querySelectorAll("[data-week-strategy]").forEach((chip) => {
+          chip.classList.toggle(
+            "is-active",
+            chip.dataset.weekStrategy === state.weeklyHelpfulStrategy
+          );
+        });
+      });
+    });
+
+    root.querySelectorAll("[data-week-helped]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.weeklyStrategyHelpedAnswer = btn.dataset.weekHelped;
+        root.querySelectorAll("[data-week-helped]").forEach((chip) => {
+          chip.classList.toggle(
+            "is-active",
+            chip.dataset.weekHelped === state.weeklyStrategyHelpedAnswer
+          );
+        });
+      });
+    });
+
+    root.querySelectorAll("[data-week-focus]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.nextWeekFocusGoalText = btn.dataset.weekFocus;
+        state.nextWeekGoalText = state.nextWeekFocusGoalText;
+        root.querySelectorAll("[data-week-focus]").forEach((chip) => {
+          chip.classList.toggle(
+            "is-active",
+            chip.dataset.weekFocus === state.nextWeekFocusGoalText
+          );
+        });
+      });
+    });
+
+    root.querySelectorAll("[data-week-how]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.nextWeekHowGoalText = btn.dataset.weekHow;
+        root.querySelectorAll("[data-week-how]").forEach((chip) => {
+          chip.classList.toggle(
+            "is-active",
+            chip.dataset.weekHow === state.nextWeekHowGoalText
+          );
+        });
       });
     });
 
