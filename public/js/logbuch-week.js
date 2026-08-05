@@ -369,6 +369,154 @@
       </div>`;
   }
 
+  const WEEK_STRATEGY_TILES = {
+    "Gegeben und gesucht markieren": {
+      title: "Gegeben & gesucht",
+      desc: "Markiere, was gegeben und gesucht ist.",
+      icon: "◫",
+      accent: "#22d3ee"
+    },
+    "Beispielaufgabe anschauen": {
+      title: "Beispiel ansehen",
+      desc: "Schau zuerst eine Beispielaufgabe an.",
+      icon: "◎",
+      accent: "#22d3ee"
+    },
+    "Fehlerjäger-Check": {
+      title: "Fehlerjäger",
+      desc: "Suche gezielt Fehler und verbessere sie.",
+      icon: "⌕",
+      accent: "#a855f7"
+    },
+    "Probe machen / rückwärts kontrollieren": {
+      title: "Probe machen",
+      desc: "Kontrolliere dein Ergebnis rückwärts.",
+      icon: "↩",
+      accent: "#22d3ee"
+    },
+    "Aufgabe kleiner machen": {
+      title: "Aufgabe teilen",
+      desc: "Zerlege die Aufgabe in kleine Schritte.",
+      icon: "▦",
+      accent: "#a855f7"
+    },
+    "5-Minuten-Start": {
+      title: "5-Minuten-Start",
+      desc: "Kurz fokussiert anfangen.",
+      icon: "⏱",
+      accent: "#fb923c"
+    },
+    "Keine Strategie genutzt": {
+      title: "Keine Strategie",
+      desc: "Diese Woche ohne Strategie gearbeitet.",
+      icon: "○",
+      accent: "#94a3b8"
+    }
+  };
+
+  const HOW_GOAL_TILES = {
+    "Ich schaue mir zuerst ein Beispiel an.": {
+      title: "Beispiel anschauen",
+      desc: "Schau zuerst eine Beispielaufgabe an.",
+      icon: "◎",
+      accent: "#22d3ee"
+    },
+    "Ich starte mit Rookie-Aufgaben.": {
+      title: "Rookie starten",
+      desc: "Beginne mit einfachen Aufgaben.",
+      icon: "1",
+      accent: "#22d3ee"
+    },
+    "Ich löse erst mit Hilfe und danach alleine.": {
+      title: "Mit Hilfe starten",
+      desc: "Erst mit Hilfe, dann alleine.",
+      icon: "⇄",
+      accent: "#22d3ee"
+    },
+    "Ich bearbeite Operator-Aufgaben.": {
+      title: "Operator-Aufgaben",
+      desc: "Arbeite auf Operator-Level weiter.",
+      icon: "2",
+      accent: "#a855f7"
+    },
+    "Ich versuche eine Street-Legend-Aufgabe.": {
+      title: "Legend versuchen",
+      desc: "Probiere eine schwere Aufgabe.",
+      icon: "3",
+      accent: "#d946ef"
+    },
+    "Ich vergleiche meinen Lösungsweg mit der Musterlösung.": {
+      title: "Rechenweg prüfen",
+      desc: "Vergleiche mit der Musterlösung.",
+      icon: "≡",
+      accent: "#22d3ee"
+    },
+    "Ich suche gezielt meine Fehler.": {
+      title: "Fehler suchen",
+      desc: "Finde und verbessere Fehler.",
+      icon: "⌕",
+      accent: "#22d3ee"
+    },
+    "Ich schreibe meinen Lösungsweg sauber auf.": {
+      title: "Weg aufschreiben",
+      desc: "Halte deinen Rechenweg sauber fest.",
+      icon: "✎",
+      accent: "#a855f7"
+    },
+    "Ich erkläre am Ende eine Aufgabe jemandem.": {
+      title: "Aufgabe erklären",
+      desc: "Erkläre jemandem deine Lösung.",
+      icon: "💬",
+      accent: "#a855f7"
+    },
+    "Ich schaue ein Lernvideo und notiere drei wichtige Punkte.": {
+      title: "Lernvideo nutzen",
+      desc: "Video schauen und 3 Punkte notieren.",
+      icon: "▶",
+      accent: "#22d3ee"
+    },
+    "Ich wiederhole ein unsicheres Ziel.": {
+      title: "Ziel wiederholen",
+      desc: "Wiederhole etwas Unsicheres.",
+      icon: "↺",
+      accent: "#22d3ee"
+    }
+  };
+
+  function strategyTileFromLabel(label) {
+    const meta = WEEK_STRATEGY_TILES[label];
+    if (meta) return { value: label, ...meta };
+    return {
+      value: label,
+      title: label.length > 28 ? `${label.slice(0, 25)}…` : label,
+      desc: label,
+      icon: "◆",
+      accent: "#a855f7"
+    };
+  }
+
+  function howGoalTileFromLabel(label) {
+    const meta = HOW_GOAL_TILES[label];
+    if (meta) return { value: label, ...meta };
+    return {
+      value: label,
+      title: label.length > 30 ? `${label.slice(0, 27)}…` : label,
+      desc: label,
+      icon: "◆",
+      accent: "#a855f7"
+    };
+  }
+
+  function focusGoalTile(label) {
+    return {
+      value: label,
+      title: label.length > 42 ? `${label.slice(0, 39)}…` : label,
+      desc: "Wichtigstes Ziel für nächste Woche",
+      icon: "◎",
+      accent: "#fb923c"
+    };
+  }
+
   function renderStrategySection(ui, d, readonly) {
     const V = window.LogbuchVisuals;
     const usedHint =
@@ -380,75 +528,79 @@
       const wr = d.weekReflection;
       if (!wr?.weekly_helpful_strategy) return "";
       return `
-        <div class="student-card week-form-card">
-          <div class="card-content">
-            <h3 class="section-block__title">Strategie der Woche</h3>
+        <article class="goal-step-card">
+          <header class="goal-step-card__head">
+            <span class="goal-step-card__step">1</span>
+            <h3 class="goal-step-card__title">Strategie der Woche</h3>
+          </header>
+          <div class="goal-step-card__stack">
             <p class="week-readonly-text"><strong>Strategie:</strong> ${ui.escapeHtml(wr.weekly_helpful_strategy)}</p>
             <p class="week-readonly-text"><strong>Geholfen?</strong> ${ui.escapeHtml(strategyHelpedLabel(wr.weekly_strategy_helped_answer, d.weekStrategyHelped))}</p>
           </div>
-        </div>`;
+        </article>`;
     }
 
-    const strategyOpts = (d.weekStrategies || []).map((s) => ({ value: s, label: s }));
+    const strategyTiles = (d.weekStrategies || []).map(strategyTileFromLabel);
     const helpedOpts = mapOptions(d.weekStrategyHelped || []);
 
     return `
-      <div class="student-card week-form-card">
-        <div class="card-content">
-          <h3 class="section-block__title">Strategie der Woche</h3>
+      <article class="goal-step-card">
+        <header class="goal-step-card__head">
+          <span class="goal-step-card__step">1</span>
+          <h3 class="goal-step-card__title">Strategie der Woche</h3>
+        </header>
+        <div class="goal-step-card__stack">
           ${usedHint}
-          ${ui.fieldWrap(
-            ui.fieldLabel("Welche Strategie hat dir geholfen?", { required: true }),
-            V
-              ? V.choiceChipGroup(strategyOpts, {
-                  activeValue: state.weeklyHelpfulStrategy,
-                  attrName: "data-week-strategy"
-                })
-              : ui.select("weeklyHelpfulStrategy", strategyOpts, state.weeklyHelpfulStrategy, {
-                  phase: "week",
-                  placeholder: "Bitte wählen…"
-                })
-          )}
-          ${ui.fieldWrap(
-            ui.fieldLabel("Hat sie geholfen?", { required: true }),
-            V
-              ? V.choiceChipGroup(helpedOpts, {
-                  activeValue: state.weeklyStrategyHelpedAnswer,
-                  attrName: "data-week-helped"
-                })
-              : ui.select(
-                  "weeklyStrategyHelpedAnswer",
-                  helpedOpts,
-                  state.weeklyStrategyHelpedAnswer,
-                  { phase: "week", placeholder: "Bitte wählen…" }
-                )
-          )}
+          <section class="way-section way-section--control">
+            <header class="way-section__head">
+              <h4 class="way-section__title">Welche Strategie hat dir geholfen?</h4>
+              <p class="way-section__hint">1 Auswahl</p>
+            </header>
+            ${
+              V
+                ? V.strategyTileGrid(strategyTiles, state.weeklyHelpfulStrategy, "data-week-strategy")
+                : ""
+            }
+          </section>
+          <section class="way-section way-section--work week-helped-row">
+            <header class="way-section__head">
+              <h4 class="way-section__title">Hat sie geholfen?</h4>
+              <p class="way-section__hint">1 Auswahl</p>
+            </header>
+            ${
+              V
+                ? V.choiceChipGroup(helpedOpts, {
+                    activeValue: state.weeklyStrategyHelpedAnswer,
+                    attrName: "data-week-helped"
+                  })
+                : ""
+            }
+          </section>
         </div>
-      </div>`;
+      </article>`;
   }
 
   function renderPlanSection(ui, d, readonly) {
     const V = window.LogbuchVisuals;
-    const howGoals = howGoalsForSelectedEntry().map((g) => ({ value: g, label: g }));
+    const howGoals = howGoalsForSelectedEntry();
 
     if (readonly) {
       const wr = d.weekReflection;
       if (!wr?.next_week_focus_goal_text) return "";
       return `
-        <div class="student-card week-form-card">
-          <div class="card-content">
-            <h3 class="section-block__title">Plan für nächste Woche</h3>
+        <article class="goal-step-card">
+          <header class="goal-step-card__head">
+            <span class="goal-step-card__step">2</span>
+            <h3 class="goal-step-card__title">Plan für nächste Woche</h3>
+          </header>
+          <div class="goal-step-card__stack">
             <p class="week-readonly-text"><strong>Ziel:</strong> ${ui.escapeHtml(wr.next_week_focus_goal_text)}</p>
             <p class="week-readonly-text"><strong>Wie:</strong> ${ui.escapeHtml(wr.next_week_how_goal_text || "–")}</p>
           </div>
-        </div>`;
+        </article>`;
     }
 
     const hasOpen = (d.openGoals || []).length > 0;
-    const focusOptions = (d.openGoals || []).map((g) => ({
-      value: g.openGoalLabel,
-      label: g.openGoalLabel
-    }));
     const focusActive =
       state.nextWeekFocusGoalText ||
       (state.nextWeekGoalId
@@ -458,42 +610,47 @@
 
     const focusControl = hasOpen
       ? V
-        ? V.choiceChipGroup(focusOptions, {
-            activeValue: focusActive,
-            attrName: "data-week-focus"
-          })
-        : ui.select(
-            "nextWeekFocusGoalText",
-            focusOptions,
+        ? V.strategyTileGrid(
+            (d.openGoals || []).map((g) => focusGoalTile(g.openGoalLabel)),
             focusActive,
-            { phase: "week", placeholder: "Bitte wählen…" }
+            "data-week-focus"
           )
+        : ""
       : `<input type="text" class="logbuch-input" id="weekFocusGoalFree" maxlength="300"
           placeholder="Mein wichtigstes Ziel für nächste Woche …"
           value="${ui.escapeHtml(state.nextWeekFocusGoalText)}">`;
 
     return `
-      <div class="student-card week-form-card">
-        <div class="card-content">
-          <h3 class="section-block__title">Plan für nächste Woche</h3>
-          ${ui.fieldWrap(
-            ui.fieldLabel("Mein wichtigstes Ziel", { required: true }),
-            focusControl
-          )}
-          ${ui.fieldWrap(
-            ui.fieldLabel("Wie arbeite ich daran?", { required: true }),
-            V
-              ? V.choiceChipGroup(howGoals, {
-                  activeValue: state.nextWeekHowGoalText,
-                  attrName: "data-week-how"
-                })
-              : ui.select("nextWeekHowGoalText", howGoals, state.nextWeekHowGoalText, {
-                  phase: "week",
-                  placeholder: "Bitte wählen…"
-                })
-          )}
+      <article class="goal-step-card">
+        <header class="goal-step-card__head">
+          <span class="goal-step-card__step">2</span>
+          <h3 class="goal-step-card__title">Plan für nächste Woche</h3>
+        </header>
+        <div class="goal-step-card__stack">
+          <section class="way-section way-section--start">
+            <header class="way-section__head">
+              <h4 class="way-section__title">Mein wichtigstes Ziel</h4>
+              <p class="way-section__hint">1 Auswahl</p>
+            </header>
+            ${focusControl}
+          </section>
+          <section class="way-section way-section--planb">
+            <header class="way-section__head">
+              <h4 class="way-section__title">Wie arbeite ich daran?</h4>
+              <p class="way-section__hint">1 Auswahl</p>
+            </header>
+            ${
+              V
+                ? V.strategyTileGrid(
+                    howGoals.map(howGoalTileFromLabel),
+                    state.nextWeekHowGoalText,
+                    "data-week-how"
+                  )
+                : ""
+            }
+          </section>
         </div>
-      </div>`;
+      </article>`;
   }
 
   function render() {
@@ -531,8 +688,10 @@
               ${renderLearnedSection(ui, submitted)}
               ${renderOpenGoalsSection(ui, d.openGoals, submitted)}
               ${renderDistractionsSection(ui, d.timeWasterItems, d.timeWasterLevels, submitted)}
-              ${renderStrategySection(ui, d, submitted)}
-              ${renderPlanSection(ui, d, submitted)}
+              <div class="week-app-grid">
+                ${renderStrategySection(ui, d, submitted)}
+                ${renderPlanSection(ui, d, submitted)}
+              </div>
 
               ${
                 submitted

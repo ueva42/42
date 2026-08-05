@@ -973,7 +973,8 @@
           ${renderGoalStepCard(
             3,
             "Selbstcheck",
-            `<div class="goal-step-card__stack">${renderConfidenceCards(ui)}</div>`
+            `<div class="goal-step-card__stack">${renderConfidenceCards(ui)}</div>`,
+            true
           )}
 
           ${renderGoalStepCard(

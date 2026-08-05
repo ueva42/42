@@ -4706,23 +4706,12 @@ body.student-app {
   color: color-mix(in srgb, var(--accent, #fff) 70%, #fff);
 }
 
-.reflection-chip-grid {
-  display: grid;
-  gap: 10px;
-}
-
-@media (min-width: 640px) {
-  .reflection-chip-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 .reflection-chip {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px;
-  border-radius: 16px;
+  padding: 12px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(2, 6, 23, 0.55);
 }
@@ -4759,6 +4748,52 @@ body.student-app {
   text-align: left;
   white-space: normal;
   max-width: 100%;
+}
+
+.week-app-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+.week-app-grid .goal-step-card {
+  margin: 0;
+}
+
+.week-app-grid .way-section {
+  margin-top: 4px;
+}
+
+.week-helped-row .choice-chip-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.week-helped-row .choice-chip {
+  min-height: 42px;
+  justify-content: center;
+  text-align: center;
+  border-radius: 14px;
+}
+
+.reflection-chip-grid {
+  display: grid;
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .reflection-chip-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+}
+
+@media (max-width: 900px) {
+  .week-app-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .reflection-chip .logbuch-select {
@@ -6613,8 +6648,8 @@ body.student-app .card.section > h2 {
 .plan-app-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  align-items: start;
+  gap: 8px;
+  align-items: stretch;
 }
 
 .plan-app-grid--start {
@@ -6829,11 +6864,12 @@ body.student-app .card.section > h2 {
     radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.12), transparent 42%),
     radial-gradient(circle at 0% 100%, rgba(34, 211, 238, 0.06), transparent 46%),
     rgba(8, 14, 35, 0.92);
-  padding: 18px;
+  padding: 14px 14px 16px;
   box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.32),
     0 0 24px rgba(34, 211, 238, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  height: 100%;
 }
 
 .goal-step-card:nth-child(1) { border-color: rgba(34, 211, 238, 0.32); }
@@ -6912,7 +6948,7 @@ body.student-app .card.section > h2 {
 .strategy-tile-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .strategy-tile {
@@ -7017,8 +7053,8 @@ body.student-app .card.section > h2 {
 }
 
 .way-section {
-  padding: 14px;
-  border-radius: 16px;
+  padding: 10px;
+  border-radius: 14px;
   border: 1px solid rgba(103, 132, 255, 0.14);
   background: rgba(5, 8, 22, 0.55);
 }
@@ -10822,11 +10858,11 @@ h2 {
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-plan.js?v=20"></script>
+<script src="/js/logbuch-plan.js?v=21"></script>
 <script src="/js/logbuch-check.js?v=8"></script>
 <script src="/js/logbuch-reflect.js?v=5"></script>
 <script src="/js/logbuch-today.js?v=28"></script>
-<script src="/js/logbuch-week.js?v=8"></script>
+<script src="/js/logbuch-week.js?v=9"></script>
 <script src="/js/logbuch-levelplan.js?v=16"></script>
 <script src="/js/logbuch-start-briefing.js?v=2"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
