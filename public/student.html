@@ -6645,6 +6645,179 @@ body.student-app .card.section > h2 {
   gap: 16px;
 }
 
+.plan-app--accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plan-acc-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-acc {
+  border-radius: 18px;
+  border: 1px solid rgba(103, 132, 255, 0.22);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.1), transparent 42%),
+    rgba(8, 14, 35, 0.94);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.plan-acc.is-open {
+  border-color: rgba(34, 211, 238, 0.4);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.32),
+    0 0 22px rgba(34, 211, 238, 0.12);
+}
+
+.plan-acc.is-done {
+  border-color: rgba(34, 197, 94, 0.28);
+}
+
+.plan-acc.is-locked .plan-acc__header {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.plan-acc__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.plan-acc__header:disabled {
+  cursor: not-allowed;
+}
+
+.plan-acc__step {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #e2e8f0;
+  background: rgba(148, 163, 184, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.plan-acc__step.is-done {
+  color: #052e16;
+  background: #4ade80;
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.plan-acc.is-open .plan-acc__step {
+  color: #082f49;
+  background: #22d3ee;
+  border-color: rgba(34, 211, 238, 0.55);
+}
+
+.plan-acc__titles {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.plan-acc__title {
+  font-family: "Orbitron", system-ui;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f1f5f9;
+}
+
+.plan-acc__summary,
+.plan-acc__hint {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-acc.is-done .plan-acc__summary {
+  color: #86efac;
+}
+
+.plan-acc__chevron {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.plan-acc__body {
+  padding: 0 14px 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  padding-top: 12px;
+}
+
+.plan-acc__continue {
+  margin-top: 4px;
+}
+
+.plan-mission-live {
+  margin-top: 2px;
+}
+
+.plan-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  background:
+    radial-gradient(circle at 0% 50%, rgba(251, 146, 60, 0.14), transparent 55%),
+    rgba(8, 14, 35, 0.95);
+}
+
+.plan-suggest--on {
+  border-color: rgba(34, 197, 94, 0.35);
+  background:
+    radial-gradient(circle at 0% 50%, rgba(34, 197, 94, 0.12), transparent 55%),
+    rgba(8, 14, 35, 0.95);
+}
+
+.plan-suggest__eyebrow {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fb923c;
+}
+
+.plan-suggest__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #e2e8f0;
+}
+
+.plan-suggest__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .plan-app-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -10858,7 +11031,7 @@ h2 {
 <script src="/js/logbuch-reminders.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=7"></script>
-<script src="/js/logbuch-plan.js?v=21"></script>
+<script src="/js/logbuch-plan.js?v=22"></script>
 <script src="/js/logbuch-check.js?v=8"></script>
 <script src="/js/logbuch-reflect.js?v=5"></script>
 <script src="/js/logbuch-today.js?v=28"></script>

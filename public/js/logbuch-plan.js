@@ -78,7 +78,11 @@
     hasClass: true,
     subjectLocked: false,
     submitting: false,
-    errorMsg: ""
+    errorMsg: "",
+    activeStep: 1,
+    step3Skipped: false,
+    suggestion: null,
+    suggestionApplied: false
   };
 
   const ARBEIT_TILE_META = {
@@ -466,21 +470,148 @@
     return !!state.selectedCheckpointId;
   }
 
-  function requiredFieldsComplete() {
+  function step1Complete() {
     return !!(
       state.subject &&
       state.whatGoalId &&
       state.selectedLevel &&
       state.levelGoalText &&
-      state.startGoals.length >= 1 &&
-      state.startGoals.length <= 3 &&
-      state.controlGoals.length >= 1 &&
-      state.controlGoals.length <= 3 &&
-      state.workGoals.length >= 1 &&
-      state.workGoals.length <= 3 &&
       checkpointSatisfied() &&
       state.whatGoalOptions.length
     );
+  }
+
+  function step2Complete() {
+    return (
+      state.startGoals.length >= 1 &&
+      state.startGoals.length <= 3 &&
+      state.workGoals.length >= 1 &&
+      state.workGoals.length <= 3 &&
+      state.controlGoals.length >= 1 &&
+      state.controlGoals.length <= 3
+    );
+  }
+
+  function step3Complete() {
+    return state.confidenceBefore != null || state.step3Skipped;
+  }
+
+  function syncActiveStep() {
+    if (state.activeStep >= 2 && !step1Complete()) {
+      state.activeStep = 1;
+      return;
+    }
+    if (state.activeStep >= 3 && !step2Complete()) {
+      state.activeStep = 2;
+      return;
+    }
+    if (state.activeStep === 1 && step1Complete()) state.activeStep = 2;
+    else if (state.activeStep === 2 && step2Complete()) state.activeStep = 3;
+    else if (state.activeStep === 3 && step3Complete()) state.activeStep = 4;
+  }
+
+  function openStep(step) {
+    state.activeStep = Number(step);
+    render();
+  }
+
+  function step1Summary() {
+    const parts = [];
+    if (state.subject) parts.push(state.subject);
+    if (state.whatGoalText) parts.push(state.whatGoalText);
+    if (state.selectedLevel) parts.push(levelLabel(state.selectedLevel));
+    return parts.join(" · ") || "Noch offen";
+  }
+
+  function step2Summary() {
+    const parts = [
+      ...state.startGoals.slice(0, 1),
+      ...state.workGoals.slice(0, 2).map((g) => arbeitTile(g).title),
+      ...state.controlGoals.slice(0, 1).map((g) => controlLabel(g))
+    ].filter(Boolean);
+    return parts.length ? parts.join(" · ") : "Noch offen";
+  }
+
+  function step3Summary() {
+    if (state.confidenceBefore != null) return `${state.confidenceBefore} / 5`;
+    if (state.step3Skipped) return "Übersprungen";
+    return "Noch offen";
+  }
+
+  function renderAccordionStep(step, title, summary, bodyHtml, opts = {}) {
+    const isOpen = state.activeStep === step;
+    const isDone = !!opts.done;
+    const canOpen = opts.canOpen !== false;
+    const statusClass = isOpen ? "is-open" : isDone ? "is-done" : "is-locked";
+
+    return `
+      <article class="plan-acc ${statusClass}" data-plan-step="${step}">
+        <button
+          type="button"
+          class="plan-acc__header"
+          data-plan-open="${step}"
+          ${!canOpen && !isOpen ? "disabled" : ""}
+          aria-expanded="${isOpen ? "true" : "false"}"
+        >
+          <span class="plan-acc__step ${isDone && !isOpen ? "is-done" : ""}">${
+            isDone && !isOpen ? "✓" : step
+          }</span>
+          <span class="plan-acc__titles">
+            <span class="plan-acc__title">${title}</span>
+            ${
+              !isOpen
+                ? `<span class="plan-acc__summary">${summary}</span>`
+                : `<span class="plan-acc__hint">${opts.hint || "Jetzt ausfüllen"}</span>`
+            }
+          </span>
+          <span class="plan-acc__chevron" aria-hidden="true">${isOpen ? "▾" : "▸"}</span>
+        </button>
+        ${isOpen ? `<div class="plan-acc__body">${bodyHtml}</div>` : ""}
+      </article>`;
+  }
+
+  function renderSuggestionBanner(ui) {
+    const s = state.suggestion;
+    if (!s || state.editingEntryId || state.existingEntry) return "";
+    if (state.suggestionApplied) {
+      return `
+        <div class="plan-suggest plan-suggest--on">
+          <p><strong>Vorschlag übernommen</strong> – aus deiner letzten Reflexion in ${ui.escapeHtml(s.subject)}. Du kannst alles noch ändern.</p>
+        </div>`;
+    }
+    return `
+      <div class="plan-suggest">
+        <div class="plan-suggest__copy">
+          <p class="plan-suggest__eyebrow">Aus deiner letzten Reflexion</p>
+          <p class="plan-suggest__text">
+            ${ui.escapeHtml(s.whatGoalText || "Dein letztes Ziel")}
+            ${s.nextStepLabel ? ` → <strong>${ui.escapeHtml(s.nextStepLabel)}</strong>` : ""}
+          </p>
+        </div>
+        <div class="plan-suggest__actions">
+          <button type="button" class="today-app-btn" id="planApplySuggestion">Übernehmen</button>
+          <button type="button" class="today-app-btn today-app-btn--ghost" id="planDismissSuggestion">Neu starten</button>
+        </div>
+      </div>`;
+  }
+
+  function applySuggestion() {
+    const s = state.suggestion;
+    if (!s) return;
+    if (s.whatGoalId && state.whatGoalOptions.some((g) => String(g.id) === String(s.whatGoalId))) {
+      state.whatGoalId = s.whatGoalId;
+    }
+    if (s.selectedLevel) state.selectedLevel = s.selectedLevel;
+    syncLevelGoalText();
+    refreshHowGoals();
+    if (s.detailsHint) state.detailsText = s.detailsHint.slice(0, 100);
+    state.suggestionApplied = true;
+    syncActiveStep();
+    render();
+  }
+
+  function requiredFieldsComplete() {
+    return step1Complete() && step2Complete();
   }
 
   function renderMeinWegZumZiel(ui) {
@@ -651,8 +782,8 @@
   }
 
   function renderPlanSummaryContent(ui) {
-    if (!requiredFieldsComplete()) {
-      return `<p class="plan-summary-empty">Wähle dein Ziel und deinen Weg – hier siehst du dann deine Mission.</p>`;
+    if (!step1Complete() && !step2Complete()) {
+      return `<p class="plan-summary-empty">Dein Ziel wächst hier mit – Schritt für Schritt.</p>`;
     }
 
     const arbeitLines = state.workGoals.map((goal) => {
@@ -673,20 +804,32 @@
 
     return `
       <div class="mission-summary">
-        <div class="mission-summary__block">
+        ${
+          state.levelGoalText
+            ? `<div class="mission-summary__block">
           <p class="mission-summary__label">Was ich heute können will</p>
-          <p class="mission-summary__value">${ui.escapeHtml(state.levelGoalText || "–")}</p>
-        </div>
-        <div class="mission-summary__block">
+          <p class="mission-summary__value">${ui.escapeHtml(state.levelGoalText)}</p>
+        </div>`
+            : ""
+        }
+        ${
+          state.selectedLevel
+            ? `<div class="mission-summary__block">
           <p class="mission-summary__label">Mein Level</p>
-          <p class="mission-summary__value">${ui.escapeHtml(state.selectedLevel ? levelLabel(state.selectedLevel) : "–")}</p>
-        </div>
-        <div class="mission-summary__block">
+          <p class="mission-summary__value">${ui.escapeHtml(levelLabel(state.selectedLevel))}</p>
+        </div>`
+            : ""
+        }
+        ${
+          wegLines.length
+            ? `<div class="mission-summary__block">
           <p class="mission-summary__label">Mein Weg zum Ziel</p>
           <ul class="mission-summary__list">
             ${wegLines.map((line) => `<li>${ui.escapeHtml(line)}</li>`).join("")}
           </ul>
-        </div>
+        </div>`
+            : ""
+        }
         ${
           state.planBStrategies.length
             ? `<div class="mission-summary__block">
@@ -891,9 +1034,81 @@
     }
 
     const levelMeaning = state.levelGoalText;
+    const s1Done = step1Complete();
+    const s2Done = step2Complete();
+    const s3Done = step3Complete();
+
+    const step1Body = `
+      <div class="goal-step-card__stack">
+        ${
+          state.subjectLocked
+            ? ui.fieldWrap(
+                ui.fieldLabel("Fach"),
+                `<div class="plan-subject-locked">${ui.escapeHtml(state.subject || "–")}</div>`,
+                "Vom Stundenplan für diese Stunde"
+              )
+            : ui.fieldWrap(
+                ui.fieldLabel("Fach", { required: true }),
+                ui.select(
+                  "subject",
+                  C().SUBJECTS.map((s) => ({ value: s, label: s })),
+                  state.subject,
+                  { phase: "plan" }
+                )
+              )
+        }
+        ${renderCheckpointField(ui)}
+        ${ui.fieldWrap(
+          ui.fieldLabel("Unterthema", { required: true }),
+          state.whatGoalOptions.length
+            ? ui.select(
+                "whatGoalId",
+                state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
+                state.whatGoalId,
+                { phase: "plan", placeholder: "Unterthema wählen…" }
+              )
+            : whatGoalMessage(ui)
+        )}
+        ${renderLevelTiles(ui)}
+        ${
+          levelMeaning
+            ? `<div class="plan-level-meaning glow-panel glow-panel--violet">
+                <span class="plan-level-meaning-label">${ui.escapeHtml(levelMeaningLabel(state.selectedLevel))}</span>
+                <p>${ui.escapeHtml(levelMeaning)}</p>
+              </div>`
+            : state.selectedLevel && state.whatGoalId
+              ? `<div class="logbuch-msg logbuch-msg-info">Für dieses Level wurde noch kein Zieltext hinterlegt.</div>`
+              : ""
+        }
+        ${
+          state.whatGoalId && state.selectedLevel
+            ? ui.fieldWrap(
+                ui.fieldLabel("Was genau machst du?", { optional: true }),
+                `<input type="text" class="logbuch-input app-input" id="planDetailsText" maxlength="100"
+            placeholder="z. B. Rookie 1–4, danach Operator 1–2"
+            value="${ui.escapeHtml(state.detailsText)}">
+           <div class="logbuch-char-count"><span id="planDetailsCount">${state.detailsText.length}</span>/100</div>`,
+                "",
+                { wide: true }
+              )
+            : ""
+        }
+      </div>`;
+
+    const step3Body = `
+      <div class="goal-step-card__stack">
+        ${renderConfidenceCards(ui)}
+        <div class="plan-acc__continue">
+          <button type="button" class="today-app-btn" id="planStep3Continue" ${
+            state.confidenceBefore == null ? "" : ""
+          }>
+            ${state.confidenceBefore != null ? "Weiter zur Mission" : "Ohne Angabe weiter"}
+          </button>
+        </div>
+      </div>`;
 
     root.innerHTML = `
-      <div class="plan-app">
+      <div class="plan-app plan-app--accordion">
         ${renderPlanHero(ui, dateLabel)}
 
         ${
@@ -902,103 +1117,55 @@
             : ""
         }
 
-        <div class="plan-app-grid">
-          ${renderGoalStepCard(
-            1,
-            "Was will ich heute können?",
-            `
-            <div class="goal-step-card__stack">
-              ${
-                state.subjectLocked
-                  ? ui.fieldWrap(
-                      ui.fieldLabel("Fach"),
-                      `<div class="plan-subject-locked">${ui.escapeHtml(state.subject || "–")}</div>`,
-                      "Vom Stundenplan für diese Stunde"
-                    )
-                  : ui.fieldWrap(
-                      ui.fieldLabel("Fach", { required: true }),
-                      ui.select(
-                        "subject",
-                        C().SUBJECTS.map((s) => ({ value: s, label: s })),
-                        state.subject,
-                        { phase: "plan" }
-                      )
-                    )
-              }
-              ${renderCheckpointField(ui)}
-              ${ui.fieldWrap(
-                ui.fieldLabel("Unterthema", { required: true }),
-                state.whatGoalOptions.length
-                  ? ui.select(
-                      "whatGoalId",
-                      state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
-                      state.whatGoalId,
-                      { phase: "plan", placeholder: "Unterthema wählen…" }
-                    )
-                  : whatGoalMessage(ui)
-              )}
-              ${renderLevelTiles(ui)}
-              ${
-                levelMeaning
-                  ? `<div class="plan-level-meaning glow-panel glow-panel--violet">
-                      <span class="plan-level-meaning-label">${ui.escapeHtml(levelMeaningLabel(state.selectedLevel))}</span>
-                      <p>${ui.escapeHtml(levelMeaning)}</p>
-                    </div>`
-                  : state.selectedLevel && state.whatGoalId
-                    ? `<div class="logbuch-msg logbuch-msg-info">Für dieses Level wurde noch kein Zieltext hinterlegt.</div>`
-                    : ""
-              }
-              ${
-                state.whatGoalId && state.selectedLevel
-                  ? ui.fieldWrap(
-                      ui.fieldLabel("Was genau machst du?", { optional: true }),
-                      `<input type="text" class="logbuch-input app-input" id="planDetailsText" maxlength="100"
-                  placeholder="z. B. Rookie 1–4, danach Operator 1–2"
-                  value="${ui.escapeHtml(state.detailsText)}">
-                 <div class="logbuch-char-count"><span id="planDetailsCount">${state.detailsText.length}</span>/100</div>`,
-                      "",
-                      { wide: true }
-                    )
-                  : ""
-              }
-            </div>`
-          )}
+        ${renderSuggestionBanner(ui)}
 
-          ${renderGoalStepCard(
+        <div class="plan-acc-stack">
+          ${renderAccordionStep(1, "Was will ich heute können?", ui.escapeHtml(step1Summary()), step1Body, {
+            done: s1Done,
+            canOpen: true,
+            hint: "Wähle Ziel und Level"
+          })}
+          ${renderAccordionStep(
             2,
             "Mein Weg zum Ziel",
-            `<div class="goal-step-card__stack">${renderMeinWegZumZiel(ui)}</div>`
+            ui.escapeHtml(step2Summary()),
+            `<div class="goal-step-card__stack">${renderMeinWegZumZiel(ui)}</div>`,
+            {
+              done: s2Done,
+              canOpen: s1Done || state.activeStep === 2,
+              hint: "1–3 Karten pro Bereich"
+            }
           )}
-
-          ${renderGoalStepCard(
-            3,
-            "Selbstcheck",
-            `<div class="goal-step-card__stack">${renderConfidenceCards(ui)}</div>`,
-            true
-          )}
-
-          ${renderGoalStepCard(
-            4,
-            "Meine Mission heute",
-            `
-            <div id="planSummaryCard">${renderPlanSummaryContent(ui)}</div>
-            ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
-            <div class="plan-app-footer">
-              ${ui.btnPrimary(
-                state.submitting
-                  ? "Speichern…"
-                  : state.editingEntryId
-                    ? "Änderungen speichern"
-                    : "Tagesziel speichern (+2 XP)",
-                "planSubmitBtn",
-                state.submitting || !requiredFieldsComplete(),
-                "logbuch-submit-full today-app-btn"
-              )}
-              ${ui.btnGhost("Abbrechen", "planBackBtn", "today-app-btn today-app-btn--ghost")}
-            </div>`,
-            true
-          )}
+          ${renderAccordionStep(3, "Selbstcheck", ui.escapeHtml(step3Summary()), step3Body, {
+            done: s3Done,
+            canOpen: s2Done || state.activeStep === 3,
+            hint: "Optional – eigener Moment"
+          })}
         </div>
+
+        <article class="goal-step-card goal-step-card--wide plan-mission-live ${
+          s1Done || s2Done ? "is-ready" : ""
+        }">
+          <header class="goal-step-card__head">
+            <span class="goal-step-card__step">★</span>
+            <h3 class="goal-step-card__title">Meine Mission heute</h3>
+          </header>
+          <div id="planSummaryCard">${renderPlanSummaryContent(ui)}</div>
+          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
+          <div class="plan-app-footer">
+            ${ui.btnPrimary(
+              state.submitting
+                ? "Speichern…"
+                : state.editingEntryId
+                  ? "Änderungen speichern"
+                  : "Tagesziel speichern (+2 XP)",
+              "planSubmitBtn",
+              state.submitting || !requiredFieldsComplete(),
+              "logbuch-submit-full today-app-btn"
+            )}
+            ${ui.btnGhost("Abbrechen", "planBackBtn", "today-app-btn today-app-btn--ghost")}
+          </div>
+        </article>
       </div>`;
 
     bindHandlers(root);
@@ -1020,6 +1187,18 @@
     }
   }
 
+  function afterChoiceChange(root) {
+    const prev = state.activeStep;
+    syncActiveStep();
+    if (state.activeStep !== prev) {
+      render();
+      return;
+    }
+    updatePlanningPreview(root);
+    const submitBtn = root.querySelector("#planSubmitBtn");
+    if (submitBtn) submitBtn.disabled = state.submitting || !requiredFieldsComplete();
+  }
+
   function bindChoiceChips(root, selector, onPick) {
     root.querySelectorAll(selector).forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -1036,6 +1215,7 @@
       state.howGoalText = null;
       syncLevelGoalText();
       refreshHowGoals();
+      syncActiveStep();
       render();
     });
 
@@ -1043,22 +1223,17 @@
       toggleMulti(state.startGoals, btn.dataset.startGoal, 3);
       syncStartGoalFromHowGoal();
       root.querySelectorAll("[data-start-goal]").forEach((chip) => {
-        chip.classList.toggle("is-active", state.startGoals.includes(chip.dataset.startGoal));
+        const active = state.startGoals.includes(chip.dataset.startGoal);
+        chip.classList.toggle("is-active", active);
         const check = chip.querySelector(".strategy-tile__check");
-        if (state.startGoals.includes(chip.dataset.startGoal)) {
-          if (!check) {
-            chip.insertAdjacentHTML(
-              "afterbegin",
-              `<span class="strategy-tile__check" aria-hidden="true">✓</span>`
-            );
-          }
-        } else {
-          check?.remove();
-        }
+        if (active && !check) {
+          chip.insertAdjacentHTML(
+            "afterbegin",
+            `<span class="strategy-tile__check" aria-hidden="true">✓</span>`
+          );
+        } else if (!active) check?.remove();
       });
-      updatePlanningPreview(root);
-      const submitBtn = root.querySelector("#planSubmitBtn");
-      if (submitBtn) submitBtn.disabled = state.submitting || !requiredFieldsComplete();
+      afterChoiceChange(root);
     });
 
     bindChoiceChips(root, "[data-control-goal]", (btn) => {
@@ -1072,13 +1247,9 @@
             "afterbegin",
             `<span class="strategy-tile__check" aria-hidden="true">✓</span>`
           );
-        } else if (!active) {
-          check?.remove();
-        }
+        } else if (!active) check?.remove();
       });
-      updatePlanningPreview(root);
-      const submitBtn = root.querySelector("#planSubmitBtn");
-      if (submitBtn) submitBtn.disabled = state.submitting || !requiredFieldsComplete();
+      afterChoiceChange(root);
     });
 
     bindChoiceChips(root, "[data-plan-b]", (btn) => {
@@ -1092,19 +1263,16 @@
             "afterbegin",
             `<span class="strategy-tile__check" aria-hidden="true">✓</span>`
           );
-        } else if (!active) {
-          check?.remove();
-        }
+        } else if (!active) check?.remove();
       });
       updatePlanningPreview(root);
     });
 
     bindChoiceChips(root, "[data-confidence]", (btn) => {
       state.confidenceBefore = Number(btn.dataset.confidence);
-      root.querySelectorAll("[data-confidence]").forEach((chip) => {
-        chip.classList.toggle("is-active", Number(chip.dataset.confidence) === state.confidenceBefore);
-      });
-      updatePlanningPreview(root);
+      state.step3Skipped = false;
+      syncActiveStep();
+      render();
     });
   }
 
@@ -1122,9 +1290,7 @@
         root.querySelectorAll("[data-work-goal]").forEach((chip) => {
           chip.classList.toggle("is-active", state.workGoals.includes(chip.dataset.workGoal));
         });
-        updatePlanningPreview(root);
-        const submitBtn = root.querySelector("#planSubmitBtn");
-        if (submitBtn) submitBtn.disabled = state.submitting || !requiredFieldsComplete();
+        afterChoiceChange(root);
       });
     });
   }
@@ -1141,6 +1307,9 @@
         state.controlGoals = [];
         state.planBStrategies = [];
         state.selectedCheckpointId = null;
+        state.activeStep = 1;
+        state.step3Skipped = false;
+        state.suggestionApplied = false;
         await loadContext();
         render();
         return;
@@ -1153,6 +1322,7 @@
         state.startGoals = [];
         state.howGoalText = null;
         state.controlGoals = [];
+        state.activeStep = 1;
         await loadContext();
         render();
         return;
@@ -1164,6 +1334,7 @@
         state.howGoalText = null;
         state.controlGoals = [];
         syncLevelGoalText();
+        state.activeStep = 1;
         render();
         return;
       }
@@ -1173,6 +1344,7 @@
         state.controlGoals = [];
         syncLevelGoalText();
         refreshHowGoals();
+        syncActiveStep();
         render();
         return;
       }
@@ -1188,6 +1360,29 @@
 
     bindWorkGoalChips(root);
     bindChipGroups(root);
+
+    root.querySelectorAll("[data-plan-open]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const step = Number(btn.dataset.planOpen);
+        if (!step) return;
+        if (step === 2 && !step1Complete() && state.activeStep !== 2) return;
+        if (step === 3 && !step2Complete() && state.activeStep !== 3) return;
+        openStep(step);
+      });
+    });
+
+    root.querySelector("#planStep3Continue")?.addEventListener("click", () => {
+      if (state.confidenceBefore == null) state.step3Skipped = true;
+      syncActiveStep();
+      render();
+    });
+
+    root.querySelector("#planApplySuggestion")?.addEventListener("click", applySuggestion);
+    root.querySelector("#planDismissSuggestion")?.addEventListener("click", () => {
+      state.suggestion = null;
+      state.suggestionApplied = false;
+      render();
+    });
 
     const details = root.querySelector("#planDetailsText");
     details?.addEventListener("input", () => {
@@ -1341,6 +1536,7 @@
     state.existingEntry = data.existingEntry || null;
     if (data.existingEntry?.canEdit) {
       applyEntryToForm(data.existingEntry);
+      state.activeStep = 4;
     }
     state.hasClass = data.hasClass !== false;
     state.howGoalsBase = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
@@ -1362,6 +1558,12 @@
       state.subject = data.suggestedSubject;
     }
 
+    if (!state.editingEntryId && !state.existingEntry) {
+      state.suggestion = data.previousSuggestion || null;
+    } else {
+      state.suggestion = null;
+    }
+
     if (state.startGoals.length) {
       state.startGoals = state.startGoals.filter((g) => state.howGoals.includes(g));
       state.howGoalText = joinMulti(state.startGoals);
@@ -1377,6 +1579,7 @@
         state.levelGoalText = "";
       }
     }
+    if (!state.editingEntryId) syncActiveStep();
   }
 
   async function init(query) {
@@ -1412,6 +1615,10 @@
     state.subjectLocked = false;
     state.submitting = false;
     state.errorMsg = "";
+    state.activeStep = 1;
+    state.step3Skipped = false;
+    state.suggestion = null;
+    state.suggestionApplied = false;
 
     const root = document.getElementById("plan-screen-root");
     if (root) {

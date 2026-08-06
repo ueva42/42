@@ -899,6 +899,64 @@ async function planEntryCanEdit(studentId, entry, date) {
   return !refl.rows.length;
 }
 
+async function fetchPreviousPlanSuggestion(studentId, subject, beforeDate) {
+  if (!subject || !LOG_SUBJECTS.includes(subject) || !beforeDate) return null;
+
+  const r = await pool.query(
+    `
+    SELECT
+      le.id,
+      le.date,
+      le.subject,
+      le.what_goal_id,
+      le.what_goal_text,
+      le.selected_level,
+      le.level_goal_text,
+      le.details_text,
+      lr.next_step
+    FROM log_entries le
+    JOIN log_reflections lr ON lr.log_entry_id = le.id
+    WHERE le.user_id = $1
+      AND le.subject = $2
+      AND le.date < $3::date
+    ORDER BY le.date DESC, le.created_at DESC
+    LIMIT 1
+  `,
+    [studentId, subject, beforeDate]
+  );
+
+  if (!r.rows.length) return null;
+  const row = r.rows[0];
+  const nextStep = row.next_step || null;
+  const nextStepLabel = nextStep
+    ? LOG_NEXT_STEP_LABELS[nextStep] || nextStep
+    : null;
+
+  const levels = ["rookie", "operator", "street_legend"];
+  let suggestedLevel = row.selected_level || null;
+  if (nextStep === "rookie_wiederholen") suggestedLevel = "rookie";
+  else if (nextStep === "naechstes_level" && suggestedLevel) {
+    const idx = levels.indexOf(suggestedLevel);
+    if (idx >= 0 && idx < levels.length - 1) suggestedLevel = levels[idx + 1];
+  }
+
+  return {
+    entryId: row.id,
+    date: normalizeIsoDate(row.date),
+    subject: row.subject,
+    whatGoalId: row.what_goal_id ? String(row.what_goal_id) : null,
+    whatGoalText: row.what_goal_text || null,
+    selectedLevel: suggestedLevel,
+    previousLevel: row.selected_level || null,
+    levelGoalText: row.level_goal_text || null,
+    nextStep,
+    nextStepLabel,
+    detailsHint: nextStepLabel
+      ? `Nächster Schritt von zuletzt: ${nextStepLabel}`
+      : null
+  };
+}
+
 async function enrichPlanEntryForStudent(studentId, entry, date) {
   if (!entry) return null;
   const canEdit = await planEntryCanEdit(studentId, entry, date);
@@ -3793,6 +3851,15 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       ? lessonGoalsForSubject(customLessonGoals, activeSubject)
       : LOG_HOW_GOALS;
 
+    let previousSuggestion = null;
+    if (activeSubject && !existingEntry) {
+      previousSuggestion = await fetchPreviousPlanSuggestion(
+        studentId,
+        activeSubject,
+        date
+      );
+    }
+
     res.json({
       date,
       weekday,
@@ -3802,6 +3869,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       suggestedSubject,
       socialUnlock,
       existingEntry,
+      previousSuggestion,
       hasClass: !!classId,
       howGoals,
       levelOptions: LEVEL_CHECK_TIERS.map((tier) => ({
