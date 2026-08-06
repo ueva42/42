@@ -383,8 +383,25 @@
     };
   }
 
+  function defaultStartGoalTexts() {
+    return HOW_GOAL_OPTIONS.filter((text) => howGoalTile(text).cat === "starten");
+  }
+
+  function isAllowedStartGoal(text) {
+    return state.howGoals.includes(text) || defaultStartGoalTexts().includes(text);
+  }
+
   function startGoalTiles() {
-    return state.howGoals.map(howGoalTile).filter((tile) => tile.cat === "starten");
+    const seen = new Set();
+    const tiles = [];
+    // Fach-Ziele + Standard-Startkarten: eigene Wie-Ziele haben oft keine cat=starten
+    for (const text of [...state.howGoals, ...HOW_GOAL_OPTIONS]) {
+      const tile = howGoalTile(text);
+      if (tile.cat !== "starten" || seen.has(tile.value)) continue;
+      seen.add(tile.value);
+      tiles.push(tile);
+    }
+    return tiles.length ? tiles : defaultStartGoalTexts().map(howGoalTile);
   }
 
   function controlGoalTiles() {
@@ -453,8 +470,7 @@
 
   function refreshHowGoals() {
     state.howGoals = howGoalsForLevel(state.selectedLevel, state.howGoalsBase);
-    const allowed = new Set(state.howGoals);
-    state.startGoals = state.startGoals.filter((g) => allowed.has(g));
+    state.startGoals = state.startGoals.filter((g) => isAllowedStartGoal(g));
     state.howGoalText = joinMulti(state.startGoals);
   }
 
@@ -608,10 +624,6 @@
     state.suggestionApplied = true;
     syncActiveStep();
     render();
-  }
-
-  function requiredFieldsComplete() {
-    return step1Complete() && step2Complete();
   }
 
   function renderMeinWegZumZiel(ui) {
@@ -1160,7 +1172,7 @@
                   ? "Änderungen speichern"
                   : "Tagesziel speichern (+2 XP)",
               "planSubmitBtn",
-              state.submitting || !requiredFieldsComplete(),
+              state.submitting,
               "logbuch-submit-full today-app-btn"
             )}
             ${ui.btnGhost("Abbrechen", "planBackBtn", "today-app-btn today-app-btn--ghost")}
@@ -1182,9 +1194,7 @@
     if (!box) return;
     box.innerHTML = renderPlanSummaryContent(UI());
     const submitBtn = root.querySelector("#planSubmitBtn");
-    if (submitBtn) {
-      submitBtn.disabled = state.submitting || !requiredFieldsComplete();
-    }
+    if (submitBtn) submitBtn.disabled = state.submitting;
   }
 
   function afterChoiceChange(root) {
@@ -1195,8 +1205,6 @@
       return;
     }
     updatePlanningPreview(root);
-    const submitBtn = root.querySelector("#planSubmitBtn");
-    if (submitBtn) submitBtn.disabled = state.submitting || !requiredFieldsComplete();
   }
 
   function bindChoiceChips(root, selector, onPick) {
@@ -1350,10 +1358,6 @@
       }
       if (field === "howGoalText" || field === "planBStrategyText") {
         updatePlanningPreview(root);
-        const submitBtn = root.querySelector("#planSubmitBtn");
-        if (submitBtn) {
-          submitBtn.disabled = state.submitting || !requiredFieldsComplete();
-        }
         return;
       }
     });
@@ -1399,45 +1403,45 @@
   }
 
   async function submitPlan() {
-    if (!state.subject) {
-      state.errorMsg = "Bitte wähle ein Fach.";
+    if (state.submitting) return;
+
+    function fail(msg, step) {
+      state.errorMsg = msg;
+      if (step) state.activeStep = step;
       render();
+    }
+
+    if (!state.subject) {
+      fail("Bitte wähle ein Fach.", 1);
       return;
     }
     if (!state.whatGoalId) {
-      state.errorMsg = "Bitte wähle ein Was-Ziel aus dem Levelplan.";
-      render();
+      fail("Bitte wähle ein Was-Ziel aus dem Levelplan.", 1);
       return;
     }
     if (state.checkpoints.length > 1 && !state.selectedCheckpointId) {
-      state.errorMsg = "Bitte wähle den Nachweis, für den du arbeitest.";
-      render();
+      fail("Bitte wähle den Nachweis, für den du arbeitest.", 1);
       return;
     }
     if (!state.selectedLevel) {
-      state.errorMsg = "Bitte wähle ein Level.";
-      render();
+      fail("Bitte wähle ein Level.", 1);
       return;
     }
     syncLevelGoalText();
     if (!state.levelGoalText) {
-      state.errorMsg = "Für dieses Level wurde noch kein Zieltext hinterlegt.";
-      render();
+      fail("Für dieses Level wurde noch kein Zieltext hinterlegt.", 1);
       return;
     }
     if (!state.startGoals.length) {
-      state.errorMsg = "Bitte wähle, wie du startest (1–3 Karten).";
-      render();
+      fail("Bitte wähle, wie du startest (1–3 Karten unter „Ich starte so“).", 2);
       return;
     }
     if (state.workGoals.length < 1) {
-      state.errorMsg = "Bitte wähle, wie du arbeitest (1–3 Karten unter „Ich arbeite so“).";
-      render();
+      fail("Bitte wähle, wie du arbeitest (1–3 Karten unter „Ich arbeite so“).", 2);
       return;
     }
     if (!state.controlGoals.length) {
-      state.errorMsg = "Bitte wähle, wie du kontrollierst (1–3 Karten).";
-      render();
+      fail("Bitte wähle, wie du kontrollierst (1–3 Karten unter „Ich kontrolliere so“).", 2);
       return;
     }
 
@@ -1565,7 +1569,7 @@
     }
 
     if (state.startGoals.length) {
-      state.startGoals = state.startGoals.filter((g) => state.howGoals.includes(g));
+      state.startGoals = state.startGoals.filter((g) => isAllowedStartGoal(g));
       state.howGoalText = joinMulti(state.startGoals);
     }
     if (state.whatGoalId) {
