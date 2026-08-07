@@ -146,7 +146,9 @@
     strategyModalStep: "problem",
     strategyModalId: null,
     submitting: false,
-    errorMsg: ""
+    errorMsg: "",
+    activeStep: 1,
+    missionSeen: false
   };
 
   function formatDate(dateStr) {
@@ -202,6 +204,90 @@
         </header>
         <div class="goal-step-card__body">${bodyHtml}</div>
       </article>`;
+  }
+
+  function step1Complete() {
+    return !!state.missionSeen;
+  }
+
+  function step2Complete() {
+    return !!state.onTrack;
+  }
+
+  function step3Complete() {
+    return !!(state.understands && state.progress);
+  }
+
+  function step4Complete() {
+    return !!state.nextStepAnswer;
+  }
+
+  function allQuestionsAnswered() {
+    return step2Complete() && step3Complete() && step4Complete();
+  }
+
+  function syncActiveStep() {
+    if (state.activeStep >= 2 && !step1Complete()) {
+      state.activeStep = 1;
+      return;
+    }
+    if (state.activeStep >= 3 && !step2Complete()) {
+      state.activeStep = 2;
+      return;
+    }
+    if (state.activeStep >= 4 && !step3Complete()) {
+      state.activeStep = 3;
+      return;
+    }
+    if (state.activeStep === 1 && step1Complete()) state.activeStep = 2;
+    else if (state.activeStep === 2 && step2Complete()) state.activeStep = 3;
+    else if (state.activeStep === 3 && step3Complete()) state.activeStep = 4;
+  }
+
+  function openStep(step) {
+    state.activeStep = Number(step);
+    render();
+  }
+
+  function renderAccordionStep(step, title, summary, bodyHtml, opts = {}) {
+    const isOpen = state.activeStep === step;
+    const isDone = !!opts.done;
+    const canOpen = opts.canOpen !== false;
+    const statusClass = isOpen ? "is-open" : isDone ? "is-done" : "is-locked";
+
+    return `
+      <article class="plan-acc ${statusClass}" data-plan-step="${step}">
+        <button
+          type="button"
+          class="plan-acc__header"
+          data-plan-open="${step}"
+          ${!canOpen && !isOpen ? "disabled" : ""}
+          aria-expanded="${isOpen ? "true" : "false"}"
+        >
+          <span class="plan-acc__step ${isDone && !isOpen ? "is-done" : ""}">${
+            isDone && !isOpen ? "✓" : step
+          }</span>
+          <span class="plan-acc__titles">
+            <span class="plan-acc__title">${title}</span>
+            ${
+              !isOpen
+                ? `<span class="plan-acc__summary">${summary}</span>`
+                : `<span class="plan-acc__hint">${opts.hint || "Jetzt ausfüllen"}</span>`
+            }
+          </span>
+          <span class="plan-acc__chevron" aria-hidden="true">${isOpen ? "▾" : "▸"}</span>
+        </button>
+        ${isOpen ? `<div class="plan-acc__body">${bodyHtml}</div>` : ""}
+      </article>`;
+  }
+
+  function missionSummaryLine(entry) {
+    const parts = [
+      entry?.what_goal_text,
+      levelLabel(entry?.selected_level, entry),
+      entry?.subject
+    ].filter(Boolean);
+    return parts.join(" · ") || "Mission ansehen";
   }
 
   function renderMissionCard(ui, entry) {
@@ -353,6 +439,7 @@
     state.selectedStrategyNextStep = strategy.nextStep;
     state.nextStepAnswer = "Ich wähle eine andere Strategie.";
     closeStrategyModal();
+    syncActiveStep();
     render();
   }
 
@@ -460,6 +547,9 @@
     state.selectedStrategyName = check.selected_strategy_name || null;
     state.selectedStrategyProblem = check.selected_strategy_problem || null;
     state.selectedStrategyNextStep = check.selected_strategy_next_step || null;
+    state.missionSeen = true;
+    if (allQuestionsAnswered()) state.activeStep = 4;
+    else syncActiveStep();
     return true;
   }
 
@@ -535,15 +625,21 @@
     });
   }
 
-  function allQuestionsAnswered() {
-    return !!(state.onTrack && state.understands && state.progress && state.nextStepAnswer);
+  function afterChoiceChange(root) {
+    const prev = state.activeStep;
+    syncActiveStep();
+    if (state.activeStep !== prev) {
+      render();
+      return;
+    }
+    updatePreview(root);
   }
 
   function updatePreview(root) {
     const box = root.querySelector("#checkSummaryCard");
     if (box) box.innerHTML = renderCheckSummary(UI());
     const submitBtn = root.querySelector("#checkSubmitBtn");
-    if (submitBtn) submitBtn.disabled = state.submitting || !allQuestionsAnswered();
+    if (submitBtn) submitBtn.disabled = state.submitting;
     const tactic = root.querySelector(".check-strategy-block");
     if (tactic) tactic.classList.toggle("check-strategy-block--urgent", needsTaktikHighlight());
   }
@@ -559,19 +655,13 @@
       root.querySelectorAll(sel).forEach((btn) => {
         btn.addEventListener("click", () => {
           state[field] = btn.getAttribute(attr);
-          if (field === "nextStepAnswer" && state.nextStepAnswer === "Ich nutze meinen Plan B.") {
-            const planB = state.entry?.plan_b_strategy_text;
-            if (planB && C().CHECK_NEXT_STEP.includes(planB)) {
-              // keep UI value; storage uses the chosen next-step label
-            }
-          }
           if (field === "nextStepAnswer" && state.nextStepAnswer === "Ich wähle eine andere Strategie.") {
             openStrategyModal();
           }
           root.querySelectorAll(sel).forEach((chip) => {
             chip.classList.toggle("is-active", chip.getAttribute(attr) === state[field]);
           });
-          updatePreview(root);
+          afterChoiceChange(root);
         });
       });
     });
@@ -586,13 +676,9 @@
       return;
     }
 
-    if (state.existingCheck) {
-      if (state.existingCheck.canEdit && applyCheckToState(state.existingCheck)) {
-        // edit mode
-      } else {
-        renderReadOnly();
-        return;
-      }
+    if (state.existingCheck && !state.existingCheck.canEdit) {
+      renderReadOnly();
+      return;
     }
 
     const ui = UI();
@@ -611,64 +697,112 @@
             )
             .join("");
 
+    const s1 = step1Complete();
+    const s2 = step2Complete();
+    const s3 = step3Complete();
+    const s4 = step4Complete();
+
+    const missionBody = `
+      ${renderMissionCard(ui, e)}
+      <div class="plan-acc__continue">
+        <button type="button" class="today-app-btn" id="checkMissionContinue">Weiter zum Check</button>
+      </div>`;
+
+    const learnBody = `
+      <div class="goal-step-card__stack">
+        <p class="way-section__title">Verstehe ich die Aufgaben?</p>
+        ${tileGrid(UNDERSTAND_TILES, state.understands, "data-understands")}
+        <p class="way-section__title">Komme ich gut voran?</p>
+        ${tileGrid(PROGRESS_TILES, state.progress, "data-progress")}
+      </div>`;
+
+    const nextBody = `
+      <div class="goal-step-card__stack">
+        <p class="way-to-goal__intro">Was mache ich jetzt?</p>
+        ${tileGrid(NEXT_TILES, state.nextStepAnswer, "data-next-step")}
+        ${renderStrategyBlock(ui)}
+      </div>`;
+
     root.innerHTML = `
-      <div class="plan-app check-app">
+      <div class="plan-app check-app plan-app--accordion">
         ${renderHero(ui, e, dateIso)}
         ${
           state.existingCheck?.canEdit
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest deinen Zwischen-Check – beim Speichern gibt es kein zusätzliches XP.</div>`
             : ""
         }
-        <div class="plan-app-grid plan-app-grid--start">
-          ${goalStepCard(1, "Meine Mission", renderMissionCard(ui, e))}
-          ${goalStepCard(
+        <div class="plan-acc-stack">
+          ${renderAccordionStep(1, "Meine Mission", ui.escapeHtml(missionSummaryLine(e)), missionBody, {
+            done: s1,
+            canOpen: true,
+            hint: "Kurz ansehen, dann weiter"
+          })}
+          ${renderAccordionStep(
             2,
             "Bin ich auf dem richtigen Weg?",
-            tileGrid(ON_TRACK_TILES, state.onTrack, "data-on-track")
+            ui.escapeHtml(shortLabel(ON_TRACK_TILES, state.onTrack)),
+            tileGrid(ON_TRACK_TILES, state.onTrack, "data-on-track"),
+            {
+              done: s2,
+              canOpen: s1 || state.activeStep === 2,
+              hint: "Eine Karte wählen"
+            }
           )}
-          ${goalStepCard(
+          ${renderAccordionStep(
             3,
             "Kurzer Lern-Check",
-            `
-            <div class="goal-step-card__stack">
-              <p class="way-section__title">Verstehe ich die Aufgaben?</p>
-              ${tileGrid(UNDERSTAND_TILES, state.understands, "data-understands")}
-              <p class="way-section__title">Komme ich gut voran?</p>
-              ${tileGrid(PROGRESS_TILES, state.progress, "data-progress")}
-            </div>`
+            ui.escapeHtml(
+              [shortLabel(UNDERSTAND_TILES, state.understands), shortLabel(PROGRESS_TILES, state.progress)]
+                .filter((x) => x && x !== "–")
+                .join(" · ") || "Noch offen"
+            ),
+            learnBody,
+            {
+              done: s3,
+              canOpen: s2 || state.activeStep === 3,
+              hint: "Verständnis und Vorankommen"
+            }
           )}
-          ${goalStepCard(
+          ${renderAccordionStep(
             4,
             "Mein nächster Schritt",
-            `
-            <div class="goal-step-card__stack">
-              <p class="way-to-goal__intro">Was mache ich jetzt?</p>
-              ${tileGrid(NEXT_TILES, state.nextStepAnswer, "data-next-step")}
-              ${renderStrategyBlock(ui)}
-            </div>`
-          )}
-          ${goalStepCard(
-            5,
-            "Mein nächster Schritt",
-            `
-            <div id="checkSummaryCard">${renderCheckSummary(ui)}</div>
-            ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
-            <div class="plan-app-footer">
-              ${ui.btnPrimary(
-                state.submitting
-                  ? "Speichern…"
-                  : state.existingCheck?.canEdit
-                    ? "Zwischen-Check speichern"
-                    : "Zwischen-Check speichern · +3 XP",
-                "checkSubmitBtn",
-                state.submitting || !allQuestionsAnswered(),
-                "logbuch-submit-full today-app-btn"
-              )}
-              ${ui.btnGhost("Abbrechen", "checkBackBtn", "today-app-btn today-app-btn--ghost")}
-            </div>`,
-            true
+            ui.escapeHtml(
+              shortLabel(NEXT_TILES, state.nextStepAnswer) !== "–"
+                ? shortLabel(NEXT_TILES, state.nextStepAnswer)
+                : "Noch offen"
+            ),
+            nextBody,
+            {
+              done: s4,
+              canOpen: s3 || state.activeStep === 4,
+              hint: "Was machst du jetzt?"
+            }
           )}
         </div>
+
+        <article class="goal-step-card goal-step-card--wide plan-mission-live ${
+          s2 || s3 || s4 ? "is-ready" : ""
+        }">
+          <header class="goal-step-card__head">
+            <span class="goal-step-card__step">★</span>
+            <h3 class="goal-step-card__title">Mein Check</h3>
+          </header>
+          <div id="checkSummaryCard">${renderCheckSummary(ui)}</div>
+          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
+          <div class="plan-app-footer">
+            ${ui.btnPrimary(
+              state.submitting
+                ? "Speichern…"
+                : state.existingCheck?.canEdit
+                  ? "Zwischen-Check speichern"
+                  : "Zwischen-Check speichern · +3 XP",
+              "checkSubmitBtn",
+              state.submitting,
+              "logbuch-submit-full today-app-btn"
+            )}
+            ${ui.btnGhost("Abbrechen", "checkBackBtn", "today-app-btn today-app-btn--ghost")}
+          </div>
+        </article>
       </div>`;
 
     bindHandlers(root);
@@ -677,6 +811,24 @@
 
   function bindHandlers(root) {
     bindTiles(root);
+
+    root.querySelectorAll("[data-plan-open]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const step = Number(btn.dataset.planOpen);
+        if (!step) return;
+        if (step === 2 && !step1Complete() && state.activeStep !== 2) return;
+        if (step === 3 && !step2Complete() && state.activeStep !== 3) return;
+        if (step === 4 && !step3Complete() && state.activeStep !== 4) return;
+        openStep(step);
+      });
+    });
+
+    root.querySelector("#checkMissionContinue")?.addEventListener("click", () => {
+      state.missionSeen = true;
+      syncActiveStep();
+      render();
+    });
+
     root.querySelector("#strategyOpenBtn")?.addEventListener("click", openStrategyModal);
     root.querySelector("#checkSubmitBtn")?.addEventListener("click", submitCheck);
     root.querySelector("#checkBackBtn")?.addEventListener("click", () => {
@@ -686,9 +838,28 @@
   }
 
   async function submitCheck() {
-    if (!allQuestionsAnswered()) {
-      state.errorMsg = "Bitte beantworte alle Fragen.";
+    if (state.submitting) return;
+
+    function fail(msg, step) {
+      state.errorMsg = msg;
+      if (step) state.activeStep = step;
       render();
+    }
+
+    if (!step1Complete()) {
+      fail("Bitte sieh dir zuerst deine Mission an.", 1);
+      return;
+    }
+    if (!step2Complete()) {
+      fail("Bitte wähle, ob du auf dem richtigen Weg bist.", 2);
+      return;
+    }
+    if (!step3Complete()) {
+      fail("Bitte beantworte den kurzen Lern-Check.", 3);
+      return;
+    }
+    if (!step4Complete()) {
+      fail("Bitte wähle deinen nächsten Schritt.", 4);
       return;
     }
 
@@ -759,6 +930,8 @@
     state.existingCheck = null;
     state.submitting = false;
     state.errorMsg = "";
+    state.activeStep = 1;
+    state.missionSeen = false;
     closeStrategyModal();
 
     const root = document.getElementById("check-screen-root");

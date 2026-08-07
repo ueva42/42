@@ -38,7 +38,10 @@
     confidenceAfter: null,
     learnedToday: "",
     submitting: false,
-    errorMsg: ""
+    errorMsg: "",
+    activeStep: 1,
+    missionSeen: false,
+    disturbDone: false
   };
 
   function mapOptions(items) {
@@ -100,6 +103,109 @@
         </header>
         <div class="goal-step-card__body">${bodyHtml}</div>
       </article>`;
+  }
+
+  function step1Complete() {
+    return !!state.missionSeen;
+  }
+
+  function step2Complete() {
+    return !!state.goalReachedAnswer;
+  }
+
+  function step3Complete() {
+    return state.helpedItems.length > 0;
+  }
+
+  function step4Complete() {
+    return !!state.disturbDone;
+  }
+
+  function step5Complete() {
+    return !!(state.nextStepAnswer && state.confidenceAfter != null);
+  }
+
+  function requiredComplete() {
+    return step2Complete() && step3Complete() && step5Complete();
+  }
+
+  function syncActiveStep() {
+    if (state.activeStep >= 2 && !step1Complete()) {
+      state.activeStep = 1;
+      return;
+    }
+    if (state.activeStep >= 3 && !step2Complete()) {
+      state.activeStep = 2;
+      return;
+    }
+    if (state.activeStep >= 4 && !step3Complete()) {
+      state.activeStep = 3;
+      return;
+    }
+    if (state.activeStep >= 5 && !step4Complete()) {
+      state.activeStep = 4;
+      return;
+    }
+    if (state.activeStep === 1 && step1Complete()) state.activeStep = 2;
+    else if (state.activeStep === 2 && step2Complete()) state.activeStep = 3;
+    else if (state.activeStep === 3 && step3Complete()) state.activeStep = 4;
+    else if (state.activeStep === 4 && step4Complete()) state.activeStep = 5;
+  }
+
+  function openStep(step) {
+    state.activeStep = Number(step);
+    render();
+  }
+
+  function renderAccordionStep(step, title, summary, bodyHtml, opts = {}) {
+    const isOpen = state.activeStep === step;
+    const isDone = !!opts.done;
+    const canOpen = opts.canOpen !== false;
+    const statusClass = isOpen ? "is-open" : isDone ? "is-done" : "is-locked";
+
+    return `
+      <article class="plan-acc ${statusClass}" data-plan-step="${step}">
+        <button
+          type="button"
+          class="plan-acc__header"
+          data-plan-open="${step}"
+          ${!canOpen && !isOpen ? "disabled" : ""}
+          aria-expanded="${isOpen ? "true" : "false"}"
+        >
+          <span class="plan-acc__step ${isDone && !isOpen ? "is-done" : ""}">${
+            isDone && !isOpen ? "✓" : step
+          }</span>
+          <span class="plan-acc__titles">
+            <span class="plan-acc__title">${title}</span>
+            ${
+              !isOpen
+                ? `<span class="plan-acc__summary">${summary}</span>`
+                : `<span class="plan-acc__hint">${opts.hint || "Jetzt ausfüllen"}</span>`
+            }
+          </span>
+          <span class="plan-acc__chevron" aria-hidden="true">${isOpen ? "▾" : "▸"}</span>
+        </button>
+        ${isOpen ? `<div class="plan-acc__body">${bodyHtml}</div>` : ""}
+      </article>`;
+  }
+
+  function missionSummaryLine(entry) {
+    const parts = [
+      entry?.what_goal_text,
+      levelLabel(entry?.selected_level, entry),
+      entry?.subject
+    ].filter(Boolean);
+    return parts.join(" · ") || "Mission ansehen";
+  }
+
+  function afterChoiceChange(root) {
+    const prev = state.activeStep;
+    syncActiveStep();
+    if (state.activeStep !== prev) {
+      render();
+      return;
+    }
+    updatePreview(root);
   }
 
   function renderMissionCard(ui, entry) {
@@ -240,6 +346,10 @@
     state.learnedToday = reflection.learned_today || "";
     state.usedStrategyName =
       reflection.used_strategy_name || state.usedStrategyName || null;
+    state.missionSeen = true;
+    state.disturbDone = true;
+    if (requiredComplete()) state.activeStep = 5;
+    else syncActiveStep();
     return true;
   }
 
@@ -454,20 +564,12 @@
     });
   }
 
-  function requiredComplete() {
-    return !!(
-      state.goalReachedAnswer &&
-      state.nextStepAnswer &&
-      state.confidenceAfter != null &&
-      state.helpedItems.length
-    );
-  }
 
   function updatePreview(root) {
     const box = root.querySelector("#reflectSummaryCard");
     if (box) box.innerHTML = renderReflectSummary(UI());
     const submitBtn = root.querySelector("#reflectSubmitBtn");
-    if (submitBtn) submitBtn.disabled = state.submitting || !requiredComplete();
+    if (submitBtn) submitBtn.disabled = state.submitting;
   }
 
   function render() {
@@ -479,22 +581,16 @@
       return;
     }
 
-    if (state.existingReflection) {
-      if (state.existingReflection.canEdit && applyReflectionToState(state.existingReflection)) {
-        // edit
-      } else {
-        renderReadOnly();
-        return;
-      }
+    if (state.existingReflection && !state.existingReflection.canEdit) {
+      renderReadOnly();
+      return;
     }
 
     const ui = UI();
     const visuals = V();
     const e = state.entry;
     const tile = (tiles, active, attr, multi) =>
-      visuals
-        ? visuals.strategyTileGrid(tiles, active, attr, { multi: !!multi })
-        : "";
+      visuals ? visuals.strategyTileGrid(tiles, active, attr, { multi: !!multi }) : "";
 
     const confOptions = [
       { value: 1, label: "Sehr unsicher", icon: "1", accent: "#f472b6" },
@@ -504,85 +600,178 @@
       { value: 5, label: "Sehr sicher", icon: "5", accent: "#22c55e" }
     ];
 
+    const s1 = step1Complete();
+    const s2 = step2Complete();
+    const s3 = step3Complete();
+    const s4 = step4Complete();
+    const s5 = step5Complete();
+
+    const helpedSummary =
+      state.helpedItems
+        .map((id) => (C().REFLECT_HELPED || []).find((h) => h.id === id)?.label)
+        .filter(Boolean)
+        .slice(0, 2)
+        .join(" · ") || "Noch offen";
+
+    const disturbSummary = Object.keys(state.disturbItems).length
+      ? Object.keys(state.disturbItems).slice(0, 2).join(" · ")
+      : state.disturbDone
+        ? "Nichts ausgewählt"
+        : "Noch offen";
+
+    const missionBody = `
+      ${renderMissionCard(ui, e)}
+      <div class="plan-acc__continue">
+        <button type="button" class="today-app-btn" id="reflectMissionContinue">Weiter zum Abschluss</button>
+      </div>`;
+
+    const disturbBody = `
+      <p class="way-to-goal__intro">Optional · Mehrfachauswahl</p>
+      ${tile(disturbTiles(), Object.keys(state.disturbItems), "data-disturb", true)}
+      ${renderDisturbLevels(ui)}
+      <div class="plan-acc__continue">
+        <button type="button" class="today-app-btn" id="reflectDisturbContinue">
+          ${Object.keys(state.disturbItems).length ? "Weiter" : "Ohne Angabe weiter"}
+        </button>
+      </div>`;
+
+    const nextBody = `
+      <div class="goal-step-card__stack">
+        ${tile(nextMissionTiles(), state.nextStepAnswer, "data-next")}
+        <p class="way-section__title">Wie sicher fühlst du dich jetzt?</p>
+        ${visuals ? visuals.confidenceSelector(confOptions, state.confidenceAfter) : ""}
+        ${ui.fieldWrap(
+          ui.fieldLabel("Das nehme ich mir für das nächste Mal vor.", { optional: true }),
+          `<input type="text" class="logbuch-input app-input" id="reflectLearned" maxlength="200"
+            placeholder="Kurz notieren …" value="${ui.escapeHtml(state.learnedToday)}">
+           <div class="logbuch-char-count"><span id="reflectLearnedCount">${state.learnedToday.length}</span>/200</div>`,
+          "",
+          { wide: true }
+        )}
+      </div>`;
+
     root.innerHTML = `
-      <div class="plan-app reflect-app">
+      <div class="plan-app reflect-app plan-app--accordion">
         ${renderHero(ui, e)}
         ${
           state.existingReflection?.canEdit
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest deine Reflexion – beim Speichern gibt es kein zusätzliches XP.</div>`
             : ""
         }
-        <div class="plan-app-grid plan-app-grid--start">
-          ${goalStepCard(1, "Meine Mission", renderMissionCard(ui, e))}
-          ${goalStepCard(2, "Ziel erreicht?", tile(goalTiles(), state.goalReachedAnswer, "data-goal"))}
-          ${goalStepCard(
+        <div class="plan-acc-stack">
+          ${renderAccordionStep(1, "Meine Mission", ui.escapeHtml(missionSummaryLine(e)), missionBody, {
+            done: s1,
+            canOpen: true,
+            hint: "Kurz ansehen, dann weiter"
+          })}
+          ${renderAccordionStep(
+            2,
+            "Ziel erreicht?",
+            ui.escapeHtml(labelForOption(C().GOAL_ACHIEVED, state.goalReachedAnswer)),
+            tile(goalTiles(), state.goalReachedAnswer, "data-goal"),
+            {
+              done: s2,
+              canOpen: s1 || state.activeStep === 2,
+              hint: "Eine Karte wählen"
+            }
+          )}
+          ${renderAccordionStep(
             3,
             "Was hat geholfen?",
+            ui.escapeHtml(helpedSummary),
             `
-            <p class="way-to-goal__intro">Mehrfachauswahl möglich – inkl. <strong>Mein Weg zum Ziel</strong>.</p>
-            ${tile(helpedTiles(), state.helpedItems, "data-helped", true)}`
+            <p class="way-to-goal__intro">Mehrfachauswahl – inkl. <strong>Mein Weg zum Ziel</strong>.</p>
+            ${tile(helpedTiles(), state.helpedItems, "data-helped", true)}`,
+            {
+              done: s3,
+              canOpen: s2 || state.activeStep === 3,
+              hint: "Mindestens eine Auswahl"
+            }
           )}
-          ${goalStepCard(
-            4,
-            "Was hat mich gestört?",
-            `
-            <p class="way-to-goal__intro">Optional · Mehrfachauswahl</p>
-            ${tile(disturbTiles(), Object.keys(state.disturbItems), "data-disturb", true)}
-            ${renderDisturbLevels(ui)}`
-          )}
-          ${goalStepCard(
+          ${renderAccordionStep(4, "Was hat mich gestört?", ui.escapeHtml(disturbSummary), disturbBody, {
+            done: s4,
+            canOpen: s3 || state.activeStep === 4,
+            hint: "Optional"
+          })}
+          ${renderAccordionStep(
             5,
             "Meine nächste Mission",
-            `
-            <div class="goal-step-card__stack">
-              ${tile(nextMissionTiles(), state.nextStepAnswer, "data-next")}
-              <p class="way-section__title">Wie sicher fühlst du dich jetzt?</p>
-              ${visuals ? visuals.confidenceSelector(confOptions, state.confidenceAfter) : ""}
-              ${ui.fieldWrap(
-                ui.fieldLabel("Das nehme ich mir für das nächste Mal vor.", { optional: true }),
-                `<input type="text" class="logbuch-input app-input" id="reflectLearned" maxlength="200"
-                  placeholder="Kurz notieren …" value="${ui.escapeHtml(state.learnedToday)}">
-                 <div class="logbuch-char-count"><span id="reflectLearnedCount">${state.learnedToday.length}</span>/200</div>`,
-                "",
-                { wide: true }
-              )}
-            </div>`
-          )}
-          ${goalStepCard(
-            6,
-            "Das nehme ich mit",
-            `
-            <div id="reflectSummaryCard">${renderReflectSummary(ui)}</div>
-            ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
-            <div class="plan-app-footer">
-              ${ui.btnPrimary(
-                state.submitting
-                  ? "Speichern…"
-                  : state.existingReflection?.canEdit
-                    ? "Tagesabschluss speichern"
-                    : "Tagesabschluss speichern · +3 XP",
-                "reflectSubmitBtn",
-                state.submitting || !requiredComplete(),
-                "logbuch-submit-full today-app-btn"
-              )}
-              ${ui.btnGhost("Abbrechen", "reflectBackBtn", "today-app-btn today-app-btn--ghost")}
-            </div>`,
-            true
+            ui.escapeHtml(
+              state.nextStepAnswer
+                ? `${labelForNextStep(state.nextStepAnswer)}${
+                    state.confidenceAfter != null ? ` · ${state.confidenceAfter}/5` : ""
+                  }`
+                : "Noch offen"
+            ),
+            nextBody,
+            {
+              done: s5,
+              canOpen: s4 || state.activeStep === 5,
+              hint: "Nächster Schritt und Sicherheit"
+            }
           )}
         </div>
+
+        <article class="goal-step-card goal-step-card--wide plan-mission-live ${
+          s2 || s3 || s5 ? "is-ready" : ""
+        }">
+          <header class="goal-step-card__head">
+            <span class="goal-step-card__step">★</span>
+            <h3 class="goal-step-card__title">Das nehme ich mit</h3>
+          </header>
+          <div id="reflectSummaryCard">${renderReflectSummary(ui)}</div>
+          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
+          <div class="plan-app-footer">
+            ${ui.btnPrimary(
+              state.submitting
+                ? "Speichern…"
+                : state.existingReflection?.canEdit
+                  ? "Tagesabschluss speichern"
+                  : "Tagesabschluss speichern · +3 XP",
+              "reflectSubmitBtn",
+              state.submitting,
+              "logbuch-submit-full today-app-btn"
+            )}
+            ${ui.btnGhost("Abbrechen", "reflectBackBtn", "today-app-btn today-app-btn--ghost")}
+          </div>
+        </article>
       </div>`;
 
     bindHandlers(root);
   }
 
   function bindHandlers(root) {
+    root.querySelectorAll("[data-plan-open]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const step = Number(btn.dataset.planOpen);
+        if (!step) return;
+        if (step === 2 && !step1Complete() && state.activeStep !== 2) return;
+        if (step === 3 && !step2Complete() && state.activeStep !== 3) return;
+        if (step === 4 && !step3Complete() && state.activeStep !== 4) return;
+        if (step === 5 && !step4Complete() && state.activeStep !== 5) return;
+        openStep(step);
+      });
+    });
+
+    root.querySelector("#reflectMissionContinue")?.addEventListener("click", () => {
+      state.missionSeen = true;
+      syncActiveStep();
+      render();
+    });
+
+    root.querySelector("#reflectDisturbContinue")?.addEventListener("click", () => {
+      state.disturbDone = true;
+      syncActiveStep();
+      render();
+    });
+
     root.querySelectorAll("[data-goal]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.goalReachedAnswer = btn.dataset.goal;
         root.querySelectorAll("[data-goal]").forEach((c) => {
           c.classList.toggle("is-active", c.dataset.goal === state.goalReachedAnswer);
         });
-        updatePreview(root);
+        afterChoiceChange(root);
       });
     });
 
@@ -596,7 +785,7 @@
         root.querySelectorAll("[data-helped]").forEach((c) => {
           c.classList.toggle("is-active", state.helpedItems.includes(c.dataset.helped));
         });
-        updatePreview(root);
+        afterChoiceChange(root);
       });
     });
 
@@ -626,7 +815,7 @@
         root.querySelectorAll("[data-next]").forEach((c) => {
           c.classList.toggle("is-active", c.dataset.next === state.nextStepAnswer);
         });
-        updatePreview(root);
+        afterChoiceChange(root);
       });
     });
 
@@ -639,7 +828,7 @@
             Number(c.dataset.confidence) === state.confidenceAfter
           );
         });
-        updatePreview(root);
+        afterChoiceChange(root);
       });
     });
 
@@ -657,25 +846,37 @@
   }
 
   async function submitReflect() {
+    if (state.submitting) return;
     syncDerivedAnswers();
-    if (!state.goalReachedAnswer) {
-      state.errorMsg = "Bitte wähle, ob du dein Ziel erreicht hast.";
+
+    function fail(msg, step) {
+      state.errorMsg = msg;
+      if (step) state.activeStep = step;
       render();
+    }
+
+    if (!step1Complete()) {
+      fail("Bitte sieh dir zuerst deine Mission an.", 1);
+      return;
+    }
+    if (!state.goalReachedAnswer) {
+      fail("Bitte wähle, ob du dein Ziel erreicht hast.", 2);
       return;
     }
     if (!state.helpedItems.length) {
-      state.errorMsg = "Bitte wähle mindestens etwas unter „Was hat geholfen?“.";
-      render();
+      fail("Bitte wähle mindestens etwas unter „Was hat geholfen?“.", 3);
+      return;
+    }
+    if (!step4Complete()) {
+      fail("Bitte bestätige den Schritt „Was hat mich gestört?“ (auch ohne Auswahl).", 4);
       return;
     }
     if (!state.nextStepAnswer) {
-      state.errorMsg = "Bitte wähle deine nächste Mission.";
-      render();
+      fail("Bitte wähle deine nächste Mission.", 5);
       return;
     }
     if (state.confidenceAfter == null) {
-      state.errorMsg = "Bitte wähle, wie sicher du dich jetzt fühlst.";
-      render();
+      fail("Bitte wähle, wie sicher du dich jetzt fühlst.", 5);
       return;
     }
 
@@ -743,6 +944,9 @@
     state.existingReflection = null;
     state.submitting = false;
     state.errorMsg = "";
+    state.activeStep = 1;
+    state.missionSeen = false;
+    state.disturbDone = false;
 
     const root = document.getElementById("reflect-screen-root");
     if (root) root.innerHTML = `<div class="logbuch-loading">Lade Tagesabschluss…</div>`;
