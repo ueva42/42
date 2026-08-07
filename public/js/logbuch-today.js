@@ -11,6 +11,7 @@
     slideDir: null,
     hwSubject: "",
     hwTitle: "",
+    hwClassDone: "",
     hwBusy: false,
     hwMessage: "",
     hwError: "",
@@ -227,6 +228,11 @@
     return d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
   }
 
+  function homeworkClassNoteHtml(hw, ui) {
+    if (!hw.classDoneNote) return "";
+    return `<p class="hw-item__note hw-item__note--class">Im Unterricht: ${ui.escapeHtml(hw.classDoneNote)}</p>`;
+  }
+
   function renderHomeworkItem(hw, editable) {
     const ui = UI();
     const isCompleting = state.hwCompletingId === String(hw.id);
@@ -243,6 +249,7 @@
             <div>
               <p class="hw-item__subject">${ui.escapeHtml(hw.subject)}</p>
               <p class="hw-item__title">${ui.escapeHtml(hw.title)}</p>
+              ${homeworkClassNoteHtml(hw, ui)}
               ${hw.doneNote ? `<p class="hw-item__note">${ui.escapeHtml(hw.doneNote)}</p>` : ""}
             </div>
           </div>
@@ -257,6 +264,7 @@
             <div>
               <p class="hw-item__subject">${ui.escapeHtml(hw.subject)} ${overdueTag}</p>
               <p class="hw-item__title">${ui.escapeHtml(hw.title)}</p>
+              ${homeworkClassNoteHtml(hw, ui)}
             </div>
           </div>
         </li>`;
@@ -269,6 +277,7 @@
           <div class="hw-item__copy">
             <p class="hw-item__subject">${ui.escapeHtml(hw.subject)} ${overdueTag}</p>
             <p class="hw-item__title">${ui.escapeHtml(hw.title)}</p>
+            ${homeworkClassNoteHtml(hw, ui)}
           </div>
           <div class="hw-item__actions">
             <button type="button" class="today-app-btn today-app-btn--ghost hw-btn" data-hw-complete="${ui.escapeHtml(hw.id)}">Erledigt</button>
@@ -298,12 +307,13 @@
     const openDue = due.filter((h) => !h.done);
     const subjects = homeworkSubjects();
     const selectedSubject = state.hwSubject || subjects[0] || "";
+    if (!state.hwSubject && selectedSubject) state.hwSubject = selectedSubject;
     const dueHint = formatDueHint(state.data?.nextSchoolDay);
 
-    const subjectOptions = subjects
+    const subjectChips = subjects
       .map(
         (s) =>
-          `<option value="${ui.escapeHtml(s)}" ${s === selectedSubject ? "selected" : ""}>${ui.escapeHtml(s)}</option>`
+          `<button type="button" class="choice-chip ${s === selectedSubject ? "is-active" : ""}" data-hw-subject="${ui.escapeHtml(s)}">${ui.escapeHtml(s)}</button>`
       )
       .join("");
 
@@ -332,12 +342,20 @@
           <h3 class="hw-block__title">Für morgen vormerken</h3>
           <p class="hw-block__sub">Fällig ${ui.escapeHtml(dueHint || "nächster Schultag")}</p>
         </div>
-        <p class="hw-block__hint">Was hast du dir aus der Schule mitgenommen? Vergib dir selbst eine Aufgabe.</p>
+        <p class="hw-block__hint">Was nimmst du mit – und was hast du schon im Unterricht geschafft?</p>
         <div class="hw-form">
-          <label class="hw-label" for="hwSubjectSelect">Fach</label>
-          <select id="hwSubjectSelect" class="hw-select">${subjectOptions}</select>
-          <label class="hw-label" for="hwTitleInput">Aufgabe</label>
-          <input id="hwTitleInput" class="hw-input" type="text" maxlength="300" placeholder="z. B. Mathe S. 42 Nr. 3–6" value="${ui.escapeHtml(state.hwTitle)}">
+          <div class="hw-field">
+            <span class="hw-label" id="hwSubjectLabel">Fach</span>
+            <div class="choice-chip-group hw-subject-chips" role="group" aria-labelledby="hwSubjectLabel">${subjectChips}</div>
+          </div>
+          <div class="hw-field">
+            <label class="hw-label" for="hwTitleInput">Für zu Hause</label>
+            <input id="hwTitleInput" class="hw-input" type="text" maxlength="300" placeholder="z. B. S. 42 Nr. 3–6" value="${ui.escapeHtml(state.hwTitle)}" autocomplete="off">
+          </div>
+          <div class="hw-field">
+            <label class="hw-label" for="hwClassDoneInput">Im Unterricht erledigt <span class="hw-optional">optional</span></label>
+            <input id="hwClassDoneInput" class="hw-input" type="text" maxlength="300" placeholder="z. B. Nr. 1–2 schon gemacht" value="${ui.escapeHtml(state.hwClassDone)}" autocomplete="off">
+          </div>
           <button type="button" class="today-app-btn" id="hwAddBtn" ${state.hwBusy ? "disabled" : ""}>${state.hwBusy ? "Speichern…" : "Hausaufgabe setzen"}</button>
         </div>
         ${state.hwError ? `<p class="hw-msg hw-msg--err">${ui.escapeHtml(state.hwError)}</p>` : ""}
@@ -353,6 +371,7 @@
                       <div>
                         <p class="hw-item__subject">${ui.escapeHtml(h.subject)} · bis ${ui.escapeHtml(formatDueHint(h.dueDate))}</p>
                         <p class="hw-item__title">${ui.escapeHtml(h.title)}</p>
+                        ${homeworkClassNoteHtml(h, ui)}
                       </div>
                       ${
                         !h.done
@@ -741,12 +760,21 @@
       });
     });
 
-    root.querySelector("#hwSubjectSelect")?.addEventListener("change", (e) => {
-      state.hwSubject = e.target.value;
+    root.querySelectorAll("[data-hw-subject]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.hwSubject = btn.dataset.hwSubject || "";
+        root.querySelectorAll("[data-hw-subject]").forEach((chip) => {
+          chip.classList.toggle("is-active", chip.dataset.hwSubject === state.hwSubject);
+        });
+      });
     });
 
     root.querySelector("#hwTitleInput")?.addEventListener("input", (e) => {
       state.hwTitle = e.target.value;
+    });
+
+    root.querySelector("#hwClassDoneInput")?.addEventListener("input", (e) => {
+      state.hwClassDone = e.target.value;
     });
 
     root.querySelector("#hwAddBtn")?.addEventListener("click", () => addHomework());
@@ -791,11 +819,12 @@
   async function addHomework() {
     const subject = state.hwSubject || homeworkSubjects()[0] || "";
     const title = String(state.hwTitle || "").trim();
+    const classDoneNote = String(state.hwClassDone || "").trim();
     state.hwError = "";
     state.hwMessage = "";
 
     if (!subject || !title) {
-      state.hwError = "Bitte Fach und Aufgabe angeben.";
+      state.hwError = "Bitte Fach und Aufgabe für zu Hause angeben.";
       render();
       return;
     }
@@ -810,6 +839,7 @@
         body: JSON.stringify({
           subject,
           title,
+          classDoneNote: classDoneNote || null,
           assignedDate: state.date,
           dueDate: state.data?.nextSchoolDay
         })
@@ -822,6 +852,7 @@
         return;
       }
       state.hwTitle = "";
+      state.hwClassDone = "";
       state.hwMessage = "Gesetzt – morgen kannst du sie abhaken.";
       await loadDay(state.date);
     } catch (err) {

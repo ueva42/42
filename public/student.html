@@ -5836,7 +5836,14 @@ body.student-app .card.section > h2 {
 
 .hw-form {
   display: grid;
-  gap: 8px;
+  gap: 12px;
+  min-width: 0;
+}
+
+.hw-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
 }
 
 .hw-label {
@@ -5847,9 +5854,26 @@ body.student-app .card.section > h2 {
   color: #94a3b8;
 }
 
+.hw-optional {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.hw-subject-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .hw-select,
 .hw-input {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   min-height: 46px;
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.28);
@@ -5859,12 +5883,27 @@ body.student-app .card.section > h2 {
   font-size: 14px;
   padding: 0 12px;
   outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.hw-select {
+  background-image: linear-gradient(45deg, transparent 50%, #94a3b8 50%),
+    linear-gradient(135deg, #94a3b8 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
 }
 
 .hw-select:focus,
 .hw-input:focus {
   border-color: #22d3ee;
   box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+}
+
+.hw-item__note--class {
+  color: #a5b4fc;
 }
 
 .hw-list {
@@ -11034,7 +11073,7 @@ h2 {
 <script src="/js/logbuch-plan.js?v=23"></script>
 <script src="/js/logbuch-check.js?v=8"></script>
 <script src="/js/logbuch-reflect.js?v=5"></script>
-<script src="/js/logbuch-today.js?v=28"></script>
+<script src="/js/logbuch-today.js?v=29"></script>
 <script src="/js/logbuch-week.js?v=9"></script>
 <script src="/js/logbuch-levelplan.js?v=16"></script>
 <script src="/js/logbuch-start-briefing.js?v=2"></script>

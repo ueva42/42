@@ -1917,6 +1917,7 @@ function mapHomeworkRow(row) {
     id: row.id,
     subject: row.subject,
     title: row.title,
+    classDoneNote: row.class_done_note || null,
     assignedDate: normalizeIsoDate(row.assigned_date),
     dueDate: normalizeIsoDate(row.due_date),
     done: !!row.done,
@@ -1932,7 +1933,7 @@ async function fetchHomeworkForDate(studentId, date) {
 
   const r = await pool.query(
     `
-    SELECT id, subject, title, assigned_date, due_date, done, done_note, done_at, created_at
+    SELECT id, subject, title, class_done_note, assigned_date, due_date, done, done_note, done_at, created_at
     FROM student_homework
     WHERE user_id = $1
       AND (
@@ -3056,6 +3057,7 @@ async function migrate() {
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       subject TEXT NOT NULL,
       title TEXT NOT NULL,
+      class_done_note TEXT,
       assigned_date DATE NOT NULL,
       due_date DATE NOT NULL,
       done BOOLEAN NOT NULL DEFAULT false,
@@ -3064,6 +3066,8 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+
+  await ensureColumn("student_homework", "class_done_note", "TEXT");
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_student_homework_user_due
@@ -4825,6 +4829,7 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
     const schoolId = req.session.user.school_id;
     const subject = String(req.body.subject || "").trim();
     const title = String(req.body.title || "").trim();
+    const classDoneNote = String(req.body.classDoneNote || "").trim().slice(0, 300) || null;
     const assignedDate = isoDateOrToday(req.body.assignedDate) || todayIsoDate();
     const dueDate =
       normalizeIsoDate(req.body.dueDate) || nextSchoolDayIso(assignedDate);
@@ -4833,7 +4838,7 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
     }
     if (!title || title.length < 2) {
-      return res.json({ success: false, message: "Bitte eine kurze Aufgabe eingeben." });
+      return res.json({ success: false, message: "Bitte eine kurze Aufgabe für zu Hause eingeben." });
     }
     if (title.length > 300) {
       return res.json({ success: false, message: "Aufgabe ist zu lang (max. 300 Zeichen)." });
@@ -4845,11 +4850,11 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
     const ins = await pool.query(
       `
       INSERT INTO student_homework
-        (school_id, user_id, subject, title, assigned_date, due_date)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, subject, title, assigned_date, due_date, done, done_note, done_at, created_at
+        (school_id, user_id, subject, title, class_done_note, assigned_date, due_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, subject, title, class_done_note, assigned_date, due_date, done, done_note, done_at, created_at
     `,
-      [schoolId, studentId, subject, title.slice(0, 300), assignedDate, dueDate]
+      [schoolId, studentId, subject, title.slice(0, 300), classDoneNote, assignedDate, dueDate]
     );
 
     res.json({ success: true, homework: mapHomeworkRow(ins.rows[0]) });
@@ -4900,7 +4905,7 @@ app.patch("/api/student/homework/:id", isStudent, async (req, res) => {
           done_note = CASE WHEN $1 THEN $2 ELSE NULL END,
           done_at = CASE WHEN $1 THEN NOW() ELSE NULL END
       WHERE id = $3 AND user_id = $4
-      RETURNING id, subject, title, assigned_date, due_date, done, done_note, done_at, created_at
+      RETURNING id, subject, title, class_done_note, assigned_date, due_date, done, done_note, done_at, created_at
     `,
       [done, doneNote, id, studentId]
     );
