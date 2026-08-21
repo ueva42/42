@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 400" role="img" aria-label="Neon Vibes">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#18181b"/>
+      <stop offset="100%" stop-color="#701a75"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="400" rx="28" fill="url(#bg)"/>
+  <circle cx="160" cy="150" r="78" fill="#3b0764" stroke="#e879f9" stroke-width="6"/>
+  <circle cx="160" cy="150" r="56" fill="#86198f"/>
+  <path d="M100 118c20-36 100-36 120 0-18 10-40 16-60 16s-42-6-60-16z" fill="#d946ef"/>
+  <circle cx="136" cy="148" r="7" fill="#fdf4ff"/>
+  <circle cx="184" cy="148" r="7" fill="#fdf4ff"/>
+  <path d="M142 178c10 12 26 12 36 0" fill="none" stroke="#f0abfc" stroke-width="5" stroke-linecap="round"/>
+  <ellipse cx="160" cy="302" rx="92" ry="68" fill="#3b0764" stroke="#e879f9" stroke-width="4"/>
+  <text x="160" y="372" text-anchor="middle" fill="#f0abfc" font-family="Arial,sans-serif" font-size="22" font-weight="700">NEON VIBES</text>
+</svg>

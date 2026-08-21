@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 400" role="img" aria-label="Nova Drift">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="400" rx="28" fill="url(#bg)"/>
+  <circle cx="160" cy="150" r="78" fill="#1e293b" stroke="url(#glow)" stroke-width="6"/>
+  <circle cx="160" cy="148" r="58" fill="#334155"/>
+  <ellipse cx="160" cy="300" rx="92" ry="70" fill="#1e293b" stroke="#22d3ee" stroke-width="4"/>
+  <path d="M110 130c20-28 80-28 100 0" fill="none" stroke="#67e8f9" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="135" cy="145" r="7" fill="#e2e8f0"/>
+  <circle cx="185" cy="145" r="7" fill="#e2e8f0"/>
+  <path d="M140 175c12 14 28 14 40 0" fill="none" stroke="#a855f7" stroke-width="5" stroke-linecap="round"/>
+  <text x="160" y="372" text-anchor="middle" fill="#67e8f9" font-family="Arial,sans-serif" font-size="22" font-weight="700">NOVA DRIFT</text>
+</svg>

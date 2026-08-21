@@ -429,7 +429,7 @@
       const locked = sf.unlockKey && !state.socialUnlock[sf.unlockKey];
       return {
         value: sf.id,
-        label: locked ? `${sf.label} (Silber/Gold)` : sf.label,
+        label: locked ? `${sf.label} (Operator/Street Legend)` : sf.label,
         disabled: locked
       };
     });
@@ -713,7 +713,7 @@
     if (!V) return "";
     const tiles = socialFormOptions().map((opt) => ({
       value: opt.value,
-      title: opt.label.replace(" (Silber/Gold)", ""),
+      title: opt.label.replace(" (Operator/Street Legend)", ""),
       desc: opt.disabled ? "Noch gesperrt" : "Sozialform wählen",
       icon: "◉",
       accent: "#a855f7",

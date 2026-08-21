@@ -2013,16 +2013,19 @@ async function getSocialFormUnlock(studentId, schoolId) {
   }
 
   const nameLower = (levelName || "").toLowerCase();
+  // Feste Leiter: Rookie(0) Scout(1) Fixer(2) Operator(3) Street Legend(4) Logic Legend(5)
   const gruppe =
-    levelRank >= 1 ||
+    levelRank >= 3 ||
+    nameLower.includes("operator") ||
+    nameLower.includes("street legend") ||
+    nameLower.includes("logic legend") ||
     nameLower.includes("silber") ||
-    nameLower.includes("street pro") ||
-    nameLower.includes("gold") ||
-    nameLower.includes("legend");
+    nameLower.includes("gold");
   const frei =
-    levelRank >= 2 ||
-    nameLower.includes("gold") ||
-    nameLower.includes("legend");
+    levelRank >= 4 ||
+    nameLower.includes("street legend") ||
+    nameLower.includes("logic legend") ||
+    nameLower.includes("gold");
 
   return { gruppe, frei, levelRank, levelName };
 }
@@ -2261,27 +2264,103 @@ async function getClassTotalXP(classId, schoolId) {
 }
 
 // -------------------------------------------------------
-// Default-Daten pro Schule
+// Default-Daten pro Schule (festes Streets-of-Logic-Design)
 // -------------------------------------------------------
+const SYSTEM_LEVELS = [
+  { name: "Rookie", minXp: 0 },
+  { name: "Scout", minXp: 100 },
+  { name: "Fixer", minXp: 200 },
+  { name: "Operator", minXp: 300 },
+  { name: "Street Legend", minXp: 500 },
+  { name: "Logic Legend", minXp: 1000 }
+];
+
+const SYSTEM_CHARACTERS = [
+  {
+    name: "Nova Drift",
+    imageUrl: "/characters/nova-drift.svg",
+    blurb: "Cooler Kopf, klare Linie."
+  },
+  {
+    name: "Pixel Rydah",
+    imageUrl: "/characters/pixel-rydah.svg",
+    blurb: "Fokussiert und spielstark."
+  },
+  {
+    name: "Logic Lynx",
+    imageUrl: "/characters/logic-lynx.svg",
+    blurb: "Spürt Muster und denkt voraus."
+  },
+  {
+    name: "Neon Vibes",
+    imageUrl: "/characters/neon-vibes.svg",
+    blurb: "Bringt Energie und Flow."
+  }
+];
+
+const SYSTEM_CHARACTER_NAMES = SYSTEM_CHARACTERS.map((c) => c.name);
+const SYSTEM_LEVEL_XP = SYSTEM_LEVELS.map((l) => l.minXp);
+
+async function ensureSystemCatalog(schoolId) {
+  const sid = Number(schoolId);
+  if (!Number.isFinite(sid)) return;
+
+  for (const lvl of SYSTEM_LEVELS) {
+    await pool.query(
+      `
+      INSERT INTO levels (name, min_xp, school_id)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (school_id, min_xp)
+      DO UPDATE SET name = EXCLUDED.name
+    `,
+      [lvl.name, lvl.minXp, sid]
+    );
+  }
+
+  await pool.query(
+    `
+    DELETE FROM levels
+    WHERE school_id = $1
+      AND NOT (min_xp = ANY($2::int[]))
+  `,
+    [sid, SYSTEM_LEVEL_XP]
+  );
+
+  for (const ch of SYSTEM_CHARACTERS) {
+    const existing = await pool.query(
+      `
+      SELECT id
+      FROM characters
+      WHERE school_id = $1 AND name = $2
+      LIMIT 1
+    `,
+      [sid, ch.name]
+    );
+    if (existing.rows.length) {
+      await pool.query(
+        `
+        UPDATE characters
+        SET image_url = $1
+        WHERE id = $2
+          AND (image_url IS NULL OR image_url = '' OR image_url LIKE '/characters/%')
+      `,
+        [ch.imageUrl, existing.rows[0].id]
+      );
+    } else {
+      await pool.query(
+        `
+        INSERT INTO characters (name, image_url, school_id)
+        VALUES ($1, $2, $3)
+      `,
+        [ch.name, ch.imageUrl, sid]
+      );
+    }
+  }
+}
+
 async function seedSchoolDefaults(schoolId) {
   const sid = Number(schoolId);
-
-  // LEVELS
-  const lvlCount = (
-    await pool.query(
-      "SELECT COUNT(*) FROM levels WHERE school_id=$1",
-      [sid]
-    )
-  ).rows[0];
-
-  if (Number(lvlCount.count) === 0) {
-    await pool.query(`
-      INSERT INTO levels (name,min_xp,school_id) VALUES
-        ('Rookie', 0, ${sid}),
-        ('Street Pro', 100, ${sid}),
-        ('Logic Legend', 250, ${sid})
-    `);
-  }
+  await ensureSystemCatalog(sid);
 
   // MISSIONEN
   const missionCount = (
@@ -2316,25 +2395,6 @@ async function seedSchoolDefaults(schoolId) {
         ('5-Minuten Chill-Break', 30, NULL, ${sid}),
         ('Hausaufgaben-Joker (1x)', 60, NULL, ${sid}),
         ('Boss-Seat: Wunschplatz', 90, NULL, ${sid})
-    `);
-  }
-
-  // CHARAKTERE
-  const charCount = (
-    await pool.query(
-      "SELECT COUNT(*) FROM characters WHERE school_id=$1",
-      [sid]
-    )
-  ).rows[0];
-
-  if (Number(charCount.count) === 0) {
-    await pool.query(`
-      INSERT INTO characters (name,image_url,school_id)
-      VALUES
-        ('Nova Drift', NULL, ${sid}),
-        ('Pixel Rydah', NULL, ${sid}),
-        ('Logic Lynx', NULL, ${sid}),
-        ('Neon Vibes', NULL, ${sid})
     `);
   }
 }
@@ -3397,6 +3457,11 @@ async function migrate() {
   for (const row of allSchools.rows) {
     await seedSchoolDefaults(row.id);
   }
+  try {
+    await recalcAllStudentLevels();
+  } catch (err) {
+    console.warn("⚠️ Level-Neuberechnung nach Katalog-Sync:", err.message || err);
+  }
 
   console.log("✔️ Migration fertig.");
 }
@@ -4032,13 +4097,13 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       if (socialForm === "gruppe" && !unlock.gruppe) {
         return res.json({
           success: false,
-          message: "Gruppe ist erst ab Level Silber freigeschaltet."
+          message: "Gruppe ist erst ab Level Operator freigeschaltet."
         });
       }
       if (socialForm === "frei" && !unlock.frei) {
         return res.json({
           success: false,
-          message: "Frei ist erst ab Level Gold freigeschaltet."
+          message: "Frei ist erst ab Level Street Legend freigeschaltet."
         });
       }
     }
@@ -4275,13 +4340,13 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       if (socialForm === "gruppe" && !unlock.gruppe) {
         return res.json({
           success: false,
-          message: "Gruppe ist erst ab Level Silber freigeschaltet."
+          message: "Gruppe ist erst ab Level Operator freigeschaltet."
         });
       }
       if (socialForm === "frei" && !unlock.frei) {
         return res.json({
           success: false,
-          message: "Frei ist erst ab Level Gold freigeschaltet."
+          message: "Frei ist erst ab Level Street Legend freigeschaltet."
         });
       }
     }
@@ -8490,30 +8555,66 @@ app.get("/api/teacher/week", isAdmin, async (req, res) => {
 // STUDENT: Charakter-Liste
 // -------------------------------------------------------
 app.get("/api/student/characterList", isStudent, async (req, res) => {
-  const schoolId = req.session.user.school_id;
+  try {
+    const schoolId = req.session.user.school_id;
+    await ensureSystemCatalog(schoolId);
 
-  const r = await pool.query(
-    "SELECT id,name,image_url FROM characters WHERE school_id=$1 ORDER BY id ASC",
-    [schoolId]
-  );
+    const r = await pool.query(
+      `
+      SELECT id, name, image_url
+      FROM characters
+      WHERE school_id = $1
+        AND name = ANY($2::text[])
+      ORDER BY id ASC
+    `,
+      [schoolId, SYSTEM_CHARACTER_NAMES]
+    );
 
-  res.json(r.rows);
+    res.json(r.rows);
+  } catch (err) {
+    console.error("❌ /api/student/characterList:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
 });
 
 // Charakter auswählen
 app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
-  const studentId = req.session.user.id;
-  const { characterId } = req.body;
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const characterId = Number(req.body.characterId);
 
-  if (!characterId)
-    return res.json({ success: false, message: "Kein characterId" });
+    if (!characterId) {
+      return res.json({ success: false, message: "Kein characterId" });
+    }
 
-  await pool.query(
-    "UPDATE users SET character_id=$1 WHERE id=$2",
-    [characterId, studentId]
-  );
+    const allowed = await pool.query(
+      `
+      SELECT id
+      FROM characters
+      WHERE id = $1
+        AND school_id = $2
+        AND name = ANY($3::text[])
+    `,
+      [characterId, schoolId, SYSTEM_CHARACTER_NAMES]
+    );
+    if (!allowed.rows.length) {
+      return res.json({
+        success: false,
+        message: "Dieser Charakter gehört nicht zum festen App-Design."
+      });
+    }
 
-  res.json({ success: true });
+    await pool.query("UPDATE users SET character_id=$1 WHERE id=$2", [
+      characterId,
+      studentId
+    ]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ /api/student/selectCharacter:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
 });
 
 // -------------------------------------------------------
@@ -9956,221 +10057,106 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// ADMIN – Charaktere
+// ADMIN – Charaktere (festes App-Design, nur Lesen)
 // -------------------------------------------------------
-let uploadedCharacterImageUrl = null;
+app.post("/api/character/upload", isAdmin, async (_req, res) => {
+  res.status(403).json({
+    success: false,
+    message:
+      "Charaktere sind fest im Streets-of-Logic-Design verankert und können nicht hochgeladen werden."
+  });
+});
 
-app.post(
-  "/api/character/upload",
-  isAdmin,
-  upload.single("image"),
-  async (req, res) => {
-    if (!req.file) return res.json({ success: false });
-
-    const schoolId = req.session.user.school_id;
-    const fileName = `characters/${schoolId}_${Date.now()}_${req.file.originalname}`;
-
-    await r2.send(new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET,
-      Key: fileName,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype
-    }));
-
-    const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
-    uploadedCharacterImageUrl = url;
-
-    res.json({ success: true, url });
-  }
-);
-
-app.post("/api/character", isAdmin, async (req, res) => {
-  const { name, imageUrl } = req.body;
-  const schoolId = req.session.user.school_id;
-
-  await pool.query(`
-    INSERT INTO characters (name,image_url,school_id)
-    VALUES ($1,$2,$3)
-  `, [name, imageUrl || uploadedCharacterImageUrl, schoolId]);
-
-  uploadedCharacterImageUrl = null;
-
-  res.json({ success: true });
+app.post("/api/character", isAdmin, async (_req, res) => {
+  res.status(403).json({
+    success: false,
+    message:
+      "Charaktere sind fest im Streets-of-Logic-Design verankert und können nicht angelegt werden."
+  });
 });
 
 app.get("/api/character", isAdmin, async (req, res) => {
-  const schoolId = req.session.user.school_id;
+  try {
+    const schoolId = req.session.user.school_id;
+    await ensureSystemCatalog(schoolId);
 
-  const r = await pool.query(`
-    SELECT *
-    FROM characters
-    WHERE school_id=$1
-    ORDER BY id DESC
-  `, [schoolId]);
+    const r = await pool.query(
+      `
+      SELECT id, name, image_url
+      FROM characters
+      WHERE school_id = $1
+        AND name = ANY($2::text[])
+      ORDER BY id ASC
+    `,
+      [schoolId, SYSTEM_CHARACTER_NAMES]
+    );
 
-  res.json(r.rows);
+    res.json({
+      locked: true,
+      designNote:
+        "Diese Charaktere gehören zum festen Streets-of-Logic-Design und können nicht geändert werden.",
+      characters: r.rows,
+      catalog: SYSTEM_CHARACTERS
+    });
+  } catch (err) {
+    console.error("❌ GET /api/character:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
 });
 
-app.delete("/api/character/:id", isAdmin, async (req, res) => {
-  const schoolId = req.session.user.school_id;
-  const charId = Number(req.params.id);
-
-  const r = await pool.query(`
-    SELECT image_url
-    FROM characters
-    WHERE id=$1 AND school_id=$2
-  `, [charId, schoolId]);
-
-  if (r.rows.length && r.rows[0].image_url) {
-    const prefix = process.env.R2_PUBLIC_URL + "/";
-    const key = r.rows[0].image_url.replace(prefix, "");
-
-    try {
-      await r2.send(new DeleteObjectCommand({
-        Bucket: process.env.R2_BUCKET,
-        Key: key
-      }));
-    } catch {}
-  }
-
-  await pool.query(
-    "UPDATE users SET character_id=NULL WHERE character_id=$1 AND school_id=$2",
-    [charId, schoolId]
-  );
-
-  await pool.query(
-    "DELETE FROM characters WHERE id=$1 AND school_id=$2",
-    [charId, schoolId]
-  );
-
-  res.json({ success: true });
+app.delete("/api/character/:id", isAdmin, async (_req, res) => {
+  res.status(403).json({
+    success: false,
+    message:
+      "Charaktere sind fest im Streets-of-Logic-Design verankert und können nicht gelöscht werden."
+  });
 });
 
 // -------------------------------------------------------
-// ADMIN – Level-System
+// ADMIN – Level-System (festes App-Design, nur Lesen)
 // -------------------------------------------------------
 app.get("/api/levels", isAdmin, async (req, res) => {
-  const schoolId = req.session.user.school_id;
-
-  const r = await pool.query(`
-    SELECT id,name,min_xp
-    FROM levels
-    WHERE school_id=$1
-    ORDER BY min_xp ASC
-  `, [schoolId]);
-
-  res.json(r.rows);
-});
-
-app.post("/api/levels", isAdmin, async (req, res) => {
   try {
-    let { name, minXp } = req.body;
     const schoolId = req.session.user.school_id;
+    await ensureSystemCatalog(schoolId);
 
-    minXp = Number(minXp);
-
-    if (!name || Number.isNaN(minXp)) {
-      return res.json({
-        success: false,
-        message: "Name oder Mindest-XP fehlen oder sind ungültig."
-      });
-    }
-
-    // Erstes Level immer auf 0 XP setzen
-    const existing = await pool.query(
+    const r = await pool.query(
       `
-      SELECT COUNT(*) AS count
+      SELECT id, name, min_xp
       FROM levels
-      WHERE school_id=$1
+      WHERE school_id = $1
+      ORDER BY min_xp ASC
     `,
       [schoolId]
     );
 
-    const count = Number(existing.rows[0].count);
-    if (count === 0 && minXp !== 0) {
-      minXp = 0;
-    }
-
-    // Eintrag anlegen oder bei Konflikt (gleicher min_xp in derselben Schule)
-    // nur den Namen aktualisieren, statt mit Fehler abzustürzen.
-    await pool.query(
-      `
-      INSERT INTO levels (name, min_xp, school_id)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (school_id, min_xp)
-      DO UPDATE SET name = EXCLUDED.name
-    `,
-      [name, minXp, schoolId]
-    );
-
-    await recalcAllStudentLevels();
-
-    return res.json({ success: true });
-  } catch (err) {
-    console.error("Fehler beim Anlegen eines Levels:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Fehler beim Anlegen des Levels."
+    res.json({
+      locked: true,
+      designNote:
+        "Das Levelsystem gehört zum festen Streets-of-Logic-Design und kann nicht geändert werden.",
+      levels: r.rows,
+      catalog: SYSTEM_LEVELS
     });
+  } catch (err) {
+    console.error("❌ GET /api/levels:", err);
+    res.status(500).json({ error: "Serverfehler" });
   }
 });
 
-app.delete("/api/levels/:id", isAdmin, async (req, res) => {
-  try {
-    const levelId = req.params.id;
-    const schoolId = req.session.user.school_id;
+app.post("/api/levels", isAdmin, async (_req, res) => {
+  res.status(403).json({
+    success: false,
+    message:
+      "Level sind fest im Streets-of-Logic-Design verankert und können nicht angelegt werden."
+  });
+});
 
-    // Level laden
-    const lvl = await pool.query(
-      `SELECT id, min_xp FROM levels WHERE id=$1 AND school_id=$2`,
-      [levelId, schoolId]
-    );
-
-    if (lvl.rowCount === 0) {
-      return res.json({
-        success: false,
-        message: "Level nicht gefunden oder gehört nicht zu deiner Schule."
-      });
-    }
-
-    const minXp = lvl.rows[0].min_xp;
-
-    // 1. Schutz: 0 XP Level darf nie gelöscht werden
-    if (minXp === 0) {
-      return res.json({
-        success: false,
-        message: "Das Start-Level (0 XP) kann nicht gelöscht werden."
-      });
-    }
-
-    // 2. Schutz: Es müssen immer mindestens 2 Level vorhanden bleiben
-    const count = await pool.query(
-      `SELECT COUNT(*) FROM levels WHERE school_id=$1`,
-      [schoolId]
-    );
-
-    if (Number(count.rows[0].count) <= 2) {
-      return res.json({
-        success: false,
-        message: "Du kannst nicht alle Level löschen. Mindestens ein Level neben dem Start-Level muss existieren."
-      });
-    }
-
-    // Löschen, wenn beide Schutzmechanismen erfüllt sind
-    await pool.query(
-      `DELETE FROM levels WHERE id=$1 AND school_id=$2`,
-      [levelId, schoolId]
-    );
-
-    return res.json({ success: true });
-
-  } catch (err) {
-    console.error("Fehler beim Löschen eines Levels:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Fehler beim Löschen."
-    });
-  }
+app.delete("/api/levels/:id", isAdmin, async (_req, res) => {
+  res.status(403).json({
+    success: false,
+    message:
+      "Level sind fest im Streets-of-Logic-Design verankert und können nicht gelöscht werden."
+  });
 });
 
 

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 400" role="img" aria-label="Logic Lynx">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#7c2d12"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="400" rx="28" fill="url(#bg)"/>
+  <ellipse cx="160" cy="160" rx="74" ry="70" fill="#431407" stroke="#fb923c" stroke-width="6"/>
+  <path d="M95 120l20-48 28 40M225 120l-20-48-28 40" fill="#9a3412" stroke="#fdba74" stroke-width="3"/>
+  <circle cx="135" cy="155" r="8" fill="#ffedd5"/>
+  <circle cx="185" cy="155" r="8" fill="#ffedd5"/>
+  <path d="M160 168l-10 18h20z" fill="#fb923c"/>
+  <path d="M138 198c14 10 30 10 44 0" fill="none" stroke="#fdba74" stroke-width="4"/>
+  <ellipse cx="160" cy="300" rx="90" ry="66" fill="#431407" stroke="#fb923c" stroke-width="4"/>
+  <text x="160" y="372" text-anchor="middle" fill="#fdba74" font-family="Arial,sans-serif" font-size="22" font-weight="700">LOGIC LYNX</text>
+</svg>

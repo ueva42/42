@@ -455,6 +455,43 @@
       background: rgba(15, 23, 42, 0.55);
     }
 
+    .system-catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 14px;
+    }
+
+    .system-catalog-card {
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.65);
+      overflow: hidden;
+      text-align: center;
+    }
+
+    .system-catalog-card img {
+      width: 100%;
+      aspect-ratio: 4 / 5;
+      object-fit: cover;
+      display: block;
+      background: #0f172a;
+    }
+
+    .system-catalog-card strong {
+      display: block;
+      padding: 10px 8px 4px;
+      color: #e2e8f0;
+      font-size: 14px;
+    }
+
+    .system-catalog-card span {
+      display: block;
+      padding: 0 10px 12px;
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
     .kr-levels-panel h3 {
       margin: 0 0 6px;
       font-size: 15px;
@@ -1491,49 +1528,34 @@
     <div id="characterTab" class="tab hidden">
       <div class="panel">
         <h2>Charaktere</h2>
+        <p class="hint">
+          Die Charaktere sind Teil des festen <b>Streets-of-Logic-Designs</b>.
+          Hochladen, Umbenennen und Löschen sind deaktiviert – alle Schulen nutzen denselben Katalog.
+        </p>
       </div>
 
       <div class="panel">
-        <h3>Neuer Charakter</h3>
-        <input id="characterName" placeholder="Name" />
-        <input id="characterImage" type="file" />
-        <button class="action" onclick="uploadCharacterImage()">Bild hochladen</button>
-        <button class="action" onclick="addCharacter()">Speichern</button>
-      </div>
-
-      <div class="panel">
-        <h3>Alle Charaktere</h3>
-        <table id="characterTable">
-          <thead>
-            <tr><th>Bild</th><th>Name</th><th>Löschen</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+        <h3>Fester Charakter-Katalog</h3>
+        <div id="characterCatalog" class="system-catalog-grid"></div>
       </div>
     </div>
 
     <!-- LEVEL -->
     <div id="levelTab" class="tab hidden">
       <div class="panel">
-        <h2>Level</h2>
-      </div>
-
-      <div class="panel">
-        <h3>Neues Level anlegen</h3>
-        <input id="levelName" placeholder="Levelname (z.B. Lehrling)" />
-        <input id="levelMinXp" type="number" placeholder="Mindest-XP" />
-        <button class="action" onclick="addLevel()">Speichern</button>
-
+        <h2>Levelsystem</h2>
         <p class="hint">
-          Hinweis: Das <b>erste Level</b> wird automatisch auf <b>0 XP</b> gesetzt – auch wenn du hier etwas anderes einträgst.
+          Das XP-Levelsystem ist fest verankert und kann nicht geändert werden:<br>
+          <b>Rookie</b> (0) → <b>Scout</b> (100) → <b>Fixer</b> (200) →
+          <b>Operator</b> (300) → <b>Street Legend</b> (500) → <b>Logic Legend</b> (1000).
         </p>
       </div>
 
       <div class="panel">
-        <h3>Alle Level</h3>
+        <h3>Feste Level-Stufen</h3>
         <table id="levelTable">
           <thead>
-            <tr><th>Name</th><th>Mindest-XP</th><th>Löschen</th></tr>
+            <tr><th>Name</th><th>Mindest-XP</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -2223,99 +2245,65 @@ async function deleteBonus(id) {
   loadBonuses();
 }
 
-/* ---------------------------- CHARACTERS ---------------------------- */
-let uploadedCharacterImageUrl = null;
-
-async function uploadCharacterImage() {
-  const file = document.getElementById("characterImage").files[0];
-  if (!file) return;
-
-  const form = new FormData();
-  form.append("image", file);
-
-  const r = await fetch("/api/character/upload", { method:"POST", body: form });
-  const data = await r.json();
-  if (data.success) uploadedCharacterImageUrl = data.url;
-}
-
-async function addCharacter() {
-  const name = document.getElementById("characterName").value.trim();
-  if (!name) return;
-
-  await fetch("/api/character", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({name, imageUrl:uploadedCharacterImageUrl})
-  });
-
-  uploadedCharacterImageUrl = null;
-  document.getElementById("characterName").value = "";
-  document.getElementById("characterImage").value = "";
-
-  loadCharacters();
-}
-
+/* ---------------------------- CHARACTERS (festes Design) ---------------------------- */
 async function loadCharacters() {
-  const r = await fetch("/api/character");
-  const characters = await r.json();
+  const box = document.getElementById("characterCatalog");
+  if (!box) return;
+  box.innerHTML = "<p class='hint'>Lade Katalog…</p>";
 
-  const tbody = document.querySelector("#characterTable tbody");
-  tbody.innerHTML = "";
+  try {
+    const r = await fetch("/api/character");
+    const data = await r.json();
+    const characters = Array.isArray(data) ? data : data.characters || [];
+    const catalog = Array.isArray(data?.catalog) ? data.catalog : [];
 
-  characters.forEach(c => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${c.image_url ? `<img class="thumb" src="${c.image_url}">` : "—"}</td>
-      <td>${c.name}</td>
-      <td><button class="delete" onclick="deleteCharacter(${c.id})">X</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
+    if (!characters.length && !catalog.length) {
+      box.innerHTML = "<p class='hint'>Kein Charakterkatalog geladen.</p>";
+      return;
+    }
+
+    const byName = Object.fromEntries(catalog.map((c) => [c.name, c]));
+    box.innerHTML = characters
+      .map((c) => {
+        const meta = byName[c.name] || {};
+        const img = c.image_url || meta.imageUrl || "";
+        const blurb = meta.blurb || "Fester Streets-of-Logic-Charakter";
+        return `
+          <article class="system-catalog-card">
+            ${img ? `<img src="${img}" alt="${c.name}">` : ""}
+            <strong>${c.name}</strong>
+            <span>${blurb}</span>
+          </article>`;
+      })
+      .join("");
+  } catch (err) {
+    console.error(err);
+    box.innerHTML = "<p class='hint'>Katalog konnte nicht geladen werden.</p>";
+  }
 }
 
-async function deleteCharacter(id) {
-  await fetch(`/api/character/${id}`, { method:"DELETE" });
-  loadCharacters();
-}
-
-/* ---------------------------- LEVELS ---------------------------- */
+/* ---------------------------- LEVELS (festes Design) ---------------------------- */
 async function loadLevels() {
-  const r = await fetch("/api/levels");
-  const levels = await r.json();
-
   const tbody = document.querySelector("#levelTable tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
 
-  levels.forEach(l => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${l.name}</td>
-      <td>${l.min_xp}</td>
-      <td><button class="delete" onclick="deleteLevel(${l.id})">X</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
+  try {
+    const r = await fetch("/api/levels");
+    const data = await r.json();
+    const levels = Array.isArray(data) ? data : data.levels || [];
 
-async function addLevel() {
-  const name = document.getElementById("levelName").value.trim();
-  const minXp = Number(document.getElementById("levelMinXp").value);
-  if (!name || isNaN(minXp)) return;
-
-  await fetch("/api/levels", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({name, minXp})
-  });
-
-  document.getElementById("levelName").value = "";
-  document.getElementById("levelMinXp").value = "";
-  loadLevels();
-}
-
-async function deleteLevel(id) {
-  await fetch(`/api/levels/${id}`, { method:"DELETE" });
-  loadLevels();
+    levels.forEach((l) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${l.name}</td>
+        <td>${l.min_xp}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 /* ---------------------------- PROFIL & PASSWORT (ADMIN) ---------------------------- */
