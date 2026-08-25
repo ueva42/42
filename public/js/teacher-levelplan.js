@@ -279,7 +279,6 @@
         <details class="kr-topic-block kr-topic-accordion" data-topic-id="${escapeHtml(topic.id)}" ${open ? "open" : ""}>
           <summary class="kr-topic-summary">
             <span class="kr-topic-name">${escapeHtml(topic.name)}${dateLabel ? ` <span class="hint">(${dateLabel})</span>` : ""}</span>
-            <span class="kr-topic-meta">Keine Unterthemen</span>
           </summary>
           <div class="kr-topic-body">
             <p class="tc-empty">Noch keine Unterthemen in diesem Thema.</p>
@@ -311,7 +310,6 @@
       <details class="kr-topic-block kr-topic-accordion" data-topic-id="${escapeHtml(topic.id)}" ${open ? "open" : ""}>
         <summary class="kr-topic-summary">
           <span class="kr-topic-name">${escapeHtml(topic.name)}${dateLabel ? ` <span class="hint">(${dateLabel})</span>` : ""}</span>
-          <span class="kr-topic-meta">${goals.length} Unterthemen</span>
         </summary>
         <div class="kr-topic-body">
           <div class="lpi-table-scroll">

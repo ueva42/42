@@ -199,7 +199,6 @@
       .map((topic) => {
         const goals = topic.goals || [];
         if (!goals.length) return "";
-        const selectedCount = goals.filter((goal) => linked.has(String(goal.id))).length;
         const open = isTopicExpanded(topic.id, linked, goals);
         const goalChecks = goals
           .map(
@@ -210,15 +209,10 @@
         </label>`
           )
           .join("");
-        const meta =
-          selectedCount > 0
-            ? `${selectedCount} markiert · ${goals.length} Ziele`
-            : `${goals.length} Ziele`;
         return `
         <details class="tc-topic-goal-group" data-topic-id="${escapeHtml(topic.id)}" ${open ? "open" : ""}>
           <summary class="tc-topic-goal-title">
             <span class="tc-topic-goal-name">${escapeHtml(topic.name)}</span>
-            <span class="tc-topic-goal-meta">${meta}</span>
           </summary>
           <div class="tc-was-goal-list">${goalChecks}</div>
         </details>`;
