@@ -286,21 +286,81 @@
       color: #d1d5db;
     }
 
+    .kr-topic-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
     .kr-topic-block {
-      margin-top: 20px;
-      padding-top: 16px;
-      border-top: 1px solid rgba(148,163,184,0.2);
+      margin-top: 10px;
     }
 
     .kr-topic-block:first-of-type {
       margin-top: 12px;
-      padding-top: 0;
-      border-top: none;
     }
 
-    .kr-topic-block h3 {
-      margin: 0 0 4px;
-      font-size: 16px;
+    .kr-topic-accordion,
+    .tc-topic-goal-group {
+      border: 1px solid rgba(148,163,184,0.22);
+      border-radius: 12px;
+      background: rgba(15,23,42,0.35);
+      overflow: hidden;
+    }
+
+    .kr-topic-summary,
+    .tc-topic-goal-group > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+
+    .kr-topic-summary::-webkit-details-marker,
+    .tc-topic-goal-group > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .kr-topic-name,
+    .tc-topic-goal-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #f8fafc;
+    }
+
+    .kr-topic-meta,
+    .tc-topic-goal-meta {
+      font-size: 12px;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+
+    .kr-topic-summary::after,
+    .tc-topic-goal-group > summary::after {
+      content: "▸";
+      color: #22d3ee;
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-left: 8px;
+    }
+
+    .kr-topic-accordion[open] > .kr-topic-summary::after,
+    .tc-topic-goal-group[open] > summary::after {
+      content: "▾";
+    }
+
+    .kr-topic-body {
+      padding: 0 12px 12px;
+      border-top: 1px solid rgba(148,163,184,0.14);
+    }
+
+    .kr-topic-body .lpi-table-scroll {
+      margin-top: 10px;
     }
 
     .kr-practice-cell {
@@ -1043,9 +1103,9 @@
     .lpi-preview-wrap h3 { margin: 12px 0 4px; font-size: 16px; }
     .wg-topic-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:8px; }
     .tc-linked-title { margin: 0 0 4px; font-size: 14px; }
-    .tc-topic-goal-groups { display:flex; flex-direction:column; gap:14px; margin-top:10px; }
-    .tc-topic-goal-group { padding:12px; border-radius:10px; border:1px solid rgba(148,163,184,0.2); background:rgba(15,23,42,0.28); }
-    .tc-topic-goal-title { margin:0 0 8px; font-size:13px; color:#f97316; }
+    .tc-topic-goal-groups { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .tc-topic-goal-title { margin:0; font-size:13px; color:#22d3ee; }
+    .tc-was-goal-list { display:flex; flex-direction:column; gap:6px; padding:10px 12px 12px; border-top:1px solid rgba(148,163,184,0.14); }
     .tc-save-row { margin-top: 16px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
     .tc-form-section, .tc-overview-section { margin-top: 20px; }
     .tc-form-section h3, .tc-overview-section h3 { margin: 0 0 10px; font-size: 15px; }
@@ -1622,8 +1682,8 @@
 <script src="/js/teacher-week.js"></script>
 <script src="/js/teacher-was-goals.js?v=4"></script>
 <script src="/js/teacher-levelplan-import.js?v=4"></script>
-<script src="/js/teacher-levelplan.js?v=3"></script>
-<script src="/js/teacher-competencies.js?v=19"></script>
+<script src="/js/teacher-levelplan.js?v=4"></script>
+<script src="/js/teacher-competencies.js?v=20"></script>
 <script src="/js/teacher-termine.js?v=1"></script>
 
 <script>

@@ -56,7 +56,8 @@
     copyTargetClassId: null,
     copyBusy: false,
     copyMessage: "",
-    copyError: ""
+    copyError: "",
+    expandedTopicIds: new Set()
   };
 
   function escapeHtml(str) {
@@ -259,16 +260,31 @@
       </tr>`;
   }
 
+  function isTopicExpanded(topic) {
+    const id = String(topic.id);
+    if (state.expandedTopicIds.has(id)) return true;
+    if (state.editingGoalId) {
+      return (topic.goals || []).some((goal) => sameId(goal.id, state.editingGoalId));
+    }
+    return false;
+  }
+
   function renderTopicBlock(topic) {
     const goals = topic.goals || [];
     const dateLabel = formatTopicDate(topic);
+    const open = isTopicExpanded(topic);
 
     if (!goals.length) {
       return `
-        <div class="kr-topic-block">
-          <h3>${escapeHtml(topic.name)}${dateLabel ? ` <span class="hint">(${dateLabel})</span>` : ""}</h3>
-          <p class="tc-empty">Noch keine Unterthemen in diesem Thema.</p>
-        </div>`;
+        <details class="kr-topic-block kr-topic-accordion" data-topic-id="${escapeHtml(topic.id)}" ${open ? "open" : ""}>
+          <summary class="kr-topic-summary">
+            <span class="kr-topic-name">${escapeHtml(topic.name)}${dateLabel ? ` <span class="hint">(${dateLabel})</span>` : ""}</span>
+            <span class="kr-topic-meta">Keine Unterthemen</span>
+          </summary>
+          <div class="kr-topic-body">
+            <p class="tc-empty">Noch keine Unterthemen in diesem Thema.</p>
+          </div>
+        </details>`;
     }
 
     const rows = goals
@@ -292,24 +308,28 @@
       .join("");
 
     return `
-      <div class="kr-topic-block">
-        <h3>${escapeHtml(topic.name)}${dateLabel ? ` <span class="hint">(${dateLabel})</span>` : ""}</h3>
-        <p class="hint">${goals.length} Unterthemen</p>
-        <div class="lpi-table-scroll">
-          <table class="lpi-table kr-goals-table">
-            <thead>
-              <tr>
-                <th>Unterthema (Was-Ziel)</th>
-                <th>Rookie</th>
-                <th>Operator</th>
-                <th>Street Legend</th>
-                <th>Material</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
+      <details class="kr-topic-block kr-topic-accordion" data-topic-id="${escapeHtml(topic.id)}" ${open ? "open" : ""}>
+        <summary class="kr-topic-summary">
+          <span class="kr-topic-name">${escapeHtml(topic.name)}${dateLabel ? ` <span class="hint">(${dateLabel})</span>` : ""}</span>
+          <span class="kr-topic-meta">${goals.length} Unterthemen</span>
+        </summary>
+        <div class="kr-topic-body">
+          <div class="lpi-table-scroll">
+            <table class="lpi-table kr-goals-table">
+              <thead>
+                <tr>
+                  <th>Unterthema (Was-Ziel)</th>
+                  <th>Rookie</th>
+                  <th>Operator</th>
+                  <th>Street Legend</th>
+                  <th>Material</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
         </div>
-      </div>`;
+      </details>`;
   }
 
   function renderCopyPanel() {
@@ -349,7 +369,7 @@
         </div>`;
     }
 
-    return topics.map(renderTopicBlock).join("");
+    return `<div class="kr-topic-list">${topics.map(renderTopicBlock).join("")}</div>`;
   }
 
   function render() {
@@ -588,6 +608,15 @@
 
     root.querySelectorAll("[data-kr-levels]").forEach((btn) => {
       btn.addEventListener("click", () => saveActiveLevels(btn.dataset.krLevels));
+    });
+
+    root.querySelectorAll(".kr-topic-accordion").forEach((details) => {
+      details.addEventListener("toggle", () => {
+        const topicId = details.dataset.topicId;
+        if (!topicId) return;
+        if (details.open) state.expandedTopicIds.add(String(topicId));
+        else state.expandedTopicIds.delete(String(topicId));
+      });
     });
 
     root.querySelectorAll("[data-kr-edit-goal]").forEach((btn) => {

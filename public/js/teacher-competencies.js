@@ -45,7 +45,8 @@
     loading: false,
     saving: false,
     message: "",
-    error: ""
+    error: "",
+    expandedTopicIds: new Set()
   };
 
   function clearFormDraft() {
@@ -186,14 +187,10 @@
     return labels;
   }
 
-  function linkedGoalLabels(cp) {
-    const idSet = new Set((linkedIds || []).map((id) => String(id)));
-    for (const topic of topicsForSubject()) {
-      for (const goal of topic.goals || []) {
-        if (idSet.has(String(goal.id))) return topic.id;
-      }
-    }
-    return topicsForSubject()[0]?.id || null;
+  function isTopicExpanded(topicId, linked, goals) {
+    const id = String(topicId);
+    if (state.expandedTopicIds.has(id)) return true;
+    return (goals || []).some((goal) => linked.has(String(goal.id)));
   }
 
   function renderGoalsByTopic(linked) {
@@ -202,6 +199,8 @@
       .map((topic) => {
         const goals = topic.goals || [];
         if (!goals.length) return "";
+        const selectedCount = goals.filter((goal) => linked.has(String(goal.id))).length;
+        const open = isTopicExpanded(topic.id, linked, goals);
         const goalChecks = goals
           .map(
             (goal) => `
@@ -211,11 +210,18 @@
         </label>`
           )
           .join("");
+        const meta =
+          selectedCount > 0
+            ? `${selectedCount} markiert · ${goals.length} Ziele`
+            : `${goals.length} Ziele`;
         return `
-        <div class="tc-topic-goal-group">
-          <h5 class="tc-topic-goal-title">${escapeHtml(topic.name)}</h5>
+        <details class="tc-topic-goal-group" data-topic-id="${escapeHtml(topic.id)}" ${open ? "open" : ""}>
+          <summary class="tc-topic-goal-title">
+            <span class="tc-topic-goal-name">${escapeHtml(topic.name)}</span>
+            <span class="tc-topic-goal-meta">${meta}</span>
+          </summary>
           <div class="tc-was-goal-list">${goalChecks}</div>
-        </div>`;
+        </details>`;
       })
       .filter(Boolean)
       .join("");
@@ -520,6 +526,15 @@
 
       card.querySelectorAll(".tc-was-goal-check").forEach((el) => {
         el.addEventListener("change", () => captureFormDraft(card));
+      });
+
+      card.querySelectorAll(".tc-topic-goal-group").forEach((details) => {
+        details.addEventListener("toggle", () => {
+          const topicId = details.dataset.topicId;
+          if (!topicId) return;
+          if (details.open) state.expandedTopicIds.add(String(topicId));
+          else state.expandedTopicIds.delete(String(topicId));
+        });
       });
 
       card.querySelector("#tcSaveCheckpointBtn")?.addEventListener("click", () => {
