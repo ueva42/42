@@ -1529,14 +1529,27 @@
       <div class="panel">
         <h2>Charaktere</h2>
         <p class="hint">
-          Die Charaktere sind Teil des festen <b>Streets-of-Logic-Designs</b>.
-          Hochladen, Umbenennen und Löschen sind deaktiviert – alle Schulen nutzen denselben Katalog.
+          Lege Charaktere mit Bild an – Schüler:innen wählen sie unter <b>Charakter</b> in der App.
         </p>
       </div>
 
       <div class="panel">
-        <h3>Fester Charakter-Katalog</h3>
-        <div id="characterCatalog" class="system-catalog-grid"></div>
+        <h3>Neuer Charakter</h3>
+        <input id="characterName" placeholder="Name" />
+        <input id="characterImage" type="file" accept="image/*" />
+        <button class="action" onclick="uploadCharacterImage()">Bild hochladen</button>
+        <button class="action" onclick="addCharacter()">Speichern</button>
+        <div id="characterUploadMsg" class="hint"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Alle Charaktere</h3>
+        <table id="characterTable">
+          <thead>
+            <tr><th>Bild</th><th>Name</th><th>Löschen</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
 
@@ -2245,41 +2258,95 @@ async function deleteBonus(id) {
   loadBonuses();
 }
 
-/* ---------------------------- CHARACTERS (festes Design) ---------------------------- */
+/* ---------------------------- CHARACTERS ---------------------------- */
+let uploadedCharacterImageUrl = null;
+
+async function uploadCharacterImage() {
+  const file = document.getElementById("characterImage").files[0];
+  const msg = document.getElementById("characterUploadMsg");
+  if (!file) {
+    if (msg) msg.textContent = "Bitte zuerst ein Bild auswählen.";
+    return;
+  }
+
+  const form = new FormData();
+  form.append("image", file);
+
+  const r = await fetch("/api/character/upload", { method: "POST", body: form });
+  const data = await r.json();
+  if (data.success) {
+    uploadedCharacterImageUrl = data.url;
+    if (msg) msg.textContent = "Bild hochgeladen – jetzt Name eintragen und Speichern klicken.";
+  } else if (msg) {
+    msg.textContent = data.message || "Upload fehlgeschlagen.";
+  }
+}
+
+async function addCharacter() {
+  const name = document.getElementById("characterName").value.trim();
+  const msg = document.getElementById("characterUploadMsg");
+  if (!name) {
+    if (msg) msg.textContent = "Bitte einen Namen eintragen.";
+    return;
+  }
+  if (!uploadedCharacterImageUrl) {
+    if (msg) msg.textContent = "Bitte zuerst ein Bild hochladen.";
+    return;
+  }
+
+  const r = await fetch("/api/character", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, imageUrl: uploadedCharacterImageUrl })
+  });
+  const data = await r.json();
+
+  if (!data.success) {
+    if (msg) msg.textContent = data.message || "Speichern fehlgeschlagen.";
+    return;
+  }
+
+  uploadedCharacterImageUrl = null;
+  document.getElementById("characterName").value = "";
+  document.getElementById("characterImage").value = "";
+  if (msg) msg.textContent = "Charakter gespeichert.";
+
+  loadCharacters();
+}
+
 async function loadCharacters() {
-  const box = document.getElementById("characterCatalog");
-  if (!box) return;
-  box.innerHTML = "<p class='hint'>Lade Katalog…</p>";
+  const tbody = document.querySelector("#characterTable tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
 
   try {
     const r = await fetch("/api/character");
-    const data = await r.json();
-    const characters = Array.isArray(data) ? data : data.characters || [];
-    const catalog = Array.isArray(data?.catalog) ? data.catalog : [];
+    const characters = await r.json();
 
-    if (!characters.length && !catalog.length) {
-      box.innerHTML = "<p class='hint'>Kein Charakterkatalog geladen.</p>";
+    if (!characters.length) {
+      tbody.innerHTML = "<tr><td colspan='3' class='hint'>Noch keine Charaktere angelegt.</td></tr>";
       return;
     }
 
-    const byName = Object.fromEntries(catalog.map((c) => [c.name, c]));
-    box.innerHTML = characters
-      .map((c) => {
-        const meta = byName[c.name] || {};
-        const img = c.image_url || meta.imageUrl || "";
-        const blurb = meta.blurb || "Fester Streets-of-Logic-Charakter";
-        return `
-          <article class="system-catalog-card">
-            ${img ? `<img src="${img}" alt="${c.name}">` : ""}
-            <strong>${c.name}</strong>
-            <span>${blurb}</span>
-          </article>`;
-      })
-      .join("");
+    characters.forEach((c) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${c.image_url ? `<img class="thumb" src="${c.image_url}">` : "—"}</td>
+        <td>${c.name}</td>
+        <td><button class="delete" onclick="deleteCharacter(${c.id})">X</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
   } catch (err) {
     console.error(err);
-    box.innerHTML = "<p class='hint'>Katalog konnte nicht geladen werden.</p>";
+    tbody.innerHTML = "<tr><td colspan='3' class='hint'>Charaktere konnten nicht geladen werden.</td></tr>";
   }
+}
+
+async function deleteCharacter(id) {
+  if (!confirm("Charakter wirklich löschen?")) return;
+  await fetch(`/api/character/${id}`, { method: "DELETE" });
+  loadCharacters();
 }
 
 /* ---------------------------- LEVELS (festes Design) ---------------------------- */

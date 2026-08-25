@@ -2275,30 +2275,6 @@ const SYSTEM_LEVELS = [
   { name: "Logic Legend", minXp: 1000 }
 ];
 
-const SYSTEM_CHARACTERS = [
-  {
-    name: "Nova Drift",
-    imageUrl: "/characters/nova-drift.svg",
-    blurb: "Cooler Kopf, klare Linie."
-  },
-  {
-    name: "Pixel Rydah",
-    imageUrl: "/characters/pixel-rydah.svg",
-    blurb: "Fokussiert und spielstark."
-  },
-  {
-    name: "Logic Lynx",
-    imageUrl: "/characters/logic-lynx.svg",
-    blurb: "Spürt Muster und denkt voraus."
-  },
-  {
-    name: "Neon Vibes",
-    imageUrl: "/characters/neon-vibes.svg",
-    blurb: "Bringt Energie und Flow."
-  }
-];
-
-const SYSTEM_CHARACTER_NAMES = SYSTEM_CHARACTERS.map((c) => c.name);
 const SYSTEM_LEVEL_XP = SYSTEM_LEVELS.map((l) => l.minXp);
 
 async function ensureSystemCatalog(schoolId) {
@@ -2326,36 +2302,6 @@ async function ensureSystemCatalog(schoolId) {
     [sid, SYSTEM_LEVEL_XP]
   );
 
-  for (const ch of SYSTEM_CHARACTERS) {
-    const existing = await pool.query(
-      `
-      SELECT id
-      FROM characters
-      WHERE school_id = $1 AND name = $2
-      LIMIT 1
-    `,
-      [sid, ch.name]
-    );
-    if (existing.rows.length) {
-      await pool.query(
-        `
-        UPDATE characters
-        SET image_url = $1
-        WHERE id = $2
-          AND (image_url IS NULL OR image_url = '' OR image_url LIKE '/characters/%')
-      `,
-        [ch.imageUrl, existing.rows[0].id]
-      );
-    } else {
-      await pool.query(
-        `
-        INSERT INTO characters (name, image_url, school_id)
-        VALUES ($1, $2, $3)
-      `,
-        [ch.name, ch.imageUrl, sid]
-      );
-    }
-  }
 }
 
 async function seedSchoolDefaults(schoolId) {
@@ -8564,10 +8510,9 @@ app.get("/api/student/characterList", isStudent, async (req, res) => {
       SELECT id, name, image_url
       FROM characters
       WHERE school_id = $1
-        AND name = ANY($2::text[])
       ORDER BY id ASC
     `,
-      [schoolId, SYSTEM_CHARACTER_NAMES]
+      [schoolId]
     );
 
     res.json(r.rows);
@@ -8594,14 +8539,13 @@ app.post("/api/student/selectCharacter", isStudent, async (req, res) => {
       FROM characters
       WHERE id = $1
         AND school_id = $2
-        AND name = ANY($3::text[])
     `,
-      [characterId, schoolId, SYSTEM_CHARACTER_NAMES]
+      [characterId, schoolId]
     );
     if (!allowed.rows.length) {
       return res.json({
         success: false,
-        message: "Dieser Charakter gehört nicht zum festen App-Design."
+        message: "Charakter nicht gefunden."
       });
     }
 
@@ -10057,59 +10001,140 @@ app.delete("/api/bonus/:id", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// ADMIN – Charaktere (festes App-Design, nur Lesen)
+// ADMIN – Charaktere
 // -------------------------------------------------------
-app.post("/api/character/upload", isAdmin, async (_req, res) => {
-  res.status(403).json({
-    success: false,
-    message:
-      "Charaktere sind fest im Streets-of-Logic-Design verankert und können nicht hochgeladen werden."
-  });
-});
+let uploadedCharacterImageUrl = null;
 
-app.post("/api/character", isAdmin, async (_req, res) => {
-  res.status(403).json({
-    success: false,
-    message:
-      "Charaktere sind fest im Streets-of-Logic-Design verankert und können nicht angelegt werden."
-  });
+app.post(
+  "/api/character/upload",
+  isAdmin,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      if (!req.file) return res.json({ success: false });
+
+      const schoolId = req.session.user.school_id;
+      const fileName = `characters/${schoolId}_${Date.now()}_${req.file.originalname}`;
+
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: process.env.R2_BUCKET,
+          Key: fileName,
+          Body: req.file.buffer,
+          ContentType: req.file.mimetype
+        })
+      );
+
+      const url = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+      uploadedCharacterImageUrl = url;
+
+      res.json({ success: true, url });
+    } catch (err) {
+      console.error("❌ POST /api/character/upload:", err);
+      res.status(500).json({ success: false, message: "Upload fehlgeschlagen" });
+    }
+  }
+);
+
+app.post("/api/character", isAdmin, async (req, res) => {
+  try {
+    const { name, imageUrl } = req.body;
+    const schoolId = req.session.user.school_id;
+
+    if (!name || !String(name).trim()) {
+      return res.json({ success: false, message: "Name fehlt" });
+    }
+
+    const url = imageUrl || uploadedCharacterImageUrl;
+    if (!url) {
+      return res.json({ success: false, message: "Bitte zuerst ein Bild hochladen." });
+    }
+
+    await pool.query(
+      `
+      INSERT INTO characters (name, image_url, school_id)
+      VALUES ($1, $2, $3)
+    `,
+      [String(name).trim(), url, schoolId]
+    );
+
+    uploadedCharacterImageUrl = null;
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ POST /api/character:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
 });
 
 app.get("/api/character", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    await ensureSystemCatalog(schoolId);
 
     const r = await pool.query(
       `
       SELECT id, name, image_url
       FROM characters
       WHERE school_id = $1
-        AND name = ANY($2::text[])
       ORDER BY id ASC
     `,
-      [schoolId, SYSTEM_CHARACTER_NAMES]
+      [schoolId]
     );
 
-    res.json({
-      locked: true,
-      designNote:
-        "Diese Charaktere gehören zum festen Streets-of-Logic-Design und können nicht geändert werden.",
-      characters: r.rows,
-      catalog: SYSTEM_CHARACTERS
-    });
+    res.json(r.rows);
   } catch (err) {
     console.error("❌ GET /api/character:", err);
     res.status(500).json({ error: "Serverfehler" });
   }
 });
 
-app.delete("/api/character/:id", isAdmin, async (_req, res) => {
-  res.status(403).json({
-    success: false,
-    message:
-      "Charaktere sind fest im Streets-of-Logic-Design verankert und können nicht gelöscht werden."
-  });
+app.delete("/api/character/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const charId = Number(req.params.id);
+
+    const r = await pool.query(
+      `
+      SELECT image_url
+      FROM characters
+      WHERE id = $1 AND school_id = $2
+    `,
+      [charId, schoolId]
+    );
+
+    if (!r.rows.length) {
+      return res.json({ success: false, message: "Charakter nicht gefunden" });
+    }
+
+    if (r.rows[0].image_url) {
+      const prefix = process.env.R2_PUBLIC_URL + "/";
+      const key = r.rows[0].image_url.replace(prefix, "");
+
+      try {
+        await r2.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.R2_BUCKET,
+            Key: key
+          })
+        );
+      } catch {}
+    }
+
+    await pool.query(
+      "UPDATE users SET character_id=NULL WHERE character_id=$1 AND school_id=$2",
+      [charId, schoolId]
+    );
+
+    await pool.query("DELETE FROM characters WHERE id=$1 AND school_id=$2", [
+      charId,
+      schoolId
+    ]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE /api/character:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
 });
 
 // -------------------------------------------------------
