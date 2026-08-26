@@ -8004,38 +8004,121 @@ app.get("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
   }
 });
 
+async function deleteLevelPlanCatalogForSchool(catalogId, schoolId) {
+  const catalogRes = await pool.query(
+    "SELECT id, name FROM level_plan_catalogs WHERE id = $1 AND school_id = $2",
+    [catalogId, schoolId]
+  );
+  if (!catalogRes.rows.length) {
+    return { ok: false, notFound: true, message: "Levelplan nicht gefunden." };
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Alle Themen dieses Katalogs – unabhängig vom school_id am Topic
+    const topics = await client.query(
+      "SELECT id FROM level_checks WHERE catalog_id = $1",
+      [catalogId]
+    );
+    const topicIds = topics.rows.map((r) => r.id);
+
+    if (topicIds.length) {
+      await client.query(
+        "DELETE FROM level_check_checkpoints WHERE level_check_id = ANY($1::uuid[])",
+        [topicIds]
+      );
+      await client.query(
+        "DELETE FROM level_check_targets WHERE level_check_id = ANY($1::uuid[])",
+        [topicIds]
+      );
+      await client.query(
+        "DELETE FROM level_check_proofs WHERE level_check_id = ANY($1::uuid[])",
+        [topicIds]
+      );
+      await client.query(
+        `
+        DELETE FROM level_check_marks m
+        USING level_check_goals g
+        WHERE g.level_check_id = ANY($1::uuid[]) AND m.goal_id = g.id
+      `,
+        [topicIds]
+      );
+      await client.query(
+        "DELETE FROM level_check_goals WHERE level_check_id = ANY($1::uuid[])",
+        [topicIds]
+      );
+      await client.query("DELETE FROM level_checks WHERE id = ANY($1::uuid[])", [topicIds]);
+    }
+
+    await client.query("DELETE FROM class_level_plan_assignments WHERE catalog_id = $1", [
+      catalogId
+    ]);
+
+    const del = await client.query(
+      "DELETE FROM level_plan_catalogs WHERE id = $1 AND school_id = $2 RETURNING id",
+      [catalogId, schoolId]
+    );
+
+    await client.query("COMMIT");
+
+    if (!del.rowCount) {
+      return { ok: false, notFound: true, message: "Levelplan nicht gefunden." };
+    }
+
+    return {
+      ok: true,
+      name: catalogRes.rows[0].name,
+      removedTopics: topicIds.length
+    };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 app.delete("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const catalogId = String(req.params.id || "").trim();
-    const catalogRes = await pool.query(
-      "SELECT id, name FROM level_plan_catalogs WHERE id = $1 AND school_id = $2",
-      [catalogId, schoolId]
-    );
-    if (!catalogRes.rows.length) {
-      return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
+    const result = await deleteLevelPlanCatalogForSchool(catalogId, schoolId);
+    if (!result.ok) {
+      return res.status(result.notFound ? 404 : 400).json({
+        success: false,
+        message: result.message || "Löschen fehlgeschlagen."
+      });
     }
-
-    const topics = await pool.query(
-      "SELECT id FROM level_checks WHERE catalog_id = $1 AND school_id = $2",
-      [catalogId, schoolId]
-    );
-    for (const topic of topics.rows) {
-      await deleteLevelCheckForSchool(topic.id, schoolId);
-    }
-
-    await pool.query("DELETE FROM level_plan_catalogs WHERE id = $1 AND school_id = $2", [
-      catalogId,
-      schoolId
-    ]);
-
     res.json({
       success: true,
-      message: `Levelplan „${catalogRes.rows[0].name}“ gelöscht.`
+      message: `Levelplan „${result.name}“ gelöscht.`
     });
   } catch (err) {
     console.error("❌ DELETE /api/teacher/level-plan-catalogs/:id:", err);
-    res.status(500).json({ success: false, message: "Serverfehler" });
+    res.status(500).json({ success: false, message: "Serverfehler beim Löschen." });
+  }
+});
+
+app.post("/api/teacher/level-plan-catalogs/:id/delete", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const catalogId = String(req.params.id || "").trim();
+    const result = await deleteLevelPlanCatalogForSchool(catalogId, schoolId);
+    if (!result.ok) {
+      return res.status(result.notFound ? 404 : 400).json({
+        success: false,
+        message: result.message || "Löschen fehlgeschlagen."
+      });
+    }
+    res.json({
+      success: true,
+      message: `Levelplan „${result.name}“ gelöscht.`
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/level-plan-catalogs/:id/delete:", err);
+    res.status(500).json({ success: false, message: "Serverfehler beim Löschen." });
   }
 });
 

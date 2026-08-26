@@ -38,6 +38,7 @@
     const count = c.topicCount || topics.length || 0;
     if (topics.length === 1) return topics[0];
     if (count > 1) return `${c.name || "Levelplan"} (${count} Themen)`;
+    if (count === 0) return `${c.name || c.displayName || "Levelplan"} (leer)`;
     return c.displayName || c.name || "Levelplan";
   }
 
@@ -338,18 +339,21 @@
     render();
 
     try {
-      const res = await fetch(`/api/teacher/level-plan-catalogs/${encodeURIComponent(state.catalogId)}`, {
-        method: "DELETE"
-      });
-      const data = await res.json();
+      const res = await fetch(
+        `/api/teacher/level-plan-catalogs/${encodeURIComponent(state.catalogId)}/delete`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+      );
+      const data = await res.json().catch(() => ({}));
       state.deleting = false;
       if (!res.ok || !data.success) {
         state.error = data.message || "Löschen fehlgeschlagen.";
         render();
         return;
       }
+      const removedId = state.catalogId;
       state.message = data.message || "Levelplan gelöscht.";
-      state.catalogId = null;
+      state.catalogs = state.catalogs.filter((c) => !sameId(c.id, removedId));
+      state.catalogId = state.catalogs[0]?.id || null;
       state.detail = null;
       await loadCatalogs();
       await loadDetail();
