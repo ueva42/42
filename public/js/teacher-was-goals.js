@@ -55,6 +55,13 @@
       .replace(/"/g, "&quot;");
   }
 
+  function friendlyAuthError(message) {
+    if (message === "Forbidden") {
+      return "Sitzung abgelaufen oder veralteter Browser-Cache – bitte neu laden oder erneut einloggen.";
+    }
+    return message;
+  }
+
   function sameId(a, b) {
     return String(a) === String(b);
   }
@@ -616,7 +623,9 @@
     const r = await fetch("/api/class");
     const payload = await r.json();
     if (!r.ok || !Array.isArray(payload)) {
-      throw new Error(payload?.error || "Klassen konnten nicht geladen werden.");
+      throw new Error(
+        friendlyAuthError(payload?.error) || "Klassen konnten nicht geladen werden."
+      );
     }
     window.__wgClasses = payload;
     return payload;
@@ -636,7 +645,7 @@
       if (!res.ok) {
         state.loading = false;
         state.data = null;
-        state.error = payload.error || "Laden fehlgeschlagen.";
+        state.error = friendlyAuthError(payload.error) || "Laden fehlgeschlagen.";
         render();
         return;
       }
@@ -682,7 +691,7 @@
     } catch (err) {
       console.error(err);
       if (root) {
-        root.innerHTML = `<div class="tc-error">${escapeHtml(err.message || "Fehler beim Laden.")}</div>`;
+        root.innerHTML = `<div class="tc-error">${escapeHtml(friendlyAuthError(err.message) || "Fehler beim Laden.")}</div>`;
       }
     }
   }

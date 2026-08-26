@@ -10,7 +10,7 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <script src="/pwa-init.js" defer></script>
+  <script src="/js/client-cache-reset.js?v=1"></script>
   <title>Streets of Logic – Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -533,11 +533,6 @@
           return;
         }
 
-        if (data.role === "superadmin") {
-          window.location.href = "/superadmin";
-          return;
-        }
-
         // Session kurz bestätigen, bevor wir weiterleiten (PG-Store-Lag nach Login)
         for (let i = 0; i < 8; i++) {
           try {
@@ -555,7 +550,18 @@
           await new Promise((r) => setTimeout(r, 150 * (i + 1)));
         }
 
+        if (data.role === "superadmin") {
+          if (window.__purgeTeacherClientCaches) {
+            await window.__purgeTeacherClientCaches();
+          }
+          window.location.href = "/superadmin";
+          return;
+        }
+
         if (data.role === "admin") {
+          if (window.__purgeTeacherClientCaches) {
+            await window.__purgeTeacherClientCaches();
+          }
           window.location.href = "/teacher/dashboard";
           return;
         }

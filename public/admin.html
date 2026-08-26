@@ -3,6 +3,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <title>Streets of Logic – Control Center</title>
 
   <!-- Google Fonts für Comic-/GTA-Feeling -->
@@ -1681,13 +1682,14 @@
   </div>
 </div>
 
-<script src="/js/auth-fetch.js?v=6"></script>
+<script src="/js/client-cache-reset.js?v=1"></script>
+<script src="/js/auth-fetch.js?v=7"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=4"></script>
 <script src="/js/teacher-timetable.js?v=4"></script>
 <script src="/js/teacher-lesson-goals.js?v=2"></script>
 <script src="/js/teacher-week.js"></script>
-<script src="/js/teacher-was-goals.js?v=6"></script>
+<script src="/js/teacher-was-goals.js?v=7"></script>
 <script src="/js/teacher-levelplan-import.js?v=8"></script>
 <script src="/js/teacher-levelplan.js?v=9"></script>
 <script src="/js/teacher-levelplan-zuordnung.js?v=5"></script>
@@ -1881,6 +1883,9 @@ window.addEventListener("popstate", (e) => {
 /* ---------------------------- LOGOUT ---------------------------- */
 async function logout() {
   await fetch("/api/logout", { method: "POST" });
+  if (window.__purgeTeacherClientCaches) {
+    await window.__purgeTeacherClientCaches();
+  }
   location.href = "/login.html";
 }
 
@@ -3154,6 +3159,9 @@ async function ensureAdminSessionReady() {
 async function bootAdminApp() {
   window.__authBootstrap = true;
   try {
+    if (window.__purgeTeacherClientCaches) {
+      await window.__purgeTeacherClientCaches();
+    }
     const ready = await ensureAdminSessionReady();
     if (!ready) {
       window.location.href = "/login";

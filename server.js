@@ -11443,6 +11443,8 @@ const teacherSpaPaths = [
 
 for (const route of teacherSpaPaths) {
   app.get(route, isAdmin, (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.sendFile(path.join(__dirname, "public", "admin.html"));
   });
 }
