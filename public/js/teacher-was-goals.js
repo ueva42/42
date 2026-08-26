@@ -98,6 +98,38 @@
     return null;
   }
 
+  function assignmentsForSubject() {
+    return (state.data?.assignments || []).filter((a) => a.subject === state.subject);
+  }
+
+  function topicOptionLabel(topic) {
+    const assignments = assignmentsForSubject();
+    const multi = assignments.length > 1 || (state.data?.levelChecks || []).filter((t) => t.subject === state.subject && t.catalogId).length > 1;
+    if (multi && topic.catalogName) {
+      return `${topic.catalogName}: ${topic.name}`;
+    }
+    return topic.name;
+  }
+
+  function renderAssignedPlans() {
+    const list = assignmentsForSubject();
+    if (!list.length) {
+      return `<p class="hint" style="margin-top:.4em">Für diese Klasse ist für ${escapeHtml(state.subject || "dieses Fach")} noch kein Levelplan unter <b>Levelplan-Zuordnung</b> zugewiesen.</p>`;
+    }
+    return `
+      <div class="kr-levels-panel" style="margin:1em 0">
+        <h3>Zugewiesene Levelpläne</h3>
+        <ul class="hint" style="margin:.4em 0 0;padding-left:1.2em">
+          ${list
+            .map(
+              (a) =>
+                `<li><b>${escapeHtml(a.catalogDisplayName || a.catalogName)}</b> · Klassenstufe ${escapeHtml(a.gradeLevel)}</li>`
+            )
+            .join("")}
+        </ul>
+      </div>`;
+  }
+
   function ensureThemaSelection() {
     const topics = topicsForSubject();
     if (!topics.length) {
@@ -305,7 +337,7 @@
     const themaOptions = topics
       .map(
         (t) =>
-          `<option value="${escapeHtml(t.id)}" ${sameId(t.id, state.themaId) ? "selected" : ""}>${escapeHtml(t.name)}</option>`
+          `<option value="${escapeHtml(t.id)}" ${sameId(t.id, state.themaId) ? "selected" : ""}>${escapeHtml(topicOptionLabel(t))}</option>`
       )
       .join("");
 
@@ -313,7 +345,7 @@
       <div class="panel">
         <h2>Was-Ziele</h2>
         <p class="hint">
-          Importierten Levelplan pro Thema einsehen. Material (Link, Arbeitsblatt, Hinweis) zuordnen.
+          Zugewiesene Levelpläne der Klasse ansehen. Material (Link, Arbeitsblatt, Hinweis) zuordnen.
           Einzelne Was-Ziele mit × oder das ganze Thema löschen.
         </p>
 
@@ -332,6 +364,7 @@
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
 
+        ${renderAssignedPlans()}
         ${renderTable()}
       </div>`;
 

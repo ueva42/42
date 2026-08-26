@@ -2989,9 +2989,18 @@ async function migrate() {
       subject TEXT NOT NULL,
       catalog_id UUID NOT NULL REFERENCES level_plan_catalogs(id) ON DELETE CASCADE,
       created_at TIMESTAMP DEFAULT NOW(),
-      PRIMARY KEY (class_id, subject)
+      PRIMARY KEY (class_id, subject, catalog_id)
     )
   `);
+  // Mehrere Levelpläne pro Klasse+Fach: alte PK (class_id, subject) ersetzen
+  await pool.query(`
+    ALTER TABLE class_level_plan_assignments
+      DROP CONSTRAINT IF EXISTS class_level_plan_assignments_pkey
+  `).catch(() => {});
+  await pool.query(`
+    ALTER TABLE class_level_plan_assignments
+      ADD PRIMARY KEY (class_id, subject, catalog_id)
+  `).catch(() => {});
   await ensureColumn("level_checks", "catalog_id", "UUID");
   await pool.query(`ALTER TABLE level_checks ALTER COLUMN class_id DROP NOT NULL`).catch(() => {});
   await ensureColumn(
@@ -5719,13 +5728,21 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
     schoolFilter = " AND (lc.school_id = $2 OR c.school_id = $2 OR EXISTS (SELECT 1 FROM level_plan_catalogs cat WHERE cat.id = lc.catalog_id AND cat.school_id = $2))";
   }
 
-  // Zugewiesene Kataloge ersetzen den alten klassengebundenen Plan für dieses Fach.
-  // Ohne Zuweisung: weiter der alte class_id-Plan.
+  // Zugewiesene Kataloge (mehrere pro Fach möglich) + optional alter class_id-Plan.
   const checksRes = await pool.query(
     `
-    SELECT lc.id, lc.subject, lc.name, lc.sort_order, lc.created_at, lc.catalog_id
+    SELECT
+      lc.id,
+      lc.subject,
+      lc.name,
+      lc.sort_order,
+      lc.created_at,
+      lc.catalog_id,
+      cat.name AS catalog_name,
+      cat.grade_level AS catalog_grade_level
     FROM level_checks lc
     LEFT JOIN classes c ON c.id = lc.class_id
+    LEFT JOIN level_plan_catalogs cat ON cat.id = lc.catalog_id
     WHERE (
         (
           lc.catalog_id IS NULL
@@ -5745,7 +5762,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
           )
         )
       )${schoolFilter}
-    ORDER BY lc.subject ASC, lc.sort_order ASC, lc.name ASC
+    ORDER BY lc.subject ASC, cat.name ASC NULLS LAST, lc.sort_order ASC, lc.name ASC
   `,
     params
   );
@@ -5838,6 +5855,8 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
     sortOrder: c.sort_order,
     createdAt: c.created_at,
     catalogId: c.catalog_id || null,
+    catalogName: c.catalog_name || null,
+    catalogGradeLevel: c.catalog_grade_level || null,
     checkpoints: checkpointsByCheck[c.id] || [],
     goals: goalsByCheck[c.id] || []
   }));
@@ -6777,11 +6796,41 @@ app.get("/api/teacher/levelchecks", isAdmin, async (req, res) => {
 
     const checks = await getLevelChecksForClass(classId, schoolId);
     const activeLevels = await getClassActiveLevels(classId);
+    const assignRes = await pool.query(
+      `
+      SELECT
+        a.subject,
+        a.catalog_id,
+        cat.name AS catalog_name,
+        cat.grade_level,
+        (
+          SELECT COALESCE(array_agg(t.name ORDER BY t.sort_order ASC, t.name ASC), '{}')
+          FROM level_checks t
+          WHERE t.catalog_id = cat.id
+        ) AS topic_names
+      FROM class_level_plan_assignments a
+      JOIN level_plan_catalogs cat ON cat.id = a.catalog_id
+      WHERE a.class_id = $1 AND cat.school_id = $2
+      ORDER BY a.subject ASC, cat.name ASC
+    `,
+      [classId, schoolId]
+    );
 
     res.json({
       classId,
       className: classRes.rows[0].name,
       subjects: LOG_SUBJECTS,
+      assignments: assignRes.rows.map((row) => {
+        const topicNames = Array.isArray(row.topic_names) ? row.topic_names.filter(Boolean) : [];
+        return {
+          subject: row.subject,
+          catalogId: row.catalog_id,
+          catalogName: row.catalog_name,
+          catalogDisplayName: catalogDisplayName(row.catalog_name, topicNames),
+          gradeLevel: row.grade_level,
+          topicNames
+        };
+      }),
       activeLevels: activeLevels.map((id) => ({
         id,
         label: LEVEL_CHECK_TIER_LABELS[id]
@@ -8277,11 +8326,10 @@ app.put("/api/teacher/level-plan-assignment", isAdmin, async (req, res) => {
     }
 
     if (!catalogId) {
-      await pool.query(
-        "DELETE FROM class_level_plan_assignments WHERE class_id = $1 AND subject = $2",
-        [classId, subject]
-      );
-      return res.json({ success: true, assignment: null });
+      return res.json({
+        success: false,
+        message: "Bitte einen Levelplan angeben (Zuweisung entfernen braucht catalogId)."
+      });
     }
 
     const catalogRes = await pool.query(
@@ -8292,12 +8340,27 @@ app.put("/api/teacher/level-plan-assignment", isAdmin, async (req, res) => {
       return res.json({ success: false, message: "Levelplan nicht gefunden." });
     }
 
-    await pool.query(
+    if (req.body.remove === true || req.body.unassign === true) {
+      await pool.query(
+        `
+        DELETE FROM class_level_plan_assignments
+        WHERE class_id = $1 AND subject = $2 AND catalog_id = $3
+      `,
+        [classId, subject, catalogId]
+      );
+      return res.json({
+        success: true,
+        assignment: null,
+        message: "Zuweisung entfernt."
+      });
+    }
+
+    const ins = await pool.query(
       `
       INSERT INTO class_level_plan_assignments (class_id, subject, catalog_id)
       VALUES ($1, $2, $3)
-      ON CONFLICT (class_id, subject)
-      DO UPDATE SET catalog_id = EXCLUDED.catalog_id
+      ON CONFLICT (class_id, subject, catalog_id) DO NOTHING
+      RETURNING class_id
     `,
       [classId, subject, catalogId]
     );
@@ -8312,20 +8375,26 @@ app.put("/api/teacher/level-plan-assignment", isAdmin, async (req, res) => {
       [catalogId]
     );
 
+    const display = catalogDisplayName(
+      catalogRes.rows[0].name,
+      topicsRes.rows.map((t) => t.name)
+    );
+
     res.json({
       success: true,
+      alreadyAssigned: !ins.rowCount,
       assignment: {
         classId,
         className: classRes.rows[0].name,
         subject,
         catalogId,
         catalogName: catalogRes.rows[0].name,
-        catalogDisplayName: catalogDisplayName(
-          catalogRes.rows[0].name,
-          topicsRes.rows.map((t) => t.name)
-        ),
+        catalogDisplayName: display,
         gradeLevel: catalogRes.rows[0].grade_level
-      }
+      },
+      message: ins.rowCount
+        ? `${classRes.rows[0].name} nutzt jetzt zusätzlich „${display}“ für ${subject}.`
+        : `${classRes.rows[0].name} hatte „${display}“ für ${subject} bereits zugewiesen.`
     });
   } catch (err) {
     console.error("❌ PUT /api/teacher/level-plan-assignment:", err);

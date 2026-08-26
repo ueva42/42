@@ -219,7 +219,7 @@
           state.catalogId
             ? `<div class="kr-levels-panel" style="margin-top:1.2em">
           <h3>Klasse zuweisen</h3>
-          <p class="hint">Die Klasse nutzt diesen Levelplan für das gewählte Fach.</p>
+          <p class="hint">Die Klasse kann mehrere Levelpläne für dasselbe Fach haben.</p>
           <div class="tc-toolbar" style="align-items:flex-end;gap:.6em;flex-wrap:wrap">
             <label>Klasse:
               <select id="lpAssignClass">${classOptions || `<option value="">—</option>`}</select>
@@ -296,7 +296,8 @@
         body: JSON.stringify({
           classId: Number(state.assignClassId),
           subject: state.subject,
-          catalogId: assign ? state.catalogId : null
+          catalogId: state.catalogId,
+          unassign: !assign
         })
       });
       const data = await res.json();
@@ -306,9 +307,7 @@
         render();
         return;
       }
-      state.message = assign
-        ? `${data.assignment?.className || "Klasse"} nutzt jetzt diesen Levelplan für ${state.subject}.`
-        : "Zuweisung entfernt.";
+      state.message = data.message || (assign ? "Zuweisung gespeichert." : "Zuweisung entfernt.");
       await loadDetail();
     } catch (err) {
       console.error(err);

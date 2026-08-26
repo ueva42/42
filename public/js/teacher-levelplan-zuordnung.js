@@ -123,7 +123,7 @@
     return `
       <div class="kr-levels-panel" style="margin-bottom:1.4em">
         <h3>Klasse zuweisen</h3>
-        <p class="hint">Die gewählte Klasse nutzt dann diesen Levelplan für das Fach (Schüler:innen &amp; Nachweise).</p>
+        <p class="hint">Die Klasse kann mehrere Levelpläne für dasselbe Fach haben (auch vorab für spätere Themen).</p>
         <div class="tc-toolbar" style="align-items:flex-end;gap:.6em;flex-wrap:wrap">
           <label>Klassenstufe:
             <select id="lpzAssignGrade">${gradeOptions || `<option value="">—</option>`}</select>
@@ -167,7 +167,7 @@
           <tbody>
             ${rows
               .map((a) => {
-                const key = `${a.classId}|${a.subject}`;
+                const key = `${a.classId}|${a.subject}|${a.catalogId}`;
                 const busy = state.removingKey === key;
                 return `
               <tr>
@@ -177,7 +177,7 @@
                 <td>Klasse ${escapeHtml(a.gradeLevel)}</td>
                 <td class="lpn-zuordnung-actions">
                   <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lpn-open="${escapeHtml(a.catalogId)}" data-lpn-grade="${escapeHtml(a.gradeLevel)}">Öffnen</button>
-                  <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lpn-remove-class="${escapeHtml(a.classId)}" data-lpn-remove-subject="${escapeHtml(a.subject)}" ${busy ? "disabled" : ""}>${busy ? "…" : "Entfernen"}</button>
+                  <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lpn-remove-class="${escapeHtml(a.classId)}" data-lpn-remove-subject="${escapeHtml(a.subject)}" data-lpn-remove-catalog="${escapeHtml(a.catalogId)}" ${busy ? "disabled" : ""}>${busy ? "…" : "Entfernen"}</button>
                 </td>
               </tr>`;
               })
@@ -229,8 +229,8 @@
       <div class="panel">
         <h2>Levelplan-Zuordnung</h2>
         <p class="hint">
-          Weise einer Klasse einen importierten Levelplan für ein Fach zu.
-          Details und Löschen unter <b>Levelplan</b>.
+          Mehrere Levelpläne pro Klasse und Fach möglich – auch schon vorab für spätere Themen.
+          Die zugewiesenen Pläne erscheinen unter <b>Was-Ziele</b>.
         </p>
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
@@ -305,7 +305,8 @@
       btn.addEventListener("click", () => {
         const classId = Number(btn.dataset.lpnRemoveClass);
         const subject = btn.dataset.lpnRemoveSubject;
-        removeAssignment(classId, subject);
+        const catalogId = btn.dataset.lpnRemoveCatalog;
+        removeAssignment(classId, subject, catalogId);
       });
     });
   }
@@ -334,9 +335,7 @@
         render();
         return;
       }
-      state.message = `${data.assignment?.className || "Klasse"} nutzt jetzt „${
-        data.assignment?.catalogDisplayName || data.assignment?.catalogName || "den Plan"
-      }“ für ${subject}.`;
+      state.message = data.message || "Zuweisung gespeichert.";
       await loadData();
     } catch (err) {
       console.error(err);
@@ -346,11 +345,11 @@
     }
   }
 
-  async function removeAssignment(classId, subject) {
-    if (!classId || !subject) return;
-    if (!confirm(`Zuweisung für ${subject} wirklich entfernen?`)) return;
+  async function removeAssignment(classId, subject, catalogId) {
+    if (!classId || !subject || !catalogId) return;
+    if (!confirm(`Diese Levelplan-Zuweisung für ${subject} wirklich entfernen?`)) return;
 
-    state.removingKey = `${classId}|${subject}`;
+    state.removingKey = `${classId}|${subject}|${catalogId}`;
     state.message = "";
     state.error = "";
     render();
@@ -359,7 +358,7 @@
       const res = await fetch("/api/teacher/level-plan-assignment", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId, subject, catalogId: null })
+        body: JSON.stringify({ classId, subject, catalogId, unassign: true })
       });
       const data = await res.json();
       state.removingKey = null;
@@ -368,7 +367,7 @@
         render();
         return;
       }
-      state.message = "Zuweisung entfernt.";
+      state.message = data.message || "Zuweisung entfernt.";
       await loadData();
     } catch (err) {
       console.error(err);
