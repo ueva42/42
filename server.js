@@ -6317,14 +6317,8 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Keine Daten zum Speichern übergeben." });
     }
 
-    const checkRes = await pool.query(
-      `
-      SELECT id FROM level_checks
-      WHERE id = $1 AND class_id = $2 AND school_id = $3
-    `,
-      [levelCheckId, classId, schoolId]
-    );
-    if (!checkRes.rows.length) {
+    const checkRow = await findLevelCheckForSchool(levelCheckId, schoolId, classId);
+    if (!checkRow) {
       return res.json({ success: false, message: "Thema nicht gefunden." });
     }
 
@@ -6590,14 +6584,8 @@ app.post(
         return res.json({ success: false, message: "Bitte eine Datei wählen." });
       }
 
-      const checkRes = await pool.query(
-        `
-        SELECT id FROM level_checks
-        WHERE id=$1 AND class_id=$2 AND school_id=$3
-      `,
-        [levelCheckId, classId, schoolId]
-      );
-      if (!checkRes.rows.length) {
+      const checkRow = await findLevelCheckForSchool(levelCheckId, schoolId, classId);
+      if (!checkRow) {
         return res.json({ success: false, message: "Thema nicht gefunden." });
       }
 

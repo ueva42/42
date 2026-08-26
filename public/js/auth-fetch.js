@@ -1,6 +1,6 @@
 /**
  * Session-aware fetch: always send cookies, retry brief 401/403 (PG session store lag).
- * Persistent auth errors on app pages → Login (avoids stuck „Forbidden“ UI).
+ * Only redirect to login when the session itself is gone — not on every 403.
  */
 (function () {
   if (window.__authFetchInstalled) return;
@@ -23,7 +23,7 @@
     }
   }
 
-  function shouldForceLogin(path) {
+  function shouldCheckSession(path) {
     if (path === "/api/login" || path === "/api/auth/session") return false;
     const loc = window.location.pathname || "";
     if (loc.startsWith("/login")) return false;
@@ -57,7 +57,19 @@
       const res = await nativeFetch(input, mergedInit);
       if (res.status !== 401 && res.status !== 403) return res;
       if (attempt >= RETRY_MS.length) {
-        if (shouldForceLogin(path)) goLogin();
+        if (shouldCheckSession(path)) {
+          try {
+            const sessionRes = await nativeFetch("/api/auth/session", {
+              credentials: "same-origin",
+              cache: "no-store"
+            });
+            if (!sessionRes.ok) {
+              goLogin();
+            }
+          } catch (_err) {
+            goLogin();
+          }
+        }
         return res;
       }
       await new Promise((r) => setTimeout(r, RETRY_MS[attempt]));
