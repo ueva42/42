@@ -1216,16 +1216,6 @@
       <span class="nav-label">Stundenplan</span>
     </div>
 
-    <div class="nav-item" data-tab="levelplanTab" onclick="showTab('levelplanTab', event)">
-      <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
-      <span class="nav-label">Levelplan</span>
-    </div>
-
-    <div class="nav-item" data-tab="levelplanNeuTab" onclick="showTab('levelplanNeuTab', event)">
-      <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
-      <span class="nav-label">Levelplan neu</span>
-    </div>
-
     <div class="nav-item" data-tab="levelplanZuordnungTab" onclick="showTab('levelplanZuordnungTab', event)">
       <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
       <span class="nav-label">Levelplan-Zuordnung</span>
@@ -1353,16 +1343,6 @@
     <!-- STUNDENPLAN -->
     <div id="timetableTab" class="tab hidden">
       <div id="timetableTabRoot"></div>
-    </div>
-
-    <!-- LEVELPLAN -->
-    <div id="levelplanTab" class="tab hidden">
-      <div id="levelplanTabRoot"></div>
-    </div>
-
-    <!-- LEVELPLAN NEU (Klassenstufe-Kataloge) -->
-    <div id="levelplanNeuTab" class="tab hidden">
-      <div id="levelplanNeuTabRoot"></div>
     </div>
 
     <!-- LEVELPLAN-ZUORDNUNG -->
@@ -1698,10 +1678,8 @@
 <script src="/js/teacher-lesson-goals.js?v=2"></script>
 <script src="/js/teacher-week.js"></script>
 <script src="/js/teacher-was-goals.js?v=4"></script>
-<script src="/js/teacher-levelplan-import.js?v=6"></script>
-<script src="/js/teacher-levelplan.js?v=5"></script>
-<script src="/js/teacher-levelplan-neu.js?v=4"></script>
-<script src="/js/teacher-levelplan-zuordnung.js?v=2"></script>
+<script src="/js/teacher-levelplan-import.js?v=7"></script>
+<script src="/js/teacher-levelplan-zuordnung.js?v=3"></script>
 <script src="/js/teacher-competencies.js?v=21"></script>
 <script src="/js/teacher-termine.js?v=1"></script>
 
@@ -1710,8 +1688,6 @@ const TEACHER_TAB_ROUTES = {
   dashboardTab: "/teacher/dashboard",
   teacherWeekTab: "/teacher/week",
   timetableTab: "/teacher/timetable",
-  levelplanTab: "/teacher/levelplan",
-  levelplanNeuTab: "/teacher/levelplan-neu",
   levelplanZuordnungTab: "/teacher/levelplan-zuordnung",
   lessonGoalsTab: "/teacher/lesson-goals",
   wasGoalsTab: "/teacher/was-goals",
@@ -1732,10 +1708,10 @@ const ROUTE_TABS = {
   "/teacher/dashboard": "dashboardTab",
   "/teacher/week": "teacherWeekTab",
   "/teacher/timetable": "timetableTab",
-  "/teacher/levelplan": "levelplanTab",
-  "/teacher/levelplan-neu": "levelplanNeuTab",
+  "/teacher/levelplan": "wasGoalsTab",
+  "/teacher/levelplan-neu": "levelplanZuordnungTab",
   "/teacher/levelplan-zuordnung": "levelplanZuordnungTab",
-  "/teacher/kompetenzraster": "levelplanTab",
+  "/teacher/kompetenzraster": "wasGoalsTab",
   "/teacher/lesson-goals": "lessonGoalsTab",
   "/teacher/was-goals": "wasGoalsTab",
   "/teacher/levelplan-import": "levelplanImportTab",
@@ -1862,8 +1838,6 @@ function showTab(id, ev, options = {}) {
   if (id === "lessonGoalsTab" && window.TeacherLessonGoals) TeacherLessonGoals.init();
   if (id === "wasGoalsTab" && window.TeacherWasGoals) TeacherWasGoals.init();
   if (id === "levelplanImportTab" && window.TeacherLevelplanImport) TeacherLevelplanImport.init();
-  if (id === "levelplanTab" && window.TeacherLevelplan) TeacherLevelplan.init();
-  if (id === "levelplanNeuTab" && window.TeacherLevelplanNeu) TeacherLevelplanNeu.init();
   if (id === "levelplanZuordnungTab" && window.TeacherLevelplanZuordnung) TeacherLevelplanZuordnung.init();
   if (id === "teacherWeekTab" && window.TeacherWeek) TeacherWeek.init();
   if (id === "termineTab" && window.TeacherTermine) TeacherTermine.init();

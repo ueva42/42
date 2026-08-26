@@ -126,7 +126,7 @@
         <h2>Levelplan importieren</h2>
         <p class="hint">
           Der Import gehört zu einer <strong>Klassenstufe</strong> (z.&nbsp;B. 9 oder 10) – noch keiner einzelnen Klasse.
-          Klassen weist du den Plan später unter <strong>Levelplan neu</strong> zu.
+          Klassen weist du den Plan später unter <strong>Levelplan-Zuordnung</strong> zu.
         </p>
 
         <div class="lpi-toolbar">
