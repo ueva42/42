@@ -7599,6 +7599,27 @@ async function importLevelplanRowsToCatalog(catalogId, schoolId, rows) {
   return { created, updated, skipped, removedEmptyTopics };
 }
 
+function catalogDisplayName(storedName, topicNames) {
+  const topics = (Array.isArray(topicNames) ? topicNames : []).map((t) => String(t || "").trim()).filter(Boolean);
+  if (topics.length) return topics.join(" · ");
+  return String(storedName || "Levelplan").trim() || "Levelplan";
+}
+
+function suggestCatalogNameFromRows(rows, subject, gradeLevel) {
+  const themes = [
+    ...new Set(
+      (rows || [])
+        .filter((r) => r && r.status === "OK" && r.thema)
+        .map((r) => String(r.thema).trim())
+        .filter(Boolean)
+    )
+  ];
+  if (themes.length === 1) return themes[0].slice(0, 120);
+  if (themes.length > 1 && themes.length <= 4) return themes.join(" · ").slice(0, 120);
+  const subjectHint = String(subject || "Levelplan").trim() || "Levelplan";
+  return `${subjectHint} Klasse ${gradeLevel}`.slice(0, 120);
+}
+
 async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null) {
   const params = [schoolId];
   let gradeFilter = "";
@@ -7614,7 +7635,12 @@ async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null) {
       c.name,
       c.created_at,
       COUNT(DISTINCT lc.id)::int AS topic_count,
-      COALESCE(array_agg(DISTINCT lc.subject) FILTER (WHERE lc.subject IS NOT NULL), '{}') AS subjects
+      COALESCE(array_agg(DISTINCT lc.subject) FILTER (WHERE lc.subject IS NOT NULL), '{}') AS subjects,
+      (
+        SELECT COALESCE(array_agg(t.name ORDER BY t.sort_order ASC, t.name ASC), '{}')
+        FROM level_checks t
+        WHERE t.catalog_id = c.id
+      ) AS topic_names
     FROM level_plan_catalogs c
     LEFT JOIN level_checks lc ON lc.catalog_id = c.id
     WHERE c.school_id = $1${gradeFilter}
@@ -7623,14 +7649,19 @@ async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null) {
   `,
     params
   );
-  return r.rows.map((row) => ({
-    id: row.id,
-    gradeLevel: row.grade_level,
-    name: row.name,
-    createdAt: row.created_at,
-    topicCount: row.topic_count || 0,
-    subjects: Array.isArray(row.subjects) ? row.subjects.filter(Boolean) : []
-  }));
+  return r.rows.map((row) => {
+    const topicNames = Array.isArray(row.topic_names) ? row.topic_names.filter(Boolean) : [];
+    return {
+      id: row.id,
+      gradeLevel: row.grade_level,
+      name: row.name,
+      displayName: catalogDisplayName(row.name, topicNames),
+      topicNames,
+      createdAt: row.created_at,
+      topicCount: row.topic_count || 0,
+      subjects: Array.isArray(row.subjects) ? row.subjects.filter(Boolean) : []
+    };
+  });
 }
 
 async function getLevelChecksForCatalog(catalogId, schoolId) {
@@ -7882,7 +7913,7 @@ app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
       }
     } else {
       const subjectHint = String(rows.find((r) => r.fach)?.fach || "Levelplan").trim();
-      const name = catalogName || `${subjectHint} Klasse ${gradeLevel}`;
+      const name = catalogName || suggestCatalogNameFromRows(rows, subjectHint, gradeLevel);
       const ins = await pool.query(
         `
         INSERT INTO level_plan_catalogs (school_id, grade_level, name)
@@ -7947,6 +7978,10 @@ app.get("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
       catalog: {
         id: catalogRes.rows[0].id,
         name: catalogRes.rows[0].name,
+        displayName: catalogDisplayName(
+          catalogRes.rows[0].name,
+          checks.map((c) => c.name)
+        ),
         gradeLevel: catalogRes.rows[0].grade_level,
         createdAt: catalogRes.rows[0].created_at
       },
@@ -7976,7 +8011,12 @@ app.get("/api/teacher/level-plan-assignments", isAdmin, async (req, res) => {
         a.catalog_id,
         cat.name AS catalog_name,
         cat.grade_level,
-        a.created_at
+        a.created_at,
+        (
+          SELECT COALESCE(array_agg(t.name ORDER BY t.sort_order ASC, t.name ASC), '{}')
+          FROM level_checks t
+          WHERE t.catalog_id = cat.id
+        ) AS topic_names
       FROM class_level_plan_assignments a
       JOIN classes cl ON cl.id = a.class_id
       JOIN level_plan_catalogs cat ON cat.id = a.catalog_id
@@ -7993,15 +8033,20 @@ app.get("/api/teacher/level-plan-assignments", isAdmin, async (req, res) => {
     );
 
     res.json({
-      assignments: r.rows.map((row) => ({
-        classId: row.class_id,
-        className: row.class_name,
-        subject: row.subject,
-        catalogId: row.catalog_id,
-        catalogName: row.catalog_name,
-        gradeLevel: row.grade_level,
-        createdAt: row.created_at
-      })),
+      assignments: r.rows.map((row) => {
+        const topicNames = Array.isArray(row.topic_names) ? row.topic_names.filter(Boolean) : [];
+        return {
+          classId: row.class_id,
+          className: row.class_name,
+          subject: row.subject,
+          catalogId: row.catalog_id,
+          catalogName: row.catalog_name,
+          catalogDisplayName: catalogDisplayName(row.catalog_name, topicNames),
+          topicNames,
+          gradeLevel: row.grade_level,
+          createdAt: row.created_at
+        };
+      }),
       catalogs,
       classes: classes.rows.map((c) => ({ id: c.id, name: c.name })),
       subjects: LOG_SUBJECTS,
@@ -8061,6 +8106,16 @@ app.put("/api/teacher/level-plan-assignment", isAdmin, async (req, res) => {
       [classId, subject, catalogId]
     );
 
+    const topicsRes = await pool.query(
+      `
+      SELECT name
+      FROM level_checks
+      WHERE catalog_id = $1
+      ORDER BY sort_order ASC, name ASC
+    `,
+      [catalogId]
+    );
+
     res.json({
       success: true,
       assignment: {
@@ -8069,6 +8124,10 @@ app.put("/api/teacher/level-plan-assignment", isAdmin, async (req, res) => {
         subject,
         catalogId,
         catalogName: catalogRes.rows[0].name,
+        catalogDisplayName: catalogDisplayName(
+          catalogRes.rows[0].name,
+          topicsRes.rows.map((t) => t.name)
+        ),
         gradeLevel: catalogRes.rows[0].grade_level
       }
     });

@@ -82,7 +82,7 @@
               <tr>
                 <td><b>${escapeHtml(a.className)}</b></td>
                 <td>${escapeHtml(a.subject)}</td>
-                <td>${escapeHtml(a.catalogName)}</td>
+                <td>${escapeHtml(a.catalogDisplayName || a.catalogName)}</td>
                 <td>Klasse ${escapeHtml(a.gradeLevel)}</td>
                 <td class="lpn-zuordnung-actions">
                   <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lpn-open="${escapeHtml(a.catalogId)}" data-lpn-grade="${escapeHtml(a.gradeLevel)}">Öffnen</button>

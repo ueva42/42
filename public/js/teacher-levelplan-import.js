@@ -117,7 +117,7 @@
     const catalogOptions = catalogsForGrade()
       .map(
         (c) =>
-          `<option value="${escapeHtml(c.id)}" ${sameId(c.id, state.catalogId) ? "selected" : ""}>${escapeHtml(c.name)}</option>`
+          `<option value="${escapeHtml(c.id)}" ${sameId(c.id, state.catalogId) ? "selected" : ""}>${escapeHtml(c.displayName || c.name)}</option>`
       )
       .join("");
 
@@ -153,7 +153,7 @@
 
         <label class="lpi-label" for="lpiCatalogName" style="${state.catalogId ? "display:none" : ""}">
           Name für neuen Levelplan
-          <input id="lpiCatalogName" type="text" placeholder="z. B. Mathe Klasse 10" value="${escapeHtml(state.catalogName)}">
+          <input id="lpiCatalogName" type="text" placeholder="z. B. Potenzen und Wurzeln" value="${escapeHtml(state.catalogName)}">
         </label>
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
@@ -315,7 +315,17 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
     }
 
     if (!state.catalogId && !state.catalogName.trim()) {
-      state.catalogName = `${state.subject || "Levelplan"} Klasse ${state.gradeLevel}`;
+      const themes = [
+        ...new Set(
+          rows
+            .filter((r) => r.thema)
+            .map((r) => String(r.thema).trim())
+            .filter(Boolean)
+        )
+      ];
+      if (themes.length === 1) state.catalogName = themes[0];
+      else if (themes.length > 1 && themes.length <= 4) state.catalogName = themes.join(" · ");
+      else state.catalogName = `${state.subject || "Levelplan"} Klasse ${state.gradeLevel}`;
     }
 
     if (!confirm(`${rows.length} Einträge in Levelplan (Klassenstufe ${state.gradeLevel}) importieren?`)) {

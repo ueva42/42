@@ -288,7 +288,7 @@
     const catalogOptions = state.catalogs
       .map(
         (c) =>
-          `<option value="${escapeHtml(c.id)}" ${sameId(c.id, state.catalogId) ? "selected" : ""}>${escapeHtml(c.name)}</option>`
+          `<option value="${escapeHtml(c.id)}" ${sameId(c.id, state.catalogId) ? "selected" : ""}>${escapeHtml(c.displayName || c.name)}</option>`
       )
       .join("");
 
@@ -561,7 +561,7 @@
         return;
       }
       state.message = assign
-        ? `${data.assignment?.className || "Klasse"} nutzt jetzt „${data.assignment?.catalogName || "den Plan"}“ für ${state.subject}.`
+        ? `${data.assignment?.className || "Klasse"} nutzt jetzt „${data.assignment?.catalogDisplayName || data.assignment?.catalogName || "den Plan"}“ für ${state.subject}.`
         : "Zuweisung entfernt – Klasse nutzt wieder den alten klassengebundenen Plan (falls vorhanden).";
       await loadCatalogDetail();
     } catch (err) {
