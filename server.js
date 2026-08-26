@@ -17,6 +17,17 @@ import {
 } from "@aws-sdk/client-s3";
 import pkg from "pg";
 const { Pool } = pkg;
+import {
+  ensureDemoSchool,
+  resetDemoSchool,
+  findDemoUser,
+  isDemoEnabled,
+  isDemoSchoolId,
+  getDemoSchoolId,
+  DEMO_ADMIN,
+  DEMO_STUDENT,
+  DEMO_PASSWORD
+} from "./lib/demo-seed.js";
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
 
 // -------------------------------------------------------
@@ -3483,25 +3494,7 @@ async function migrate() {
 // -------------------------------------------------------
 // AUTH
 // -------------------------------------------------------
-app.post("/api/login", async (req, res) => {
-  const { username, password } = req.body;
-
-  const r = await pool.query(
-    `
-    SELECT id,name,password,role,class_id,school_id,first_login
-    FROM users
-    WHERE name=$1
-    ORDER BY id ASC
-    LIMIT 1
-  `,
-    [username]
-  );
-
-  if (!r.rows.length) return res.json({ success: false });
-
-  const user = r.rows[0];
-  if (user.password !== password) return res.json({ success: false });
-
+function loginUserSession(req, res, user, options = {}) {
   req.session.regenerate((regErr) => {
     if (regErr) {
       console.error("❌ session regenerate:", regErr);
@@ -3521,13 +3514,95 @@ app.post("/api/login", async (req, res) => {
         return res.status(500).json({ success: false });
       }
 
-      res.json({
+      const payload = {
         success: true,
         role: user.role,
         firstLogin: user.role === "student" ? !!user.first_login : false
-      });
+      };
+      if (options.isDemo) payload.isDemo = true;
+      res.json(payload);
     });
   });
+}
+
+app.post("/api/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  const r = await pool.query(
+    `
+    SELECT id,name,password,role,class_id,school_id,first_login
+    FROM users
+    WHERE name=$1
+    ORDER BY id ASC
+    LIMIT 1
+  `,
+    [username]
+  );
+
+  if (!r.rows.length) return res.json({ success: false });
+
+  const user = r.rows[0];
+  if (user.password !== password) return res.json({ success: false });
+
+  loginUserSession(req, res, user);
+});
+
+app.get("/api/demo/status", async (_req, res) => {
+  try {
+    if (!isDemoEnabled()) {
+      return res.json({ enabled: false });
+    }
+    const schoolId = await getDemoSchoolId(pool);
+    res.json({
+      enabled: Boolean(schoolId),
+      adminUser: DEMO_ADMIN,
+      studentUser: DEMO_STUDENT,
+      password: DEMO_PASSWORD,
+      className: "9a Demo"
+    });
+  } catch (err) {
+    console.error("❌ /api/demo/status:", err);
+    res.status(500).json({ enabled: false });
+  }
+});
+
+app.post("/api/demo/login", async (req, res) => {
+  try {
+    if (!isDemoEnabled()) {
+      return res.status(404).json({ success: false, message: "Demo nicht verfügbar." });
+    }
+
+    const role = req.body?.role === "admin" ? "admin" : "student";
+    await ensureDemoSchool(pool);
+    const user = await findDemoUser(pool, role);
+    if (!user) {
+      return res.status(503).json({
+        success: false,
+        message: "Demo-Konto nicht bereit – bitte kurz warten und erneut versuchen."
+      });
+    }
+
+    loginUserSession(req, res, user, { isDemo: true });
+  } catch (err) {
+    console.error("❌ /api/demo/login:", err);
+    res.status(500).json({ success: false, message: "Demo-Login fehlgeschlagen." });
+  }
+});
+
+app.post("/api/demo/reset", async (req, res) => {
+  try {
+    const secret = process.env.DEMO_RESET_SECRET;
+    const provided = req.get("Authorization")?.replace(/^Bearer\s+/i, "") || req.body?.secret;
+    if (!secret || provided !== secret) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    const result = await resetDemoSchool(pool);
+    res.json(result);
+  } catch (err) {
+    console.error("❌ /api/demo/reset:", err);
+    res.status(500).json({ success: false, message: "Demo-Reset fehlgeschlagen." });
+  }
 });
 
 app.post("/api/logout", (req, res) => {
@@ -3545,12 +3620,14 @@ app.get("/api/auth/session", async (req, res) => {
     await saveSession(req);
 
     const current = req.session.user;
+    const isDemo = await isDemoSchoolId(pool, current.school_id);
     res.json({
       authenticated: true,
       role: current.role,
       id: current.id,
       schoolId: current.school_id ?? null,
-      ready: current.role === "admin" ? current.school_id != null : true
+      ready: current.role === "admin" ? current.school_id != null : true,
+      isDemo
     });
   } catch (err) {
     console.error("❌ /api/auth/session:", err);
@@ -11500,6 +11577,12 @@ const PORT = process.env.PORT || 8080;
 async function boot() {
   try {
     await migrate();
+    if (isDemoEnabled()) {
+      const demoResult = await ensureDemoSchool(pool);
+      if (!demoResult.skipped) {
+        console.log("🎮 Demo-Schule bereit (slug: demo)");
+      }
+    }
   } catch (err) {
     console.error("❌ Migration fehlgeschlagen:", err);
     console.error("Server startet trotzdem – bitte Migration prüfen.");

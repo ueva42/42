@@ -343,6 +343,60 @@
       flex-shrink: 0;
     }
 
+    .login-demo {
+      margin-top: 22px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(148, 163, 184, 0.22);
+    }
+
+    .login-demo__title {
+      margin: 0 0 6px;
+      font-family: "Orbitron", sans-serif;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #fcd34d;
+    }
+
+    .login-demo__hint {
+      margin: 0 0 14px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .login-demo__actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .login-demo__btn {
+      appearance: none;
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      border-radius: 14px;
+      padding: 12px 10px;
+      background: rgba(120, 53, 15, 0.35);
+      color: #fef3c7;
+      font: 600 13px/1.3 "IBM Plex Sans", system-ui, sans-serif;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .login-demo__btn:hover {
+      background: rgba(146, 64, 14, 0.55);
+      border-color: rgba(251, 191, 36, 0.65);
+    }
+
+    .login-demo__btn:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
+    .login-demo.is-hidden {
+      display: none;
+    }
+
     @media (max-width: 900px) {
       .login-page {
         background-position: 42% center;
@@ -461,6 +515,17 @@
           </button>
         </form>
 
+        <section class="login-demo is-hidden" id="demoSection" aria-label="Demo ausprobieren">
+          <h2 class="login-demo__title">Demo ausprobieren</h2>
+          <p class="login-demo__hint">
+            Sofort reinschnuppern – ohne Passwort. Klasse 9a Demo mit Stundenplan, Levelplänen und Beispieldaten.
+          </p>
+          <div class="login-demo__actions">
+            <button type="button" class="login-demo__btn" id="demoAdminBtn">Als Lehrkraft</button>
+            <button type="button" class="login-demo__btn" id="demoStudentBtn">Als Schülerin Lina</button>
+          </div>
+        </section>
+
         <p class="login-footer">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
@@ -479,6 +544,103 @@
     const errorBox = document.getElementById("errorBox");
     const errorText = document.getElementById("errorText");
     const togglePassword = document.getElementById("togglePassword");
+    const demoSection = document.getElementById("demoSection");
+    const demoAdminBtn = document.getElementById("demoAdminBtn");
+    const demoStudentBtn = document.getElementById("demoStudentBtn");
+
+    async function waitForSession(role) {
+      for (let i = 0; i < 8; i++) {
+        try {
+          const sessionRes = await fetch("/api/auth/session", {
+            credentials: "same-origin",
+            cache: "no-store"
+          });
+          if (sessionRes.ok) {
+            const sessionData = await sessionRes.json();
+            if (sessionData.authenticated && sessionData.role === role) {
+              if (role !== "admin" || sessionData.ready !== false) return true;
+            }
+          }
+        } catch (_err) {}
+        await new Promise((r) => setTimeout(r, 150 * (i + 1)));
+      }
+      return false;
+    }
+
+    async function redirectAfterLogin(role) {
+      const ok = await waitForSession(role);
+      if (!ok) {
+        showError("Session noch nicht bereit – bitte erneut versuchen.");
+        return;
+      }
+
+      if (role === "superadmin") {
+        if (window.__purgeTeacherClientCaches) {
+          await window.__purgeTeacherClientCaches();
+        }
+        window.location.href = "/superadmin";
+        return;
+      }
+
+      if (role === "admin") {
+        if (window.__purgeTeacherClientCaches) {
+          await window.__purgeTeacherClientCaches();
+        }
+        window.location.href = "/teacher/dashboard";
+        return;
+      }
+
+      window.location.href = "/student/hub";
+    }
+
+    async function doDemoLogin(role) {
+      hideError();
+      demoAdminBtn.disabled = true;
+      demoStudentBtn.disabled = true;
+      loginButton.disabled = true;
+
+      try {
+        const res = await fetch("/api/demo/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ role })
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          showError(data.message || "Demo-Login fehlgeschlagen.");
+          return;
+        }
+
+        if (data.firstLogin) {
+          window.location.href = "/first-login";
+          return;
+        }
+
+        await redirectAfterLogin(data.role);
+      } catch (err) {
+        console.error(err);
+        showError("Demo-Login fehlgeschlagen. Bitte erneut versuchen.");
+      } finally {
+        demoAdminBtn.disabled = false;
+        demoStudentBtn.disabled = false;
+        loginButton.disabled = false;
+      }
+    }
+
+    async function initDemoSection() {
+      try {
+        const res = await fetch("/api/demo/status", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.enabled) demoSection.classList.remove("is-hidden");
+      } catch (_err) {}
+    }
+
+    demoAdminBtn?.addEventListener("click", () => doDemoLogin("admin"));
+    demoStudentBtn?.addEventListener("click", () => doDemoLogin("student"));
+    initDemoSection();
 
     function showError(message) {
       errorText.textContent = message;
@@ -534,39 +696,7 @@
         }
 
         // Session kurz bestätigen, bevor wir weiterleiten (PG-Store-Lag nach Login)
-        for (let i = 0; i < 8; i++) {
-          try {
-            const sessionRes = await fetch("/api/auth/session", {
-              credentials: "same-origin",
-              cache: "no-store"
-            });
-            if (sessionRes.ok) {
-              const sessionData = await sessionRes.json();
-              if (sessionData.authenticated && sessionData.role === data.role) {
-                if (data.role !== "admin" || sessionData.ready !== false) break;
-              }
-            }
-          } catch (_err) {}
-          await new Promise((r) => setTimeout(r, 150 * (i + 1)));
-        }
-
-        if (data.role === "superadmin") {
-          if (window.__purgeTeacherClientCaches) {
-            await window.__purgeTeacherClientCaches();
-          }
-          window.location.href = "/superadmin";
-          return;
-        }
-
-        if (data.role === "admin") {
-          if (window.__purgeTeacherClientCaches) {
-            await window.__purgeTeacherClientCaches();
-          }
-          window.location.href = "/teacher/dashboard";
-          return;
-        }
-
-        window.location.href = "/student/hub";
+        await redirectAfterLogin(data.role);
       } catch (err) {
         console.error(err);
         loginButton.disabled = false;
