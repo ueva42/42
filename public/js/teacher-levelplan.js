@@ -35,10 +35,8 @@
   function catalogLabel(c) {
     if (!c) return "Levelplan";
     const topics = Array.isArray(c.topicNames) ? c.topicNames.filter(Boolean) : [];
-    const count = c.topicCount || topics.length || 0;
     if (topics.length === 1) return topics[0];
-    if (count > 1) return `${c.name || "Levelplan"} (${count} Themen)`;
-    if (count === 0) return `${c.name || c.displayName || "Levelplan"} (leer)`;
+    if (topics.length > 1) return `${c.name || "Levelplan"} (${topics.length} Themen)`;
     return c.displayName || c.name || "Levelplan";
   }
 
@@ -205,6 +203,13 @@
               ${subjectOptions || `<option value="">—</option>`}
             </select>
           </label>
+          ${
+            state.catalogId
+              ? `<button type="button" class="tc-delete-btn tc-topic-delete-btn" id="lpDeleteCatalogBtn" ${
+                  state.deleting ? "disabled" : ""
+                }>${state.deleting ? "Löschen…" : "Levelplan löschen"}</button>`
+              : ""
+          }
         </div>
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
@@ -213,17 +218,8 @@
         ${
           state.catalogId
             ? `<div class="kr-levels-panel" style="margin-top:1.2em">
-          <div class="wg-topic-head">
-            <div>
-              <h3>Klasse zuweisen</h3>
-              <p class="hint">Die Klasse nutzt diesen Levelplan für das gewählte Fach.</p>
-            </div>
-            <button type="button" class="tc-delete-btn tc-topic-delete-btn" id="lpDeleteCatalogBtn" ${
-              state.deleting ? "disabled" : ""
-            }>
-              ${state.deleting ? "Löschen…" : "Gesamten Levelplan löschen"}
-            </button>
-          </div>
+          <h3>Klasse zuweisen</h3>
+          <p class="hint">Die Klasse nutzt diesen Levelplan für das gewählte Fach.</p>
           <div class="tc-toolbar" style="align-items:flex-end;gap:.6em;flex-wrap:wrap">
             <label>Klasse:
               <select id="lpAssignClass">${classOptions || `<option value="">—</option>`}</select>

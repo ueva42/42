@@ -7620,7 +7620,36 @@ function suggestCatalogNameFromRows(rows, subject, gradeLevel) {
   return `${subjectHint} Klasse ${gradeLevel}`.slice(0, 120);
 }
 
+async function purgeEmptyLevelPlanCatalogs(schoolId, gradeLevel = null) {
+  const params = [schoolId];
+  let gradeFilter = "";
+  if (gradeLevel) {
+    params.push(String(gradeLevel));
+    gradeFilter = " AND c.grade_level = $2";
+  }
+  const empty = await pool.query(
+    `
+    SELECT c.id
+    FROM level_plan_catalogs c
+    WHERE c.school_id = $1${gradeFilter}
+      AND NOT EXISTS (
+        SELECT 1 FROM level_checks lc WHERE lc.catalog_id = c.id
+      )
+  `,
+    params
+  );
+  let removed = 0;
+  for (const row of empty.rows) {
+    const result = await deleteLevelPlanCatalogForSchool(row.id, schoolId);
+    if (result.ok) removed += 1;
+  }
+  return removed;
+}
+
 async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null) {
+  // Leere Kataloge (ohne Themen) sofort aus der DB entfernen
+  await purgeEmptyLevelPlanCatalogs(schoolId, gradeLevel);
+
   const params = [schoolId];
   let gradeFilter = "";
   if (gradeLevel) {
@@ -7645,6 +7674,7 @@ async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null) {
     LEFT JOIN level_checks lc ON lc.catalog_id = c.id
     WHERE c.school_id = $1${gradeFilter}
     GROUP BY c.id
+    HAVING COUNT(DISTINCT lc.id) > 0
     ORDER BY c.grade_level ASC, c.name ASC
   `,
     params
@@ -7670,7 +7700,15 @@ async function getLevelChecksForCatalog(catalogId, schoolId) {
     `
     SELECT lc.id, lc.subject, lc.name, lc.sort_order, lc.created_at, lc.catalog_id
     FROM level_checks lc
-    WHERE lc.catalog_id = $1 AND lc.school_id = $2
+    WHERE lc.catalog_id = $1
+      AND (
+        lc.school_id = $2
+        OR lc.school_id IS NULL
+        OR EXISTS (
+          SELECT 1 FROM level_plan_catalogs cat
+          WHERE cat.id = lc.catalog_id AND cat.school_id = $2
+        )
+      )
     ORDER BY lc.subject ASC, lc.sort_order ASC, lc.name ASC
   `,
     [catalogId, schoolId]
