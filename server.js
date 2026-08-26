@@ -147,6 +147,9 @@ const CHECKPOINT_TYPE_OPTIONS = Object.entries(CHECKPOINT_TYPES).map(([value, la
   label
 }));
 
+/** Klassenstufen für Levelplan-Kataloge (nicht einzelne Klassen). */
+const GRADE_LEVELS = ["5", "6", "7", "8", "9", "10"];
+
 function normalizeCheckpointType(raw) {
   const key = String(raw ?? "").trim().toLowerCase();
   return CHECKPOINT_TYPES[key] ? key : "klassenarbeit";
@@ -2969,6 +2972,49 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS idx_level_checks_class
     ON level_checks (class_id, subject, sort_order)
   `);
+
+  // Levelplan-Kataloge pro Klassenstufe (neu, parallel zum alten klassengebundenen Plan)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_plan_catalogs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER NOT NULL,
+      grade_level TEXT NOT NULL,
+      name TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS class_level_plan_assignments (
+      class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+      subject TEXT NOT NULL,
+      catalog_id UUID NOT NULL REFERENCES level_plan_catalogs(id) ON DELETE CASCADE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      PRIMARY KEY (class_id, subject)
+    )
+  `);
+  await ensureColumn("level_checks", "catalog_id", "UUID");
+  await pool.query(`ALTER TABLE level_checks ALTER COLUMN class_id DROP NOT NULL`).catch(() => {});
+  await ensureColumn(
+    "level_check_checkpoints",
+    "class_id",
+    "INTEGER REFERENCES classes(id) ON DELETE CASCADE"
+  );
+  await pool.query(`
+    UPDATE level_check_checkpoints cp
+    SET class_id = lc.class_id
+    FROM level_checks lc
+    WHERE cp.level_check_id = lc.id
+      AND cp.class_id IS NULL
+      AND lc.class_id IS NOT NULL
+  `).catch(() => {});
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_level_checks_catalog
+    ON level_checks (catalog_id, subject, sort_order)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_level_plan_catalogs_school_grade
+    ON level_plan_catalogs (school_id, grade_level, name)
+  `);
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_level_check_goals_check
     ON level_check_goals (level_check_id, sort_order)
@@ -5529,26 +5575,40 @@ function levelCheckTierUnlocked(tier, proofsByTier) {
 }
 
 async function findLevelCheckForSchool(levelCheckId, schoolId, classId = null) {
-  const params = [levelCheckId, schoolId];
-  let classFilter = "";
-  if (classId != null) {
-    params.push(classId);
-    classFilter = " AND lc.class_id = $3";
-  }
-
   const r = await pool.query(
     `
-    SELECT lc.id, lc.class_id
+    SELECT lc.id, lc.class_id, lc.catalog_id, lc.subject
     FROM level_checks lc
     LEFT JOIN classes c ON c.id = lc.class_id
+    LEFT JOIN level_plan_catalogs cat ON cat.id = lc.catalog_id
     WHERE lc.id = $1
-      AND (lc.school_id = $2 OR c.school_id = $2)
-      ${classFilter}
+      AND (lc.school_id = $2 OR c.school_id = $2 OR cat.school_id = $2)
     LIMIT 1
   `,
-    params
+    [levelCheckId, schoolId]
   );
-  return r.rows[0] || null;
+  const row = r.rows[0];
+  if (!row) return null;
+
+  if (classId != null) {
+    if (row.class_id != null && Number(row.class_id) !== Number(classId)) {
+      return null;
+    }
+    if (row.catalog_id != null) {
+      const assigned = await pool.query(
+        `
+        SELECT 1
+        FROM class_level_plan_assignments
+        WHERE class_id = $1 AND catalog_id = $2 AND subject = $3
+        LIMIT 1
+      `,
+        [classId, row.catalog_id, row.subject]
+      );
+      if (!assigned.rows.length) return null;
+    }
+  }
+
+  return row;
 }
 
 async function findCheckpointForSchool(checkpointId, schoolId) {
@@ -5607,9 +5667,16 @@ async function validateLinkedSubtopicIdsForClass(classId, schoolId, subject, lin
     FROM level_check_goals g
     JOIN level_checks lc ON lc.id = g.level_check_id
     LEFT JOIN classes c ON c.id = lc.class_id
-    WHERE lc.class_id = $1
-      AND lc.subject = $2
-      AND (lc.school_id = $3 OR c.school_id = $3)
+    LEFT JOIN class_level_plan_assignments a
+      ON a.class_id = $1 AND a.subject = $2 AND a.catalog_id = lc.catalog_id
+    WHERE lc.subject = $2
+      AND (lc.school_id = $3 OR c.school_id = $3 OR EXISTS (
+        SELECT 1 FROM level_plan_catalogs cat WHERE cat.id = lc.catalog_id AND cat.school_id = $3
+      ))
+      AND (
+        (lc.catalog_id IS NULL AND lc.class_id = $1 AND a.catalog_id IS NULL)
+        OR (lc.catalog_id IS NOT NULL AND a.catalog_id IS NOT NULL)
+      )
       AND g.id::text = ANY($4::text[])
       AND COALESCE(g.active, true) = true
     ORDER BY lc.sort_order ASC, lc.name ASC, g.sort_order ASC, g.created_at ASC
@@ -5623,20 +5690,9 @@ async function validateLinkedSubtopicIdsForClass(classId, schoolId, subject, lin
 }
 
 async function firstLevelCheckIdForClassSubject(classId, schoolId, subject) {
-  const r = await pool.query(
-    `
-    SELECT lc.id
-    FROM level_checks lc
-    LEFT JOIN classes c ON c.id = lc.class_id
-    WHERE lc.class_id = $1
-      AND lc.subject = $2
-      AND (lc.school_id = $3 OR c.school_id = $3)
-    ORDER BY lc.sort_order ASC, lc.name ASC
-    LIMIT 1
-  `,
-    [classId, subject, schoolId]
-  );
-  return r.rows[0]?.id || null;
+  const checks = await getLevelChecksForClass(classId, schoolId);
+  const match = checks.find((c) => c.subject === subject);
+  return match?.id || null;
 }
 
 function checkpointPayloadFromRow(row) {
@@ -5660,15 +5716,35 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
   let schoolFilter = "";
   if (schoolId != null) {
     params.push(schoolId);
-    schoolFilter = " AND (lc.school_id = $2 OR c.school_id = $2)";
+    schoolFilter = " AND (lc.school_id = $2 OR c.school_id = $2 OR EXISTS (SELECT 1 FROM level_plan_catalogs cat WHERE cat.id = lc.catalog_id AND cat.school_id = $2))";
   }
 
+  // Zugewiesene Kataloge ersetzen den alten klassengebundenen Plan für dieses Fach.
+  // Ohne Zuweisung: weiter der alte class_id-Plan.
   const checksRes = await pool.query(
     `
-    SELECT lc.id, lc.subject, lc.name, lc.sort_order, lc.created_at
+    SELECT lc.id, lc.subject, lc.name, lc.sort_order, lc.created_at, lc.catalog_id
     FROM level_checks lc
     LEFT JOIN classes c ON c.id = lc.class_id
-    WHERE lc.class_id = $1${schoolFilter}
+    WHERE (
+        (
+          lc.catalog_id IS NULL
+          AND lc.class_id = $1
+          AND NOT EXISTS (
+            SELECT 1 FROM class_level_plan_assignments a
+            WHERE a.class_id = $1 AND a.subject = lc.subject
+          )
+        )
+        OR (
+          lc.catalog_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM class_level_plan_assignments a
+            WHERE a.class_id = $1
+              AND a.subject = lc.subject
+              AND a.catalog_id = lc.catalog_id
+          )
+        )
+      )${schoolFilter}
     ORDER BY lc.subject ASC, lc.sort_order ASC, lc.name ASC
   `,
     params
@@ -5742,9 +5818,10 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       SELECT id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids
       FROM level_check_checkpoints
       WHERE level_check_id = ANY($1::uuid[])
+        AND (class_id = $2 OR class_id IS NULL)
       ORDER BY checkpoint_date DESC, created_at DESC
     `,
-      [checkIds]
+      [checkIds, classId]
     );
     for (const row of cpRes.rows) {
       if (!checkpointsByCheck[row.level_check_id]) {
@@ -5760,6 +5837,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
     name: c.name,
     sortOrder: c.sort_order,
     createdAt: c.created_at,
+    catalogId: c.catalog_id || null,
     checkpoints: checkpointsByCheck[c.id] || [],
     goals: goalsByCheck[c.id] || []
   }));
@@ -7048,15 +7126,16 @@ app.post("/api/teacher/levelcheck-checkpoints", isAdmin, async (req, res) => {
     const ins = await pool.query(
       `
       INSERT INTO level_check_checkpoints (
-        school_id, level_check_id, checkpoint_date, checkpoint_type,
+        school_id, level_check_id, class_id, checkpoint_date, checkpoint_type,
         checkpoint_type_label, linked_subtopic_ids
       )
-      VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
       RETURNING id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids
     `,
       [
         schoolId,
         levelCheckId,
+        classId,
         checkpointDate,
         checkpointType,
         checkpointTypeLabel,
@@ -7368,6 +7447,247 @@ function parseLevelplanImportText(raw) {
   });
 }
 
+async function findLevelCheckGoalForCatalog(catalogId, schoolId, fach, thema, unterthema) {
+  const r = await pool.query(
+    `
+    SELECT g.id, g.level_check_id
+    FROM level_check_goals g
+    JOIN level_checks lc ON lc.id = g.level_check_id
+    WHERE lc.catalog_id = $1
+      AND lc.school_id = $2
+      AND lower(trim(lc.subject)) = lower(trim($3))
+      AND lower(trim(lc.name)) = lower(trim($4))
+      AND lower(trim(g.goal_text)) = lower(trim($5))
+    LIMIT 1
+  `,
+    [catalogId, schoolId, fach, thema, unterthema]
+  );
+  return r.rows[0] || null;
+}
+
+async function findOrCreateLevelCheckTopicForCatalog(catalogId, schoolId, fach, thema) {
+  const existing = await pool.query(
+    `
+    SELECT id
+    FROM level_checks
+    WHERE catalog_id = $1
+      AND school_id = $2
+      AND lower(trim(subject)) = lower(trim($3))
+      AND lower(trim(name)) = lower(trim($4))
+    LIMIT 1
+  `,
+    [catalogId, schoolId, fach, thema]
+  );
+  if (existing.rows.length) return existing.rows[0].id;
+
+  const orderRes = await pool.query(
+    `
+    SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order
+    FROM level_checks
+    WHERE catalog_id = $1 AND subject = $2
+  `,
+    [catalogId, fach]
+  );
+
+  const ins = await pool.query(
+    `
+    INSERT INTO level_checks (school_id, catalog_id, class_id, subject, name, sort_order)
+    VALUES ($1, $2, NULL, $3, $4, $5)
+    RETURNING id
+  `,
+    [schoolId, catalogId, fach, thema.slice(0, 120), orderRes.rows[0].next_order]
+  );
+  return ins.rows[0].id;
+}
+
+async function deleteEmptyLevelChecksForCatalog(catalogId, schoolId) {
+  const del = await pool.query(
+    `
+    DELETE FROM level_checks lc
+    WHERE lc.catalog_id = $1
+      AND lc.school_id = $2
+      AND NOT EXISTS (
+        SELECT 1 FROM level_check_goals g
+        WHERE g.level_check_id = lc.id AND COALESCE(g.active, true) = true
+      )
+    RETURNING lc.id
+  `,
+    [catalogId, schoolId]
+  );
+  return del.rowCount;
+}
+
+async function importLevelplanRowsToCatalog(catalogId, schoolId, rows) {
+  let created = 0;
+  let updated = 0;
+  const skipped = [];
+
+  for (const row of rows) {
+    if (row.status !== "OK") {
+      skipped.push(row);
+      continue;
+    }
+
+    const levelCheckId = await findOrCreateLevelCheckTopicForCatalog(
+      catalogId,
+      schoolId,
+      row.fach,
+      row.thema
+    );
+
+    const existingGoal = await findLevelCheckGoalForCatalog(
+      catalogId,
+      schoolId,
+      row.fach,
+      row.thema,
+      row.unterthema
+    );
+
+    if (existingGoal) {
+      await pool.query(
+        `
+        UPDATE level_check_goals
+        SET rookie_goal_text = $1,
+            operator_goal_text = $2,
+            street_legend_goal_text = $3,
+            active = true,
+            updated_at = NOW()
+        WHERE id = $4
+      `,
+        [
+          row.rookieZiel.slice(0, 500),
+          row.operatorZiel.slice(0, 500),
+          row.streetLegendZiel.slice(0, 500),
+          existingGoal.id
+        ]
+      );
+      updated++;
+      continue;
+    }
+
+    const orderRes = await pool.query(
+      `
+      SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order
+      FROM level_check_goals
+      WHERE level_check_id = $1
+    `,
+      [levelCheckId]
+    );
+
+    await pool.query(
+      `
+      INSERT INTO level_check_goals (
+        school_id, level_check_id, goal_text, sort_order,
+        rookie_goal_text, operator_goal_text, street_legend_goal_text, active, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW())
+    `,
+      [
+        schoolId,
+        levelCheckId,
+        row.unterthema.slice(0, 300),
+        orderRes.rows[0].next_order,
+        row.rookieZiel.slice(0, 500),
+        row.operatorZiel.slice(0, 500),
+        row.streetLegendZiel.slice(0, 500)
+      ]
+    );
+    created++;
+  }
+
+  const removedEmptyTopics = await deleteEmptyLevelChecksForCatalog(catalogId, schoolId);
+  return { created, updated, skipped, removedEmptyTopics };
+}
+
+async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null) {
+  const params = [schoolId];
+  let gradeFilter = "";
+  if (gradeLevel) {
+    params.push(String(gradeLevel));
+    gradeFilter = " AND c.grade_level = $2";
+  }
+  const r = await pool.query(
+    `
+    SELECT
+      c.id,
+      c.grade_level,
+      c.name,
+      c.created_at,
+      COUNT(DISTINCT lc.id)::int AS topic_count,
+      COALESCE(array_agg(DISTINCT lc.subject) FILTER (WHERE lc.subject IS NOT NULL), '{}') AS subjects
+    FROM level_plan_catalogs c
+    LEFT JOIN level_checks lc ON lc.catalog_id = c.id
+    WHERE c.school_id = $1${gradeFilter}
+    GROUP BY c.id
+    ORDER BY c.grade_level ASC, c.name ASC
+  `,
+    params
+  );
+  return r.rows.map((row) => ({
+    id: row.id,
+    gradeLevel: row.grade_level,
+    name: row.name,
+    createdAt: row.created_at,
+    topicCount: row.topic_count || 0,
+    subjects: Array.isArray(row.subjects) ? row.subjects.filter(Boolean) : []
+  }));
+}
+
+async function getLevelChecksForCatalog(catalogId, schoolId) {
+  if (!catalogId) return [];
+  const checksRes = await pool.query(
+    `
+    SELECT lc.id, lc.subject, lc.name, lc.sort_order, lc.created_at, lc.catalog_id
+    FROM level_checks lc
+    WHERE lc.catalog_id = $1 AND lc.school_id = $2
+    ORDER BY lc.subject ASC, lc.sort_order ASC, lc.name ASC
+  `,
+    [catalogId, schoolId]
+  );
+  if (!checksRes.rows.length) return [];
+
+  const checkIds = checksRes.rows.map((c) => c.id);
+  const goalsRes = await pool.query(
+    `
+    SELECT
+      id, level_check_id, goal_text, sort_order,
+      rookie_goal_text, operator_goal_text, street_legend_goal_text,
+      practice_url, material_type, material_label, material_note, active
+    FROM level_check_goals
+    WHERE level_check_id = ANY($1::uuid[])
+      AND COALESCE(active, true) = true
+    ORDER BY sort_order ASC, created_at ASC
+  `,
+    [checkIds]
+  );
+
+  const goalsByCheck = {};
+  for (const g of goalsRes.rows) {
+    if (!goalsByCheck[g.level_check_id]) goalsByCheck[g.level_check_id] = [];
+    goalsByCheck[g.level_check_id].push({
+      id: g.id,
+      text: g.goal_text,
+      sortOrder: g.sort_order,
+      rookieGoalText: g.rookie_goal_text || null,
+      operatorGoalText: g.operator_goal_text || null,
+      streetLegendGoalText: g.street_legend_goal_text || null,
+      ...mapGoalMaterialFields(g),
+      mark: null
+    });
+  }
+
+  return checksRes.rows.map((c) => ({
+    id: c.id,
+    subject: c.subject,
+    name: c.name,
+    sortOrder: c.sort_order,
+    createdAt: c.created_at,
+    catalogId: c.catalog_id,
+    checkpoints: [],
+    goals: goalsByCheck[c.id] || []
+  }));
+}
+
 async function findLevelCheckGoalForImport(classId, schoolId, fach, thema, unterthema) {
   const r = await pool.query(
     `
@@ -7375,6 +7695,7 @@ async function findLevelCheckGoalForImport(classId, schoolId, fach, thema, unter
     FROM level_check_goals g
     JOIN level_checks lc ON lc.id = g.level_check_id
     WHERE lc.class_id = $1
+      AND lc.catalog_id IS NULL
       AND (lc.school_id = $2 OR lc.school_id IS NULL)
       AND lower(trim(lc.subject)) = lower(trim($3))
       AND lower(trim(lc.name)) = lower(trim($4))
@@ -7392,6 +7713,7 @@ async function findOrCreateLevelCheckTopic(classId, schoolId, fach, thema) {
     SELECT id
     FROM level_checks
     WHERE class_id = $1
+      AND catalog_id IS NULL
       AND (school_id = $2 OR school_id IS NULL)
       AND lower(trim(subject)) = lower(trim($3))
       AND lower(trim(name)) = lower(trim($4))
@@ -7538,28 +7860,44 @@ app.post("/api/teacher/levelplan-import/preview", isAdmin, async (req, res) => {
 app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const classId = Number(req.body.classId);
+    const gradeLevel = String(req.body.gradeLevel || "").trim();
+    let catalogId = String(req.body.catalogId || "").trim() || null;
+    const catalogName = String(req.body.catalogName || "").trim();
     const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
 
-    if (!classId) {
-      return res.json({ success: false, message: "Bitte eine Klasse wählen." });
+    if (!gradeLevel || !GRADE_LEVELS.includes(gradeLevel)) {
+      return res.json({ success: false, message: "Bitte eine gültige Klassenstufe wählen." });
     }
-
-    const classRes = await pool.query(
-      "SELECT id FROM classes WHERE id = $1 AND school_id = $2",
-      [classId, schoolId]
-    );
-    if (!classRes.rows.length) {
-      return res.json({ success: false, message: "Klasse nicht gefunden." });
-    }
-
     if (!rows.length) {
       return res.json({ success: false, message: "Keine Daten zum Importieren." });
     }
 
-    const result = await importLevelplanRows(classId, schoolId, rows);
+    if (catalogId) {
+      const catalogRes = await pool.query(
+        "SELECT id FROM level_plan_catalogs WHERE id = $1 AND school_id = $2 AND grade_level = $3",
+        [catalogId, schoolId, gradeLevel]
+      );
+      if (!catalogRes.rows.length) {
+        return res.json({ success: false, message: "Levelplan nicht gefunden." });
+      }
+    } else {
+      const subjectHint = String(rows.find((r) => r.fach)?.fach || "Levelplan").trim();
+      const name = catalogName || `${subjectHint} Klasse ${gradeLevel}`;
+      const ins = await pool.query(
+        `
+        INSERT INTO level_plan_catalogs (school_id, grade_level, name)
+        VALUES ($1, $2, $3)
+        RETURNING id
+      `,
+        [schoolId, gradeLevel, name.slice(0, 120)]
+      );
+      catalogId = ins.rows[0].id;
+    }
+
+    const result = await importLevelplanRowsToCatalog(catalogId, schoolId, rows);
     res.json({
       success: true,
+      catalogId,
       ...result,
       message: `${result.created} neu angelegt, ${result.updated} aktualisiert${
         result.skipped.length ? `, ${result.skipped.length} übersprungen` : ""
@@ -7567,6 +7905,126 @@ app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ POST /api/teacher/levelplan-import/confirm:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.get("/api/teacher/level-plan-catalogs", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const gradeLevel = String(req.query.gradeLevel || "").trim() || null;
+    const catalogs = await fetchLevelPlanCatalogs(schoolId, gradeLevel);
+    res.json({ gradeLevels: GRADE_LEVELS, catalogs });
+  } catch (err) {
+    console.error("❌ GET /api/teacher/level-plan-catalogs:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.get("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const catalogId = String(req.params.id || "").trim();
+    const catalogRes = await pool.query(
+      "SELECT id, name, grade_level, created_at FROM level_plan_catalogs WHERE id = $1 AND school_id = $2",
+      [catalogId, schoolId]
+    );
+    if (!catalogRes.rows.length) {
+      return res.status(404).json({ error: "Levelplan nicht gefunden." });
+    }
+    const checks = await getLevelChecksForCatalog(catalogId, schoolId);
+    const assignments = await pool.query(
+      `
+      SELECT a.class_id, a.subject, cl.name AS class_name
+      FROM class_level_plan_assignments a
+      JOIN classes cl ON cl.id = a.class_id
+      WHERE a.catalog_id = $1 AND cl.school_id = $2
+      ORDER BY cl.name ASC, a.subject ASC
+    `,
+      [catalogId, schoolId]
+    );
+    res.json({
+      catalog: {
+        id: catalogRes.rows[0].id,
+        name: catalogRes.rows[0].name,
+        gradeLevel: catalogRes.rows[0].grade_level,
+        createdAt: catalogRes.rows[0].created_at
+      },
+      subjects: LOG_SUBJECTS,
+      levelChecks: checks,
+      assignments: assignments.rows.map((r) => ({
+        classId: r.class_id,
+        className: r.class_name,
+        subject: r.subject
+      }))
+    });
+  } catch (err) {
+    console.error("❌ GET /api/teacher/level-plan-catalogs/:id:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.put("/api/teacher/level-plan-assignment", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.body.classId);
+    const subject = String(req.body.subject || "").trim();
+    const catalogId = String(req.body.catalogId || "").trim() || null;
+
+    if (!classId || !subject) {
+      return res.json({ success: false, message: "Klasse und Fach sind Pflicht." });
+    }
+    if (!LOG_SUBJECTS.includes(subject)) {
+      return res.json({ success: false, message: "Ungültiges Fach." });
+    }
+
+    const classRes = await pool.query(
+      "SELECT id, name FROM classes WHERE id = $1 AND school_id = $2",
+      [classId, schoolId]
+    );
+    if (!classRes.rows.length) {
+      return res.json({ success: false, message: "Klasse nicht gefunden." });
+    }
+
+    if (!catalogId) {
+      await pool.query(
+        "DELETE FROM class_level_plan_assignments WHERE class_id = $1 AND subject = $2",
+        [classId, subject]
+      );
+      return res.json({ success: true, assignment: null });
+    }
+
+    const catalogRes = await pool.query(
+      "SELECT id, name, grade_level FROM level_plan_catalogs WHERE id = $1 AND school_id = $2",
+      [catalogId, schoolId]
+    );
+    if (!catalogRes.rows.length) {
+      return res.json({ success: false, message: "Levelplan nicht gefunden." });
+    }
+
+    await pool.query(
+      `
+      INSERT INTO class_level_plan_assignments (class_id, subject, catalog_id)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (class_id, subject)
+      DO UPDATE SET catalog_id = EXCLUDED.catalog_id
+    `,
+      [classId, subject, catalogId]
+    );
+
+    res.json({
+      success: true,
+      assignment: {
+        classId,
+        className: classRes.rows[0].name,
+        subject,
+        catalogId,
+        catalogName: catalogRes.rows[0].name,
+        gradeLevel: catalogRes.rows[0].grade_level
+      }
+    });
+  } catch (err) {
+    console.error("❌ PUT /api/teacher/level-plan-assignment:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
@@ -10579,6 +11037,7 @@ const teacherSpaPaths = [
   "/teacher/timetable",
   "/teacher/week",
   "/teacher/levelplan",
+  "/teacher/levelplan-neu",
   "/teacher/kompetenzraster",
   "/teacher/competencies",
   "/teacher/levelchecks",

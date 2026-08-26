@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Levelplan per Copy & Paste importieren.
+ * Lehrkraft – Levelplan per Copy & Paste importieren (Klassenstufe / Katalog).
  */
 (function () {
   const FALLBACK_SUBJECTS = [
@@ -23,10 +23,14 @@
     "Religion/Ethik"
   ];
 
+  const GRADE_LEVELS = ["5", "6", "7", "8", "9", "10"];
+
   const state = {
-    classId: null,
+    gradeLevel: "10",
+    catalogId: null,
+    catalogName: "",
+    catalogs: [],
     subject: null,
-    classes: [],
     subjects: FALLBACK_SUBJECTS,
     text: "",
     previewRows: [],
@@ -54,6 +58,10 @@
 
   function okRows() {
     return state.previewRows.filter((r) => r.status === "OK");
+  }
+
+  function catalogsForGrade() {
+    return (state.catalogs || []).filter((c) => String(c.gradeLevel) === String(state.gradeLevel));
   }
 
   function renderPreviewTable() {
@@ -101,31 +109,34 @@
     const root = document.getElementById("levelplanImportTabRoot");
     if (!root) return;
 
-    if (state.loading && !state.classes.length) {
-      root.innerHTML = `<div class="tc-loading">Lade Import…</div>`;
-      return;
-    }
+    const gradeOptions = GRADE_LEVELS.map(
+      (g) =>
+        `<option value="${escapeHtml(g)}" ${String(g) === String(state.gradeLevel) ? "selected" : ""}>Klasse ${escapeHtml(g)}</option>`
+    ).join("");
+
+    const catalogOptions = catalogsForGrade()
+      .map(
+        (c) =>
+          `<option value="${escapeHtml(c.id)}" ${sameId(c.id, state.catalogId) ? "selected" : ""}>${escapeHtml(c.name)}</option>`
+      )
+      .join("");
 
     root.innerHTML = `
       <div class="panel lpi-panel">
         <h2>Levelplan importieren</h2>
         <p class="hint">
-          Füge hier deinen Levelplan per Copy &amp; Paste ein. Pro Eintrag brauchst du
-          <strong>Fach</strong>, <strong>Thema</strong>, <strong>Unterthema</strong> und die drei Level
-          (<strong>Rookie</strong>, <strong>Operator</strong>, <strong>Street Legend</strong>).
-          Doppelpunkt ist optional; Leveltexte dürfen auch in der nächsten Zeile stehen.
-          Fach z. B. <strong>Mathe</strong> (auch <strong>mathematik</strong> wird erkannt).
+          Der Import gehört zu einer <strong>Klassenstufe</strong> (z.&nbsp;B. 9 oder 10) – noch keiner einzelnen Klasse.
+          Klassen weist du den Plan später unter <strong>Levelplan neu</strong> zu.
         </p>
 
         <div class="lpi-toolbar">
-          <label>Klasse:
-            <select id="lpiClassSelect">
-              ${state.classes
-                .map(
-                  (c) =>
-                    `<option value="${escapeHtml(c.id)}" ${sameId(c.id, state.classId) ? "selected" : ""}>${escapeHtml(c.name)}</option>`
-                )
-                .join("")}
+          <label>Klassenstufe:
+            <select id="lpiGradeSelect">${gradeOptions}</select>
+          </label>
+          <label>Levelplan:
+            <select id="lpiCatalogSelect">
+              <option value="">— Neuer Levelplan —</option>
+              ${catalogOptions}
             </select>
           </label>
           <label>Fach:
@@ -139,6 +150,11 @@
             </select>
           </label>
         </div>
+
+        <label class="lpi-label" for="lpiCatalogName" style="${state.catalogId ? "display:none" : ""}">
+          Name für neuen Levelplan
+          <input id="lpiCatalogName" type="text" placeholder="z. B. Mathe Klasse 10" value="${escapeHtml(state.catalogName)}">
+        </label>
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
@@ -175,11 +191,24 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
   }
 
   function bindHandlers(root) {
-    root.querySelector("#lpiClassSelect")?.addEventListener("change", (e) => {
-      state.classId = Number(e.target.value);
+    root.querySelector("#lpiGradeSelect")?.addEventListener("change", async (e) => {
+      state.gradeLevel = e.target.value;
+      state.catalogId = null;
+      state.message = "";
+      state.error = "";
+      await loadCatalogs();
+      render();
+    });
+
+    root.querySelector("#lpiCatalogSelect")?.addEventListener("change", (e) => {
+      state.catalogId = e.target.value || null;
       state.message = "";
       state.error = "";
       render();
+    });
+
+    root.querySelector("#lpiCatalogName")?.addEventListener("input", (e) => {
+      state.catalogName = e.target.value;
     });
 
     root.querySelector("#lpiSubjectSelect")?.addEventListener("change", (e) => {
@@ -212,16 +241,13 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
     }
   }
 
-  async function loadClasses() {
-    const r = await fetch("/api/class");
-    const payload = await r.json();
-    if (!r.ok || !Array.isArray(payload)) {
-      throw new Error(payload?.error || "Klassen konnten nicht geladen werden.");
-    }
-    state.classes = payload;
-    if (!state.classId || !payload.some((c) => sameId(c.id, state.classId))) {
-      state.classId = Number(payload[0]?.id) || null;
-    }
+  async function loadCatalogs() {
+    const res = await fetch(
+      `/api/teacher/level-plan-catalogs?gradeLevel=${encodeURIComponent(state.gradeLevel)}`
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Levelpläne konnten nicht geladen werden.");
+    state.catalogs = data.catalogs || [];
   }
 
   async function createPreview() {
@@ -266,13 +292,9 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
             ...row,
             fach: state.subject,
             missing: uniqueMissing,
-            status: uniqueMissing.length ? row.status === "Unvollständig" ? "Unvollständig" : uniqueMissing.length ? "Unvollständig" : "OK" : "OK"
+            status: uniqueMissing.length ? "Unvollständig" : "OK"
           };
         });
-        state.previewRows = state.previewRows.map((row) => ({
-          ...row,
-          status: row.missing?.length ? "Unvollständig" : "OK"
-        }));
       }
       state.message = `Vorschau erstellt: ${data.summary?.ok || 0} OK, ${data.summary?.incomplete || 0} unvollständig.`;
       render();
@@ -286,13 +308,19 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
 
   async function confirmImport() {
     const rows = okRows();
-    if (!state.classId || !rows.length) {
+    if (!rows.length) {
       state.error = "Keine gültigen Einträge zum Importieren.";
       render();
       return;
     }
 
-    if (!confirm(`${rows.length} Einträge für diese Klasse importieren?`)) return;
+    if (!state.catalogId && !state.catalogName.trim()) {
+      state.catalogName = `${state.subject || "Levelplan"} Klasse ${state.gradeLevel}`;
+    }
+
+    if (!confirm(`${rows.length} Einträge in Levelplan (Klassenstufe ${state.gradeLevel}) importieren?`)) {
+      return;
+    }
 
     state.saving = true;
     state.error = "";
@@ -304,7 +332,9 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          classId: state.classId,
+          gradeLevel: state.gradeLevel,
+          catalogId: state.catalogId || null,
+          catalogName: state.catalogName.trim(),
           rows
         })
       });
@@ -317,6 +347,8 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
         return;
       }
 
+      if (data.catalogId) state.catalogId = data.catalogId;
+      await loadCatalogs();
       state.message = data.message || "Import erfolgreich.";
       state.previewRows = [];
       render();
@@ -335,7 +367,8 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
     render();
 
     try {
-      await Promise.all([loadClasses(), loadSubjects()]);
+      await loadSubjects();
+      await loadCatalogs();
       render();
     } catch (err) {
       console.error(err);
