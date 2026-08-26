@@ -126,7 +126,8 @@
         <h2>Levelplan importieren</h2>
         <p class="hint">
           Der Import gehört zu einer <strong>Klassenstufe</strong> (z.&nbsp;B. 9 oder 10) – noch keiner einzelnen Klasse.
-          Klassen weist du den Plan später unter <strong>Levelplan-Zuordnung</strong> zu.
+          Für jeden neuen Plan „<strong>— Neuer Levelplan —</strong>“ wählen (sonst werden Themen an den vorhandenen Plan angehängt).
+          Klassen weist du den Plan unter <strong>Levelplan</strong> zu.
         </p>
 
         <div class="lpi-toolbar">
@@ -332,6 +333,18 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
       return;
     }
 
+    if (state.catalogId) {
+      const existing = catalogsForGrade().find((c) => sameId(c.id, state.catalogId));
+      const label = existing?.displayName || existing?.name || "diesen Levelplan";
+      if (
+        !confirm(
+          `Die Einträge werden an „${label}“ angehängt.\n\nFür einen eigenen Plan bitte „— Neuer Levelplan —“ wählen.\nTrotzdem anhängen?`
+        )
+      ) {
+        return;
+      }
+    }
+
     state.saving = true;
     state.error = "";
     state.message = "";
@@ -357,9 +370,13 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
         return;
       }
 
-      if (data.catalogId) state.catalogId = data.catalogId;
+      // Nächster Import startet wieder als neuer Plan (nicht an denselben anhängen).
+      state.catalogId = null;
+      state.catalogName = "";
       await loadCatalogs();
-      state.message = data.message || "Import erfolgreich.";
+      state.message =
+        (data.message || "Import erfolgreich.") +
+        " Für den nächsten Import ist wieder „Neuer Levelplan“ vorausgewählt.";
       state.previewRows = [];
       render();
     } catch (err) {

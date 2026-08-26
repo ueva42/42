@@ -68,10 +68,21 @@
     });
   }
 
-  function openWasGoals() {
-    history.pushState({ tab: "wasGoalsTab" }, "", "/teacher/was-goals");
+  function openLevelplan(catalogId, gradeLevel) {
+    const params = new URLSearchParams();
+    if (gradeLevel) params.set("grade", String(gradeLevel));
+    if (catalogId) params.set("catalogId", String(catalogId));
+    const qs = params.toString();
+    const url = qs ? `/teacher/levelplan?${qs}` : "/teacher/levelplan";
+    history.pushState({ tab: "levelplanTab" }, "", url);
     if (typeof showTab === "function") {
-      showTab("wasGoalsTab", null, { skipHistory: true });
+      showTab("levelplanTab", null, { skipHistory: true });
+    }
+    if (window.TeacherLevelplan) {
+      window.TeacherLevelplan.init({
+        gradeLevel: gradeLevel || null,
+        catalogId: catalogId || null
+      });
     }
   }
 
@@ -165,7 +176,7 @@
                 <td>${escapeHtml(a.catalogDisplayName || a.catalogName)}</td>
                 <td>Klasse ${escapeHtml(a.gradeLevel)}</td>
                 <td class="lpn-zuordnung-actions">
-                  <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lpn-open-was>Was-Ziele</button>
+                  <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lpn-open="${escapeHtml(a.catalogId)}" data-lpn-grade="${escapeHtml(a.gradeLevel)}">Öffnen</button>
                   <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lpn-remove-class="${escapeHtml(a.classId)}" data-lpn-remove-subject="${escapeHtml(a.subject)}" ${busy ? "disabled" : ""}>${busy ? "…" : "Entfernen"}</button>
                 </td>
               </tr>`;
@@ -219,7 +230,7 @@
         <h2>Levelplan-Zuordnung</h2>
         <p class="hint">
           Weise einer Klasse einen importierten Levelplan für ein Fach zu.
-          Die Themen siehst du unter <b>Was-Ziele</b>.
+          Details und Löschen unter <b>Levelplan</b>.
         </p>
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
@@ -286,8 +297,8 @@
     });
     root.querySelector("#lpzAssignBtn")?.addEventListener("click", () => saveAssignment());
 
-    root.querySelectorAll("[data-lpn-open-was]").forEach((btn) => {
-      btn.addEventListener("click", () => openWasGoals());
+    root.querySelectorAll("[data-lpn-open]").forEach((btn) => {
+      btn.addEventListener("click", () => openLevelplan(btn.dataset.lpnOpen, btn.dataset.lpnGrade));
     });
 
     root.querySelectorAll("[data-lpn-remove-class]").forEach((btn) => {

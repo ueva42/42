@@ -7974,6 +7974,10 @@ app.get("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
     `,
       [catalogId, schoolId]
     );
+    const classes = await pool.query(
+      "SELECT id, name FROM classes WHERE school_id = $1 ORDER BY name ASC",
+      [schoolId]
+    );
     res.json({
       catalog: {
         id: catalogRes.rows[0].id,
@@ -7991,11 +7995,82 @@ app.get("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
         classId: r.class_id,
         className: r.class_name,
         subject: r.subject
-      }))
+      })),
+      classes: classes.rows.map((c) => ({ id: c.id, name: c.name }))
     });
   } catch (err) {
     console.error("❌ GET /api/teacher/level-plan-catalogs/:id:", err);
     res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.delete("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const catalogId = String(req.params.id || "").trim();
+    const catalogRes = await pool.query(
+      "SELECT id, name FROM level_plan_catalogs WHERE id = $1 AND school_id = $2",
+      [catalogId, schoolId]
+    );
+    if (!catalogRes.rows.length) {
+      return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
+    }
+
+    const topics = await pool.query(
+      "SELECT id FROM level_checks WHERE catalog_id = $1 AND school_id = $2",
+      [catalogId, schoolId]
+    );
+    for (const topic of topics.rows) {
+      await deleteLevelCheckForSchool(topic.id, schoolId);
+    }
+
+    await pool.query("DELETE FROM level_plan_catalogs WHERE id = $1 AND school_id = $2", [
+      catalogId,
+      schoolId
+    ]);
+
+    res.json({
+      success: true,
+      message: `Levelplan „${catalogRes.rows[0].name}“ gelöscht.`
+    });
+  } catch (err) {
+    console.error("❌ DELETE /api/teacher/level-plan-catalogs/:id:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.patch("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const catalogId = String(req.params.id || "").trim();
+    const name = String(req.body.name || "").trim().slice(0, 120);
+    if (!name) {
+      return res.json({ success: false, message: "Name fehlt." });
+    }
+    const upd = await pool.query(
+      `
+      UPDATE level_plan_catalogs
+      SET name = $1
+      WHERE id = $2 AND school_id = $3
+      RETURNING id, name, grade_level, created_at
+    `,
+      [name, catalogId, schoolId]
+    );
+    if (!upd.rows.length) {
+      return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
+    }
+    res.json({
+      success: true,
+      catalog: {
+        id: upd.rows[0].id,
+        name: upd.rows[0].name,
+        gradeLevel: upd.rows[0].grade_level,
+        createdAt: upd.rows[0].created_at
+      }
+    });
+  } catch (err) {
+    console.error("❌ PATCH /api/teacher/level-plan-catalogs/:id:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
 
