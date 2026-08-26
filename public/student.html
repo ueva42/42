@@ -11983,9 +11983,28 @@ window.refreshStatusSection = () => {
 window.refreshTodayStatus = window.refreshStatusSection;
 
 async function bootStudentApp() {
+  window.__authBootstrap = true;
   try {
-    const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
-    if (!sessionRes.ok) {
+    let ready = false;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const sessionRes = await fetch("/api/auth/session", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      if (sessionRes.ok) {
+        const data = await sessionRes.json();
+        if (data.authenticated && data.role === "student") {
+          ready = true;
+          break;
+        }
+        if (data.authenticated && data.role && data.role !== "student") {
+          window.location.href = "/login";
+          return;
+        }
+      }
+      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+    }
+    if (!ready) {
       window.location.href = "/login";
       return;
     }
@@ -12001,6 +12020,8 @@ async function bootStudentApp() {
   } catch (err) {
     console.error(err);
     window.location.href = "/login";
+  } finally {
+    window.__authBootstrap = false;
   }
 }
 
