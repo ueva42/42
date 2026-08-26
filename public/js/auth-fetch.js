@@ -1,13 +1,13 @@
 /**
- * Session-aware fetch: always send cookies, retry brief 401/403 (PG session store lag).
- * Only redirect to login when the session itself is gone — not on every 403.
+ * Session-aware fetch: cookies + kurze Retries bei 401/403 (PG-Session-Lag).
+ * Logout nur wenn Session wirklich tot ist — nicht während App-Bootstrap.
  */
 (function () {
   if (window.__authFetchInstalled) return;
   window.__authFetchInstalled = true;
 
   const nativeFetch = window.fetch.bind(window);
-  const RETRY_MS = [200, 500, 1000, 2000];
+  const RETRY_MS = [150, 350, 700, 1200, 2000];
 
   function resolvePath(input) {
     const raw =
@@ -24,6 +24,7 @@
   }
 
   function shouldCheckSession(path) {
+    if (window.__authBootstrap) return false;
     if (path === "/api/login" || path === "/api/auth/session") return false;
     const loc = window.location.pathname || "";
     if (loc.startsWith("/login")) return false;
@@ -36,6 +37,7 @@
   }
 
   function goLogin() {
+    if (window.__authBootstrap) return;
     if (window.__authFetchRedirecting) return;
     window.__authFetchRedirecting = true;
     window.location.href = "/login";
@@ -63,9 +65,7 @@
               credentials: "same-origin",
               cache: "no-store"
             });
-            if (!sessionRes.ok) {
-              goLogin();
-            }
+            if (!sessionRes.ok) goLogin();
           } catch (_err) {
             goLogin();
           }

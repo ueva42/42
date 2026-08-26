@@ -538,6 +538,23 @@
           return;
         }
 
+        // Session kurz bestätigen, bevor wir weiterleiten (PG-Store-Lag nach Login)
+        for (let i = 0; i < 8; i++) {
+          try {
+            const sessionRes = await fetch("/api/auth/session", {
+              credentials: "same-origin",
+              cache: "no-store"
+            });
+            if (sessionRes.ok) {
+              const sessionData = await sessionRes.json();
+              if (sessionData.authenticated && sessionData.role === data.role) {
+                if (data.role !== "admin" || sessionData.ready !== false) break;
+              }
+            }
+          } catch (_err) {}
+          await new Promise((r) => setTimeout(r, 150 * (i + 1)));
+        }
+
         if (data.role === "admin") {
           window.location.href = "/teacher/dashboard";
           return;

@@ -2072,12 +2072,15 @@ const isProduction =
   process.env.NODE_ENV === "production" || !!process.env.RAILWAY_ENVIRONMENT;
 
 const PgSession = connectPgSimple(session);
+const SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
 app.use(
   session({
     store: new PgSession({
       pool,
       tableName: "user_sessions",
-      createTableIfMissing: true
+      createTableIfMissing: true,
+      // TTL an Cookie angleichen, sonst fliegt man nach Store-Expiry raus
+      ttl: Math.floor(SESSION_MAX_AGE_MS / 1000)
     }),
     secret: process.env.SESSION_SECRET || "super-temp-secret",
     resave: false,
@@ -2086,12 +2089,11 @@ app.use(
       secure: isProduction,
       sameSite: "lax",
       httpOnly: true,
-      maxAge: 1000 * 60 * 60 * 24 * 14
+      maxAge: SESSION_MAX_AGE_MS
     },
     rolling: true
   })
 );
-
 async function refreshSessionUserFromDb(req) {
   const user = req.session?.user;
   if (!user?.id) return null;
@@ -2123,11 +2125,22 @@ function saveSession(req) {
   });
 }
 
+// Session bei jedem Request „anfassen“, damit rolling + Store-TTL greifen
+app.use((req, res, next) => {
+  if (req.session?.user?.id) {
+    req.session.touch();
+    // rolling Cookie erneuern, ohne die Session unnötig als dirty zu markieren
+    res.setHeader("Cache-Control", "private, no-cache");
+  }
+  next();
+});
+
 app.use(async (req, _res, next) => {
   try {
     const user = req.session?.user;
     if (user?.id && (user.school_id == null || !user.role)) {
       await refreshSessionUserFromDb(req);
+      await saveSession(req);
     }
   } catch (err) {
     console.error("❌ refreshSessionUser middleware:", err);

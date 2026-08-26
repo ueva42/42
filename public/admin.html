@@ -1681,7 +1681,7 @@
   </div>
 </div>
 
-<script src="/js/auth-fetch.js?v=5"></script>
+<script src="/js/auth-fetch.js?v=6"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=4"></script>
 <script src="/js/teacher-timetable.js?v=4"></script>
@@ -3115,21 +3115,21 @@ async function fixClassRewardOption(optionId) {
 }
 
 async function ensureAdminSessionReady() {
-  for (let attempt = 0; attempt < 6; attempt++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     try {
       const sessionRes = await fetch("/api/auth/session", {
         credentials: "same-origin",
         cache: "no-store"
       });
       if (!sessionRes.ok) {
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
         continue;
       }
 
       const data = await sessionRes.json();
       if (data.role !== "admin") return false;
       if (data.ready === false) {
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
         continue;
       }
 
@@ -3138,7 +3138,7 @@ async function ensureAdminSessionReady() {
         cache: "no-store"
       });
       if (!warm.ok) {
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
         continue;
       }
       const classes = await warm.json();
@@ -3146,12 +3146,13 @@ async function ensureAdminSessionReady() {
     } catch (err) {
       console.error("ensureAdminSessionReady", err);
     }
-    await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
   }
   return false;
 }
 
 async function bootAdminApp() {
+  window.__authBootstrap = true;
   try {
     const ready = await ensureAdminSessionReady();
     if (!ready) {
@@ -3163,6 +3164,8 @@ async function bootAdminApp() {
   } catch (err) {
     console.error(err);
     window.location.href = "/login";
+  } finally {
+    window.__authBootstrap = false;
   }
 }
 
