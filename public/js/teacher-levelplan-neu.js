@@ -128,7 +128,7 @@
           <div class="kr-practice-card">
             <div class="kr-practice-card__head">
               <h4>Material (optional)</h4>
-              <p class="hint">Link, Arbeitsblatt, Buch oder freier Hinweis – alles optional.</p>
+              <p class="hint">Link, Arbeitsblatt, Buch oder freier Hinweis – alles optional. Gilt für alle Klassen mit diesem Levelplan.</p>
             </div>
             <label class="kr-practice-card__field">
               <span>Materialart</span>
@@ -311,7 +311,8 @@
         <h2>Levelplan neu</h2>
         <p class="hint">
           Hier siehst du die Levelpläne einer <b>Klassenstufe</b>.
-          Material hinterlegen und den Plan einer Klasse zuweisen – ohne zu kopieren.
+          Wähle einen Plan und weise ihn einer Klasse zu – ohne zu kopieren.
+          Material hinterlegst du direkt am Unterthema.
         </p>
 
         <div class="tc-toolbar">
@@ -463,6 +464,9 @@
     root.querySelector("#lpnSubjectSelect")?.addEventListener("change", (e) => {
       state.subject = e.target.value;
       state.editingGoalId = null;
+      state.draftMaterials = {};
+      state.goalMessage = "";
+      state.goalError = "";
       render();
     });
 
@@ -614,6 +618,7 @@
         return;
       }
       state.catalogDetail = data;
+      state.draftMaterials = {};
       const subjects = subjectsInCatalog();
       if (!state.subject || !subjects.includes(state.subject)) {
         state.subject = subjects[0] || null;
@@ -629,9 +634,20 @@
     }
   }
 
-  async function init() {
+  async function init(options = {}) {
     state.message = "";
     state.error = "";
+
+    const params = new URLSearchParams(location.search);
+    const gradeFromUrl = params.get("grade");
+    const catalogFromUrl = params.get("catalogId");
+    if (options.gradeLevel || gradeFromUrl) {
+      state.gradeLevel = String(options.gradeLevel || gradeFromUrl);
+    }
+    if (options.catalogId || catalogFromUrl) {
+      state.catalogId = String(options.catalogId || catalogFromUrl);
+    }
+
     const root = document.getElementById("levelplanNeuTabRoot");
     if (root) root.innerHTML = `<div class="tc-loading">Lade Levelplan neu…</div>`;
 

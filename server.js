@@ -7964,6 +7964,55 @@ app.get("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
   }
 });
 
+app.get("/api/teacher/level-plan-assignments", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const r = await pool.query(
+      `
+      SELECT
+        a.class_id,
+        cl.name AS class_name,
+        a.subject,
+        a.catalog_id,
+        cat.name AS catalog_name,
+        cat.grade_level,
+        a.created_at
+      FROM class_level_plan_assignments a
+      JOIN classes cl ON cl.id = a.class_id
+      JOIN level_plan_catalogs cat ON cat.id = a.catalog_id
+      WHERE cl.school_id = $1 AND cat.school_id = $1
+      ORDER BY cl.name ASC, a.subject ASC
+    `,
+      [schoolId]
+    );
+
+    const catalogs = await fetchLevelPlanCatalogs(schoolId);
+    const classes = await pool.query(
+      "SELECT id, name FROM classes WHERE school_id = $1 ORDER BY name ASC",
+      [schoolId]
+    );
+
+    res.json({
+      assignments: r.rows.map((row) => ({
+        classId: row.class_id,
+        className: row.class_name,
+        subject: row.subject,
+        catalogId: row.catalog_id,
+        catalogName: row.catalog_name,
+        gradeLevel: row.grade_level,
+        createdAt: row.created_at
+      })),
+      catalogs,
+      classes: classes.rows.map((c) => ({ id: c.id, name: c.name })),
+      subjects: LOG_SUBJECTS,
+      gradeLevels: GRADE_LEVELS
+    });
+  } catch (err) {
+    console.error("❌ GET /api/teacher/level-plan-assignments:", err);
+    res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
 app.put("/api/teacher/level-plan-assignment", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
@@ -11044,6 +11093,7 @@ const teacherSpaPaths = [
   "/teacher/week",
   "/teacher/levelplan",
   "/teacher/levelplan-neu",
+  "/teacher/levelplan-zuordnung",
   "/teacher/kompetenzraster",
   "/teacher/competencies",
   "/teacher/levelchecks",
