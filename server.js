@@ -3610,6 +3610,17 @@ app.post("/api/admin/change-password", isAdmin, async (req, res) => {
 // -------------------------------------------------------
 function isHtmlPageRequest(req) {
   if (req.method !== "GET" || req.path.startsWith("/api/")) return false;
+  // Teacher/Student-SPA immer als HTML behandeln (auch ohne Sec-Fetch-Mode, z. B. via Service Worker).
+  if (
+    req.path.startsWith("/teacher/") ||
+    req.path.startsWith("/student/") ||
+    req.path === "/admin" ||
+    req.path.startsWith("/superadmin") ||
+    req.path === "/login" ||
+    req.path === "/first-login"
+  ) {
+    return true;
+  }
   if (req.get("Sec-Fetch-Mode") === "navigate") return true;
   const accept = req.get("Accept") || "";
   return accept.includes("text/html");
