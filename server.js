@@ -8293,9 +8293,15 @@ app.patch("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
       SET ${sets.join(", ")}
       FROM level_checks lc
       LEFT JOIN classes c ON c.id = lc.class_id
+      LEFT JOIN level_plan_catalogs cat ON cat.id = lc.catalog_id
       WHERE g.id = $${goalParam}
         AND g.level_check_id = lc.id
-        AND (g.school_id = $${schoolParam} OR lc.school_id = $${schoolParam} OR c.school_id = $${schoolParam})
+        AND (
+          g.school_id = $${schoolParam}
+          OR lc.school_id = $${schoolParam}
+          OR c.school_id = $${schoolParam}
+          OR cat.school_id = $${schoolParam}
+        )
       RETURNING
         g.id,
         g.goal_text,
