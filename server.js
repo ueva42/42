@@ -21,6 +21,7 @@ import {
   ensureDemoSchool,
   resetDemoSchool,
   findDemoUser,
+  syncDemoCharacters,
   isDemoEnabled,
   isDemoSchoolId,
   getDemoSchoolId,
@@ -3574,6 +3575,10 @@ app.post("/api/demo/login", async (req, res) => {
 
     const role = req.body?.role === "admin" ? "admin" : "student";
     await ensureDemoSchool(pool);
+    const demoSchoolId = await getDemoSchoolId(pool);
+    if (demoSchoolId) {
+      await syncDemoCharacters(pool, demoSchoolId);
+    }
     const user = await findDemoUser(pool, role);
     if (!user) {
       return res.status(503).json({
