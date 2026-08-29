@@ -22,6 +22,8 @@ import {
   resetDemoSchool,
   findDemoUser,
   syncDemoCharacters,
+  prepareDemoStudentSession,
+  refreshDemoLearningSetup,
   isDemoEnabled,
   isDemoSchoolId,
   getDemoSchoolId,
@@ -3578,6 +3580,7 @@ app.post("/api/demo/login", async (req, res) => {
     const demoSchoolId = await getDemoSchoolId(pool);
     if (demoSchoolId) {
       await syncDemoCharacters(pool, demoSchoolId);
+      await refreshDemoLearningSetup(pool, demoSchoolId);
     }
     const user = await findDemoUser(pool, role);
     if (!user) {
@@ -3585,6 +3588,10 @@ app.post("/api/demo/login", async (req, res) => {
         success: false,
         message: "Demo-Konto nicht bereit – bitte kurz warten und erneut versuchen."
       });
+    }
+
+    if (role === "student") {
+      await prepareDemoStudentSession(pool, user.id);
     }
 
     loginUserSession(req, res, user, { isDemo: true });

@@ -177,7 +177,7 @@
             state.saving ? "disabled" : ""
           }>${ui.escapeHtml(state.saving ? "Speichern…" : nextLabel())}</button>
           <button type="button" class="logbuch-btn-ghost briefing-later-btn" id="briefingLaterBtn">
-            Später ansehen
+            ${window.__isDemo ? "Überspringen" : "Später ansehen"}
           </button>
         </div>
       </div>`;
