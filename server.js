@@ -27,6 +27,7 @@ import {
   isDemoEnabled,
   isDemoSchoolId,
   getDemoSchoolId,
+  demoEffectiveIsoDate,
   DEMO_ADMIN,
   DEMO_STUDENT,
   DEMO_PASSWORD
@@ -1171,6 +1172,16 @@ function normalizeIsoDate(value) {
 
 function todayIsoDate() {
   return localIsoDate(new Date());
+}
+
+async function resolveSchoolDate(req, value) {
+  const date = isoDateOrToday(value);
+  if (!date) return null;
+  const schoolId = req.session?.user?.school_id;
+  if (schoolId && (await isDemoSchoolId(pool, schoolId))) {
+    return demoEffectiveIsoDate(date);
+  }
+  return date;
 }
 
 function isPlanCheckpointType(typeKey, typeLabel = null) {
@@ -3957,7 +3968,7 @@ app.post("/api/student/start-briefing/complete", isStudent, async (req, res) => 
 app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
-    const date = isoDateOrToday(req.query.date);
+    const date = await resolveSchoolDate(req, req.query.date);
     if (!date) return res.status(400).json({ error: "Ungültiges Datum" });
 
     const timeslot = req.query.timeslot || null;
@@ -4078,7 +4089,7 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     const studentId = req.session.user.id;
     const schoolId = req.session.user.school_id;
 
-    const date = isoDateOrToday(req.body.date);
+    const date = await resolveSchoolDate(req, req.body.date);
     if (!date) {
       return res.json({ success: false, message: "Ungültiges Datum." });
     }
@@ -4336,7 +4347,8 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Tagesziel nicht gefunden." });
     }
 
-    const date = normalizeIsoDate(existing.date) || isoDateOrToday(req.body.date);
+    const date =
+      normalizeIsoDate(existing.date) || (await resolveSchoolDate(req, req.body.date));
     if (!(await planEntryCanEdit(studentId, existing, date))) {
       return res.json({
         success: false,
@@ -4572,7 +4584,9 @@ app.get("/api/student/log/week", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
     const schoolId = req.session.user.school_id;
-    const refDate = isoDateOrToday(req.query.weekStart) || isoDateOrToday(req.query.date);
+    const refDate =
+      (await resolveSchoolDate(req, req.query.weekStart)) ||
+      (await resolveSchoolDate(req, req.query.date));
     if (!refDate) return res.status(400).json({ error: "Ungültiges Datum" });
 
     const weekStart = mondayOfWeek(refDate);
@@ -4740,7 +4754,7 @@ app.post("/api/student/log/week-reflection", isStudent, async (req, res) => {
     const schoolId = req.session.user.school_id;
     const { weekStart } = req.body;
 
-    const cleanWeekStart = isoDateOrToday(weekStart);
+    const cleanWeekStart = await resolveSchoolDate(req, weekStart);
     if (!cleanWeekStart || mondayOfWeek(cleanWeekStart) !== cleanWeekStart) {
       return res.json({
         success: false,
@@ -4816,7 +4830,7 @@ app.post("/api/student/log/week-reflection", isStudent, async (req, res) => {
 app.get("/api/student/log/today", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
-    const date = isoDateOrToday(req.query.date);
+    const date = await resolveSchoolDate(req, req.query.date);
     if (!date) return res.status(400).json({ error: "Ungültiges Datum" });
 
     const weekday = weekdayFromIsoDate(date);
@@ -4828,6 +4842,9 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       month: "2-digit",
       year: "numeric"
     });
+
+    const isDemo = await isDemoSchoolId(pool, req.session.user.school_id);
+    const demoToday = isDemo ? demoEffectiveIsoDate(todayIsoDate()) : todayIsoDate();
 
     const { classId, className } = await getStudentClassContext(studentId);
 
@@ -4980,8 +4997,8 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       weekday,
       weekdayLabel,
       dateLabel,
-      isToday: date === new Date().toISOString().slice(0, 10),
-      isPast: date < new Date().toISOString().slice(0, 10),
+      isToday: date === demoToday,
+      isPast: date < demoToday,
       hasClass: !!classId,
       className,
       timetable: uniqueTimetableSlots,
@@ -5009,7 +5026,7 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
     const subject = String(req.body.subject || "").trim();
     const title = String(req.body.title || "").trim();
     const classDoneNote = String(req.body.classDoneNote || "").trim().slice(0, 300) || null;
-    const assignedDate = isoDateOrToday(req.body.assignedDate) || todayIsoDate();
+    const assignedDate = await resolveSchoolDate(req, req.body.assignedDate);
     const dueDate =
       normalizeIsoDate(req.body.dueDate) || nextSchoolDayIso(assignedDate);
 
@@ -8881,7 +8898,7 @@ app.get("/api/teacher/dashboard", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.query.classId);
-    const date = isoDateOrToday(req.query.date);
+    const date = await resolveSchoolDate(req, req.query.date);
 
     if (!classId) {
       return res.status(400).json({ error: "classId fehlt" });
@@ -9054,7 +9071,7 @@ app.get("/api/teacher/student-week", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const studentId = Number(req.query.studentId);
-    const refDate = isoDateOrToday(req.query.date);
+    const refDate = await resolveSchoolDate(req, req.query.date);
     if (!studentId || !refDate) {
       return res.status(400).json({ error: "Parameter fehlen" });
     }
@@ -9291,7 +9308,9 @@ app.get("/api/teacher/week", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.query.classId);
-    const refDate = isoDateOrToday(req.query.weekStart) || isoDateOrToday(req.query.date);
+    const refDate =
+      (await resolveSchoolDate(req, req.query.weekStart)) ||
+      (await resolveSchoolDate(req, req.query.date));
 
     if (!classId) {
       return res.status(400).json({ error: "classId fehlt" });
