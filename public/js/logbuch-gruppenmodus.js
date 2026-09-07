@@ -148,21 +148,28 @@
 
   function sessionStatusLabel(session) {
     if (!session) return "";
-    if (session.sharedGoal) return session.sharedGoal;
-    const step = session.setupStep;
-    if (session.status === "setup") {
-      if (step === "members") return "Mitglieder wählen";
-      if (step === "roles") return "Rollen verteilen";
-      if (step === "shared_goal") return "Gemeinsames Vorhaben";
-      if (step === "personal_goals") return "Persönliche Ziele";
-      if (step === "overview") return "Bereit zum Start";
-      return "Wird eingerichtet";
+    const members =
+      Array.isArray(session.memberNames) && session.memberNames.length
+        ? session.memberNames.join(", ")
+        : "";
+    if (session.sharedGoal) {
+      return members ? `${session.sharedGoal} · ${members}` : session.sharedGoal;
     }
-    if (session.status === "active") return "In Arbeit";
-    if (session.status === "midcheck") return "Zwischencheck";
-    if (session.status === "reflecting") return "Abschluss";
-    if (session.status === "closed") return "Fertig";
-    return session.status || "";
+    const step = session.setupStep;
+    let status = "";
+    if (session.status === "setup") {
+      if (step === "members") status = "Mitglieder wählen";
+      else if (step === "roles") status = "Rollen verteilen";
+      else if (step === "shared_goal") status = "Gemeinsames Vorhaben";
+      else if (step === "personal_goals") status = "Persönliche Ziele";
+      else if (step === "overview") status = "Bereit zum Start";
+      else status = "Wird eingerichtet";
+    } else if (session.status === "active") status = "In Arbeit";
+    else if (session.status === "midcheck") status = "Zwischencheck";
+    else if (session.status === "reflecting") status = "Abschluss";
+    else if (session.status === "closed") status = "Fertig";
+    else status = session.status || "";
+    return members ? `${status} · ${members}` : status;
   }
 
   function shell(stepLabel, title, body, footer) {
