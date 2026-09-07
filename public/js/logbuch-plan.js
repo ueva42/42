@@ -81,6 +81,7 @@
     errorMsg: "",
     activeStep: 1,
     step3Skipped: false,
+    planBAcknowledged: false,
     suggestion: null,
     suggestionApplied: false
   };
@@ -486,44 +487,81 @@
     return !!state.selectedCheckpointId;
   }
 
-  function step1Complete() {
+  /** Feine Abfolge: Was → Level → Start → Arbeit → Kontrolle → Plan B → Selbstcheck */
+  function whatStepComplete() {
     return !!(
       state.subject &&
       state.whatGoalId &&
-      state.selectedLevel &&
-      state.levelGoalText &&
       checkpointSatisfied() &&
       state.whatGoalOptions.length
     );
   }
 
-  function step2Complete() {
-    return (
-      state.startGoals.length >= 1 &&
-      state.startGoals.length <= 3 &&
-      state.workGoals.length >= 1 &&
-      state.workGoals.length <= 3 &&
-      state.controlGoals.length >= 1 &&
-      state.controlGoals.length <= 3
-    );
+  function levelStepComplete() {
+    return !!(state.selectedLevel && state.levelGoalText);
   }
 
-  function step3Complete() {
+  function startStepComplete() {
+    return state.startGoals.length >= 1 && state.startGoals.length <= 3;
+  }
+
+  function workStepComplete() {
+    return state.workGoals.length >= 1 && state.workGoals.length <= 3;
+  }
+
+  function controlStepComplete() {
+    return state.controlGoals.length >= 1 && state.controlGoals.length <= 3;
+  }
+
+  function planBStepComplete() {
+    return !!state.planBAcknowledged;
+  }
+
+  function confidenceStepComplete() {
     return state.confidenceBefore != null || state.step3Skipped;
   }
 
+  function step1Complete() {
+    return whatStepComplete() && levelStepComplete();
+  }
+
+  function step2Complete() {
+    return startStepComplete() && workStepComplete() && controlStepComplete();
+  }
+
+  function step3Complete() {
+    return confidenceStepComplete();
+  }
+
   function syncActiveStep() {
-    if (state.activeStep >= 2 && !step1Complete()) {
+    if (state.activeStep >= 2 && !whatStepComplete()) {
       state.activeStep = 1;
       return;
     }
-    if (state.activeStep >= 3 && !step2Complete()) {
+    if (state.activeStep >= 3 && !levelStepComplete()) {
       state.activeStep = 2;
       return;
     }
-    if (state.activeStep === 1 && step1Complete()) state.activeStep = 2;
-    else if (state.activeStep === 2 && step2Complete()) state.activeStep = 3;
-    else if (state.activeStep === 3 && step3Complete()) state.activeStep = 4;
+    if (state.activeStep >= 4 && !startStepComplete()) {
+      state.activeStep = 3;
+      return;
+    }
+    if (state.activeStep >= 5 && !workStepComplete()) {
+      state.activeStep = 4;
+      return;
+    }
+    if (state.activeStep >= 6 && !controlStepComplete()) {
+      state.activeStep = 5;
+      return;
+    }
+    if (state.activeStep >= 7 && !planBStepComplete()) {
+      state.activeStep = 6;
+      return;
+    }
+    // Auto nur bei Einzelschritten; Mehrfachauswahl braucht „Weiter“
+    if (state.activeStep === 1 && whatStepComplete()) state.activeStep = 2;
+    else if (state.activeStep === 2 && levelStepComplete()) state.activeStep = 3;
+    else if (state.activeStep === 7 && confidenceStepComplete()) state.activeStep = 8;
   }
 
   function openStep(step) {
@@ -531,12 +569,41 @@
     render();
   }
 
-  function step1Summary() {
+  function whatStepSummary() {
     const parts = [];
     if (state.subject) parts.push(state.subject);
     if (state.whatGoalText) parts.push(state.whatGoalText);
-    if (state.selectedLevel) parts.push(levelLabel(state.selectedLevel));
     return parts.join(" · ") || "Noch offen";
+  }
+
+  function levelStepSummary() {
+    return state.selectedLevel ? levelLabel(state.selectedLevel) : "Noch offen";
+  }
+
+  function startStepSummary() {
+    return state.startGoals.length ? state.startGoals.join(" · ") : "Noch offen";
+  }
+
+  function workStepSummary() {
+    return state.workGoals.length
+      ? state.workGoals.map((g) => arbeitTile(g).title).join(" · ")
+      : "Noch offen";
+  }
+
+  function controlStepSummary() {
+    return state.controlGoals.length
+      ? state.controlGoals.map((g) => controlLabel(g)).join(" · ")
+      : "Noch offen";
+  }
+
+  function planBStepSummary() {
+    if (!state.planBAcknowledged) return "Noch offen";
+    if (!state.planBStrategies.length) return "Ohne Plan B";
+    return joinMulti(state.planBStrategies);
+  }
+
+  function step1Summary() {
+    return [whatStepSummary(), levelStepSummary()].filter((p) => p !== "Noch offen").join(" · ") || "Noch offen";
   }
 
   function step2Summary() {
@@ -552,6 +619,12 @@
     if (state.confidenceBefore != null) return `${state.confidenceBefore} / 5`;
     if (state.step3Skipped) return "Übersprungen";
     return "Noch offen";
+  }
+
+  function continueRow(id, label, enabled = true) {
+    return `<div class="plan-acc__continue">
+      <button type="button" class="today-app-btn" id="${id}" ${enabled ? "" : "disabled"}>${label}</button>
+    </div>`;
   }
 
   function renderAccordionStep(step, title, summary, bodyHtml, opts = {}) {
@@ -633,39 +706,67 @@
     return `
       <div class="way-to-goal">
         <p class="way-to-goal__intro">Wähle aus, <strong>wie</strong> du heute arbeiten willst.</p>
-
-        <section class="way-section way-section--start">
-          <header class="way-section__head">
-            <h4 class="way-section__title">Ich starte so</h4>
-            <p class="way-section__hint">1 bis 3 Auswahlen</p>
-          </header>
-          ${V.strategyTileGrid(startGoalTiles(), state.startGoals, "data-start-goal", { multi: true })}
-        </section>
-
-        <section class="way-section way-section--work">
-          <header class="way-section__head">
-            <h4 class="way-section__title">Ich arbeite so</h4>
-            <p class="way-section__hint">1 bis 3 Auswahlen</p>
-          </header>
-          ${V.strategyTileGrid(arbeitGoalTiles(), state.workGoals, "data-work-goal", { multi: true })}
-        </section>
-
-        <section class="way-section way-section--control">
-          <header class="way-section__head">
-            <h4 class="way-section__title">Ich kontrolliere so</h4>
-            <p class="way-section__hint">1 bis 3 Auswahlen</p>
-          </header>
-          ${V.strategyTileGrid(controlGoalTiles(), state.controlGoals, "data-control-goal", { multi: true })}
-        </section>
-
-        <section class="way-section way-section--planb">
-          <header class="way-section__head">
-            <h4 class="way-section__title">Plan B, wenn ich hänge</h4>
-            <p class="way-section__hint">bis 3 Auswahlen · optional</p>
-          </header>
-          ${V.strategyTileGrid(planBTilesAll(), state.planBStrategies, "data-plan-b", { multi: true })}
-        </section>
+        ${renderStartSection(ui)}
+        ${renderWorkSection(ui)}
+        ${renderControlSection(ui)}
+        ${renderPlanBSection(ui)}
       </div>`;
+  }
+
+  function renderStartSection(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+    return `
+      <section class="way-section way-section--start">
+        <header class="way-section__head">
+          <h4 class="way-section__title">Ich starte so</h4>
+          <p class="way-section__hint">1 bis 3 Auswahlen</p>
+        </header>
+        <p class="way-to-goal__intro">Wähle aus, wie du heute starten willst.</p>
+        ${V.strategyTileGrid(startGoalTiles(), state.startGoals, "data-start-goal", { multi: true })}
+      </section>`;
+  }
+
+  function renderWorkSection(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+    return `
+      <section class="way-section way-section--work">
+        <header class="way-section__head">
+          <h4 class="way-section__title">Ich arbeite so</h4>
+          <p class="way-section__hint">1 bis 3 Auswahlen</p>
+        </header>
+        <p class="way-to-goal__intro">Wie willst du während der Stunde arbeiten?</p>
+        ${V.strategyTileGrid(arbeitGoalTiles(), state.workGoals, "data-work-goal", { multi: true })}
+      </section>`;
+  }
+
+  function renderControlSection(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+    return `
+      <section class="way-section way-section--control">
+        <header class="way-section__head">
+          <h4 class="way-section__title">Ich kontrolliere so</h4>
+          <p class="way-section__hint">1 bis 3 Auswahlen</p>
+        </header>
+        <p class="way-to-goal__intro">Woran merkst du, dass du auf dem Weg bist?</p>
+        ${V.strategyTileGrid(controlGoalTiles(), state.controlGoals, "data-control-goal", { multi: true })}
+      </section>`;
+  }
+
+  function renderPlanBSection(ui) {
+    const V = window.LogbuchVisuals;
+    if (!V) return "";
+    return `
+      <section class="way-section way-section--planb">
+        <header class="way-section__head">
+          <h4 class="way-section__title">Plan B, wenn ich hänge</h4>
+          <p class="way-section__hint">bis 3 Auswahlen · optional</p>
+        </header>
+        <p class="way-to-goal__intro">Was machst du, wenn du feststeckst?</p>
+        ${V.strategyTileGrid(planBTilesAll(), state.planBStrategies, "data-plan-b", { multi: true })}
+      </section>`;
   }
 
   function renderLevelTiles(ui) {
@@ -879,9 +980,9 @@
             <img src="/icons/student/png/zielsetzung.png" alt="" aria-hidden="true">
           </div>
           <div class="plan-app-hero__copy">
-            <p class="plan-app-hero__eyebrow">Schritt 1 von 3 · Planen</p>
+            <p class="plan-app-hero__eyebrow">Schritt ${Math.min(state.activeStep, 7)} von 7 · Planen</p>
             <h2 class="plan-app-hero__title">Tagesziel setzen</h2>
-            <p class="plan-app-hero__meta">Lege fest, was du in dieser Stunde schaffen willst.</p>
+            <p class="plan-app-hero__meta">Eine Frage nach der anderen – so bleibt der Fokus klar.</p>
             ${
               chips.length
                 ? `<div class="plan-app-hero__chips">${chips
@@ -1046,11 +1147,16 @@
     }
 
     const levelMeaning = state.levelGoalText;
-    const s1Done = step1Complete();
-    const s2Done = step2Complete();
-    const s3Done = step3Complete();
+    const sWhat = whatStepComplete();
+    const sLevel = levelStepComplete();
+    const sStart = startStepComplete();
+    const sWork = workStepComplete();
+    const sControl = controlStepComplete();
+    const sPlanB = planBStepComplete();
+    const sConf = confidenceStepComplete();
+    const missionReady = sWhat && sLevel && sStart && sWork && sControl && sPlanB;
 
-    const step1Body = `
+    const whatBody = `
       <div class="goal-step-card__stack">
         ${
           state.subjectLocked
@@ -1081,6 +1187,10 @@
               )
             : whatGoalMessage(ui)
         )}
+      </div>`;
+
+    const levelBody = `
+      <div class="goal-step-card__stack">
         ${renderLevelTiles(ui)}
         ${
           levelMeaning
@@ -1107,16 +1217,13 @@
         }
       </div>`;
 
-    const step3Body = `
+    const confidenceBody = `
       <div class="goal-step-card__stack">
         ${renderConfidenceCards(ui)}
-        <div class="plan-acc__continue">
-          <button type="button" class="today-app-btn" id="planStep3Continue" ${
-            state.confidenceBefore == null ? "" : ""
-          }>
-            ${state.confidenceBefore != null ? "Weiter zur Mission" : "Ohne Angabe weiter"}
-          </button>
-        </div>
+        ${continueRow(
+          "planStep3Continue",
+          state.confidenceBefore != null ? "Weiter zur Mission" : "Ohne Angabe weiter"
+        )}
       </div>`;
 
     root.innerHTML = `
@@ -1132,32 +1239,88 @@
         ${renderSuggestionBanner(ui)}
 
         <div class="plan-acc-stack">
-          ${renderAccordionStep(1, "Was will ich heute können?", ui.escapeHtml(step1Summary()), step1Body, {
-            done: s1Done,
+          ${renderAccordionStep(1, "Was will ich heute können?", ui.escapeHtml(whatStepSummary()), whatBody, {
+            done: sWhat,
             canOpen: true,
-            hint: "Wähle Ziel und Level"
+            hint: "Fach und Unterthema"
+          })}
+          ${renderAccordionStep(2, "Mein Level", ui.escapeHtml(levelStepSummary()), levelBody, {
+            done: sLevel,
+            canOpen: sWhat || state.activeStep === 2,
+            hint: "Rookie, Operator oder Street Legend"
           })}
           ${renderAccordionStep(
-            2,
-            "Mein Weg zum Ziel",
-            ui.escapeHtml(step2Summary()),
-            `<div class="goal-step-card__stack">${renderMeinWegZumZiel(ui)}</div>`,
+            3,
+            "Ich starte so",
+            ui.escapeHtml(startStepSummary()),
+            `<div class="goal-step-card__stack">${renderStartSection(ui)}${continueRow(
+              "planStartContinue",
+              "Weiter",
+              sStart
+            )}</div>`,
             {
-              done: s2Done,
-              canOpen: s1Done || state.activeStep === 2,
-              hint: "1–3 Karten pro Bereich"
+              done: sStart,
+              canOpen: sLevel || state.activeStep === 3,
+              hint: "1–3 Karten"
             }
           )}
-          ${renderAccordionStep(3, "Selbstcheck", ui.escapeHtml(step3Summary()), step3Body, {
-            done: s3Done,
-            canOpen: s2Done || state.activeStep === 3,
+          ${renderAccordionStep(
+            4,
+            "Ich arbeite so",
+            ui.escapeHtml(workStepSummary()),
+            `<div class="goal-step-card__stack">${renderWorkSection(ui)}${continueRow(
+              "planWorkContinue",
+              "Weiter",
+              sWork
+            )}</div>`,
+            {
+              done: sWork,
+              canOpen: sStart || state.activeStep === 4,
+              hint: "1–3 Karten"
+            }
+          )}
+          ${renderAccordionStep(
+            5,
+            "Ich kontrolliere so",
+            ui.escapeHtml(controlStepSummary()),
+            `<div class="goal-step-card__stack">${renderControlSection(ui)}${continueRow(
+              "planControlContinue",
+              "Weiter",
+              sControl
+            )}</div>`,
+            {
+              done: sControl,
+              canOpen: sWork || state.activeStep === 5,
+              hint: "1–3 Karten"
+            }
+          )}
+          ${renderAccordionStep(
+            6,
+            "Plan B, wenn ich hänge",
+            ui.escapeHtml(planBStepSummary()),
+            `<div class="goal-step-card__stack">${renderPlanBSection(ui)}${continueRow(
+              "planPlanBContinue",
+              state.planBStrategies.length ? "Weiter" : "Ohne Plan B weiter",
+              true
+            )}</div>`,
+            {
+              done: sPlanB,
+              canOpen: sControl || state.activeStep === 6,
+              hint: "Optional"
+            }
+          )}
+          ${renderAccordionStep(7, "Selbstcheck", ui.escapeHtml(step3Summary()), confidenceBody, {
+            done: sConf,
+            canOpen: sPlanB || state.activeStep === 7,
             hint: "Optional – eigener Moment"
           })}
         </div>
 
-        <article class="goal-step-card goal-step-card--wide plan-mission-live ${
-          s1Done || s2Done ? "is-ready" : ""
-        }">
+        ${
+          missionReady || state.activeStep >= 7
+            ? `<article class="goal-step-card goal-step-card--wide plan-mission-live ${
+                missionReady ? "is-ready" : ""
+              }">
           <header class="goal-step-card__head">
             <span class="goal-step-card__step">★</span>
             <h3 class="goal-step-card__title">Meine Mission heute</h3>
@@ -1172,12 +1335,20 @@
                   ? "Änderungen speichern"
                   : "Tagesziel speichern (+2 XP)",
               "planSubmitBtn",
-              state.submitting,
+              state.submitting || !missionReady,
               "logbuch-submit-full today-app-btn"
             )}
             ${ui.btnGhost("Abbrechen", "planBackBtn", "today-app-btn today-app-btn--ghost")}
           </div>
-        </article>
+        </article>`
+            : `<div class="plan-acc-progress-hint">
+          <p class="plan-summary-empty">Deine Mission erscheint hier, sobald die Schritte ausgefüllt sind.</p>
+          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
+          <div class="plan-app-footer">
+            ${ui.btnGhost("Abbrechen", "planBackBtn", "today-app-btn today-app-btn--ghost")}
+          </div>
+        </div>`
+        }
       </div>`;
 
     bindHandlers(root);
@@ -1200,7 +1371,7 @@
   function afterChoiceChange(root) {
     const prev = state.activeStep;
     syncActiveStep();
-    if (state.activeStep !== prev) {
+    if (state.activeStep !== prev || [3, 4, 5].includes(state.activeStep)) {
       render();
       return;
     }
@@ -1317,6 +1488,7 @@
         state.selectedCheckpointId = null;
         state.activeStep = 1;
         state.step3Skipped = false;
+        state.planBAcknowledged = false;
         state.suggestionApplied = false;
         await loadContext();
         render();
@@ -1341,8 +1513,9 @@
         state.startGoals = [];
         state.howGoalText = null;
         state.controlGoals = [];
+        state.planBAcknowledged = false;
         syncLevelGoalText();
-        state.activeStep = 1;
+        syncActiveStep();
         render();
         return;
       }
@@ -1369,10 +1542,35 @@
       btn.addEventListener("click", () => {
         const step = Number(btn.dataset.planOpen);
         if (!step) return;
-        if (step === 2 && !step1Complete() && state.activeStep !== 2) return;
-        if (step === 3 && !step2Complete() && state.activeStep !== 3) return;
+        if (step >= 2 && !whatStepComplete() && state.activeStep !== step) return;
+        if (step >= 3 && !levelStepComplete() && state.activeStep !== step) return;
+        if (step >= 4 && !startStepComplete() && state.activeStep !== step) return;
+        if (step >= 5 && !workStepComplete() && state.activeStep !== step) return;
+        if (step >= 6 && !controlStepComplete() && state.activeStep !== step) return;
+        if (step >= 7 && !planBStepComplete() && state.activeStep !== step) return;
         openStep(step);
       });
+    });
+
+    root.querySelector("#planStartContinue")?.addEventListener("click", () => {
+      if (!startStepComplete()) return;
+      state.activeStep = 4;
+      render();
+    });
+    root.querySelector("#planWorkContinue")?.addEventListener("click", () => {
+      if (!workStepComplete()) return;
+      state.activeStep = 5;
+      render();
+    });
+    root.querySelector("#planControlContinue")?.addEventListener("click", () => {
+      if (!controlStepComplete()) return;
+      state.activeStep = 6;
+      render();
+    });
+    root.querySelector("#planPlanBContinue")?.addEventListener("click", () => {
+      state.planBAcknowledged = true;
+      state.activeStep = 7;
+      render();
     });
 
     root.querySelector("#planStep3Continue")?.addEventListener("click", () => {
@@ -1424,25 +1622,28 @@
       return;
     }
     if (!state.selectedLevel) {
-      fail("Bitte wähle ein Level.", 1);
+      fail("Bitte wähle ein Level.", 2);
       return;
     }
     syncLevelGoalText();
     if (!state.levelGoalText) {
-      fail("Für dieses Level wurde noch kein Zieltext hinterlegt.", 1);
+      fail("Für dieses Level wurde noch kein Zieltext hinterlegt.", 2);
       return;
     }
     if (!state.startGoals.length) {
-      fail("Bitte wähle, wie du startest (1–3 Karten unter „Ich starte so“).", 2);
+      fail("Bitte wähle, wie du startest (1–3 Karten unter „Ich starte so“).", 3);
       return;
     }
     if (state.workGoals.length < 1) {
-      fail("Bitte wähle, wie du arbeitest (1–3 Karten unter „Ich arbeite so“).", 2);
+      fail("Bitte wähle, wie du arbeitest (1–3 Karten unter „Ich arbeite so“).", 4);
       return;
     }
     if (!state.controlGoals.length) {
-      fail("Bitte wähle, wie du kontrollierst (1–3 Karten unter „Ich kontrolliere so“).", 2);
+      fail("Bitte wähle, wie du kontrollierst (1–3 Karten unter „Ich kontrolliere so“).", 5);
       return;
+    }
+    if (!state.planBAcknowledged) {
+      state.planBAcknowledged = true;
     }
 
     syncStartGoalFromHowGoal();
@@ -1540,7 +1741,8 @@
     state.existingEntry = data.existingEntry || null;
     if (data.existingEntry?.canEdit) {
       applyEntryToForm(data.existingEntry);
-      state.activeStep = 4;
+      state.planBAcknowledged = true;
+      state.activeStep = 8;
     }
     state.hasClass = data.hasClass !== false;
     state.howGoalsBase = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
@@ -1621,6 +1823,7 @@
     state.errorMsg = "";
     state.activeStep = 1;
     state.step3Skipped = false;
+    state.planBAcknowledged = false;
     state.suggestion = null;
     state.suggestionApplied = false;
 

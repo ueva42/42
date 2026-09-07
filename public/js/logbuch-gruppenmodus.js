@@ -264,7 +264,7 @@
 
   function shell(stepLabel, title, body, footer) {
     return `
-      <div class="gm-app">
+      <div class="gm-app plan-app plan-app--accordion">
         <div class="gm-top">
           <button type="button" class="gm-back" id="gmBackBtn" aria-label="Zurück">←</button>
           <div class="gm-top-main">
@@ -278,6 +278,47 @@
         <div class="gm-body">${body}</div>
         <div class="gm-footer">${footer || ""}</div>
       </div>`;
+  }
+
+  function gmAccDone(stepNum, title, summary) {
+    return `
+      <article class="plan-acc is-done gm-acc-static">
+        <div class="plan-acc__header" aria-disabled="true">
+          <span class="plan-acc__step is-done">✓</span>
+          <span class="plan-acc__titles">
+            <span class="plan-acc__title">${esc(title)}</span>
+            <span class="plan-acc__summary">${esc(summary || "–")}</span>
+          </span>
+        </div>
+      </article>`;
+  }
+
+  function gmAccOpen(stepNum, title, hint, bodyHtml) {
+    return `
+      <article class="plan-acc is-open">
+        <div class="plan-acc__header">
+          <span class="plan-acc__step">${stepNum}</span>
+          <span class="plan-acc__titles">
+            <span class="plan-acc__title">${esc(title)}</span>
+            <span class="plan-acc__hint">${esc(hint || "Jetzt ausfüllen")}</span>
+          </span>
+          <span class="plan-acc__chevron" aria-hidden="true">▾</span>
+        </div>
+        <div class="plan-acc__body">${bodyHtml}</div>
+      </article>`;
+  }
+
+  function gmAccLocked(stepNum, title) {
+    return `
+      <article class="plan-acc is-locked gm-acc-static">
+        <div class="plan-acc__header" aria-disabled="true">
+          <span class="plan-acc__step">${stepNum}</span>
+          <span class="plan-acc__titles">
+            <span class="plan-acc__title">${esc(title)}</span>
+            <span class="plan-acc__summary">Noch offen</span>
+          </span>
+        </div>
+      </article>`;
   }
 
   function cardGrid(items, selectedId, dataAttr) {
@@ -309,18 +350,24 @@
     };
   }
 
+  /** Pro Person/Rolle: mehrere Was- bzw. Wie-Ziele, höchstens 3 verschiedene. */
+  function goalPickLimit() {
+    return 3;
+  }
+
   function toggleDraftGoal(kind, goal) {
     const key = kind === "how" ? "howGoals" : "whatGoals";
-    const max =
-      kind === "how"
-        ? Math.max(1, Number(settings().maxHowGoals) || 3)
-        : Math.max(1, Number(settings().maxWhatGoals) || 3);
+    const max = goalPickLimit();
     const list = [...(state.draftGoal[key] || [])];
     const idx = list.findIndex((g) => String(g.id) === String(goal.id));
     if (idx >= 0) list.splice(idx, 1);
     else {
+      // gleiche Texte nicht doppelt
+      if (list.some((g) => String(g.text).trim() === String(goal.text || "").trim())) {
+        return true;
+      }
       if (list.length >= max) {
-        state.error = `Du kannst höchstens ${max} ${kind === "how" ? "Wie" : "Was"}-Ziele wählen.`;
+        state.error = `Höchstens ${max} verschiedene ${kind === "how" ? "Wie" : "Was"}-Ziele.`;
         return false;
       }
       list.push({ id: goal.id, text: goal.text, roleName: goal.roleName || null });
@@ -339,9 +386,13 @@
 
   function selectedGoalsPanel(kind) {
     const list = kind === "how" ? state.draftGoal.howGoals || [] : state.draftGoal.whatGoals || [];
-    if (!list.length) return `<p class="gm-muted">Noch keine Auswahl – tippe auf die Karten (Mehrfachauswahl möglich).</p>`;
+    const max = goalPickLimit();
+    const label = kind === "how" ? "Wie-Ziele" : "Was-Ziele";
+    if (!list.length) {
+      return `<p class="gm-muted">Noch keine Auswahl – tippe auf die Karten. Bis zu ${max} verschiedene ${label}.</p>`;
+    }
     return `<div class="gm-selected-panel open">
-      <p class="gm-label">Deine Auswahl (${list.length})</p>
+      <p class="gm-label">Deine Auswahl (${list.length}/${max})</p>
       <ul class="gm-selected-list">${list
         .map(
           (g) =>
@@ -576,12 +627,10 @@
     const shared = state.bundle?.session?.sharedGoal || state.sharedGoal || "";
     const multi = (m?.roles || []).length > 1;
     const selectedIds = new Set((state.draftGoal.whatGoals || []).map((g) => String(g.id)));
-    const maxWhat = Math.max(1, Number(settings().maxWhatGoals) || 3);
-    const body = `
+    const maxWhat = goalPickLimit();
+    const pickBody = `
       <p class="gm-lead">${esc(m.displayName)}, das ist heute deine Aufgabe: <strong>${esc(roles || "–")}</strong></p>
-      ${shared ? `<p class="gm-muted">Euer gemeinsames Ziel: <strong>${esc(shared)}</strong></p>` : ""}
-      <p class="gm-h3">Was ist heute dein Beitrag in deiner Rolle?</p>
-      <p class="gm-muted">Mehrfachauswahl möglich (bis ${maxWhat}).</p>
+      <p class="gm-muted">Mehrere möglich – bis zu ${maxWhat} verschiedene Was-Ziele.</p>
       ${selectedGoalsPanel("what")}
       ${
         goals.length
@@ -599,6 +648,13 @@
             ? `<textarea id="gmFreeWhat" class="gm-textarea" rows="3" placeholder="Dein Beitrag in deiner Rolle…">${esc(state.draftGoal.whatGoalText)}</textarea>`
             : `<div class="gm-empty">Für deine Rolle sind noch keine Was-Ziele hinterlegt. Bitte deine Lehrkraft, Rollen-Ziele zu importieren.</div>`
       }`;
+    const body = `
+      <div class="plan-acc-stack">
+        ${gmAccDone(1, "Deine Rolle", roles || "–")}
+        ${shared ? gmAccDone(2, "Gemeinsames Ziel", shared) : ""}
+        ${gmAccOpen(shared ? 3 : 2, "Was ist heute dein Beitrag?", `Bis zu ${maxWhat} verschiedene Was-Ziele`, pickBody)}
+        ${gmAccLocked(shared ? 4 : 3, "Wie setzt du das um?")}
+      </div>`;
     return shell(
       null,
       "Was ist heute dein Beitrag?",
@@ -613,7 +669,11 @@
     const multi = (currentMember()?.roles || []).length > 1;
     const selectedIds = new Set((state.draftGoal.howGoals || []).map((g) => String(g.id)));
     const selectedTexts = new Set((state.draftGoal.howGoals || []).map((g) => g.text));
-    const maxHow = Math.max(1, Number(settings().maxHowGoals) || 3);
+    const maxHow = goalPickLimit();
+    const whatSummary =
+      (state.draftGoal.whatGoals || []).map((g) => g.text).join(" · ") ||
+      state.draftGoal.whatGoalText ||
+      "–";
     const options = roleHow.length
       ? roleHow.map((g) => ({
           id: g.id,
@@ -626,9 +686,9 @@
           title: t,
           selected: !state.draftGoal.customHow && selectedTexts.has(t)
         }));
-    const body = `
+    const pickBody = `
       <p class="gm-lead">Wie möchtest du deinen Beitrag umsetzen?</p>
-      <p class="gm-muted">Mehrfachauswahl möglich (bis ${maxHow}).</p>
+      <p class="gm-muted">Mehrere möglich – bis zu ${maxHow} verschiedene Wie-Ziele.</p>
       ${selectedGoalsPanel("how")}
       ${cardGrid(options, null, roleHow.length ? "how-id" : "how")}
       ${
@@ -641,6 +701,12 @@
              }`
           : ""
       }`;
+    const body = `
+      <div class="plan-acc-stack">
+        ${gmAccDone(1, "Dein Was-Ziel", whatSummary)}
+        ${gmAccOpen(2, "Wie setzt du das um?", `Bis zu ${maxHow} verschiedene Wie-Ziele`, pickBody)}
+        ${gmAccLocked(3, "Bestätigung")}
+      </div>`;
     return shell(
       null,
       "Wie möchtest du dabei arbeiten?",
@@ -986,66 +1052,72 @@
     return `<style>
       .gm-app{max-width:820px;margin:0 auto;padding:8px 4px 110px;font-size:1.05rem;color:inherit}
       .gm-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
-      .gm-back{min-width:48px;min-height:48px;border-radius:14px;border:1px solid rgba(148,163,184,.35);background:rgba(15,23,42,.55);color:inherit;font-size:1.2rem}
-      .gm-title{margin:0;font-family:"Bebas Neue",system-ui,sans-serif;letter-spacing:.06em;font-size:1.7rem;line-height:1.15}
-      .gm-step,.gm-muted{margin:0;opacity:.72;font-size:.9rem}
-      .gm-label{margin:0 0 6px;font-family:"Bebas Neue",system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;font-size:.95rem;color:#e5e7eb}
+      .gm-back{min-width:48px;min-height:48px;border-radius:14px;border:1px solid rgba(34,211,238,.28);background:rgba(8,24,48,.72);color:#e0f2fe;font-size:1.2rem}
+      .gm-title{margin:0;font-family:Orbitron,"Bebas Neue",system-ui,sans-serif;letter-spacing:.04em;font-size:1.45rem;line-height:1.2;text-transform:uppercase}
+      .gm-step{margin:0 0 4px;font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:#67e8f9;opacity:.9}
+      .gm-muted{margin:0 0 10px;opacity:.72;font-size:.92rem}
+      .gm-label{margin:0 0 6px;font-family:Orbitron,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;font-size:.82rem;color:#a5f3fc}
       .gm-lead{margin:0 0 14px;line-height:1.45}
       .gm-h3{margin:16px 0 8px;font-size:1.05rem}
+      .gm-acc-static .plan-acc__header{cursor:default}
       .gm-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
       .gm-card-wrap{display:flex;flex-direction:column;gap:6px}
-      .gm-card{position:relative;text-align:left;min-height:88px;padding:16px 16px 16px 42px;border-radius:16px;border:1px solid rgba(148,163,184,.28);background:rgba(15,23,42,.55);color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,box-shadow .15s,transform .15s}
-      .gm-card-check{position:absolute;left:14px;top:16px;width:20px;height:20px;border-radius:6px;border:1px solid rgba(148,163,184,.45);display:flex;align-items:center;justify-content:center;font-size:.85rem;color:#052e16;background:transparent}
-      .gm-card.is-selected .gm-card-check{background:#22c55e;border-color:#22c55e}
+      .gm-card{position:relative;text-align:left;min-height:88px;padding:16px 44px 16px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.28);background:rgba(8,24,48,.55);color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,box-shadow .15s,transform .15s}
+      .gm-card-check{position:absolute;right:14px;top:14px;width:22px;height:22px;border-radius:999px;border:1px solid rgba(148,163,184,.45);display:flex;align-items:center;justify-content:center;font-size:.8rem;color:transparent;background:transparent}
+      .gm-card.is-selected .gm-card-check{background:#22d3ee;border-color:#22d3ee;color:#082f49;font-weight:800}
       .gm-card--static{cursor:default;padding:16px}
-      .gm-card.is-selected,.gm-choice-btn.is-selected,.gm-chip.is-selected,.gm-role-card.is-picked{border-color:rgba(34,197,94,.75);box-shadow:0 0 0 2px rgba(34,197,94,.28)}
+      .gm-card.is-selected,.gm-choice-btn.is-selected,.gm-chip.is-selected,.gm-role-card.is-picked{
+        border-color:rgba(34,211,238,.85);
+        box-shadow:0 0 0 1px rgba(34,211,238,.45),0 0 18px rgba(34,211,238,.22);
+        background:rgba(8,47,73,.42);
+      }
       .gm-card.is-disabled{opacity:.45;cursor:not-allowed}
       .gm-card-title{font-weight:700;font-size:1.05rem}
       .gm-card-sub,.gm-card-meta{opacity:.75;font-size:.92rem}
       .gm-card-badge{font-size:.8rem;opacity:.8}
       .gm-delete{min-height:40px;border-radius:12px;border:1px solid rgba(255,120,120,.35);background:rgba(180,40,40,.18);color:inherit;font-size:.9rem;cursor:pointer}
       .gm-primary,.gm-ghost{min-height:52px;padding:12px 18px;border-radius:14px;font-size:1.05rem;font-weight:700;border:0;cursor:pointer}
-      .gm-primary{background:linear-gradient(180deg,#4ade80,#22c55e);color:#052e16;width:100%;box-shadow:0 8px 24px rgba(34,197,94,.25)}
+      .gm-primary{background:linear-gradient(90deg,#22d3ee,#a855f7);color:#fff;width:100%;box-shadow:0 8px 28px rgba(34,211,238,.28)}
       .gm-primary:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
-      .gm-ghost{background:transparent;border:1px solid rgba(148,163,184,.4);color:inherit}
+      .gm-ghost{background:transparent;border:1px solid rgba(34,211,238,.35);color:inherit}
       .gm-footer{position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent, rgba(8,16,24,.94) 28%);backdrop-filter:blur(8px);pointer-events:none}
       .gm-footer > *{pointer-events:auto}
       .gm-footer-row{display:flex;gap:10px}
       .gm-footer-row .gm-primary,.gm-footer-row .gm-ghost{flex:1}
       .gm-footer-row--stack{flex-direction:column}
-      .gm-textarea,.gm-select{width:100%;border-radius:14px;border:1px solid rgba(148,163,184,.45);background:rgba(15,23,42,.9);color:#f9fafb;padding:12px;font-size:1rem}
+      .gm-textarea,.gm-select{width:100%;border-radius:14px;border:1px solid rgba(34,211,238,.35);background:rgba(8,24,48,.9);color:#f9fafb;padding:12px;font-size:1rem}
       .gm-banner{padding:10px 12px;border-radius:12px;margin-bottom:10px}
       .gm-banner--err{background:rgba(220,60,60,.2)}
-      .gm-banner--ok{background:rgba(34,197,94,.18)}
+      .gm-banner--ok{background:rgba(34,211,238,.16);border:1px solid rgba(34,211,238,.28)}
       .gm-save-badge{font-size:.75rem;opacity:.75;white-space:nowrap}
       .gm-handoff{min-height:220px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:8px}
       .gm-handoff-text{font-size:1.5rem;margin:0}
       .gm-role-board{display:grid;gap:16px;margin-bottom:12px}
-      .gm-role-block{display:grid;gap:10px;padding:14px;border-radius:16px;background:rgba(15,23,42,.45);border:1px solid rgba(148,163,184,.2)}
-      .gm-role-card{text-align:left;padding:12px;border-radius:14px;border:1px solid rgba(148,163,184,.28);background:rgba(15,23,42,.45);color:inherit;display:grid;gap:4px}
+      .gm-role-block{display:grid;gap:10px;padding:14px;border-radius:16px;background:rgba(8,24,48,.55);border:1px solid rgba(34,211,238,.18)}
+      .gm-role-card{text-align:left;padding:12px;border-radius:14px;border:1px solid rgba(148,163,184,.28);background:rgba(8,24,48,.45);color:inherit;display:grid;gap:4px}
       .gm-role-assign-label{display:grid;gap:6px;font-size:.92rem}
       .gm-select{min-height:52px;font-weight:600;-webkit-appearance:menulist;appearance:auto}
       .gm-people-row,.gm-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0}
-      .gm-chip{min-height:48px;padding:10px 14px;border-radius:999px;border:1px solid rgba(148,163,184,.35);background:rgba(15,23,42,.45);color:inherit;cursor:pointer;font-size:1rem;font-weight:600}
+      .gm-chip{min-height:48px;padding:10px 14px;border-radius:999px;border:1px solid rgba(148,163,184,.35);background:rgba(8,24,48,.45);color:inherit;cursor:pointer;font-size:1rem;font-weight:600}
       .gm-choice{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:12px}
-      .gm-choice-btn{min-height:56px;border-radius:16px;border:1px solid rgba(148,163,184,.35);background:rgba(15,23,42,.45);color:inherit;font-size:1.1rem;font-weight:700}
-      .gm-summary,.gm-selected-panel{display:grid;gap:12px;padding:16px;border-radius:16px;background:rgba(15,23,42,.55);border:1px solid rgba(148,163,184,.22);margin-bottom:14px}
+      .gm-choice-btn{min-height:56px;border-radius:16px;border:1px solid rgba(148,163,184,.35);background:rgba(8,24,48,.45);color:inherit;font-size:1.1rem;font-weight:700}
+      .gm-summary,.gm-selected-panel{display:grid;gap:12px;padding:16px;border-radius:16px;background:rgba(8,24,48,.55);border:1px solid rgba(34,211,238,.22);margin-bottom:14px}
       .gm-summary.open,.gm-selected-panel.open{display:grid}
       .gm-summary p{display:grid;gap:4px;margin:0}
       .gm-summary span,.gm-overview-card span{opacity:.7;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase}
       .gm-selected-list{margin:0;padding-left:1.1em;display:grid;gap:6px}
       .gm-overview-list{display:grid;gap:10px}
       .gm-overview-card{padding:12px 14px;border-radius:14px;background:rgba(8,47,73,.35);border:1px solid rgba(34,211,238,.2)}
-      .gm-overview-card.is-ready{border-color:rgba(34,197,94,.45);background:rgba(6,40,20,.35)}
+      .gm-overview-card.is-ready{border-color:rgba(34,211,238,.55);background:rgba(8,47,73,.45)}
       .gm-overview-card header{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
       .gm-overview-card p{margin:4px 0;display:grid;gap:2px}
-      .gm-overview-details{margin-top:12px;padding:12px;border-radius:14px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.2)}
+      .gm-overview-details{margin-top:12px;padding:12px;border-radius:14px;background:rgba(8,24,48,.4);border:1px solid rgba(34,211,238,.2)}
       .gm-overview-details summary{cursor:pointer;font-weight:700;margin-bottom:8px}
       .gm-status-list{display:grid;gap:8px;margin-bottom:16px}
-      .gm-status-row{display:grid;gap:2px;padding:12px;border-radius:14px;background:rgba(15,23,42,.45)}
+      .gm-status-row{display:grid;gap:2px;padding:12px;border-radius:14px;background:rgba(8,24,48,.45)}
       .gm-docs{margin-top:10px;display:grid;gap:8px}
-      .gm-doc{margin:0;padding:10px;border-radius:12px;background:rgba(15,23,42,.45)}
-      .gm-empty{padding:20px;border-radius:16px;background:rgba(15,23,42,.45);border:1px dashed rgba(148,163,184,.35)}
+      .gm-doc{margin:0;padding:10px;border-radius:12px;background:rgba(8,24,48,.45)}
+      .gm-empty{padding:20px;border-radius:16px;background:rgba(8,24,48,.45);border:1px dashed rgba(34,211,238,.35)}
       @media (min-width:700px){
         .gm-choice{grid-template-columns:repeat(3,1fr)}
         .gm-overview-list{grid-template-columns:repeat(2,minmax(0,1fr))}

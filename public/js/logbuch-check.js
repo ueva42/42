@@ -148,7 +148,8 @@
     submitting: false,
     errorMsg: "",
     activeStep: 1,
-    missionSeen: false
+    missionSeen: false,
+    missionFactIndex: 0
   };
 
   function formatDate(dateStr) {
@@ -290,42 +291,57 @@
     return parts.join(" · ") || "Mission ansehen";
   }
 
-  function renderMissionCard(ui, entry) {
-    const items = [
+  function missionFacts(entry) {
+    const facts = [
       ["Was-Ziel", entry.what_goal_text || "–"],
       ["Level", levelLabel(entry.selected_level, entry)],
       ["Fachliches Ziel", entry.level_goal_text || "–"],
-      ["Mein Weg zum Ziel", entry.how_goal_text || entry.goal || "–"],
-      ["Plan B", entry.plan_b_strategy_text || "–"]
+      ["Mein Weg zum Ziel", entry.how_goal_text || entry.goal || "–"]
     ];
+    if (entry.plan_b_strategy_text) {
+      facts.push(["Plan B", entry.plan_b_strategy_text]);
+    }
+    return facts;
+  }
+
+  function missionFactsComplete(entry) {
+    const facts = missionFacts(entry || state.entry || {});
+    return (Number(state.missionFactIndex) || 0) >= facts.length - 1;
+  }
+
+  function renderMissionCard(ui, entry) {
+    const facts = missionFacts(entry);
+    const idx = Math.min(Math.max(0, Number(state.missionFactIndex) || 0), facts.length - 1);
+    const [label, value] = facts[idx];
+    const isLast = idx >= facts.length - 1;
     return `
-      <div class="mission-facts">
-        ${items
-          .map(
-            ([label, value]) => `
-          <div class="mission-fact">
-            <span class="mission-fact__label">${ui.escapeHtml(label)}</span>
-            <span class="mission-fact__value">${ui.escapeHtml(value)}</span>
-          </div>`
-          )
-          .join("")}
-      </div>`;
+      <section class="check-daily-goal">
+        <p class="plan-acc__hint" style="margin:0 0 10px">Mission ${idx + 1} von ${facts.length}</p>
+        <div class="check-daily-goal-card">
+          <p><strong>${ui.escapeHtml(label)}:</strong><br>${ui.escapeHtml(value)}</p>
+        </div>
+        ${
+          !isLast
+            ? `<div class="plan-acc__continue">
+                <button type="button" class="today-app-btn" id="checkMissionFactNext">Weiter</button>
+              </div>`
+            : ""
+        }
+      </section>`;
   }
 
   function renderDailyGoalCard(ui, entry) {
+    const facts = missionFacts(entry);
     return `
       <section class="check-daily-goal">
         <h3 class="check-daily-goal-title">Meine Mission</h3>
         <div class="check-daily-goal-card">
-          <p><strong>Was-Ziel:</strong><br>${ui.escapeHtml(entry.what_goal_text || "–")}</p>
-          <p><strong>Level:</strong><br>${ui.escapeHtml(levelLabel(entry.selected_level, entry))}</p>
-          <p><strong>Fachliches Ziel:</strong><br>${ui.escapeHtml(entry.level_goal_text || "–")}</p>
-          <p><strong>Mein Weg zum Ziel:</strong><br>${ui.escapeHtml(entry.how_goal_text || entry.goal || "–")}</p>
-          ${
-            entry.plan_b_strategy_text
-              ? `<p><strong>Plan B, wenn ich hänge:</strong><br>${ui.escapeHtml(entry.plan_b_strategy_text)}</p>`
-              : ""
-          }
+          ${facts
+            .map(
+              ([label, value]) =>
+                `<p><strong>${ui.escapeHtml(label)}:</strong><br>${ui.escapeHtml(value)}</p>`
+            )
+            .join("")}
         </div>
       </section>`;
   }
@@ -704,9 +720,13 @@
 
     const missionBody = `
       ${renderMissionCard(ui, e)}
-      <div class="plan-acc__continue">
+      ${
+        missionFactsComplete(e)
+          ? `<div class="plan-acc__continue">
         <button type="button" class="today-app-btn" id="checkMissionContinue">Weiter zum Check</button>
-      </div>`;
+      </div>`
+          : ""
+      }`;
 
     const learnBody = `
       <div class="goal-step-card__stack">
@@ -823,6 +843,15 @@
       });
     });
 
+    root.querySelector("#checkMissionFactNext")?.addEventListener("click", () => {
+      const facts = missionFacts(state.entry || {});
+      state.missionFactIndex = Math.min(
+        (Number(state.missionFactIndex) || 0) + 1,
+        Math.max(0, facts.length - 1)
+      );
+      render();
+    });
+
     root.querySelector("#checkMissionContinue")?.addEventListener("click", () => {
       state.missionSeen = true;
       syncActiveStep();
@@ -932,6 +961,7 @@
     state.errorMsg = "";
     state.activeStep = 1;
     state.missionSeen = false;
+    state.missionFactIndex = 0;
     closeStrategyModal();
 
     const root = document.getElementById("check-screen-root");
