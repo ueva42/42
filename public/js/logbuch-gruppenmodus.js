@@ -321,20 +321,86 @@
       </article>`;
   }
 
+  function tileAccentFor(item) {
+    if (item.accent) return item.accent;
+    const hay = `${item.meta || ""} ${item.sub || ""} ${item.badge || ""} ${item.title || ""}`.toLowerCase();
+    if (/versuch|experiment|mess/.test(hay)) return "#22d3ee";
+    if (/protokoll|dokument|notiz/.test(hay)) return "#a855f7";
+    if (/produkt|modell|bau|prototyp/.test(hay)) return "#f472b6";
+    if (/partner|team|gruppe/.test(hay)) return "#34d399";
+    return "#22d3ee";
+  }
+
+  function tileIconFor(item) {
+    if (item.icon) return item.icon;
+    const hay = `${item.meta || ""} ${item.sub || ""} ${item.badge || ""} ${item.title || ""}`.toLowerCase();
+    if (/versuch|experiment|mess/.test(hay)) return "⚗";
+    if (/protokoll|dokument|notiz/.test(hay)) return "▤";
+    if (/produkt|modell|bau|prototyp/.test(hay)) return "◈";
+    if (/partner|team|gruppe/.test(hay)) return "◎";
+    if (/hilfe|frage/.test(hay)) return "?";
+    return "◆";
+  }
+
   function cardGrid(items, selectedId, dataAttr) {
-    return `<div class="gm-cards">${items
+    return `<div class="strategy-tile-grid gm-tile-grid">${items
       .map((item) => {
         const selected = String(item.id) === String(selectedId) || item.selected;
+        const accent = tileAccentFor(item);
+        const desc = item.desc || item.sub || item.meta || item.badge || "";
+        const extra = item.dataShared
+          ? ` data-shared="${esc(item.dataShared)}"`
+          : "";
         return `
-        <button type="button" class="gm-card ${selected ? "is-selected" : ""} ${item.disabled ? "is-disabled" : ""}"
-          data-${dataAttr}="${esc(item.id)}" ${item.disabled ? "disabled" : ""}>
-          <span class="gm-card-check" aria-hidden="true">${selected ? "✓" : ""}</span>
-          <span class="gm-card-title">${esc(item.title)}</span>
-          ${item.sub || item.meta ? `<span class="gm-card-sub">${esc(item.sub || item.meta)}</span>` : ""}
-          ${item.badge ? `<span class="gm-card-badge">${esc(item.badge)}</span>` : ""}
+        <button type="button"
+          class="strategy-tile ${selected ? "is-active" : ""} ${item.disabled ? "is-disabled" : ""}"
+          data-${dataAttr}="${esc(item.id)}"${extra}
+          style="--tile-accent:${accent}"
+          ${item.disabled ? "disabled" : ""}>
+          ${selected ? `<span class="strategy-tile__check" aria-hidden="true">✓</span>` : ""}
+          <span class="strategy-tile__icon" aria-hidden="true">${esc(tileIconFor(item))}</span>
+          <span class="strategy-tile__title">${esc(item.title)}</span>
+          ${desc ? `<span class="strategy-tile__desc">${esc(desc)}</span>` : ""}
         </button>`;
       })
       .join("")}</div>`;
+  }
+
+  function missionBlock(label, valueHtml) {
+    return `<div class="mission-summary__block">
+      <p class="mission-summary__label">${esc(label)}</p>
+      ${valueHtml}
+    </div>`;
+  }
+
+  function missionValue(text) {
+    return `<p class="mission-summary__value">${esc(text || "–")}</p>`;
+  }
+
+  function missionList(items) {
+    const list = (items || []).map((g) => (typeof g === "string" ? g : g?.text)).filter(Boolean);
+    if (!list.length) return missionValue("–");
+    return `<ul class="mission-summary__list">${list
+      .map((t) => `<li>${esc(t)}</li>`)
+      .join("")}</ul>`;
+  }
+
+  function renderMissionCard({ title, step, ready, blocks, status }) {
+    return `
+      <article class="goal-step-card goal-step-card--wide plan-mission-live gm-mission-card ${
+        ready ? "is-ready" : ""
+      }">
+        <header class="goal-step-card__head">
+          <span class="goal-step-card__step">${ready ? "✓" : step || "★"}</span>
+          <h3 class="goal-step-card__title">${esc(title)}</h3>
+          ${
+            status
+              ? `<span class="gm-mission-status ${ready ? "is-ready" : ""}">${esc(status)}</span>`
+              : ""
+          }
+        </header>
+        <div class="mission-summary">${blocks}</div>
+      </article>`;
   }
 
   function emptyDraftGoal() {
@@ -511,20 +577,19 @@
     const max = settings().maxMembers || 4;
     const body = `
       <p class="gm-lead">Tippt auf alle, die heute zusammenarbeiten. (${state.selectedMembers.length} gewählt, ${min}–${max})</p>
-      <div class="gm-cards">
-        ${classmates
-          .map((c) => {
-            const selected = state.selectedMembers.some((id) => Number(id) === Number(c.id));
-            const busy = c.busyInOtherGroup;
-            return `
-            <button type="button" class="gm-card ${selected ? "is-selected" : ""} ${busy ? "is-disabled" : ""}"
-              data-member="${c.id}" ${busy ? "disabled" : ""}>
-              <span class="gm-card-title">${esc(c.displayName)}</span>
-              ${busy ? `<span class="gm-card-badge">schon in Gruppe</span>` : ""}
-            </button>`;
-          })
-          .join("")}
-      </div>`;
+      ${cardGrid(
+        classmates.map((c) => ({
+          id: c.id,
+          title: c.displayName,
+          desc: c.busyInOtherGroup ? "schon in Gruppe" : "Tippen zum Auswählen",
+          icon: "◎",
+          accent: "#22d3ee",
+          selected: state.selectedMembers.some((id) => Number(id) === Number(c.id)),
+          disabled: !!c.busyInOtherGroup
+        })),
+        null,
+        "member"
+      )}`;
     const ok = state.selectedMembers.length >= min && state.selectedMembers.length <= max;
     return shell(
       "Schritt 2 von 5",
@@ -601,25 +666,26 @@
       }
       ${
         goals.length
-          ? `<div class="gm-cards">
-              ${goals
-                .map((g) => {
-                  const selected =
-                    state.sharedGoal === g.text ||
-                    String(state.draftSharedGoalId) === String(g.id);
-                  const meta = levelGoalCardText(g);
-                  return `
-                <button type="button" class="gm-card ${selected ? "is-selected" : ""}" data-shared-goal-id="${esc(g.id)}" data-shared="${esc(g.text)}">
-                  <span class="gm-card-title">${esc(g.text)}</span>
-                  ${
-                    meta[1]
-                      ? `<span class="gm-card-meta">${esc(meta[1])}</span>`
-                      : ""
-                  }
-                </button>`;
-                })
-                .join("")}
-            </div>`
+          ? cardGrid(
+              goals.map((g) => {
+                const selected =
+                  state.sharedGoal === g.text ||
+                  String(state.draftSharedGoalId) === String(g.id);
+                const meta = levelGoalCardText(g);
+                return {
+                  id: g.id,
+                  title: g.text,
+                  desc: meta[1] || "Gemeinsames Levelplan-Ziel",
+                  meta: meta[1] || "",
+                  icon: "★",
+                  accent: "#22d3ee",
+                  selected,
+                  dataShared: g.text
+                };
+              }),
+              null,
+              "shared-goal-id"
+            )
           : `<div class="gm-empty">Kein Levelplan für dieses Thema hinterlegt. Schreibt euer gemeinsames Ziel kurz selbst.</div>`
       }
       <label class="gm-label">Oder kurz selbst schreiben
@@ -673,7 +739,8 @@
               goals.map((g) => ({
                 id: g.id,
                 title: g.text,
-                meta: multi ? g.roleName : "",
+                meta: g.roleName || "",
+                desc: multi ? g.roleName || "Was-Ziel" : "Dein Beitrag in der Rolle",
                 selected: selectedIds.has(String(g.id))
               })),
               null,
@@ -719,12 +786,14 @@
       ? roleHow.map((g) => ({
           id: g.id,
           title: g.text,
-          meta: multi ? g.roleName : "",
+          meta: g.roleName || "",
+          desc: multi ? g.roleName || "Wie-Ziel" : "So setzt du es um",
           selected: selectedIds.has(String(g.id))
         }))
       : fallback.map((t) => ({
           id: t,
           title: t,
+          desc: "Wie-Ziel",
           selected: !state.draftGoal.customHow && selectedTexts.has(t)
         }));
     const pickBody = `
@@ -762,30 +831,29 @@
     const shared = state.bundle?.session?.sharedGoal || state.sharedGoal || "";
     const whatList = state.draftGoal.whatGoals || [];
     const howList = state.draftGoal.howGoals || [];
+    const myPlan = renderMissionCard({
+      title: "Dein Plan für heute",
+      step: "★",
+      ready: true,
+      blocks: [
+        missionBlock("Unser gemeinsames Ziel", missionValue(shared || "–")),
+        missionBlock("Meine Rolle", missionValue(roles || "–")),
+        missionBlock(
+          "Meine Was-Ziele",
+          whatList.length ? missionList(whatList) : missionValue(state.draftGoal.whatGoalText || "–")
+        ),
+        missionBlock(
+          "Meine Wie-Ziele",
+          howList.length ? missionList(howList) : missionValue(state.draftGoal.howGoalText || "–")
+        )
+      ].join("")
+    });
     const body = `
-      <div class="gm-summary open">
-        <h3>Dein Plan für heute</h3>
-        <p><span>Unser gemeinsames Ziel</span><strong>${esc(shared || "–")}</strong></p>
-        <p><span>Meine Rolle</span><strong>${esc(roles || "–")}</strong></p>
-        <p><span>Meine Was-Ziele</span><strong>${
-          whatList.length
-            ? `<ul class="gm-selected-list">${whatList
-                .map((g) => `<li>${esc(g.text)}</li>`)
-                .join("")}</ul>`
-            : esc(state.draftGoal.whatGoalText || "–")
-        }</strong></p>
-        <p><span>Meine Wie-Ziele</span><strong>${
-          howList.length
-            ? `<ul class="gm-selected-list">${howList
-                .map((g) => `<li>${esc(g.text)}</li>`)
-                .join("")}</ul>`
-            : esc(state.draftGoal.howGoalText || "–")
-        }</strong></p>
-      </div>
-      <details class="gm-overview-details open" open>
-        <summary>Gruppenübersicht ansehen</summary>
+      ${myPlan}
+      <div class="gm-overview-stack">
+        <p class="gm-label">Gruppenübersicht</p>
         ${renderGroupOverviewInner()}
-      </details>`;
+      </div>`;
     return shell(
       null,
       "Passt alles?",
@@ -798,28 +866,35 @@
   }
 
   function renderGroupOverviewInner() {
-    return `<div class="gm-overview-list">
+    const shared = state.bundle?.session?.sharedGoal || state.sharedGoal || "";
+    return `<div class="gm-overview-missions">
       ${members()
-        .map((m) => {
+        .map((m, idx) => {
           const roles = (m.roles || []).map((r) => r.name).join(", ");
-          const what =
-            (m.whatGoals || []).map((g) => g.text).filter(Boolean).join(" · ") ||
-            m.whatGoalText ||
-            "–";
-          const how =
-            (m.howGoals || []).map((g) => g.text).filter(Boolean).join(" · ") ||
-            m.howGoalText ||
-            "–";
-          return `
-          <article class="gm-overview-card ${m.goalsComplete ? "is-ready" : ""}">
-            <header>
-              <strong>${esc(m.displayName)}</strong>
-              <span>${m.goalsComplete ? "fertig" : "offen"}</span>
-            </header>
-            <p><span>Rolle</span>${esc(roles || "–")}</p>
-            <p><span>Was</span>${esc(what)}</p>
-            <p><span>Wie</span>${esc(how)}</p>
-          </article>`;
+          const whatList = m.whatGoals || [];
+          const howList = m.howGoals || [];
+          return renderMissionCard({
+            title: m.displayName,
+            step: String(idx + 1),
+            ready: !!m.goalsComplete,
+            status: m.goalsComplete ? "Fertig" : "Offen",
+            blocks: [
+              shared ? missionBlock("Gemeinsames Ziel", missionValue(shared)) : "",
+              missionBlock("Rolle", missionValue(roles || "–")),
+              missionBlock(
+                "Was-Ziele",
+                whatList.length
+                  ? missionList(whatList)
+                  : missionValue(m.whatGoalText || "–")
+              ),
+              missionBlock(
+                "Wie-Ziele",
+                howList.length
+                  ? missionList(howList)
+                  : missionValue(m.howGoalText || "–")
+              )
+            ].join("")
+          });
         })
         .join("")}
     </div>`;
@@ -828,8 +903,17 @@
   function renderOverview() {
     const shared = state.bundle?.session?.sharedGoal || "";
     const body = `
-      <p class="gm-lead">${esc(shared)}</p>
-      <div class="gm-selected-panel open">
+      ${
+        shared
+          ? renderMissionCard({
+              title: "Euer gemeinsames Ziel",
+              step: "★",
+              ready: true,
+              blocks: missionBlock("Levelplan", missionValue(shared))
+            })
+          : ""
+      }
+      <div class="gm-overview-stack">
         <p class="gm-label">Gruppenübersicht</p>
         ${renderGroupOverviewInner()}
       </div>`;
@@ -845,14 +929,23 @@
   function renderWork() {
     const p = state.bundle?.progress || {};
     const body = `
-      <div class="gm-work-hero">
-        <p class="gm-muted">${esc(state.bundle?.session?.subject)} · ${esc(state.bundle?.session?.topicName || "")}</p>
-        <h3>${esc(state.bundle?.session?.sharedGoal || "Gemeinsame Arbeit")}</h3>
-      </div>
-      <details class="gm-overview-details open" open>
-        <summary>Gruppenübersicht</summary>
+      ${renderMissionCard({
+        title: state.bundle?.session?.sharedGoal || "Gemeinsame Arbeit",
+        step: "★",
+        ready: true,
+        blocks: missionBlock(
+          "Fach / Thema",
+          missionValue(
+            [state.bundle?.session?.subject, state.bundle?.session?.topicName]
+              .filter(Boolean)
+              .join(" · ") || "–"
+          )
+        )
+      })}
+      <div class="gm-overview-stack">
+        <p class="gm-label">Gruppenübersicht</p>
         ${renderGroupOverviewInner()}
-      </details>
+      </div>
       <div class="gm-status-list">
         ${members()
           .map((m) => {
@@ -1101,6 +1194,15 @@
       .gm-lead{margin:0 0 14px;line-height:1.45}
       .gm-h3{margin:16px 0 8px;font-size:1.05rem}
       .gm-acc-static .plan-acc__header{cursor:default}
+      .gm-tile-grid{margin:10px 0 4px}
+      .gm-app .strategy-tile{min-height:100px}
+      .gm-app .strategy-tile__title{font-size:13px;padding-right:22px}
+      .gm-app .strategy-tile.is-disabled,.gm-app .strategy-tile:disabled{opacity:.45;cursor:not-allowed;transform:none}
+      .gm-overview-stack{margin-top:18px;display:grid;gap:12px}
+      .gm-overview-missions{display:grid;gap:14px}
+      .gm-mission-card .goal-step-card__head{justify-content:flex-start}
+      .gm-mission-status{margin-left:auto;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.35);color:#94a3b8}
+      .gm-mission-status.is-ready{border-color:rgba(34,211,238,.55);color:#67e8f9;background:rgba(34,211,238,.12);box-shadow:0 0 14px rgba(34,211,238,.2)}
       .gm-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
       .gm-card-wrap{display:flex;flex-direction:column;gap:6px}
       .gm-card{position:relative;text-align:left;min-height:88px;padding:16px 44px 16px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.28);background:rgba(8,24,48,.55);color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,box-shadow .15s,transform .15s}
@@ -1145,23 +1247,15 @@
       .gm-summary,.gm-selected-panel{display:grid;gap:12px;padding:16px;border-radius:16px;background:rgba(8,24,48,.55);border:1px solid rgba(34,211,238,.22);margin-bottom:14px}
       .gm-summary.open,.gm-selected-panel.open{display:grid}
       .gm-summary p{display:grid;gap:4px;margin:0}
-      .gm-summary span,.gm-overview-card span{opacity:.7;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase}
+      .gm-summary span{opacity:.7;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase}
       .gm-selected-list{margin:0;padding-left:1.1em;display:grid;gap:6px}
-      .gm-overview-list{display:grid;gap:10px}
-      .gm-overview-card{padding:12px 14px;border-radius:14px;background:rgba(8,47,73,.35);border:1px solid rgba(34,211,238,.2)}
-      .gm-overview-card.is-ready{border-color:rgba(34,211,238,.55);background:rgba(8,47,73,.45)}
-      .gm-overview-card header{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
-      .gm-overview-card p{margin:4px 0;display:grid;gap:2px}
-      .gm-overview-details{margin-top:12px;padding:12px;border-radius:14px;background:rgba(8,24,48,.4);border:1px solid rgba(34,211,238,.2)}
-      .gm-overview-details summary{cursor:pointer;font-weight:700;margin-bottom:8px}
-      .gm-status-list{display:grid;gap:8px;margin-bottom:16px}
+      .gm-status-list{display:grid;gap:8px;margin:16px 0}
       .gm-status-row{display:grid;gap:2px;padding:12px;border-radius:14px;background:rgba(8,24,48,.45)}
       .gm-docs{margin-top:10px;display:grid;gap:8px}
       .gm-doc{margin:0;padding:10px;border-radius:12px;background:rgba(8,24,48,.45)}
       .gm-empty{padding:20px;border-radius:16px;background:rgba(8,24,48,.45);border:1px dashed rgba(34,211,238,.35)}
       @media (min-width:700px){
         .gm-choice{grid-template-columns:repeat(3,1fr)}
-        .gm-overview-list{grid-template-columns:repeat(2,minmax(0,1fr))}
       }
       @media (prefers-reduced-motion:reduce){
         .gm-card,.gm-primary{transition:none}
