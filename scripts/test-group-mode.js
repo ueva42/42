@@ -6,6 +6,8 @@ import {
   allRolesCovered,
   clampGroupSize,
   memberGoalsComplete,
+  parseRoleGoalsCsv,
+  roleGoalDedupeKey,
   sessionProgress,
   suggestRoleAssignment,
   toIsoDateOnly,
@@ -106,10 +108,37 @@ function testGoals() {
   assert(prog.goalsDone === 1 && prog.total === 2, "progress counts");
 }
 
+function testCsvImport() {
+  const sample = `Fach;Rolle;Rollenbeschreibung;Zielart;Zieltext;Reihenfolge;Aktiv
+Physik;Versuch;Plant;WAS;Ich plane einen Versuch.;1;ja
+Physik;Versuch;Plant;WIE;Ich beachte die Regeln.;1;ja
+Physik;Versuch;Plant;XYZ;Ungültig;1;ja
+Sport;Coaching;Hilft;WAS;Ich beobachte.;1;ja
+`;
+  const parsed = parseRoleGoalsCsv(sample);
+  assert(parsed.rows.length === 3, "3 valid rows");
+  assert(parsed.errors.some((e) => String(e.message).includes("WAS oder WIE")), "invalid type");
+  const key = roleGoalDedupeKey({
+    subject: "Physik",
+    roleName: "Versuch",
+    type: "WAS",
+    text: "Ich plane einen Versuch."
+  });
+  assert(parsed.rows[0].key === key, "dedupe key");
+
+  const noSubject = parseRoleGoalsCsv(
+    `Rolle;Rollenbeschreibung;Zielart;Zieltext;Reihenfolge;Aktiv
+Protokoll;Dok;WAS;Ich notiere.;1;ja`,
+    { defaultSubject: "Physik" }
+  );
+  assert(noSubject.rows.length === 1 && noSubject.rows[0].subject === "Physik", "default subject");
+}
+
 testClamp();
 testDates();
 testMemberCount();
 testSuggestRoles();
 testCover();
 testGoals();
+testCsvImport();
 console.log("OK – group-mode helper tests passed");

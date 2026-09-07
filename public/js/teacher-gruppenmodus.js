@@ -11,17 +11,24 @@
   ];
 
   const state = {
-    view: "overview", // overview | settings
+    view: "overview", // overview | settings | roles | import
     classes: [],
     classId: null,
     subject: "Physik",
     settings: null,
     sessions: [],
     expandedId: null,
+    expandedRoleId: null,
     loading: false,
     saving: false,
     message: "",
-    error: ""
+    error: "",
+    importStep: 1,
+    importCsv: "",
+    importPreview: null,
+    importMode: "add_new",
+    importSummary: null,
+    copySourceSubject: "Physik"
   };
 
   function escapeHtml(str) {
@@ -155,6 +162,7 @@
         <div class="gm-toolbar-actions">
           <button type="button" class="action ${state.view === "overview" ? "gm-btn-active" : ""}" id="gmViewOverview">Offene Gruppen</button>
           <button type="button" class="action ${state.view === "settings" ? "gm-btn-active" : ""}" id="gmViewSettings">Einstellungen</button>
+          <button type="button" class="action ${state.view === "roles" || state.view === "import" ? "gm-btn-active" : ""}" id="gmViewRoles">Rollen und Rollenziele</button>
         </div>
       </div>`;
   }
@@ -162,17 +170,6 @@
   function renderSettings() {
     const s = state.settings;
     if (!s) return `<p class="tc-hint">Einstellungen werden geladen…</p>`;
-
-    const rolesHtml = (s.roles || [])
-      .map(
-        (role, idx) => `
-      <div class="gm-role-row ${role.active ? "" : "gm-role-row--off"}" data-role-idx="${idx}">
-        <input type="text" class="gm-role-name" value="${escapeHtml(role.name)}" aria-label="Rollenname" />
-        <input type="text" class="gm-role-desc" value="${escapeHtml(role.description || "")}" placeholder="Kurzbeschreibung" />
-        <label class="gm-check"><input type="checkbox" class="gm-role-active" ${role.active ? "checked" : ""}/> aktiv</label>
-      </div>`
-      )
-      .join("");
 
     const howText = (s.howGoalOptions || []).join("\n");
 
@@ -202,11 +199,19 @@
         </div>
 
         <h3>Aufgaben / Rollen</h3>
-        <div class="gm-roles">${rolesHtml}</div>
-        <button type="button" class="action" id="gmAddRole">Rolle hinzufügen</button>
+        <p class="hint">Rollen und persönliche Was-/Wie-Ziele verwaltest du unter „Rollen und Rollenziele“.</p>
+        <ul class="gm-role-summary">
+          ${(s.roles || [])
+            .map(
+              (r) =>
+                `<li>${escapeHtml(r.name)} · ${(r.wasGoals || []).length} Was · ${(r.howGoals || []).length} Wie ${r.active ? "" : "(inaktiv)"}</li>`
+            )
+            .join("")}
+        </ul>
+        <button type="button" class="action" id="gmGotoRoles">Rollen und Rollenziele öffnen</button>
 
-        <h3>Vorbereitete Wie-Ziele</h3>
-        <textarea id="gmHowOptions" rows="8" class="gm-textarea">${escapeHtml(howText)}</textarea>
+        <h3>Fallback-Wie-Ziele (wenn eine Rolle noch keine eigenen hat)</h3>
+        <textarea id="gmHowOptions" rows="6" class="gm-textarea">${escapeHtml(howText)}</textarea>
 
         <div class="gm-save-row">
           <button type="button" class="action" id="gmSaveSettings" ${state.saving ? "disabled" : ""}>
@@ -215,6 +220,173 @@
           ${state.message ? `<span class="gm-ok">${escapeHtml(state.message)}</span>` : ""}
           ${state.error ? `<span class="gm-err">${escapeHtml(state.error)}</span>` : ""}
         </div>
+      </div>`;
+  }
+
+  function renderRoles() {
+    const s = state.settings;
+    if (!s) return `<p class="tc-hint">Rollen werden geladen…</p>`;
+    const roles = s.roles || [];
+
+    const cards = roles
+      .map((role) => {
+        const open = state.expandedRoleId === role.id;
+        const was = role.wasGoals || [];
+        const how = role.howGoals || [];
+        return `
+        <article class="gm-role-card ${role.active ? "" : "is-off"}">
+          <button type="button" class="gm-role-card-head" data-expand-role="${role.id}">
+            <div>
+              <strong>${escapeHtml(role.name)}</strong>
+              <span class="gm-pill">${was.length} Was · ${how.length} Wie</span>
+              ${role.active ? "" : `<span class="gm-pill gm-pill--warn">inaktiv</span>`}
+            </div>
+            <p>${escapeHtml(role.description || "Keine Beschreibung")}</p>
+          </button>
+          ${
+            open
+              ? `<div class="gm-role-card-body">
+                  <div class="gm-role-actions">
+                    <button type="button" class="action" data-edit-role="${role.id}">Bearbeiten</button>
+                    <button type="button" class="action" data-dup-role="${role.id}">Duplizieren</button>
+                    <button type="button" class="action" data-toggle-role="${role.id}">${role.active ? "Deaktivieren" : "Aktivieren"}</button>
+                    <button type="button" class="action" data-del-role="${role.id}">Löschen</button>
+                  </div>
+                  <div class="gm-goal-cols">
+                    <div>
+                      <h4>Rollen-Was-Ziele</h4>
+                      <ul>${was
+                        .map(
+                          (g) => `
+                        <li class="${g.active ? "" : "is-off"}">
+                          <span>${escapeHtml(g.text)}</span>
+                          <button type="button" data-edit-goal="${g.id}">✎</button>
+                          <button type="button" data-del-goal="${g.id}">×</button>
+                        </li>`
+                        )
+                        .join("")}</ul>
+                      <button type="button" class="action" data-add-goal="${role.id}" data-goal-type="WAS">Was-Ziel hinzufügen</button>
+                    </div>
+                    <div>
+                      <h4>Rollen-Wie-Ziele</h4>
+                      <ul>${how
+                        .map(
+                          (g) => `
+                        <li class="${g.active ? "" : "is-off"}">
+                          <span>${escapeHtml(g.text)}</span>
+                          <button type="button" data-edit-goal="${g.id}">✎</button>
+                          <button type="button" data-del-goal="${g.id}">×</button>
+                        </li>`
+                        )
+                        .join("")}</ul>
+                      <button type="button" class="action" data-add-goal="${role.id}" data-goal-type="WIE">Wie-Ziel hinzufügen</button>
+                    </div>
+                  </div>
+                </div>`
+              : ""
+          }
+        </article>`;
+      })
+      .join("");
+
+    return `
+      <div class="panel gm-panel">
+        <h2>Rollen und Rollenziele – ${escapeHtml(state.subject)}</h2>
+        <p class="hint">Fachbezogen und importierbar. Persönliche Was-/Wie-Ziele gehören zur Rolle, das gemeinsame Ziel kommt aus dem Levelplan.</p>
+        <div class="gm-role-toolbar">
+          <button type="button" class="action" id="gmAddRole">Rolle hinzufügen</button>
+          <button type="button" class="action" id="gmImportRoles">Rollen und Rollenziele importieren</button>
+          <button type="button" class="action" id="gmCopyRoles">Vorlage aus anderem Fach übernehmen</button>
+          <a class="action" href="/api/teacher/group-mode/role-goals/sample.csv">Beispieldatei</a>
+        </div>
+        ${state.message ? `<p class="gm-ok">${escapeHtml(state.message)}</p>` : ""}
+        ${state.error ? `<p class="gm-err">${escapeHtml(state.error)}</p>` : ""}
+        <div class="gm-role-cards">${cards || `<p class="hint">Noch keine Rollen – importieren oder hinzufügen.</p>`}</div>
+      </div>`;
+  }
+
+  function renderImport() {
+    const p = state.importPreview;
+    const step = state.importStep;
+    return `
+      <div class="panel gm-panel">
+        <h2>Rollen importieren – ${escapeHtml(state.subject)}</h2>
+        <p class="hint">Schritt ${step} von 5</p>
+        ${
+          step === 1
+            ? `<p>Für welches Fach möchtest du Rollen importieren?</p>
+               <p><strong>${escapeHtml(state.subject)}</strong> (aktuell gewählt)</p>
+               <button type="button" class="action" id="gmImportNext">Weiter</button>`
+            : ""
+        }
+        ${
+          step === 2
+            ? `<p>Datei auswählen (CSV)</p>
+               <input type="file" id="gmImportFile" accept=".csv,text/csv,text/plain" />
+               <textarea id="gmImportText" class="gm-textarea" rows="10" placeholder="Oder CSV hier einfügen…">${escapeHtml(state.importCsv)}</textarea>
+               <div class="gm-footer-row">
+                 <button type="button" class="action" id="gmImportBack">Zurück</button>
+                 <button type="button" class="action" id="gmImportPreviewBtn">Import prüfen</button>
+               </div>`
+            : ""
+        }
+        ${
+          step === 3 && p
+            ? `<div class="gm-import-preview">
+                 <p><strong>${(p.roles || []).length}</strong> Rollen · <strong>${p.wasCount}</strong> Was · <strong>${p.howCount}</strong> Wie · <strong>${p.duplicateCount}</strong> mögliche Duplikate · <strong>${(p.errors || []).length}</strong> Hinweise</p>
+                 <ul>${(p.roles || [])
+                   .map(
+                     (r) =>
+                       `<li>${escapeHtml(r.name)} (${r.was} Was / ${r.how} Wie)${r.exists ? " – Rolle existiert bereits" : " – neu"}</li>`
+                   )
+                   .join("")}</ul>
+                 ${(p.errors || []).length
+                   ? `<div class="gm-err"><p>Korrekturen nötig:</p><ul>${p.errors
+                       .slice(0, 20)
+                       .map((e) => `<li>Zeile ${e.line}: ${escapeHtml(e.message)}</li>`)
+                       .join("")}</ul></div>`
+                   : ""}
+               </div>
+               <div class="gm-footer-row">
+                 <button type="button" class="action" id="gmImportBack">Zurück</button>
+                 <button type="button" class="action" id="gmImportNext">Weiter</button>
+               </div>`
+            : ""
+        }
+        ${
+          step === 4
+            ? `<p>Umgang mit vorhandenen Rollen</p>
+               <label class="gm-check"><input type="radio" name="gmImportMode" value="add_new" ${state.importMode === "add_new" ? "checked" : ""}/> Nur neue Rollen und Ziele hinzufügen (sicher)</label>
+               <label class="gm-check"><input type="radio" name="gmImportMode" value="merge" ${state.importMode === "merge" ? "checked" : ""}/> Vorhandene Rollen ergänzen</label>
+               <label class="gm-check"><input type="radio" name="gmImportMode" value="update" ${state.importMode === "update" ? "checked" : ""}/> Vorhandene Einträge aktualisieren</label>
+               <div class="gm-footer-row">
+                 <button type="button" class="action" id="gmImportBack">Zurück</button>
+                 <button type="button" class="action" id="gmImportNext">Weiter</button>
+               </div>`
+            : ""
+        }
+        ${
+          step === 5
+            ? state.importSummary
+              ? `<div class="gm-ok">
+                   <p>Import fertig.</p>
+                   <ul>
+                     <li>Rollen neu: ${state.importSummary.rolesImported}</li>
+                     <li>Was-Ziele: ${state.importSummary.wasImported}</li>
+                     <li>Wie-Ziele: ${state.importSummary.howImported}</li>
+                     <li>übersprungene Duplikate: ${state.importSummary.skippedDuplicates}</li>
+                     <li>fehlerhafte Zeilen: ${state.importSummary.errorCount}</li>
+                   </ul>
+                 </div>
+                 <button type="button" class="action" id="gmImportDone">Zurück zu den Rollen</button>`
+              : `<p>Bereit zum Importieren.</p>
+                 <div class="gm-footer-row">
+                   <button type="button" class="action" id="gmImportBack">Zurück</button>
+                   <button type="button" class="action" id="gmImportRun" ${state.saving ? "disabled" : ""}>Importieren</button>
+                 </div>`
+            : ""
+        }
+        ${state.error ? `<p class="gm-err">${escapeHtml(state.error)}</p>` : ""}
       </div>`;
   }
 
@@ -303,41 +475,53 @@
   function render() {
     const el = root();
     if (!el) return;
+    const main =
+      state.view === "settings"
+        ? renderSettings()
+        : state.view === "roles"
+          ? renderRoles()
+          : state.view === "import"
+            ? renderImport()
+            : renderOverview();
     el.innerHTML = `
       <style>
         .gm-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:16px}
         .gm-toolbar label{display:flex;flex-direction:column;gap:4px;font-size:.85rem}
-        .gm-toolbar-actions{display:flex;gap:8px}
+        .gm-toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
         .gm-btn-active{outline:2px solid #3dd6c6}
         .gm-panel h2{margin-top:0}
         .gm-switch{display:flex;gap:10px;align-items:flex-start;margin:12px 0;font-weight:600}
         .gm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:12px 0}
-        .gm-check{display:flex;gap:8px;align-items:center}
-        .gm-role-row{display:grid;grid-template-columns:1fr 2fr auto;gap:8px;margin-bottom:8px}
-        .gm-role-row--off{opacity:.5}
-        .gm-textarea{width:100%;max-width:640px}
-        .gm-save-row{display:flex;gap:12px;align-items:center;margin-top:12px}
+        .gm-check{display:flex;gap:8px;align-items:center;margin:6px 0}
+        .gm-textarea{width:100%;max-width:720px}
+        .gm-save-row,.gm-footer-row,.gm-role-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px}
         .gm-ok{color:#1a7f4b}
         .gm-err{color:#b00020}
-        .gm-session-card{border:1px solid rgba(0,0,0,.12);border-radius:12px;margin-bottom:12px;overflow:hidden}
-        .gm-session-head{display:block;width:100%;text-align:left;padding:14px 16px;background:#fff;border:0;cursor:pointer}
-        .gm-session-head p{margin:4px 0 0;color:#555}
-        .gm-status{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:.75rem}
+        .gm-session-card,.gm-role-card{border:1px solid rgba(0,0,0,.12);border-radius:12px;margin-bottom:12px;overflow:hidden}
+        .gm-session-head,.gm-role-card-head{display:block;width:100%;text-align:left;padding:14px 16px;background:#fff;border:0;cursor:pointer}
+        .gm-session-head p,.gm-role-card-head p{margin:4px 0 0;color:#555}
+        .gm-status,.gm-pill{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:.75rem;background:#e8f7f5}
+        .gm-pill--warn,.gm-status--warn{background:#fff3cd}
         .gm-status--ok{background:#d8f5e5}
-        .gm-status--warn{background:#fff3cd}
         .gm-status--run{background:#d7f0ff}
-        .gm-session-body{padding:0 16px 14px;border-top:1px solid rgba(0,0,0,.06)}
+        .gm-session-body,.gm-role-card-body{padding:0 16px 14px;border-top:1px solid rgba(0,0,0,.06)}
         .gm-member-line{display:grid;grid-template-columns:1.2fr 1.5fr 24px 24px 24px;gap:8px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05)}
         .gm-member-detail{font-size:.9rem;color:#444;padding:0 0 8px}
-        .gm-session-actions{margin-top:10px}
+        .gm-goal-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+        .gm-goal-cols ul{list-style:none;padding:0;margin:0 0 8px}
+        .gm-goal-cols li{display:flex;gap:6px;align-items:flex-start;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.06)}
+        .gm-goal-cols li span{flex:1}
+        .gm-goal-cols li.is-off,.gm-role-card.is-off{opacity:.55}
+        .gm-role-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+        .gm-role-summary{margin:8px 0 12px;padding-left:18px}
         @media (max-width:700px){
-          .gm-role-row,.gm-member-line{grid-template-columns:1fr}
+          .gm-member-line,.gm-goal-cols{grid-template-columns:1fr}
         }
       </style>
       ${renderToolbar()}
       ${state.loading ? `<p class="hint">Laden…</p>` : ""}
       ${state.error && state.view === "overview" ? `<p class="gm-err">${escapeHtml(state.error)}</p>` : ""}
-      ${state.view === "settings" ? renderSettings() : renderOverview()}
+      ${main}
     `;
     bind();
   }
@@ -362,13 +546,6 @@
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
-    document.querySelectorAll(".gm-role-row").forEach((row) => {
-      const idx = Number(row.dataset.roleIdx);
-      if (!state.settings.roles[idx]) return;
-      state.settings.roles[idx].name = row.querySelector(".gm-role-name")?.value || "";
-      state.settings.roles[idx].description = row.querySelector(".gm-role-desc")?.value || "";
-      state.settings.roles[idx].active = !!row.querySelector(".gm-role-active")?.checked;
-    });
   }
 
   function bind() {
@@ -388,11 +565,243 @@
       state.view = "settings";
       await refresh();
     });
+    document.getElementById("gmViewRoles")?.addEventListener("click", async () => {
+      state.view = "roles";
+      state.message = "";
+      state.error = "";
+      await refresh();
+    });
+    document.getElementById("gmGotoRoles")?.addEventListener("click", async () => {
+      state.view = "roles";
+      await refresh();
+    });
     document.getElementById("gmSaveSettings")?.addEventListener("click", async () => {
       readSettingsFromForm();
       await saveSettings();
     });
     document.getElementById("gmAddRole")?.addEventListener("click", addRole);
+
+    document.querySelectorAll("[data-expand-role]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-expand-role");
+        state.expandedRoleId = state.expandedRoleId === id ? null : id;
+        render();
+      });
+    });
+    document.querySelectorAll("[data-edit-role]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-edit-role");
+        const role = (state.settings?.roles || []).find((r) => String(r.id) === String(id));
+        if (!role) return;
+        const name = prompt("Rollenname", role.name);
+        if (name == null) return;
+        const description = prompt("Kurzbeschreibung", role.description || "");
+        if (description == null) return;
+        const r = await fetch(`/api/teacher/group-mode/roles/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim(), description: description.trim() })
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          state.error = data.error || "Speichern fehlgeschlagen";
+          render();
+          return;
+        }
+        await loadSettings();
+        render();
+      });
+    });
+    document.querySelectorAll("[data-dup-role]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-dup-role");
+        await fetch(`/api/teacher/group-mode/roles/${id}/duplicate`, { method: "POST" });
+        await loadSettings();
+        render();
+      });
+    });
+    document.querySelectorAll("[data-toggle-role]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-toggle-role");
+        const role = (state.settings?.roles || []).find((r) => String(r.id) === String(id));
+        if (!role) return;
+        await fetch(`/api/teacher/group-mode/roles/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: !role.active })
+        });
+        await loadSettings();
+        render();
+      });
+    });
+    document.querySelectorAll("[data-del-role]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-del-role");
+        if (!confirm("Rolle löschen? Bereits verwendete Rollen werden nur deaktiviert.")) return;
+        const r = await fetch(`/api/teacher/group-mode/roles/${id}`, { method: "DELETE" });
+        const data = await r.json();
+        state.message = data.message || (data.deleted ? "Rolle gelöscht." : "Rolle deaktiviert.");
+        await loadSettings();
+        render();
+      });
+    });
+    document.querySelectorAll("[data-add-goal]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const roleId = btn.getAttribute("data-add-goal");
+        const type = btn.getAttribute("data-goal-type");
+        const text = prompt(type === "WIE" ? "Neues Wie-Ziel" : "Neues Was-Ziel");
+        if (!text || !text.trim()) return;
+        await fetch("/api/teacher/group-mode/role-goals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roleId, type, text: text.trim() })
+        });
+        await loadSettings();
+        render();
+      });
+    });
+    document.querySelectorAll("[data-edit-goal]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-edit-goal");
+        let goal = null;
+        for (const role of state.settings?.roles || []) {
+          goal = [...(role.wasGoals || []), ...(role.howGoals || [])].find(
+            (g) => String(g.id) === String(id)
+          );
+          if (goal) break;
+        }
+        if (!goal) return;
+        const text = prompt("Zieltext", goal.text);
+        if (text == null) return;
+        await fetch(`/api/teacher/group-mode/role-goals/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: text.trim() })
+        });
+        await loadSettings();
+        render();
+      });
+    });
+    document.querySelectorAll("[data-del-goal]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-del-goal");
+        if (!confirm("Ziel löschen? Bereits verwendete Ziele werden nur deaktiviert.")) return;
+        await fetch(`/api/teacher/group-mode/role-goals/${id}`, { method: "DELETE" });
+        await loadSettings();
+        render();
+      });
+    });
+
+    document.getElementById("gmImportRoles")?.addEventListener("click", () => {
+      state.view = "import";
+      state.importStep = 1;
+      state.importCsv = "";
+      state.importPreview = null;
+      state.importSummary = null;
+      state.importMode = "add_new";
+      state.error = "";
+      render();
+    });
+    document.getElementById("gmCopyRoles")?.addEventListener("click", async () => {
+      const source = prompt(
+        "Aus welchem Fach kopieren?",
+        FALLBACK_SUBJECTS.find((s) => s !== state.subject) || "Sport"
+      );
+      if (!source || source === state.subject) return;
+      if (!confirm(`Rollen aus „${source}“ nach „${state.subject}“ kopieren?`)) return;
+      const r = await fetch("/api/teacher/group-mode/roles/copy-from-subject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classId: state.classId,
+          sourceSubject: source,
+          targetSubject: state.subject
+        })
+      });
+      const data = await r.json();
+      if (!r.ok || !data.success) {
+        state.error = data.error || "Kopieren fehlgeschlagen";
+      } else {
+        state.settings = data.settings;
+        state.message = `${data.summary.rolesCopied} Rollen, ${data.summary.goalsCopied} Ziele kopiert.`;
+      }
+      render();
+    });
+
+    document.getElementById("gmImportNext")?.addEventListener("click", () => {
+      if (state.importStep === 4) {
+        const mode = document.querySelector('input[name="gmImportMode"]:checked')?.value;
+        if (mode) state.importMode = mode;
+      }
+      state.importStep = Math.min(5, state.importStep + 1);
+      render();
+    });
+    document.getElementById("gmImportBack")?.addEventListener("click", () => {
+      state.importStep = Math.max(1, state.importStep - 1);
+      render();
+    });
+    document.getElementById("gmImportFile")?.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      state.importCsv = await file.text();
+      const ta = document.getElementById("gmImportText");
+      if (ta) ta.value = state.importCsv;
+    });
+    document.getElementById("gmImportText")?.addEventListener("input", (e) => {
+      state.importCsv = e.target.value;
+    });
+    document.getElementById("gmImportPreviewBtn")?.addEventListener("click", async () => {
+      state.importCsv = document.getElementById("gmImportText")?.value || state.importCsv;
+      const r = await fetch("/api/teacher/group-mode/role-goals/import/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classId: state.classId,
+          subject: state.subject,
+          csvText: state.importCsv
+        })
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        state.error = data.error || "Vorschau fehlgeschlagen";
+        render();
+        return;
+      }
+      state.importPreview = data.preview;
+      state.importStep = 3;
+      state.error = "";
+      render();
+    });
+    document.getElementById("gmImportRun")?.addEventListener("click", async () => {
+      state.saving = true;
+      render();
+      try {
+        const r = await fetch("/api/teacher/group-mode/role-goals/import/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            classId: state.classId,
+            subject: state.subject,
+            csvText: state.importCsv,
+            mode: state.importMode
+          })
+        });
+        const data = await r.json();
+        if (!r.ok || !data.success) throw new Error(data.error || "Import fehlgeschlagen");
+        state.importSummary = data.summary;
+        state.settings = data.settings;
+      } catch (err) {
+        state.error = err.message;
+      } finally {
+        state.saving = false;
+        render();
+      }
+    });
+    document.getElementById("gmImportDone")?.addEventListener("click", async () => {
+      state.view = "roles";
+      await refresh();
+    });
+
     document.querySelectorAll("[data-expand]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = btn.getAttribute("data-expand");
@@ -433,8 +842,8 @@
     state.error = "";
     render();
     try {
-      if (state.view === "settings") await loadSettings();
-      else await loadSessions();
+      if (state.view === "overview") await loadSessions();
+      else await loadSettings();
     } catch (err) {
       state.error = err.message || "Laden fehlgeschlagen.";
     } finally {

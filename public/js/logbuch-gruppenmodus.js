@@ -17,9 +17,11 @@
       whatGoalId: null,
       whatGoalText: "",
       selectedLevel: null,
+      howGoalId: null,
       howGoalText: "",
       customHow: false
     },
+    draftSharedGoalId: null,
     midDraft: {},
     reflectDraft: {},
     saveState: "idle", // idle | saving | saved | error
@@ -57,6 +59,57 @@
     const topics = state.bundle?.topics || [];
     const topic = topics.find((t) => String(t.id) === String(topicId)) || topics[0];
     return topic?.goals || [];
+  }
+
+  /** Aktive Rollen-Was-/Wie-Ziele für das aktuelle Mitglied (nach zugewiesenen Rollen). */
+  function roleGoalsForCurrentMember(type) {
+    const m = currentMember();
+    const want = String(type || "WAS").toUpperCase() === "WIE" ? "WIE" : "WAS";
+    const assigned = m?.roles || [];
+    const defs = settings().roles || [];
+    const out = [];
+    const seen = new Set();
+    for (const role of assigned) {
+      const def =
+        defs.find((r) => String(r.id) === String(role.roleId)) ||
+        defs.find((r) => normalizeText(r.name) === normalizeText(role.name));
+      if (!def || def.active === false) continue;
+      const list = want === "WIE" ? def.howGoals || [] : def.wasGoals || [];
+      for (const g of list) {
+        if (g.active === false) continue;
+        const key = String(g.id || g.text);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          ...g,
+          roleName: role.name || def.name,
+          roleId: def.id
+        });
+      }
+    }
+    return out;
+  }
+
+  function normalizeText(s) {
+    return String(s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  }
+
+  function levelGoalCardText(goal) {
+    const tiers = state.bundle?.levelOptions || [];
+    const bits = [goal.text];
+    if (goal.rookieGoalText || goal.operatorGoalText || goal.streetLegendGoalText) {
+      const labels = [];
+      if (goal.rookieGoalText) labels.push("Rookie");
+      if (goal.operatorGoalText) labels.push("Operator");
+      if (goal.streetLegendGoalText) labels.push("Street Legend");
+      if (labels.length) bits.push(labels.join(" · "));
+    } else if (tiers.length) {
+      /* no-op */
+    }
+    return bits;
   }
 
   function persistLocal() {
@@ -198,7 +251,7 @@
         <button type="button" class="gm-card ${selected ? "is-selected" : ""} ${item.disabled ? "is-disabled" : ""}"
           data-${dataAttr}="${esc(item.id)}" ${item.disabled ? "disabled" : ""}>
           <span class="gm-card-title">${esc(item.title)}</span>
-          ${item.sub ? `<span class="gm-card-sub">${esc(item.sub)}</span>` : ""}
+          ${item.sub || item.meta ? `<span class="gm-card-sub">${esc(item.sub || item.meta)}</span>` : ""}
           ${item.badge ? `<span class="gm-card-badge">${esc(item.badge)}</span>` : ""}
         </button>`;
       })
@@ -361,34 +414,47 @@
   }
 
   function renderShared() {
-    const suggestions = [
-      state.bundle?.session?.topicName
-        ? `Wir untersuchen ${state.bundle.session.topicName}.`
-        : null,
-      "Wir führen den Versuch durch und halten unsere Beobachtungen fest.",
-      "Wir bauen, testen und verbessern unser Produkt."
-    ].filter(Boolean);
+    const goals = topicGoals();
+    const topicName = state.bundle?.session?.topicName || "";
 
     const body = `
-      <p class="gm-lead">Woran arbeitet ihr heute gemeinsam?</p>
-      <div class="gm-cards">
-        ${suggestions
-          .map(
-            (s) => `
-          <button type="button" class="gm-card ${state.sharedGoal === s ? "is-selected" : ""}" data-shared="${esc(s)}">
-            <span class="gm-card-title">${esc(s)}</span>
-          </button>`
-          )
-          .join("")}
-      </div>
+      <p class="gm-lead">Woran möchtet ihr heute gemeinsam arbeiten?</p>
+      ${
+        topicName
+          ? `<p class="gm-muted">Thema: <strong>${esc(topicName)}</strong></p>`
+          : ""
+      }
+      ${
+        goals.length
+          ? `<div class="gm-cards">
+              ${goals
+                .map((g) => {
+                  const selected =
+                    state.sharedGoal === g.text ||
+                    String(state.draftSharedGoalId) === String(g.id);
+                  const meta = levelGoalCardText(g);
+                  return `
+                <button type="button" class="gm-card ${selected ? "is-selected" : ""}" data-shared-goal-id="${esc(g.id)}" data-shared="${esc(g.text)}">
+                  <span class="gm-card-title">${esc(g.text)}</span>
+                  ${
+                    meta[1]
+                      ? `<span class="gm-card-meta">${esc(meta[1])}</span>`
+                      : ""
+                  }
+                </button>`;
+                })
+                .join("")}
+            </div>`
+          : `<div class="gm-empty">Kein Kompetenzraster für dieses Thema hinterlegt. Schreibt euer gemeinsames Ziel kurz selbst.</div>`
+      }
       <label class="gm-label">Oder kurz selbst schreiben
         <textarea id="gmSharedInput" class="gm-textarea" maxlength="400" rows="3">${esc(state.sharedGoal)}</textarea>
       </label>`;
     return shell(
       "Schritt 4 von 5",
-      "Woran arbeitet ihr heute gemeinsam?",
+      "Woran möchtet ihr heute gemeinsam arbeiten?",
       body,
-      `<button type="button" class="gm-primary" id="gmSharedNext">Vorhaben übernehmen</button>`
+      `<button type="button" class="gm-primary" id="gmSharedNext">Das ist unser Ziel</button>`
     );
   }
 
@@ -410,59 +476,64 @@
 
   function renderWhat() {
     const m = currentMember();
-    const goals = topicGoals();
+    const goals = roleGoalsForCurrentMember("WAS");
     const roles = (m?.roles || []).map((r) => r.name).join(", ");
+    const shared = state.bundle?.session?.sharedGoal || state.sharedGoal || "";
+    const multi = (m?.roles || []).length > 1;
     const body = `
       <p class="gm-lead">${esc(m.displayName)}, das ist heute deine Aufgabe: <strong>${esc(roles || "–")}</strong></p>
-      <p class="gm-h3">Was möchtest du heute können?</p>
+      ${shared ? `<p class="gm-muted">Euer gemeinsames Ziel: <strong>${esc(shared)}</strong></p>` : ""}
+      <p class="gm-h3">Was ist heute dein Beitrag in deiner Rolle?</p>
       ${
         goals.length
           ? cardGrid(
               goals.map((g) => ({
                 id: g.id,
                 title: g.text,
+                meta: multi ? g.roleName : "",
                 selected: String(state.draftGoal.whatGoalId) === String(g.id)
               })),
               state.draftGoal.whatGoalId,
               "what"
             )
           : settings().allowFreeWhatGoal
-            ? `<textarea id="gmFreeWhat" class="gm-textarea" rows="3" placeholder="Dein Was-Ziel…">${esc(state.draftGoal.whatGoalText)}</textarea>`
-            : `<div class="gm-empty">Kein Kompetenzraster vorhanden.</div>`
-      }
-      ${
-        state.draftGoal.whatGoalId
-          ? `<p class="gm-h3">Stufe (optional)</p>
-             <div class="gm-chips">
-               ${(state.bundle?.levelOptions || [])
-                 .map(
-                   (o) => `
-                 <button type="button" class="gm-chip ${state.draftGoal.selectedLevel === o.value ? "is-selected" : ""}" data-level="${esc(o.value)}">${esc(o.label)}</button>`
-                 )
-                 .join("")}
-             </div>`
-          : ""
+            ? `<textarea id="gmFreeWhat" class="gm-textarea" rows="3" placeholder="Dein Beitrag in deiner Rolle…">${esc(state.draftGoal.whatGoalText)}</textarea>`
+            : `<div class="gm-empty">Für deine Rolle sind noch keine Was-Ziele hinterlegt. Bitte deine Lehrkraft, Rollen-Ziele zu importieren.</div>`
       }`;
     return shell(
       null,
-      "Was möchtest du heute können?",
+      "Was ist heute dein Beitrag?",
       body,
       `<button type="button" class="gm-primary" id="gmWhatNext">Weiter zum Wie-Ziel</button>`
     );
   }
 
   function renderHow() {
-    const options = settings().howGoalOptions || [];
-    const body = `
-      <p class="gm-lead">Wie möchtest du daran arbeiten?</p>
-      ${cardGrid(
-        options.map((t) => ({
+    const roleHow = roleGoalsForCurrentMember("WIE");
+    const fallback = settings().howGoalOptions || [];
+    const multi = (currentMember()?.roles || []).length > 1;
+    const options = roleHow.length
+      ? roleHow.map((g) => ({
+          id: g.id,
+          title: g.text,
+          meta: multi ? g.roleName : "",
+          selected: String(state.draftGoal.howGoalId) === String(g.id)
+        }))
+      : fallback.map((t) => ({
           id: t,
           title: t,
           selected: !state.draftGoal.customHow && state.draftGoal.howGoalText === t
-        })),
-        state.draftGoal.customHow ? null : state.draftGoal.howGoalText,
-        "how"
+        }));
+    const body = `
+      <p class="gm-lead">Wie möchtest du deinen Beitrag umsetzen?</p>
+      ${cardGrid(
+        options,
+        roleHow.length
+          ? state.draftGoal.howGoalId
+          : state.draftGoal.customHow
+            ? null
+            : state.draftGoal.howGoalText,
+        roleHow.length ? "how-id" : "how"
       )}
       ${
         settings().allowFreeHowGoal
@@ -476,7 +547,7 @@
       }`;
     return shell(
       null,
-      "Wie möchtest du daran arbeiten?",
+      "Wie möchtest du dabei arbeiten?",
       body,
       `<button type="button" class="gm-primary" id="gmHowNext">Weiter</button>`
     );
@@ -485,12 +556,14 @@
   function renderConfirm() {
     const m = currentMember();
     const roles = (m?.roles || []).map((r) => r.name).join(", ");
+    const shared = state.bundle?.session?.sharedGoal || state.sharedGoal || "";
     const body = `
       <div class="gm-summary">
-        <h3>Das hast du dir vorgenommen</h3>
+        <h3>Dein Plan für heute</h3>
+        <p><span>Unser gemeinsames Ziel</span><strong>${esc(shared || "–")}</strong></p>
         <p><span>Meine Rolle</span><strong>${esc(roles || "–")}</strong></p>
-        <p><span>Mein Was-Ziel</span><strong>${esc(state.draftGoal.whatGoalText || "–")}</strong></p>
-        <p><span>Mein Wie-Ziel</span><strong>${esc(state.draftGoal.howGoalText || "–")}</strong></p>
+        <p><span>Mein Rollen-Was-Ziel</span><strong>${esc(state.draftGoal.whatGoalText || "–")}</strong></p>
+        <p><span>Mein Rollen-Wie-Ziel</span><strong>${esc(state.draftGoal.howGoalText || "–")}</strong></p>
       </div>`;
     return shell(
       null,
@@ -498,7 +571,7 @@
       body,
       `<div class="gm-footer-row">
         <button type="button" class="gm-ghost" id="gmConfirmEdit">Ändern</button>
-        <button type="button" class="gm-primary" id="gmConfirmOk">Passt so</button>
+        <button type="button" class="gm-primary" id="gmConfirmOk">Passt so – weitergeben</button>
       </div>`
     );
   }
@@ -1030,17 +1103,24 @@
     document.querySelectorAll("[data-shared]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.sharedGoal = btn.getAttribute("data-shared");
+        state.draftSharedGoalId = btn.getAttribute("data-shared-goal-id");
         render();
       });
     });
     document.getElementById("gmSharedInput")?.addEventListener("input", (e) => {
       state.sharedGoal = e.target.value;
+      state.draftSharedGoalId = null;
     });
     document.getElementById("gmSharedNext")?.addEventListener("click", async () => {
       clearFlash();
       try {
         const text =
           document.getElementById("gmSharedInput")?.value?.trim() || state.sharedGoal;
+        if (!text) {
+          state.error = "Bitte wählt ein gemeinsames Ziel.";
+          render();
+          return;
+        }
         const data = await api(`/api/student/group-sessions/${state.sessionId}/shared-goal`, {
           method: "PATCH",
           body: JSON.stringify({ sharedGoal: text })
@@ -1053,6 +1133,7 @@
           whatGoalId: null,
           whatGoalText: "",
           selectedLevel: null,
+          howGoalId: null,
           howGoalText: "",
           customHow: false
         };
@@ -1073,6 +1154,7 @@
           whatGoalId: m?.whatGoalId || null,
           whatGoalText: m?.whatGoalText || "",
           selectedLevel: m?.selectedLevel || null,
+          howGoalId: m?.howGoalId || null,
           howGoalText: m?.howGoalText || "",
           customHow: false
         };
@@ -1084,7 +1166,7 @@
     document.querySelectorAll("[data-what]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = btn.getAttribute("data-what");
-        const goal = topicGoals().find((g) => String(g.id) === String(id));
+        const goal = roleGoalsForCurrentMember("WAS").find((g) => String(g.id) === String(id));
         state.draftGoal.whatGoalId = id;
         state.draftGoal.whatGoalText = goal?.text || "";
         render();
@@ -1094,15 +1176,9 @@
       state.draftGoal.whatGoalText = e.target.value;
       state.draftGoal.whatGoalId = null;
     });
-    document.querySelectorAll("[data-level]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state.draftGoal.selectedLevel = btn.getAttribute("data-level");
-        render();
-      });
-    });
     document.getElementById("gmWhatNext")?.addEventListener("click", () => {
       if (!state.draftGoal.whatGoalId && !state.draftGoal.whatGoalText.trim()) {
-        state.error = "Bitte wähle, was du heute können möchtest.";
+        state.error = "Bitte wähle, was heute dein Beitrag in deiner Rolle ist.";
         render();
         return;
       }
@@ -1110,26 +1186,39 @@
       render();
     });
 
+    document.querySelectorAll("[data-how-id]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-how-id");
+        const goal = roleGoalsForCurrentMember("WIE").find((g) => String(g.id) === String(id));
+        state.draftGoal.howGoalId = id;
+        state.draftGoal.howGoalText = goal?.text || "";
+        state.draftGoal.customHow = false;
+        render();
+      });
+    });
     document.querySelectorAll("[data-how]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.draftGoal.howGoalText = btn.getAttribute("data-how");
+        state.draftGoal.howGoalId = null;
         state.draftGoal.customHow = false;
         render();
       });
     });
     document.getElementById("gmCustomHow")?.addEventListener("click", () => {
       state.draftGoal.customHow = true;
+      state.draftGoal.howGoalId = null;
       state.draftGoal.howGoalText = "";
       render();
     });
     document.getElementById("gmHowInput")?.addEventListener("input", (e) => {
       state.draftGoal.howGoalText = e.target.value;
+      state.draftGoal.howGoalId = null;
     });
     document.getElementById("gmHowNext")?.addEventListener("click", () => {
       const how =
         document.getElementById("gmHowInput")?.value?.trim() || state.draftGoal.howGoalText;
-      if (!how) {
-        state.error = "Bitte wähle, wie du daran arbeiten möchtest.";
+      if (!how && !state.draftGoal.howGoalId) {
+        state.error = "Bitte wähle, wie du deinen Beitrag umsetzen möchtest.";
         render();
         return;
       }
@@ -1153,6 +1242,7 @@
             whatGoalId: state.draftGoal.whatGoalId,
             whatGoalText: state.draftGoal.whatGoalText,
             selectedLevel: state.draftGoal.selectedLevel,
+            howGoalId: state.draftGoal.howGoalId,
             howGoalText: state.draftGoal.howGoalText
           })
         });
@@ -1162,6 +1252,7 @@
           whatGoalId: null,
           whatGoalText: "",
           selectedLevel: null,
+          howGoalId: null,
           howGoalText: "",
           customHow: false
         };
