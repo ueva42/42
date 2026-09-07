@@ -5,7 +5,9 @@
 import {
   allRolesCovered,
   clampGroupSize,
+  joinGoalTexts,
   memberGoalsComplete,
+  normalizeGoalList,
   parseRoleGoalsCsv,
   roleGoalDedupeKey,
   sessionProgress,
@@ -134,6 +136,27 @@ Protokoll;Dok;WAS;Ich notiere.;1;ja`,
   assert(noSubject.rows.length === 1 && noSubject.rows[0].subject === "Physik", "default subject");
 }
 
+function testMultiGoals() {
+  const list = normalizeGoalList([
+    { id: "1", text: "A" },
+    { id: "2", text: "B" },
+    null
+  ]);
+  assert(list.length === 2, "normalize two goals");
+  assert(joinGoalTexts(list) === "A · B", "join texts");
+  assert(
+    memberGoalsComplete(
+      {
+        whatGoals: list,
+        howGoals: [{ id: "h", text: "Sorgfältig" }],
+        goals_confirmed_at: "x"
+      },
+      { enableWhatGoals: true, enableHowGoals: true }
+    ),
+    "multi goals complete"
+  );
+}
+
 testClamp();
 testDates();
 testMemberCount();
@@ -141,4 +164,5 @@ testSuggestRoles();
 testCover();
 testGoals();
 testCsvImport();
+testMultiGoals();
 console.log("OK – group-mode helper tests passed");

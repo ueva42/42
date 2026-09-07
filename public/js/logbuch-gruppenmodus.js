@@ -16,9 +16,11 @@
     draftGoal: {
       whatGoalId: null,
       whatGoalText: "",
+      whatGoals: [],
       selectedLevel: null,
       howGoalId: null,
       howGoalText: "",
+      howGoals: [],
       customHow: false
     },
     draftSharedGoalId: null,
@@ -250,12 +252,70 @@
         return `
         <button type="button" class="gm-card ${selected ? "is-selected" : ""} ${item.disabled ? "is-disabled" : ""}"
           data-${dataAttr}="${esc(item.id)}" ${item.disabled ? "disabled" : ""}>
+          <span class="gm-card-check" aria-hidden="true">${selected ? "✓" : ""}</span>
           <span class="gm-card-title">${esc(item.title)}</span>
           ${item.sub || item.meta ? `<span class="gm-card-sub">${esc(item.sub || item.meta)}</span>` : ""}
           ${item.badge ? `<span class="gm-card-badge">${esc(item.badge)}</span>` : ""}
         </button>`;
       })
       .join("")}</div>`;
+  }
+
+  function emptyDraftGoal() {
+    return {
+      whatGoalId: null,
+      whatGoalText: "",
+      whatGoals: [],
+      selectedLevel: null,
+      howGoalId: null,
+      howGoalText: "",
+      howGoals: [],
+      customHow: false
+    };
+  }
+
+  function toggleDraftGoal(kind, goal) {
+    const key = kind === "how" ? "howGoals" : "whatGoals";
+    const max =
+      kind === "how"
+        ? Math.max(1, Number(settings().maxHowGoals) || 3)
+        : Math.max(1, Number(settings().maxWhatGoals) || 3);
+    const list = [...(state.draftGoal[key] || [])];
+    const idx = list.findIndex((g) => String(g.id) === String(goal.id));
+    if (idx >= 0) list.splice(idx, 1);
+    else {
+      if (list.length >= max) {
+        state.error = `Du kannst höchstens ${max} ${kind === "how" ? "Wie" : "Was"}-Ziele wählen.`;
+        return false;
+      }
+      list.push({ id: goal.id, text: goal.text, roleName: goal.roleName || null });
+    }
+    state.draftGoal[key] = list;
+    if (kind === "how") {
+      state.draftGoal.howGoalId = list[0]?.id || null;
+      state.draftGoal.howGoalText = list.map((g) => g.text).join(" · ");
+      state.draftGoal.customHow = false;
+    } else {
+      state.draftGoal.whatGoalId = list[0]?.id || null;
+      state.draftGoal.whatGoalText = list.map((g) => g.text).join(" · ");
+    }
+    return true;
+  }
+
+  function selectedGoalsPanel(kind) {
+    const list = kind === "how" ? state.draftGoal.howGoals || [] : state.draftGoal.whatGoals || [];
+    if (!list.length) return `<p class="gm-muted">Noch keine Auswahl – tippe auf die Karten (Mehrfachauswahl möglich).</p>`;
+    return `<div class="gm-selected-panel open">
+      <p class="gm-label">Deine Auswahl (${list.length})</p>
+      <ul class="gm-selected-list">${list
+        .map(
+          (g) =>
+            `<li><strong>${esc(g.text)}</strong>${
+              g.roleName ? ` <span class="gm-muted">(${esc(g.roleName)})</span>` : ""
+            }</li>`
+        )
+        .join("")}</ul>
+    </div>`;
   }
 
   function renderHome() {
@@ -480,10 +540,14 @@
     const roles = (m?.roles || []).map((r) => r.name).join(", ");
     const shared = state.bundle?.session?.sharedGoal || state.sharedGoal || "";
     const multi = (m?.roles || []).length > 1;
+    const selectedIds = new Set((state.draftGoal.whatGoals || []).map((g) => String(g.id)));
+    const maxWhat = Math.max(1, Number(settings().maxWhatGoals) || 3);
     const body = `
       <p class="gm-lead">${esc(m.displayName)}, das ist heute deine Aufgabe: <strong>${esc(roles || "–")}</strong></p>
       ${shared ? `<p class="gm-muted">Euer gemeinsames Ziel: <strong>${esc(shared)}</strong></p>` : ""}
       <p class="gm-h3">Was ist heute dein Beitrag in deiner Rolle?</p>
+      <p class="gm-muted">Mehrfachauswahl möglich (bis ${maxWhat}).</p>
+      ${selectedGoalsPanel("what")}
       ${
         goals.length
           ? cardGrid(
@@ -491,9 +555,9 @@
                 id: g.id,
                 title: g.text,
                 meta: multi ? g.roleName : "",
-                selected: String(state.draftGoal.whatGoalId) === String(g.id)
+                selected: selectedIds.has(String(g.id))
               })),
-              state.draftGoal.whatGoalId,
+              null,
               "what"
             )
           : settings().allowFreeWhatGoal
@@ -512,29 +576,26 @@
     const roleHow = roleGoalsForCurrentMember("WIE");
     const fallback = settings().howGoalOptions || [];
     const multi = (currentMember()?.roles || []).length > 1;
+    const selectedIds = new Set((state.draftGoal.howGoals || []).map((g) => String(g.id)));
+    const selectedTexts = new Set((state.draftGoal.howGoals || []).map((g) => g.text));
+    const maxHow = Math.max(1, Number(settings().maxHowGoals) || 3);
     const options = roleHow.length
       ? roleHow.map((g) => ({
           id: g.id,
           title: g.text,
           meta: multi ? g.roleName : "",
-          selected: String(state.draftGoal.howGoalId) === String(g.id)
+          selected: selectedIds.has(String(g.id))
         }))
       : fallback.map((t) => ({
           id: t,
           title: t,
-          selected: !state.draftGoal.customHow && state.draftGoal.howGoalText === t
+          selected: !state.draftGoal.customHow && selectedTexts.has(t)
         }));
     const body = `
       <p class="gm-lead">Wie möchtest du deinen Beitrag umsetzen?</p>
-      ${cardGrid(
-        options,
-        roleHow.length
-          ? state.draftGoal.howGoalId
-          : state.draftGoal.customHow
-            ? null
-            : state.draftGoal.howGoalText,
-        roleHow.length ? "how-id" : "how"
-      )}
+      <p class="gm-muted">Mehrfachauswahl möglich (bis ${maxHow}).</p>
+      ${selectedGoalsPanel("how")}
+      ${cardGrid(options, null, roleHow.length ? "how-id" : "how")}
       ${
         settings().allowFreeHowGoal
           ? `<button type="button" class="gm-ghost ${state.draftGoal.customHow ? "is-selected" : ""}" id="gmCustomHow">Eigenes Wie-Ziel schreiben</button>
@@ -557,14 +618,32 @@
     const m = currentMember();
     const roles = (m?.roles || []).map((r) => r.name).join(", ");
     const shared = state.bundle?.session?.sharedGoal || state.sharedGoal || "";
+    const whatList = state.draftGoal.whatGoals || [];
+    const howList = state.draftGoal.howGoals || [];
     const body = `
-      <div class="gm-summary">
+      <div class="gm-summary open">
         <h3>Dein Plan für heute</h3>
         <p><span>Unser gemeinsames Ziel</span><strong>${esc(shared || "–")}</strong></p>
         <p><span>Meine Rolle</span><strong>${esc(roles || "–")}</strong></p>
-        <p><span>Mein Rollen-Was-Ziel</span><strong>${esc(state.draftGoal.whatGoalText || "–")}</strong></p>
-        <p><span>Mein Rollen-Wie-Ziel</span><strong>${esc(state.draftGoal.howGoalText || "–")}</strong></p>
-      </div>`;
+        <p><span>Meine Was-Ziele</span><strong>${
+          whatList.length
+            ? `<ul class="gm-selected-list">${whatList
+                .map((g) => `<li>${esc(g.text)}</li>`)
+                .join("")}</ul>`
+            : esc(state.draftGoal.whatGoalText || "–")
+        }</strong></p>
+        <p><span>Meine Wie-Ziele</span><strong>${
+          howList.length
+            ? `<ul class="gm-selected-list">${howList
+                .map((g) => `<li>${esc(g.text)}</li>`)
+                .join("")}</ul>`
+            : esc(state.draftGoal.howGoalText || "–")
+        }</strong></p>
+      </div>
+      <details class="gm-overview-details open" open>
+        <summary>Gruppenübersicht ansehen</summary>
+        ${renderGroupOverviewInner()}
+      </details>`;
     return shell(
       null,
       "Passt alles?",
@@ -576,20 +655,41 @@
     );
   }
 
+  function renderGroupOverviewInner() {
+    return `<div class="gm-overview-list">
+      ${members()
+        .map((m) => {
+          const roles = (m.roles || []).map((r) => r.name).join(", ");
+          const what =
+            (m.whatGoals || []).map((g) => g.text).filter(Boolean).join(" · ") ||
+            m.whatGoalText ||
+            "–";
+          const how =
+            (m.howGoals || []).map((g) => g.text).filter(Boolean).join(" · ") ||
+            m.howGoalText ||
+            "–";
+          return `
+          <article class="gm-overview-card ${m.goalsComplete ? "is-ready" : ""}">
+            <header>
+              <strong>${esc(m.displayName)}</strong>
+              <span>${m.goalsComplete ? "fertig" : "offen"}</span>
+            </header>
+            <p><span>Rolle</span>${esc(roles || "–")}</p>
+            <p><span>Was</span>${esc(what)}</p>
+            <p><span>Wie</span>${esc(how)}</p>
+          </article>`;
+        })
+        .join("")}
+    </div>`;
+  }
+
   function renderOverview() {
+    const shared = state.bundle?.session?.sharedGoal || "";
     const body = `
-      <p class="gm-lead">${esc(state.bundle?.session?.sharedGoal || "")}</p>
-      <div class="gm-cards">
-        ${members()
-          .map((m) => {
-            const roles = (m.roles || []).map((r) => r.name).join(", ");
-            return `
-            <div class="gm-card gm-card--static ${m.goalsComplete ? "is-selected" : ""}">
-              <span class="gm-card-title">${esc(m.displayName)} ${m.goalsComplete ? "✓" : "…"}</span>
-              <span class="gm-card-sub">${esc(roles)}</span>
-            </div>`;
-          })
-          .join("")}
+      <p class="gm-lead">${esc(shared)}</p>
+      <div class="gm-selected-panel open">
+        <p class="gm-label">Gruppenübersicht</p>
+        ${renderGroupOverviewInner()}
       </div>`;
     const ready = state.bundle?.progress?.goalsComplete;
     return shell(
@@ -607,6 +707,10 @@
         <p class="gm-muted">${esc(state.bundle?.session?.subject)} · ${esc(state.bundle?.session?.topicName || "")}</p>
         <h3>${esc(state.bundle?.session?.sharedGoal || "Gemeinsame Arbeit")}</h3>
       </div>
+      <details class="gm-overview-details open" open>
+        <summary>Gruppenübersicht</summary>
+        ${renderGroupOverviewInner()}
+      </details>
       <div class="gm-status-list">
         ${members()
           .map((m) => {
@@ -832,58 +936,71 @@
 
   function styles() {
     return `<style>
-      .gm-app{max-width:820px;margin:0 auto;padding:8px 4px 96px;font-size:1.05rem}
-      .gm-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}
-      .gm-back{min-width:48px;min-height:48px;border-radius:14px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:inherit;font-size:1.2rem}
-      .gm-title{margin:0;font-size:1.45rem;line-height:1.25}
-      .gm-step,.gm-muted{margin:0;opacity:.7;font-size:.9rem}
-      .gm-lead{margin:0 0 14px;line-height:1.4}
+      .gm-app{max-width:820px;margin:0 auto;padding:8px 4px 110px;font-size:1.05rem;color:inherit}
+      .gm-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
+      .gm-back{min-width:48px;min-height:48px;border-radius:14px;border:1px solid rgba(148,163,184,.35);background:rgba(15,23,42,.55);color:inherit;font-size:1.2rem}
+      .gm-title{margin:0;font-family:"Bebas Neue",system-ui,sans-serif;letter-spacing:.06em;font-size:1.7rem;line-height:1.15}
+      .gm-step,.gm-muted{margin:0;opacity:.72;font-size:.9rem}
+      .gm-label{margin:0 0 6px;font-family:"Bebas Neue",system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;font-size:.95rem;color:#e5e7eb}
+      .gm-lead{margin:0 0 14px;line-height:1.45}
       .gm-h3{margin:16px 0 8px;font-size:1.05rem}
       .gm-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
       .gm-card-wrap{display:flex;flex-direction:column;gap:6px}
-      .gm-card{text-align:left;min-height:88px;padding:16px;border-radius:18px;border:2px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:6px}
-      .gm-card--static{cursor:default}
-      .gm-card.is-selected,.gm-choice-btn.is-selected,.gm-chip.is-selected,.gm-role-card.is-picked{border-color:#3dd6c6;box-shadow:0 0 0 2px rgba(61,214,198,.35)}
+      .gm-card{position:relative;text-align:left;min-height:88px;padding:16px 16px 16px 42px;border-radius:16px;border:1px solid rgba(148,163,184,.28);background:rgba(15,23,42,.55);color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,box-shadow .15s,transform .15s}
+      .gm-card-check{position:absolute;left:14px;top:16px;width:20px;height:20px;border-radius:6px;border:1px solid rgba(148,163,184,.45);display:flex;align-items:center;justify-content:center;font-size:.85rem;color:#052e16;background:transparent}
+      .gm-card.is-selected .gm-card-check{background:#22c55e;border-color:#22c55e}
+      .gm-card--static{cursor:default;padding:16px}
+      .gm-card.is-selected,.gm-choice-btn.is-selected,.gm-chip.is-selected,.gm-role-card.is-picked{border-color:rgba(34,197,94,.75);box-shadow:0 0 0 2px rgba(34,197,94,.28)}
       .gm-card.is-disabled{opacity:.45;cursor:not-allowed}
       .gm-card-title{font-weight:700;font-size:1.05rem}
-      .gm-card-sub{opacity:.75;font-size:.92rem}
+      .gm-card-sub,.gm-card-meta{opacity:.75;font-size:.92rem}
       .gm-card-badge{font-size:.8rem;opacity:.8}
       .gm-delete{min-height:40px;border-radius:12px;border:1px solid rgba(255,120,120,.35);background:rgba(180,40,40,.18);color:inherit;font-size:.9rem;cursor:pointer}
-      .gm-primary,.gm-ghost{min-height:52px;padding:12px 18px;border-radius:16px;font-size:1.05rem;font-weight:700;border:0;cursor:pointer}
-      .gm-primary{background:#3dd6c6;color:#082028;width:100%}
-      .gm-primary:disabled{opacity:.4;cursor:not-allowed}
-      .gm-ghost{background:transparent;border:2px solid rgba(255,255,255,.2);color:inherit}
-      .gm-footer{position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent, rgba(8,16,24,.92) 30%);backdrop-filter:blur(6px);pointer-events:none}
+      .gm-primary,.gm-ghost{min-height:52px;padding:12px 18px;border-radius:14px;font-size:1.05rem;font-weight:700;border:0;cursor:pointer}
+      .gm-primary{background:linear-gradient(180deg,#4ade80,#22c55e);color:#052e16;width:100%;box-shadow:0 8px 24px rgba(34,197,94,.25)}
+      .gm-primary:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+      .gm-ghost{background:transparent;border:1px solid rgba(148,163,184,.4);color:inherit}
+      .gm-footer{position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent, rgba(8,16,24,.94) 28%);backdrop-filter:blur(8px);pointer-events:none}
       .gm-footer > *{pointer-events:auto}
       .gm-footer-row{display:flex;gap:10px}
       .gm-footer-row .gm-primary,.gm-footer-row .gm-ghost{flex:1}
       .gm-footer-row--stack{flex-direction:column}
-      .gm-textarea{width:100%;border-radius:14px;border:2px solid rgba(255,255,255,.16);background:rgba(0,0,0,.25);color:inherit;padding:12px;font-size:1rem}
+      .gm-textarea,.gm-select{width:100%;border-radius:14px;border:1px solid rgba(148,163,184,.45);background:rgba(15,23,42,.9);color:#f9fafb;padding:12px;font-size:1rem}
       .gm-banner{padding:10px 12px;border-radius:12px;margin-bottom:10px}
       .gm-banner--err{background:rgba(220,60,60,.2)}
-      .gm-banner--ok{background:rgba(40,180,100,.2)}
+      .gm-banner--ok{background:rgba(34,197,94,.18)}
       .gm-save-badge{font-size:.75rem;opacity:.75;white-space:nowrap}
       .gm-handoff{min-height:220px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:8px}
       .gm-handoff-text{font-size:1.5rem;margin:0}
       .gm-role-board{display:grid;gap:16px;margin-bottom:12px}
-      .gm-role-block{display:grid;gap:10px;padding:14px;border-radius:16px;background:rgba(255,255,255,.04);position:relative;z-index:2}
-      .gm-role-card{text-align:left;padding:12px;border-radius:14px;border:2px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:inherit;display:grid;gap:4px}
-      .gm-role-assign-label{display:grid;gap:6px;font-size:.92rem;opacity:.95}
-      .gm-select{width:100%;min-height:52px;border-radius:14px;border:2px solid rgba(255,255,255,.25);background:rgba(0,0,0,.45);color:inherit;padding:10px 12px;font-size:1.05rem;font-weight:600;-webkit-appearance:menulist;appearance:auto;position:relative;z-index:3}
+      .gm-role-block{display:grid;gap:10px;padding:14px;border-radius:16px;background:rgba(15,23,42,.45);border:1px solid rgba(148,163,184,.2)}
+      .gm-role-card{text-align:left;padding:12px;border-radius:14px;border:1px solid rgba(148,163,184,.28);background:rgba(15,23,42,.45);color:inherit;display:grid;gap:4px}
+      .gm-role-assign-label{display:grid;gap:6px;font-size:.92rem}
+      .gm-select{min-height:52px;font-weight:600;-webkit-appearance:menulist;appearance:auto}
       .gm-people-row,.gm-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0}
-      .gm-chip{min-height:48px;padding:10px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:inherit;cursor:pointer;font-size:1rem;font-weight:600;position:relative;z-index:3;touch-action:manipulation;-webkit-tap-highlight-color:rgba(61,214,198,.35)}
+      .gm-chip{min-height:48px;padding:10px 14px;border-radius:999px;border:1px solid rgba(148,163,184,.35);background:rgba(15,23,42,.45);color:inherit;cursor:pointer;font-size:1rem;font-weight:600}
       .gm-choice{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:12px}
-      .gm-choice-btn{min-height:56px;border-radius:16px;border:2px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:inherit;font-size:1.1rem;font-weight:700}
-      .gm-summary{display:grid;gap:12px;padding:16px;border-radius:18px;background:rgba(255,255,255,.06)}
+      .gm-choice-btn{min-height:56px;border-radius:16px;border:1px solid rgba(148,163,184,.35);background:rgba(15,23,42,.45);color:inherit;font-size:1.1rem;font-weight:700}
+      .gm-summary,.gm-selected-panel{display:grid;gap:12px;padding:16px;border-radius:16px;background:rgba(15,23,42,.55);border:1px solid rgba(148,163,184,.22);margin-bottom:14px}
+      .gm-summary.open,.gm-selected-panel.open{display:grid}
       .gm-summary p{display:grid;gap:4px;margin:0}
-      .gm-summary span{opacity:.7;font-size:.9rem}
+      .gm-summary span,.gm-overview-card span{opacity:.7;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase}
+      .gm-selected-list{margin:0;padding-left:1.1em;display:grid;gap:6px}
+      .gm-overview-list{display:grid;gap:10px}
+      .gm-overview-card{padding:12px 14px;border-radius:14px;background:rgba(8,47,73,.35);border:1px solid rgba(34,211,238,.2)}
+      .gm-overview-card.is-ready{border-color:rgba(34,197,94,.45);background:rgba(6,40,20,.35)}
+      .gm-overview-card header{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
+      .gm-overview-card p{margin:4px 0;display:grid;gap:2px}
+      .gm-overview-details{margin-top:12px;padding:12px;border-radius:14px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.2)}
+      .gm-overview-details summary{cursor:pointer;font-weight:700;margin-bottom:8px}
       .gm-status-list{display:grid;gap:8px;margin-bottom:16px}
-      .gm-status-row{display:grid;gap:2px;padding:12px;border-radius:14px;background:rgba(255,255,255,.05)}
+      .gm-status-row{display:grid;gap:2px;padding:12px;border-radius:14px;background:rgba(15,23,42,.45)}
       .gm-docs{margin-top:10px;display:grid;gap:8px}
-      .gm-doc{margin:0;padding:10px;border-radius:12px;background:rgba(255,255,255,.05)}
-      .gm-empty{padding:20px;border-radius:16px;background:rgba(255,255,255,.05)}
+      .gm-doc{margin:0;padding:10px;border-radius:12px;background:rgba(15,23,42,.45)}
+      .gm-empty{padding:20px;border-radius:16px;background:rgba(15,23,42,.45);border:1px dashed rgba(148,163,184,.35)}
       @media (min-width:700px){
         .gm-choice{grid-template-columns:repeat(3,1fr)}
+        .gm-overview-list{grid-template-columns:repeat(2,minmax(0,1fr))}
       }
       @media (prefers-reduced-motion:reduce){
         .gm-card,.gm-primary{transition:none}
@@ -976,8 +1093,20 @@
             body: JSON.stringify({ topicId })
           });
           applyBundle(data);
-          const full = await api(`/api/student/group-sessions/${state.sessionId}`);
-          applyBundle(full);
+          // Nächste Stunde / bestehende Gruppe: Mitglieder überspringen → Rollen
+          if (data.resumed || data.continueGroup || members().length) {
+            const st = data.session?.status || state.bundle?.session?.status;
+            if (["active", "midcheck", "reflecting"].includes(st)) {
+              state.screen = "work";
+              state.message = "Gruppe fortgesetzt – weiter in der Laborarbeit.";
+            } else {
+              state.screen = members().length ? "roles" : "members";
+              state.message =
+                members().length
+                  ? "Gruppe fortgesetzt – weiter bei den Rollen."
+                  : state.message;
+            }
+          }
           render();
         } catch (err) {
           state.error = err.message;
@@ -987,11 +1116,16 @@
     });
 
     document.getElementById("gmTopicNext")?.addEventListener("click", () => {
-      state.screen = "members";
+      if (members().length) {
+        resumeScreenFromBundle();
+        if (state.screen === "members") state.screen = "roles";
+      } else {
+        state.screen = "members";
+      }
       render();
     });
     document.getElementById("gmSkipTopic")?.addEventListener("click", () => {
-      state.screen = "members";
+      state.screen = members().length ? "roles" : "members";
       render();
     });
 
@@ -1129,14 +1263,7 @@
         state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
         if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
         state.screen = "handoff";
-        state.draftGoal = {
-          whatGoalId: null,
-          whatGoalText: "",
-          selectedLevel: null,
-          howGoalId: null,
-          howGoalText: "",
-          customHow: false
-        };
+        state.draftGoal = emptyDraftGoal();
         render();
       } catch (err) {
         state.error = err.message;
@@ -1150,13 +1277,24 @@
       else if (kind === "reflect") state.screen = "reflect";
       else {
         const m = currentMember();
+        const whatGoals = (m?.whatGoals || []).length
+          ? m.whatGoals
+          : m?.whatGoalText
+            ? [{ id: m.whatGoalId, text: m.whatGoalText }]
+            : [];
+        const howGoals = (m?.howGoals || []).length
+          ? m.howGoals
+          : m?.howGoalText
+            ? [{ id: m.howGoalId, text: m.howGoalText }]
+            : [];
         state.draftGoal = {
-          whatGoalId: m?.whatGoalId || null,
-          whatGoalText: m?.whatGoalText || "",
-          selectedLevel: m?.selectedLevel || null,
-          howGoalId: m?.howGoalId || null,
-          howGoalText: m?.howGoalText || "",
-          customHow: false
+          ...emptyDraftGoal(),
+          whatGoals,
+          howGoals,
+          whatGoalId: whatGoals[0]?.id || null,
+          whatGoalText: whatGoals.map((g) => g.text).join(" · "),
+          howGoalId: howGoals[0]?.id || null,
+          howGoalText: howGoals.map((g) => g.text).join(" · ")
         };
         state.screen = "what";
       }
@@ -1165,20 +1303,24 @@
 
     document.querySelectorAll("[data-what]").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearFlash();
         const id = btn.getAttribute("data-what");
         const goal = roleGoalsForCurrentMember("WAS").find((g) => String(g.id) === String(id));
-        state.draftGoal.whatGoalId = id;
-        state.draftGoal.whatGoalText = goal?.text || "";
+        if (!goal) return;
+        toggleDraftGoal("what", goal);
         render();
       });
     });
     document.getElementById("gmFreeWhat")?.addEventListener("input", (e) => {
       state.draftGoal.whatGoalText = e.target.value;
       state.draftGoal.whatGoalId = null;
+      state.draftGoal.whatGoals = e.target.value.trim()
+        ? [{ id: null, text: e.target.value.trim() }]
+        : [];
     });
     document.getElementById("gmWhatNext")?.addEventListener("click", () => {
-      if (!state.draftGoal.whatGoalId && !state.draftGoal.whatGoalText.trim()) {
-        state.error = "Bitte wähle, was heute dein Beitrag in deiner Rolle ist.";
+      if (!(state.draftGoal.whatGoals || []).length && !state.draftGoal.whatGoalText.trim()) {
+        state.error = "Bitte wähle mindestens ein Was-Ziel.";
         render();
         return;
       }
@@ -1188,19 +1330,19 @@
 
     document.querySelectorAll("[data-how-id]").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearFlash();
         const id = btn.getAttribute("data-how-id");
         const goal = roleGoalsForCurrentMember("WIE").find((g) => String(g.id) === String(id));
-        state.draftGoal.howGoalId = id;
-        state.draftGoal.howGoalText = goal?.text || "";
-        state.draftGoal.customHow = false;
+        if (!goal) return;
+        toggleDraftGoal("how", goal);
         render();
       });
     });
     document.querySelectorAll("[data-how]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        state.draftGoal.howGoalText = btn.getAttribute("data-how");
-        state.draftGoal.howGoalId = null;
-        state.draftGoal.customHow = false;
+        clearFlash();
+        const textVal = btn.getAttribute("data-how");
+        toggleDraftGoal("how", { id: textVal, text: textVal });
         render();
       });
     });
@@ -1208,21 +1350,28 @@
       state.draftGoal.customHow = true;
       state.draftGoal.howGoalId = null;
       state.draftGoal.howGoalText = "";
+      state.draftGoal.howGoals = [];
       render();
     });
     document.getElementById("gmHowInput")?.addEventListener("input", (e) => {
       state.draftGoal.howGoalText = e.target.value;
       state.draftGoal.howGoalId = null;
+      state.draftGoal.howGoals = e.target.value.trim()
+        ? [{ id: null, text: e.target.value.trim() }]
+        : [];
     });
     document.getElementById("gmHowNext")?.addEventListener("click", () => {
       const how =
         document.getElementById("gmHowInput")?.value?.trim() || state.draftGoal.howGoalText;
-      if (!how && !state.draftGoal.howGoalId) {
-        state.error = "Bitte wähle, wie du deinen Beitrag umsetzen möchtest.";
+      if (!(state.draftGoal.howGoals || []).length && !how) {
+        state.error = "Bitte wähle mindestens ein Wie-Ziel.";
         render();
         return;
       }
-      state.draftGoal.howGoalText = how;
+      if (state.draftGoal.customHow && how) {
+        state.draftGoal.howGoals = [{ id: null, text: how }];
+        state.draftGoal.howGoalText = how;
+      }
       state.screen = "confirm";
       render();
     });
@@ -1239,6 +1388,8 @@
           method: "PUT",
           body: JSON.stringify({
             userId: m.userId,
+            whatGoals: state.draftGoal.whatGoals || [],
+            howGoals: state.draftGoal.howGoals || [],
             whatGoalId: state.draftGoal.whatGoalId,
             whatGoalText: state.draftGoal.whatGoalText,
             selectedLevel: state.draftGoal.selectedLevel,
@@ -1248,14 +1399,7 @@
         });
         applyBundle(data);
         // clear personal draft before next person
-        state.draftGoal = {
-          whatGoalId: null,
-          whatGoalText: "",
-          selectedLevel: null,
-          howGoalId: null,
-          howGoalText: "",
-          customHow: false
-        };
+        state.draftGoal = emptyDraftGoal();
         const next = nextPendingMember((mem) => mem.goalsComplete);
         if (next >= 0) {
           state.currentMemberIdx = next;
@@ -1423,15 +1567,33 @@
       state.screen = "work";
       return;
     }
+    const mems = members();
+    const hasMembers = mems.length > 0;
+    const hasRoles = mems.some((m) => (m.roles || []).length);
     const step = s.setupStep;
-    if (step === "members" || !members().length) state.screen = "members";
-    else if (step === "roles") state.screen = "roles";
-    else if (step === "shared_goal") state.screen = "shared";
-    else if (step === "personal_goals") {
+    if (!s.topicId) {
+      state.screen = "pick-topic";
+      return;
+    }
+    if (!hasMembers) {
+      state.screen = "members";
+      return;
+    }
+    // Gruppe schon eingeteilt → Rollen / weiter im Setup
+    if (!hasRoles || step === "roles" || step === "members") {
+      state.screen = "roles";
+      return;
+    }
+    if (step === "shared_goal" || (settings().enableSharedGoal && !s.sharedGoal)) {
+      state.screen = "shared";
+      return;
+    }
+    if (step === "personal_goals" || !state.bundle?.progress?.goalsComplete) {
       state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
       state.screen = state.currentMemberIdx >= 0 ? "handoff" : "overview";
-    } else if (step === "overview" || step === "done") state.screen = "overview";
-    else state.screen = state.bundle?.session?.topicId ? "members" : "pick-topic";
+      return;
+    }
+    state.screen = "overview";
   }
 
   function onBack() {
