@@ -58,8 +58,18 @@
 
   function topicGoals() {
     const topicId = state.bundle?.session?.topicId;
+    const topicName = state.bundle?.session?.topicName;
     const topics = state.bundle?.topics || [];
-    const topic = topics.find((t) => String(t.id) === String(topicId)) || topics[0];
+    let topic = topics.find((t) => String(t.id) === String(topicId));
+    if (!topic && topicName) {
+      topic = topics.find(
+        (t) =>
+          String(t.name || "")
+            .trim()
+            .toLowerCase() === String(topicName).trim().toLowerCase()
+      );
+    }
+    if (!topic) topic = topics[0];
     return topic?.goals || [];
   }
 
@@ -184,9 +194,18 @@
 
   function applyBundle(data) {
     if (data.session) {
+      const prevTopics = state.bundle?.topics;
       state.bundle = data;
       state.sessionId = data.session.id;
       state.sharedGoal = data.session.sharedGoal || state.sharedGoal;
+      // Levelplan-Themen nicht verlieren, wenn eine Antwort sie nicht mitschickt
+      if (!Array.isArray(state.bundle.topics) || !state.bundle.topics.length) {
+        if (Array.isArray(data.topics) && data.topics.length) {
+          state.bundle.topics = data.topics;
+        } else if (Array.isArray(prevTopics) && prevTopics.length) {
+          state.bundle.topics = prevTopics;
+        }
+      }
       if (Array.isArray(data.members) && data.members.length) {
         state.selectedMembers = data.members.map((m) => Number(m.userId));
       }
@@ -199,6 +218,22 @@
       }
     }
     persistLocal();
+  }
+
+  async function ensureTopicsLoaded() {
+    const subject = state.bundle?.session?.subject;
+    if (!subject) return;
+    if ((state.bundle?.topics || []).some((t) => (t.goals || []).length)) return;
+    try {
+      const t = await fetch(
+        `/api/student/group-mode/topics?subject=${encodeURIComponent(subject)}`,
+        { credentials: "same-origin", cache: "no-store" }
+      );
+      const topicData = await t.json().catch(() => ({}));
+      if (t.ok && state.bundle) {
+        state.bundle.topics = topicData.topics || [];
+      }
+    } catch (_) {}
   }
 
   function sessionStatusLabel(session) {
@@ -363,7 +398,7 @@
     const topics = state.bundle?.topics || [];
     const body =
       topics.length === 0
-        ? `<div class="gm-empty">Für dieses Fach gibt es noch kein Kompetenzraster.
+        ? `<div class="gm-empty">Für dieses Fach gibt es noch keinen Levelplan.
              ${
                settings().allowFreeWhatGoal
                  ? "Ihr könnt trotzdem starten und freie Ziele nutzen."
@@ -505,7 +540,7 @@
                 })
                 .join("")}
             </div>`
-          : `<div class="gm-empty">Kein Kompetenzraster für dieses Thema hinterlegt. Schreibt euer gemeinsames Ziel kurz selbst.</div>`
+          : `<div class="gm-empty">Kein Levelplan für dieses Thema hinterlegt. Schreibt euer gemeinsames Ziel kurz selbst.</div>`
       }
       <label class="gm-label">Oder kurz selbst schreiben
         <textarea id="gmSharedInput" class="gm-textarea" maxlength="400" rows="3">${esc(state.sharedGoal)}</textarea>
@@ -876,6 +911,19 @@
   function render() {
     const el = root();
     if (!el) return;
+    if (
+      (state.screen === "shared" || state.screen === "pick-topic") &&
+      !(state.bundle?.topics || []).some((t) => (t.goals || []).length) &&
+      !state._topicsLoading
+    ) {
+      state._topicsLoading = true;
+      ensureTopicsLoaded().finally(() => {
+        state._topicsLoading = false;
+        if ((state.bundle?.topics || []).some((t) => (t.goals || []).length)) {
+          render();
+        }
+      });
+    }
     let html = "";
     switch (state.screen) {
       case "home":
