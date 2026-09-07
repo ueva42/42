@@ -1,5 +1,6 @@
 /**
  * Session-aware fetch: cookies + kurze Retries bei 401/403 (PG-Session-Lag).
+ * Nach bestätigter Session noch einmal versuchen — sonst bleibt „Forbidden“ trotz Login.
  * Logout nur wenn Session wirklich tot ist — nicht während App-Bootstrap.
  */
 (function () {
@@ -58,21 +59,46 @@
     for (let attempt = 0; attempt <= RETRY_MS.length; attempt++) {
       const res = await nativeFetch(input, mergedInit);
       if (res.status !== 401 && res.status !== 403) return res;
-      if (attempt >= RETRY_MS.length) {
-        if (shouldCheckSession(path)) {
-          try {
-            const sessionRes = await nativeFetch("/api/auth/session", {
-              credentials: "same-origin",
-              cache: "no-store"
-            });
-            if (!sessionRes.ok) goLogin();
-          } catch (_err) {
-            goLogin();
-          }
-        }
-        return res;
+
+      if (attempt < RETRY_MS.length) {
+        await new Promise((r) => setTimeout(r, RETRY_MS[attempt]));
+        continue;
       }
-      await new Promise((r) => setTimeout(r, RETRY_MS[attempt]));
+
+      // Letzter Versuch: Session frisch vom Server laden, dann Request wiederholen
+      if (shouldCheckSession(path)) {
+        try {
+          const sessionRes = await nativeFetch("/api/auth/session", {
+            credentials: "same-origin",
+            cache: "no-store"
+          });
+          if (!sessionRes.ok) {
+            goLogin();
+            return res;
+          }
+          const sessionData = await sessionRes.json().catch(() => null);
+          if (sessionData && sessionData.authenticated === false) {
+            goLogin();
+            return res;
+          }
+          const retryRes = await nativeFetch(input, mergedInit);
+          if (retryRes.status === 401 || retryRes.status === 403) {
+            // Session da, aber Rolle passt nicht → Login
+            const role = sessionData?.role;
+            const onTeacher =
+              (window.location.pathname || "").startsWith("/teacher") ||
+              (window.location.pathname || "").startsWith("/admin");
+            if (onTeacher && role && role !== "admin") {
+              goLogin();
+            }
+          }
+          return retryRes;
+        } catch (_err) {
+          goLogin();
+          return res;
+        }
+      }
+      return res;
     }
   };
 })();

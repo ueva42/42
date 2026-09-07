@@ -3755,9 +3755,20 @@ function denyAccess(req, res) {
 }
 
 function isAdmin(req, res, next) {
-  if (!req.session.user || req.session.user.role !== "admin")
-    return denyAccess(req, res);
-  next();
+  (async () => {
+    try {
+      if (!req.session?.user?.id) return denyAccess(req, res);
+      // Session aus DB nachziehen (PG-Store / Rolling kann kurz hinterherhinken)
+      const refreshed = await refreshSessionUserFromDb(req);
+      if (!refreshed || refreshed.role !== "admin") {
+        return denyAccess(req, res);
+      }
+      next();
+    } catch (err) {
+      console.error("❌ isAdmin:", err);
+      return denyAccess(req, res);
+    }
+  })();
 }
 
 function isStudent(req, res, next) {

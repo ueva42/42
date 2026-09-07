@@ -28,6 +28,14 @@
       .replace(/"/g, "&quot;");
   }
 
+  function friendlyError(message) {
+    const raw = String(message || "");
+    if (raw === "Forbidden" || /keine berechtigung/i.test(raw)) {
+      return "Sitzung abgelaufen oder noch nicht bereit – bitte Seite neu laden oder erneut einloggen.";
+    }
+    return raw || "Fehler beim Laden.";
+  }
+
   function sameId(a, b) {
     return String(a) === String(b);
   }
@@ -396,7 +404,7 @@
       `/api/teacher/level-plan-catalogs?gradeLevel=${encodeURIComponent(state.gradeLevel)}`
     );
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Levelpläne konnten nicht geladen werden.");
+    if (!res.ok) throw new Error(data.message || data.error || "Levelpläne konnten nicht geladen werden.");
     state.catalogs = data.catalogs || [];
     if (!state.catalogId || !state.catalogs.some((c) => sameId(c.id, state.catalogId))) {
       state.catalogId = state.catalogs[0]?.id || null;
@@ -420,7 +428,7 @@
       state.loading = false;
       if (!res.ok) {
         state.detail = null;
-        state.error = data.error || "Levelplan konnte nicht geladen werden.";
+        state.error = friendlyError(data.message || data.error || "Levelplan konnte nicht geladen werden.");
         render();
         return;
       }
@@ -457,7 +465,15 @@
     } catch (err) {
       console.error(err);
       if (root) {
-        root.innerHTML = `<div class="tc-error">${escapeHtml(err.message || "Fehler beim Laden.")}</div>`;
+        root.innerHTML = `<div class="tc-error">${escapeHtml(friendlyError(err.message))}
+          <p class="hint" style="margin-top:12px">
+            <button type="button" class="action" id="tcLevelplanRetry">Erneut laden</button>
+            <a class="action" href="/login" style="margin-left:8px">Neu einloggen</a>
+          </p>
+        </div>`;
+        document.getElementById("tcLevelplanRetry")?.addEventListener("click", () => {
+          init({ gradeLevel: state.gradeLevel, catalogId: state.catalogId });
+        });
       }
     }
   }
