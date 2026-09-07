@@ -24,10 +24,11 @@
       customHow: false
     },
     draftSharedGoalId: null,
-    midDraft: { changeStrategies: [] },
+    midDraft: { changeFocuses: [], changeStrategy: null, changeStrategies: [] },
     reflectDraft: {},
     midStep: 1,
     reflectStep: 1,
+    midEditMode: false,
     missionFactIndex: 0,
     saveState: "idle", // idle | saving | saved | error
     message: "",
@@ -1013,12 +1014,17 @@
           .map((d) => `<p class="gm-doc">${esc(d.content)}</p>`)
           .join("")}
       </div>`;
+    const midFooter = settings().enableMidCheck
+      ? p.midComplete
+        ? `<button type="button" class="gm-ghost" id="gmEditMid">Zwischencheck ändern</button>`
+        : `<button type="button" class="gm-primary" id="gmStartMid">Zwischencheck starten</button>`
+      : "";
     return shell(
       `Fortschritt Ziele ${p.goalsDone}/${p.total}`,
       "Laborarbeit",
       body,
       `<div class="gm-footer-row gm-footer-row--stack">
-        ${settings().enableMidCheck ? `<button type="button" class="gm-primary" id="gmStartMid">Zwischencheck starten</button>` : ""}
+        ${midFooter}
         ${settings().enableReflection ? `<button type="button" class="gm-primary" id="gmStartReflect">Abschlussrunde starten</button>` : ""}
       </div>`
     );
@@ -1088,28 +1094,63 @@
     }
 
     if (opts.withMid && m?.midCheckAt) {
-      const midRaw = m.midCheck;
-      const mid =
-        midRaw && typeof midRaw === "string"
-          ? (() => {
-              try {
-                return JSON.parse(midRaw);
-              } catch {
-                return {};
-              }
-            })()
-          : midRaw || {};
+      const mid = parseMidCheck(m);
+      const focuses = midFocusList(mid);
       facts.push(["Zwischencheck · Weg", mid.onTrack || "–"]);
       facts.push(["Zwischencheck · Vorankommen", mid.progress || "–"]);
       facts.push([
         "Zwischencheck · Ändern",
-        [mid.changeNeeded, mid.changeFocus].filter(Boolean).join(" · ") || "–"
+        [mid.changeNeeded, ...focuses].filter(Boolean).join(" · ") || "–"
       ]);
-      (mid.changeStrategies || []).forEach((s, i) => {
-        facts.push([`Strategie ${i + 1}`, s]);
-      });
+      const strategy =
+        mid.changeStrategy || (mid.changeStrategies || []).filter(Boolean)[0] || null;
+      if (strategy) facts.push(["Strategie", strategy]);
     }
     return facts;
+  }
+
+  function parseMidCheck(m) {
+    const midRaw = m?.midCheck;
+    if (!midRaw) return {};
+    if (typeof midRaw === "string") {
+      try {
+        return JSON.parse(midRaw) || {};
+      } catch {
+        return {};
+      }
+    }
+    return midRaw || {};
+  }
+
+  function midFocusList(mid) {
+    if (Array.isArray(mid?.changeFocuses) && mid.changeFocuses.length) {
+      return mid.changeFocuses.map((f) => String(f || "").trim()).filter(Boolean);
+    }
+    if (Array.isArray(mid?.changeFocus)) {
+      return mid.changeFocus.map((f) => String(f || "").trim()).filter(Boolean);
+    }
+    if (mid?.changeFocus) return [String(mid.changeFocus).trim()].filter(Boolean);
+    return [];
+  }
+
+  function emptyMidDraft() {
+    return { changeFocuses: [], changeStrategy: null, changeStrategies: [] };
+  }
+
+  function loadMidDraftFromMember(m) {
+    const mid = parseMidCheck(m);
+    const focuses = midFocusList(mid).slice(0, 3);
+    const strategy =
+      mid.changeStrategy || (mid.changeStrategies || []).filter(Boolean)[0] || null;
+    state.midDraft = {
+      ...emptyMidDraft(),
+      onTrack: mid.onTrack || null,
+      progress: mid.progress || null,
+      changeNeeded: mid.changeNeeded || null,
+      changeFocuses: focuses,
+      changeStrategy: strategy,
+      changeStrategies: strategy ? [strategy] : []
+    };
   }
 
   function missionFactsComplete(m, opts = {}) {
@@ -1162,6 +1203,99 @@
     });
   }
 
+  /** Wie Tagesabschluss: alle Missionsfelder auf einen Blick. */
+  function renderMemberMissionOverview(m, opts = {}) {
+    const facts = memberMissionFacts(m, opts);
+    if (!facts.length) {
+      return `<div class="check-daily-goal-card"><p>Noch keine Ziele hinterlegt.</p></div>`;
+    }
+    return `
+      <section class="check-daily-goal">
+        <h3 class="check-daily-goal-title">${esc(opts.title || "Meine Mission")}</h3>
+        <div class="mission-facts">
+          ${facts
+            .map(
+              ([label, value]) => `
+            <div class="mission-fact">
+              <span class="mission-fact__label">${esc(label)}</span>
+              <span class="mission-fact__value">${esc(value)}</span>
+            </div>`
+            )
+            .join("")}
+        </div>
+      </section>`;
+  }
+
+  function findStrategyByValue(val) {
+    const key = String(val || "").trim();
+    if (!key) return null;
+    return (
+      (window.LOGBUCH_STRATEGIES || []).find(
+        (s) => s.id === key || s.nextStep === key || s.name === key
+      ) || null
+    );
+  }
+
+  function closeGmStrategyModal() {
+    document.getElementById("gmStrategyOverlay")?.remove();
+  }
+
+  function openGmStrategyModal(strategy) {
+    closeGmStrategyModal();
+    if (!strategy) return;
+    const steps = (strategy.steps || []).map((s) => `<li>${esc(s)}</li>`).join("");
+    const overlay = document.createElement("div");
+    overlay.id = "gmStrategyOverlay";
+    overlay.className = "strategy-overlay";
+    overlay.innerHTML = `
+      <div class="strategy-modal" role="dialog" aria-modal="true">
+        <p class="strategy-modal-kicker">${esc(strategy.problem || strategy.category || "")}</p>
+        <h3 class="strategy-modal-title">${esc(strategy.name)}</h3>
+        ${
+          strategy.whenHelps
+            ? `<div class="strategy-tutorial-block">
+                 <h4>Wann hilft dir das?</h4>
+                 <p>${esc(strategy.whenHelps)}</p>
+               </div>`
+            : ""
+        }
+        ${
+          steps
+            ? `<div class="strategy-tutorial-block">
+                 <h4>So geht's:</h4>
+                 <ol class="strategy-steps">${steps}</ol>
+               </div>`
+            : ""
+        }
+        ${
+          strategy.nextStep
+            ? `<div class="strategy-tutorial-block strategy-next-block">
+                 <h4>Dein nächster Schritt:</h4>
+                 <p>${esc(strategy.nextStep)}</p>
+               </div>`
+            : ""
+        }
+        <div class="strategy-modal-actions">
+          <button type="button" class="today-app-btn" id="gmStrategyApply">Diese Strategie nutzen?</button>
+          <button type="button" class="today-app-btn today-app-btn--ghost" id="gmStrategyCancel">Abbrechen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector("#gmStrategyApply")?.addEventListener("click", () => {
+      const value = strategy.nextStep || strategy.name;
+      state.midDraft.changeStrategy = value;
+      state.midDraft.changeStrategies = value ? [value] : [];
+      closeGmStrategyModal();
+      render();
+    });
+    overlay.querySelector("#gmStrategyCancel")?.addEventListener("click", () => {
+      closeGmStrategyModal();
+    });
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeGmStrategyModal();
+    });
+  }
+
   const MID_ON_TRACK = [
     { value: "Ja", title: "Gut unterwegs", desc: "Ich bin auf dem richtigen Weg.", icon: "✓", accent: "#22c55e" },
     { value: "Noch unsicher", title: "Noch unsicher", desc: "Es könnte noch kippen.", icon: "?", accent: "#22d3ee" },
@@ -1199,10 +1333,21 @@
     return (window.LOGBUCH_PLAN_B_OPTIONS || []).map((t) => ({
       value: t,
       title: t.length > 34 ? `${t.slice(0, 31)}…` : t,
-      desc: "Plan-B-Strategie aus dem Tagesziel",
+      desc: "Lernstrategie für den Zwischencheck",
       icon: "◆",
       accent: "#22d3ee"
     }));
+  }
+
+  function renderSelectedMidStrategy() {
+    const value = state.midDraft.changeStrategy;
+    if (!value) return "";
+    const s = findStrategyByValue(value);
+    return `
+      <div class="check-strategy-selected glow-panel glow-panel--violet">
+        <span class="check-strategy-selected-label">Gewählte Strategie</span>
+        <strong>${esc(s?.name || value)}</strong>
+      </div>`;
   }
 
   function pickTiles(tiles, active, dataAttr, multi = false) {
@@ -1231,7 +1376,8 @@
     const step = Math.min(4, Math.max(1, Number(state.midStep) || 1));
     const needsChange =
       state.midDraft.changeNeeded === "Vielleicht" || state.midDraft.changeNeeded === "Ja";
-    const strategies = state.midDraft.changeStrategies || [];
+    const focuses = state.midDraft.changeFocuses || [];
+    const strategyActive = state.midDraft.changeStrategy || null;
 
     const step1Body = `
       ${renderMemberMissionPager(m)}
@@ -1249,11 +1395,12 @@
       ${
         needsChange
           ? `<p class="way-section__title" style="margin-top:14px">Was möchtest du ändern?</p>
-             <p class="gm-muted">Kurz wählen – und optional eine Strategie aus dem Tagesziel.</p>
-             ${pickTiles(MID_CHANGE_FOCUS, state.midDraft.changeFocus, "data-mid-changeFocus")}
+             <p class="gm-muted">Bis zu 3 Schwerpunkte wählen.</p>
+             ${pickTiles(MID_CHANGE_FOCUS, focuses, "data-mid-changeFocus", true)}
              <p class="way-section__title" style="margin-top:14px">Welche Strategie hilft dir jetzt?</p>
-             <p class="gm-muted">Bis zu 3 – wie Plan B beim Tagesziel.</p>
-             ${pickTiles(midStrategyTiles(), strategies, "data-mid-strategy", true)}`
+             <p class="gm-muted">Eine Strategie wählen – kurz ansehen, dann bestätigen.</p>
+             ${pickTiles(midStrategyTiles(), strategyActive, "data-mid-strategy")}
+             ${renderSelectedMidStrategy()}`
           : ""
       }`;
 
@@ -1346,27 +1493,48 @@
       accent: "#a855f7"
     }));
     const continueTiles = [
-      { value: "Ja", title: "Ja", desc: "Beim nächsten Mal weiter daran arbeiten.", icon: "✓", accent: "#22c55e" },
-      { value: "Vielleicht", title: "Vielleicht", desc: "Noch unklar.", icon: "?", accent: "#22d3ee" },
-      { value: "Nein", title: "Nein", desc: "Neues Ziel wählen.", icon: "○", accent: "#94a3b8" }
+      {
+        value: "Ja",
+        title: "Ja, weiter",
+        desc: "Beim nächsten Mal weiter daran arbeiten.",
+        icon: "✓",
+        accent: "#22c55e"
+      },
+      {
+        value: "Vielleicht",
+        title: "Vielleicht",
+        desc: "Noch unklar.",
+        icon: "?",
+        accent: "#22d3ee"
+      },
+      {
+        value: "Beendet",
+        title: "Ziel beendet",
+        desc: "Fertig – nächstes Mal ein neues Ziel.",
+        icon: "★",
+        accent: "#22c55e"
+      },
+      {
+        value: "Nein",
+        title: "Neues Ziel wählen",
+        desc: "Nächstes Mal etwas anderes wählen.",
+        icon: "○",
+        accent: "#94a3b8"
+      }
     ];
 
     const step1Body = `
-      ${renderMemberMissionPager(m, { withMid: true })}
-      ${
-        missionFactsComplete(m, { withMid: true })
-          ? `<div class="plan-acc__continue">
+      ${renderMemberMissionOverview(m, { withMid: true, title: "Meine Mission" })}
+      <div class="plan-acc__continue">
         <button type="button" class="gm-primary" id="gmReflectStep1Next">Weiter zur Reflexion</button>
-      </div>`
-          : ""
-      }`;
+      </div>`;
 
     const body = `
       <div class="plan-acc-stack">
         ${
           step === 1
-            ? gmAccOpen(1, "Meine Ziele & Check", "Übersichtlich ansehen", step1Body)
-            : gmAccDone(1, "Meine Ziele & Check", "angesehen")
+            ? gmAccOpen(1, "Meine Mission", "Alles auf einen Blick", step1Body)
+            : gmAccDone(1, "Meine Mission", "angesehen")
         }
         ${
           step === 2
@@ -1893,7 +2061,9 @@
     document.getElementById("gmHandoffGo")?.addEventListener("click", (e) => {
       const kind = e.currentTarget.getAttribute("data-kind");
       if (kind === "mid") {
-        state.midDraft = { changeStrategies: [] };
+        const m = currentMember();
+        if (state.midEditMode || m?.midCheckAt) loadMidDraftFromMember(m);
+        else state.midDraft = emptyMidDraft();
         state.midStep = 1;
         state.missionFactIndex = 0;
         state.screen = "mid";
@@ -2077,19 +2247,31 @@
     });
 
     document.getElementById("gmStartMid")?.addEventListener("click", () => {
+      state.midEditMode = false;
       state.currentMemberIdx = nextPendingMember((m) => m.midCheckAt);
       if (state.currentMemberIdx < 0) {
         state.message = "Alle haben den Check schon gemacht.";
         render();
         return;
       }
-      state.midDraft = { changeStrategies: [] };
+      state.midDraft = emptyMidDraft();
       state.midStep = 1;
       state.screen = "mid-handoff";
       render();
     });
 
+    document.getElementById("gmEditMid")?.addEventListener("click", () => {
+      state.midEditMode = true;
+      state.currentMemberIdx = 0;
+      state.midDraft = emptyMidDraft();
+      state.midStep = 1;
+      state.missionFactIndex = 0;
+      state.screen = "mid-handoff";
+      render();
+    });
+
     document.getElementById("gmStartReflect")?.addEventListener("click", () => {
+      state.midEditMode = false;
       state.currentMemberIdx = nextPendingMember((m) => m.reflectionAt);
       if (state.currentMemberIdx < 0) {
         state.screen = "done";
@@ -2116,8 +2298,7 @@
     const midFieldMap = {
       "data-mid-onTrack": "onTrack",
       "data-mid-progress": "progress",
-      "data-mid-changeNeeded": "changeNeeded",
-      "data-mid-changeFocus": "changeFocus"
+      "data-mid-changeNeeded": "changeNeeded"
     };
     Object.entries(midFieldMap).forEach(([attr, field]) => {
       document.querySelectorAll(`[${attr}]`).forEach((btn) => {
@@ -2125,7 +2306,8 @@
           clearFlash();
           state.midDraft[field] = btn.getAttribute(attr);
           if (field === "changeNeeded" && state.midDraft.changeNeeded === "Nein") {
-            state.midDraft.changeFocus = null;
+            state.midDraft.changeFocuses = [];
+            state.midDraft.changeStrategy = null;
             state.midDraft.changeStrategies = [];
           }
           if (field === "onTrack") state.midStep = 3;
@@ -2135,20 +2317,41 @@
       });
     });
 
-    document.querySelectorAll("[data-mid-strategy]").forEach((btn) => {
+    document.querySelectorAll("[data-mid-changeFocus]").forEach((btn) => {
       btn.addEventListener("click", () => {
         clearFlash();
-        const val = btn.getAttribute("data-mid-strategy");
-        const list = [...(state.midDraft.changeStrategies || [])];
+        const val = btn.getAttribute("data-mid-changeFocus");
+        const list = [...(state.midDraft.changeFocuses || [])];
         const idx = list.indexOf(val);
         if (idx >= 0) list.splice(idx, 1);
         else if (list.length < 3) list.push(val);
         else {
-          state.error = "Höchstens 3 Strategien.";
+          state.error = "Höchstens 3 Schwerpunkte.";
           render();
           return;
         }
-        state.midDraft.changeStrategies = list;
+        state.midDraft.changeFocuses = list;
+        render();
+      });
+    });
+
+    document.querySelectorAll("[data-mid-strategy]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        clearFlash();
+        const val = btn.getAttribute("data-mid-strategy");
+        if (state.midDraft.changeStrategy === val) {
+          state.midDraft.changeStrategy = null;
+          state.midDraft.changeStrategies = [];
+          render();
+          return;
+        }
+        const strategy = findStrategyByValue(val);
+        if (strategy) {
+          openGmStrategyModal(strategy);
+          return;
+        }
+        state.midDraft.changeStrategy = val;
+        state.midDraft.changeStrategies = val ? [val] : [];
         render();
       });
     });
@@ -2162,14 +2365,16 @@
           render();
           return;
         }
+        const focuses = state.midDraft.changeFocuses || [];
         if (
           (state.midDraft.changeNeeded === "Ja" || state.midDraft.changeNeeded === "Vielleicht") &&
-          !state.midDraft.changeFocus
+          !focuses.length
         ) {
-          state.error = "Bitte wähle kurz, was du ändern möchtest.";
+          state.error = "Bitte wähle kurz, was du ändern möchtest (bis zu 3).";
           render();
           return;
         }
+        const strategy = state.midDraft.changeStrategy || null;
         const data = await api(`/api/student/group-sessions/${state.sessionId}/mid-check`, {
           method: "PUT",
           body: JSON.stringify({
@@ -2177,19 +2382,27 @@
             onTrack: state.midDraft.onTrack,
             progress: state.midDraft.progress,
             changeNeeded: state.midDraft.changeNeeded,
-            changeFocus: state.midDraft.changeFocus || null,
-            changeStrategies: state.midDraft.changeStrategies || [],
-            note: (state.midDraft.changeStrategies || []).join(" · ") || null
+            changeFocus: focuses,
+            changeFocuses: focuses,
+            changeStrategy: strategy,
+            changeStrategies: strategy ? [strategy] : [],
+            note: strategy || null
           })
         });
         applyBundle(data);
-        state.midDraft = { changeStrategies: [] };
+        state.midDraft = emptyMidDraft();
         state.midStep = 1;
-        const next = nextPendingMember((mem) => mem.midCheckAt);
+        let next = -1;
+        if (state.midEditMode) {
+          next = state.currentMemberIdx + 1 < members().length ? state.currentMemberIdx + 1 : -1;
+        } else {
+          next = nextPendingMember((mem) => mem.midCheckAt);
+        }
         if (next >= 0) {
           state.currentMemberIdx = next;
           state.screen = "mid-handoff";
         } else {
+          state.midEditMode = false;
           state.message = "Danke! Zwischencheck fertig.";
           state.screen = "work";
         }
