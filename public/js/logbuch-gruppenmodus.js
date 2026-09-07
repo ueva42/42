@@ -24,8 +24,10 @@
       customHow: false
     },
     draftSharedGoalId: null,
-    midDraft: {},
+    midDraft: { changeStrategies: [] },
     reflectDraft: {},
+    midStep: 1,
+    reflectStep: 1,
     saveState: "idle", // idle | saving | saved | error
     message: "",
     error: "",
@@ -1013,109 +1015,348 @@
     );
   }
 
+  function memberWhatList(m) {
+    if ((m?.whatGoals || []).length) return m.whatGoals;
+    if (m?.whatGoalText) {
+      return String(m.whatGoalText)
+        .split(/\s*[·•|]\s*/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .map((text) => ({ text }));
+    }
+    return [];
+  }
+
+  function memberHowList(m) {
+    if ((m?.howGoals || []).length) return m.howGoals;
+    if (m?.howGoalText) {
+      return String(m.howGoalText)
+        .split(/\s*[·•|]\s*/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .map((text) => ({ text }));
+    }
+    return [];
+  }
+
+  function renderMemberMissionSummary(m, opts = {}) {
+    const roles = (m?.roles || []).map((r) => r.name).join(", ");
+    const midRaw = m?.midCheck;
+    const mid =
+      midRaw && typeof midRaw === "string"
+        ? (() => {
+            try {
+              return JSON.parse(midRaw);
+            } catch {
+              return {};
+            }
+          })()
+        : midRaw || {};
+    const blocks = [
+      missionBlock("Rolle", missionValue(roles || "–")),
+      missionBlock("Was-Ziele", missionList(memberWhatList(m))),
+      missionBlock("Wie-Ziele", missionList(memberHowList(m)))
+    ];
+    if (opts.withMid && m?.midCheckAt) {
+      blocks.push(
+        missionBlock(
+          "Dein Zwischencheck",
+          `<ul class="mission-summary__list">
+            <li>Weg: ${esc(mid.onTrack || "–")}</li>
+            <li>Vorankommen: ${esc(mid.progress || "–")}</li>
+            <li>Ändern: ${esc(mid.changeNeeded || "–")}${
+              mid.changeFocus ? ` (${esc(mid.changeFocus)})` : ""
+            }</li>
+            ${
+              (mid.changeStrategies || []).length
+                ? `<li>Strategie: ${esc((mid.changeStrategies || []).join(" · "))}</li>`
+                : ""
+            }
+          </ul>`
+        )
+      );
+    }
+    return renderMissionCard({
+      title: opts.title || "Deine Mission",
+      step: "★",
+      ready: true,
+      blocks: blocks.join("")
+    });
+  }
+
+  const MID_ON_TRACK = [
+    { value: "Ja", title: "Gut unterwegs", desc: "Ich bin auf dem richtigen Weg.", icon: "✓", accent: "#22c55e" },
+    { value: "Noch unsicher", title: "Noch unsicher", desc: "Es könnte noch kippen.", icon: "?", accent: "#22d3ee" },
+    { value: "Nein", title: "Ich hänge fest", desc: "So komme ich nicht weiter.", icon: "!", accent: "#f472b6" }
+  ];
+  const MID_PROGRESS = [
+    { value: "Ja", title: "Gut voran", desc: "Ich komme klar voran.", icon: "◎", accent: "#22c55e" },
+    { value: "Teilweise", title: "Teilweise", desc: "Etwas läuft, etwas stockt.", icon: "◑", accent: "#a855f7" },
+    { value: "Nein", title: "Stockt", desc: "Kaum Fortschritt bisher.", icon: "◌", accent: "#f472b6" }
+  ];
+  const MID_CHANGE = [
+    { value: "Nein", title: "Nichts ändern", desc: "Ich bleibe bei meinem Plan.", icon: "✓", accent: "#22c55e" },
+    { value: "Vielleicht", title: "Vielleicht", desc: "Kleine Anpassung prüfen.", icon: "↻", accent: "#22d3ee" },
+    { value: "Ja", title: "Ja, ändern", desc: "Ich stelle etwas um.", icon: "✎", accent: "#a855f7" }
+  ];
+  const MID_CHANGE_FOCUS = [
+    { value: "Vorgehen", title: "Vorgehen", desc: "Reihenfolge oder Methode anpassen.", icon: "↻", accent: "#22d3ee" },
+    { value: "Versuch", title: "Versuch", desc: "Aufbau oder Durchführung verbessern.", icon: "⚗", accent: "#22d3ee" },
+    { value: "Erklärung", title: "Erklärung", desc: "Besser erklären oder nachfragen.", icon: "◎", accent: "#a855f7" },
+    { value: "Zusammenarbeit", title: "Zusammenarbeit", desc: "Rollen oder Absprache klären.", icon: "👥", accent: "#a855f7" },
+    { value: "Zeitplanung", title: "Zeitplanung", desc: "Tempo und Prioritäten neu setzen.", icon: "⏱", accent: "#22d3ee" },
+    { value: "anderes", title: "Anderes", desc: "Etwas anderes anpassen.", icon: "◆", accent: "#f472b6" }
+  ];
+
+  function midStrategyTiles() {
+    const fromLib = (window.LOGBUCH_STRATEGIES || []).map((s) => ({
+      value: s.nextStep || s.name,
+      title: s.name,
+      desc: s.whenHelps || s.problem || "",
+      icon: "◆",
+      accent: "#a855f7",
+      meta: s.category || ""
+    }));
+    if (fromLib.length) return fromLib;
+    return (window.LOGBUCH_PLAN_B_OPTIONS || []).map((t) => ({
+      value: t,
+      title: t.length > 34 ? `${t.slice(0, 31)}…` : t,
+      desc: "Plan-B-Strategie aus dem Tagesziel",
+      icon: "◆",
+      accent: "#22d3ee"
+    }));
+  }
+
+  function pickTiles(tiles, active, dataAttr, multi = false) {
+    const V = window.LogbuchVisuals;
+    if (V?.strategyTileGrid) {
+      return V.strategyTileGrid(tiles, active, dataAttr, { multi });
+    }
+    return cardGrid(
+      tiles.map((t) => ({
+        id: t.value,
+        title: t.title,
+        desc: t.desc,
+        icon: t.icon,
+        accent: t.accent,
+        selected: multi
+          ? (Array.isArray(active) ? active : []).includes(t.value)
+          : String(active) === String(t.value)
+      })),
+      null,
+      dataAttr.replace(/^data-/, "")
+    );
+  }
+
   function renderMid() {
     const m = currentMember();
-    const body = `
-      <p class="gm-lead">Dein Was-Ziel: <strong>${esc(m?.whatGoalText || "–")}</strong></p>
-      <p class="gm-h3">Bist du auf dem richtigen Weg?</p>
-      <div class="gm-choice">${["Ja", "Noch unsicher", "Nein"]
-        .map(
-          (v) =>
-            `<button type="button" class="gm-choice-btn ${state.midDraft.onTrack === v ? "is-selected" : ""}" data-mid="onTrack" data-val="${esc(v)}">${esc(v)}</button>`
-        )
-        .join("")}</div>
-      <p class="gm-h3">Kommst du gut voran?</p>
-      <div class="gm-choice">${["Ja", "Teilweise", "Nein"]
-        .map(
-          (v) =>
-            `<button type="button" class="gm-choice-btn ${state.midDraft.progress === v ? "is-selected" : ""}" data-mid="progress" data-val="${esc(v)}">${esc(v)}</button>`
-        )
-        .join("")}</div>
-      <p class="gm-h3">Musst du etwas ändern?</p>
-      <div class="gm-choice">${["Nein", "Vielleicht", "Ja"]
-        .map(
-          (v) =>
-            `<button type="button" class="gm-choice-btn ${state.midDraft.changeNeeded === v ? "is-selected" : ""}" data-mid="changeNeeded" data-val="${esc(v)}">${esc(v)}</button>`
-        )
-        .join("")}</div>
+    const step = Math.min(4, Math.max(1, Number(state.midStep) || 1));
+    const needsChange =
+      state.midDraft.changeNeeded === "Vielleicht" || state.midDraft.changeNeeded === "Ja";
+    const strategies = state.midDraft.changeStrategies || [];
+
+    const step1Body = `
+      ${renderMemberMissionSummary(m)}
+      <div class="plan-acc__continue">
+        <button type="button" class="gm-primary" id="gmMidStep1Next">Weiter zum Check</button>
+      </div>`;
+    const step2Body = pickTiles(MID_ON_TRACK, state.midDraft.onTrack, "data-mid-onTrack");
+    const step3Body = pickTiles(MID_PROGRESS, state.midDraft.progress, "data-mid-progress");
+    const step4Body = `
+      ${pickTiles(MID_CHANGE, state.midDraft.changeNeeded, "data-mid-changeNeeded")}
       ${
-        state.midDraft.changeNeeded === "Vielleicht" || state.midDraft.changeNeeded === "Ja"
-          ? `<p class="gm-h3">Was möchtest du ändern?</p>
-             <div class="gm-chips">${["Vorgehen", "Versuch", "Erklärung", "Zusammenarbeit", "Zeitplanung", "anderes"]
-               .map(
-                 (v) =>
-                   `<button type="button" class="gm-chip ${state.midDraft.changeFocus === v ? "is-selected" : ""}" data-mid="changeFocus" data-val="${esc(v)}">${esc(v)}</button>`
-               )
-               .join("")}</div>`
+        needsChange
+          ? `<p class="way-section__title" style="margin-top:14px">Was möchtest du ändern?</p>
+             <p class="gm-muted">Kurz wählen – und optional eine Strategie aus dem Tagesziel.</p>
+             ${pickTiles(MID_CHANGE_FOCUS, state.midDraft.changeFocus, "data-mid-changeFocus")}
+             <p class="way-section__title" style="margin-top:14px">Welche Strategie hilft dir jetzt?</p>
+             <p class="gm-muted">Bis zu 3 – wie Plan B beim Tagesziel.</p>
+             ${pickTiles(midStrategyTiles(), strategies, "data-mid-strategy", true)}`
           : ""
       }`;
+
+    const body = `
+      <div class="plan-acc-stack">
+        ${
+          step === 1
+            ? gmAccOpen(1, "Meine Ziele", "Kurz ansehen, dann weiter", step1Body)
+            : gmAccDone(1, "Meine Ziele", "angesehen")
+        }
+        ${
+          step === 2
+            ? gmAccOpen(2, "Bist du auf dem richtigen Weg?", "Eine Karte wählen", step2Body)
+            : step > 2
+              ? gmAccDone(2, "Auf dem Weg?", state.midDraft.onTrack || "–")
+              : gmAccLocked(2, "Auf dem Weg?")
+        }
+        ${
+          step === 3
+            ? gmAccOpen(3, "Kommst du gut voran?", "Eine Karte wählen", step3Body)
+            : step > 3
+              ? gmAccDone(3, "Vorankommen", state.midDraft.progress || "–")
+              : gmAccLocked(3, "Vorankommen")
+        }
+        ${
+          step === 4
+            ? gmAccOpen(4, "Musst du etwas ändern?", "Bei Bedarf Strategie wählen", step4Body)
+            : gmAccLocked(4, "Etwas ändern?")
+        }
+      </div>`;
+
     return shell(
       null,
       "Zeit für euren kurzen Check",
       body,
-      `<button type="button" class="gm-primary" id="gmMidSave">Weiter</button>`
+      step === 4
+        ? `<button type="button" class="gm-primary" id="gmMidSave">Zwischencheck speichern</button>`
+        : ""
     );
   }
 
   function renderReflect() {
     const m = currentMember();
+    const step = Math.min(5, Math.max(1, Number(state.reflectStep) || 1));
+    const reachedTiles = [
+      { value: "Erreicht", title: "Erreicht", desc: "Mein Was-Ziel ist geschafft.", icon: "✓", accent: "#22c55e" },
+      {
+        value: "Teilweise erreicht",
+        title: "Teilweise",
+        desc: "Ein Teil hat schon geklappt.",
+        icon: "◑",
+        accent: "#22d3ee"
+      },
+      {
+        value: "Noch nicht erreicht",
+        title: "Noch nicht",
+        desc: "Heute noch nicht geschafft.",
+        icon: "○",
+        accent: "#f472b6"
+      }
+    ];
+    const evidenceTiles = [
+      "Ich konnte es erklären.",
+      "Ich konnte es selbst durchführen.",
+      "Ich habe ein richtiges Ergebnis erhalten.",
+      "Ich konnte meine Beobachtung begründen.",
+      "Ich brauche noch Hilfe.",
+      "Ich bin noch unsicher."
+    ].map((t, i) => ({
+      value: t,
+      title: t.replace(/^Ich |^Ich konnte |^Ich habe /, "").replace(/\.$/, ""),
+      desc: t,
+      icon: String(i + 1),
+      accent: i < 4 ? "#22d3ee" : "#a855f7"
+    }));
+    const helpedTiles = [
+      "der Versuch",
+      "die Skizze",
+      "die Messwerte",
+      "meine Gruppe",
+      "eine Erklärung",
+      "die Recherche",
+      "das Ausprobieren",
+      "etwas anderes"
+    ].map((t) => ({
+      value: t,
+      title: t,
+      desc: `Heute hat mir ${t} geholfen.`,
+      icon: "◆",
+      accent: "#a855f7"
+    }));
+    const continueTiles = [
+      { value: "Ja", title: "Ja", desc: "Beim nächsten Mal weiter daran arbeiten.", icon: "✓", accent: "#22c55e" },
+      { value: "Vielleicht", title: "Vielleicht", desc: "Noch unklar.", icon: "?", accent: "#22d3ee" },
+      { value: "Nein", title: "Nein", desc: "Neues Ziel wählen.", icon: "○", accent: "#94a3b8" }
+    ];
+
+    const step1Body = `
+      ${renderMemberMissionSummary(m, { withMid: true, title: "Deine Ziele heute" })}
+      <div class="plan-acc__continue">
+        <button type="button" class="gm-primary" id="gmReflectStep1Next">Weiter zur Reflexion</button>
+      </div>`;
+
     const body = `
-      <p class="gm-lead">Was: <strong>${esc(m?.whatGoalText || "–")}</strong><br/>Wie: <strong>${esc(m?.howGoalText || "–")}</strong></p>
-      <p class="gm-h3">Wie weit hast du dein Was-Ziel heute erreicht?</p>
-      <div class="gm-choice">${["Erreicht", "Teilweise erreicht", "Noch nicht erreicht"]
-        .map(
-          (v) =>
-            `<button type="button" class="gm-choice-btn ${state.reflectDraft.goalReached === v ? "is-selected" : ""}" data-ref="goalReached" data-val="${esc(v)}">${esc(v)}</button>`
-        )
-        .join("")}</div>
-      <p class="gm-h3">Woran erkennst du das?</p>
-      <div class="gm-cards">${[
-        "Ich konnte es erklären.",
-        "Ich konnte es selbst durchführen.",
-        "Ich habe ein richtiges Ergebnis erhalten.",
-        "Ich konnte meine Beobachtung begründen.",
-        "Ich brauche noch Hilfe.",
-        "Ich bin noch unsicher."
-      ]
-        .map(
-          (v) =>
-            `<button type="button" class="gm-card ${state.reflectDraft.evidence === v ? "is-selected" : ""}" data-ref="evidence" data-val="${esc(v)}"><span class="gm-card-title">${esc(v)}</span></button>`
-        )
-        .join("")}</div>
-      <p class="gm-h3">Was hat dir heute geholfen?</p>
-      <div class="gm-chips">${[
-        "der Versuch",
-        "die Skizze",
-        "die Messwerte",
-        "meine Gruppe",
-        "eine Erklärung",
-        "die Recherche",
-        "das Ausprobieren",
-        "etwas anderes"
-      ]
-        .map(
-          (v) =>
-            `<button type="button" class="gm-chip ${state.reflectDraft.helped === v ? "is-selected" : ""}" data-ref="helped" data-val="${esc(v)}">${esc(v)}</button>`
-        )
-        .join("")}</div>
-      <p class="gm-h3">Was möchtest du beim nächsten Mal besser machen?</p>
-      <textarea id="gmNextImprove" class="gm-textarea" rows="2">${esc(state.reflectDraft.nextImprove || "")}</textarea>
-      <p class="gm-h3">Möchtest du beim nächsten Mal an diesem Ziel weiterarbeiten?</p>
-      <div class="gm-choice">${["Ja", "Vielleicht", "Nein"]
-        .map(
-          (v) =>
-            `<button type="button" class="gm-choice-btn ${state.reflectDraft.continueNextSession === v ? "is-selected" : ""}" data-ref="continueNextSession" data-val="${esc(v)}">${esc(v)}</button>`
-        )
-        .join("")}</div>
-      <p class="gm-h3">Das habe ich meiner Gruppe erklärt</p>
-      <textarea id="gmExplained" class="gm-textarea" rows="2">${esc(state.reflectDraft.explainedToGroup || "")}</textarea>
-      <p class="gm-h3">Darüber haben mich die anderen informiert</p>
-      <textarea id="gmLearned" class="gm-textarea" rows="2">${esc(state.reflectDraft.learnedFromGroup || "")}</textarea>`;
+      <div class="plan-acc-stack">
+        ${
+          step === 1
+            ? gmAccOpen(1, "Meine Ziele & Check", "Übersichtlich ansehen", step1Body)
+            : gmAccDone(1, "Meine Ziele & Check", "angesehen")
+        }
+        ${
+          step === 2
+            ? gmAccOpen(
+                2,
+                "Ziel erreicht?",
+                "Eine Karte wählen",
+                pickTiles(reachedTiles, state.reflectDraft.goalReached, "data-ref-goalReached")
+              )
+            : step > 2
+              ? gmAccDone(2, "Ziel erreicht?", state.reflectDraft.goalReached || "–")
+              : gmAccLocked(2, "Ziel erreicht?")
+        }
+        ${
+          step === 3
+            ? gmAccOpen(
+                3,
+                "Woran erkennst du das?",
+                "Eine Karte wählen",
+                pickTiles(evidenceTiles, state.reflectDraft.evidence, "data-ref-evidence")
+              )
+            : step > 3
+              ? gmAccDone(3, "Woran erkennst du das?", state.reflectDraft.evidence || "–")
+              : gmAccLocked(3, "Woran erkennst du das?")
+        }
+        ${
+          step === 4
+            ? gmAccOpen(
+                4,
+                "Was hat geholfen?",
+                "Eine Karte wählen",
+                `${pickTiles(helpedTiles, state.reflectDraft.helped, "data-ref-helped")}
+                 <p class="way-section__title" style="margin-top:14px">Nächstes Mal besser?</p>
+                 <textarea id="gmNextImprove" class="gm-textarea" rows="2" placeholder="Kurz notieren…">${esc(
+                   state.reflectDraft.nextImprove || ""
+                 )}</textarea>
+                 <p class="way-section__title" style="margin-top:14px">Weiter an diesem Ziel?</p>
+                 ${pickTiles(
+                   continueTiles,
+                   state.reflectDraft.continueNextSession,
+                   "data-ref-continueNextSession"
+                 )}
+                 <div class="plan-acc__continue">
+                   <button type="button" class="gm-primary" id="gmReflectStep4Next">Weiter</button>
+                 </div>`
+              )
+            : step > 4
+              ? gmAccDone(4, "Was hat geholfen?", state.reflectDraft.helped || "–")
+              : gmAccLocked(4, "Was hat geholfen?")
+        }
+        ${
+          step === 5
+            ? gmAccOpen(
+                5,
+                "Mit der Gruppe",
+                "Kurz austauschen",
+                `<p class="way-section__title">Das habe ich meiner Gruppe erklärt</p>
+                 <textarea id="gmExplained" class="gm-textarea" rows="2" placeholder="Optional…">${esc(
+                   state.reflectDraft.explainedToGroup || ""
+                 )}</textarea>
+                 <p class="way-section__title" style="margin-top:12px">Darüber haben mich die anderen informiert</p>
+                 <textarea id="gmLearned" class="gm-textarea" rows="2" placeholder="Optional…">${esc(
+                   state.reflectDraft.learnedFromGroup || ""
+                 )}</textarea>`
+              )
+            : gmAccLocked(5, "Mit der Gruppe")
+        }
+      </div>`;
+
     return shell(
       null,
       "Wie ist es heute gelaufen?",
       body,
-      `<button type="button" class="gm-primary" id="gmReflectSave">Fertig – weitergeben</button>`
+      step === 5
+        ? `<button type="button" class="gm-primary" id="gmReflectSave">Fertig – weitergeben</button>`
+        : ""
     );
   }
 
@@ -1565,9 +1806,15 @@
 
     document.getElementById("gmHandoffGo")?.addEventListener("click", (e) => {
       const kind = e.currentTarget.getAttribute("data-kind");
-      if (kind === "mid") state.screen = "mid";
-      else if (kind === "reflect") state.screen = "reflect";
-      else {
+      if (kind === "mid") {
+        state.midDraft = { changeStrategies: [] };
+        state.midStep = 1;
+        state.screen = "mid";
+      } else if (kind === "reflect") {
+        state.reflectDraft = {};
+        state.reflectStep = 1;
+        state.screen = "reflect";
+      } else {
         const m = currentMember();
         const whatGoals = (m?.whatGoals || []).length
           ? m.whatGoals
@@ -1746,7 +1993,8 @@
         render();
         return;
       }
-      state.midDraft = {};
+      state.midDraft = { changeStrategies: [] };
+      state.midStep = 1;
       state.screen = "mid-handoff";
       render();
     });
@@ -1759,27 +2007,88 @@
         return;
       }
       state.reflectDraft = {};
+      state.reflectStep = 1;
       state.screen = "reflect-handoff";
       render();
     });
 
-    document.querySelectorAll("[data-mid]").forEach((btn) => {
+    document.getElementById("gmMidStep1Next")?.addEventListener("click", () => {
+      state.midStep = 2;
+      render();
+    });
+
+    const midFieldMap = {
+      "data-mid-onTrack": "onTrack",
+      "data-mid-progress": "progress",
+      "data-mid-changeNeeded": "changeNeeded",
+      "data-mid-changeFocus": "changeFocus"
+    };
+    Object.entries(midFieldMap).forEach(([attr, field]) => {
+      document.querySelectorAll(`[${attr}]`).forEach((btn) => {
+        btn.addEventListener("click", () => {
+          clearFlash();
+          state.midDraft[field] = btn.getAttribute(attr);
+          if (field === "changeNeeded" && state.midDraft.changeNeeded === "Nein") {
+            state.midDraft.changeFocus = null;
+            state.midDraft.changeStrategies = [];
+          }
+          if (field === "onTrack") state.midStep = 3;
+          else if (field === "progress") state.midStep = 4;
+          render();
+        });
+      });
+    });
+
+    document.querySelectorAll("[data-mid-strategy]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const field = btn.getAttribute("data-mid");
-        state.midDraft[field] = btn.getAttribute("data-val");
+        clearFlash();
+        const val = btn.getAttribute("data-mid-strategy");
+        const list = [...(state.midDraft.changeStrategies || [])];
+        const idx = list.indexOf(val);
+        if (idx >= 0) list.splice(idx, 1);
+        else if (list.length < 3) list.push(val);
+        else {
+          state.error = "Höchstens 3 Strategien.";
+          render();
+          return;
+        }
+        state.midDraft.changeStrategies = list;
         render();
       });
     });
+
     document.getElementById("gmMidSave")?.addEventListener("click", async () => {
       clearFlash();
       try {
         const m = currentMember();
+        if (!state.midDraft.onTrack || !state.midDraft.progress || !state.midDraft.changeNeeded) {
+          state.error = "Bitte beantworte die kurzen Fragen.";
+          render();
+          return;
+        }
+        if (
+          (state.midDraft.changeNeeded === "Ja" || state.midDraft.changeNeeded === "Vielleicht") &&
+          !state.midDraft.changeFocus
+        ) {
+          state.error = "Bitte wähle kurz, was du ändern möchtest.";
+          render();
+          return;
+        }
         const data = await api(`/api/student/group-sessions/${state.sessionId}/mid-check`, {
           method: "PUT",
-          body: JSON.stringify({ userId: m.userId, ...state.midDraft })
+          body: JSON.stringify({
+            userId: m.userId,
+            onTrack: state.midDraft.onTrack,
+            progress: state.midDraft.progress,
+            changeNeeded: state.midDraft.changeNeeded,
+            changeFocus: state.midDraft.changeFocus || null,
+            changeStrategies: state.midDraft.changeStrategies || [],
+            note: (state.midDraft.changeStrategies || []).join(" · ") || null
+          })
         });
         applyBundle(data);
-        state.midDraft = {};
+        state.midDraft = { changeStrategies: [] };
+        state.midStep = 1;
         const next = nextPendingMember((mem) => mem.midCheckAt);
         if (next >= 0) {
           state.currentMemberIdx = next;
@@ -1795,29 +2104,66 @@
       }
     });
 
-    document.querySelectorAll("[data-ref]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const field = btn.getAttribute("data-ref");
-        state.reflectDraft[field] = btn.getAttribute("data-val");
+    document.getElementById("gmReflectStep1Next")?.addEventListener("click", () => {
+      state.reflectStep = 2;
+      render();
+    });
+    document.getElementById("gmReflectStep4Next")?.addEventListener("click", () => {
+      state.reflectDraft.nextImprove =
+        document.getElementById("gmNextImprove")?.value || state.reflectDraft.nextImprove || "";
+      if (!state.reflectDraft.helped) {
+        state.error = "Bitte wähle, was dir geholfen hat.";
         render();
+        return;
+      }
+      state.reflectStep = 5;
+      render();
+    });
+
+    const refFieldMap = {
+      "data-ref-goalReached": "goalReached",
+      "data-ref-evidence": "evidence",
+      "data-ref-helped": "helped",
+      "data-ref-continueNextSession": "continueNextSession"
+    };
+    Object.entries(refFieldMap).forEach(([attr, field]) => {
+      document.querySelectorAll(`[${attr}]`).forEach((btn) => {
+        btn.addEventListener("click", () => {
+          clearFlash();
+          state.reflectDraft[field] = btn.getAttribute(attr);
+          if (field === "goalReached") state.reflectStep = 3;
+          else if (field === "evidence") state.reflectStep = 4;
+          render();
+        });
       });
     });
+
     document.getElementById("gmReflectSave")?.addEventListener("click", async () => {
       clearFlash();
       try {
         const m = currentMember();
         state.reflectDraft.nextImprove =
-          document.getElementById("gmNextImprove")?.value || "";
+          document.getElementById("gmNextImprove")?.value || state.reflectDraft.nextImprove || "";
         state.reflectDraft.explainedToGroup =
           document.getElementById("gmExplained")?.value || "";
         state.reflectDraft.learnedFromGroup =
           document.getElementById("gmLearned")?.value || "";
+        if (
+          !state.reflectDraft.goalReached ||
+          !state.reflectDraft.evidence ||
+          !state.reflectDraft.helped
+        ) {
+          state.error = "Bitte beantworte die wichtigsten Fragen.";
+          render();
+          return;
+        }
         const data = await api(`/api/student/group-sessions/${state.sessionId}/reflection`, {
           method: "PUT",
           body: JSON.stringify({ userId: m.userId, ...state.reflectDraft })
         });
         applyBundle(data);
         state.reflectDraft = {};
+        state.reflectStep = 1;
         if (data.session?.status === "closed") {
           state.screen = "done";
         } else {
