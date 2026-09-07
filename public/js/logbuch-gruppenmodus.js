@@ -138,7 +138,7 @@
       if (data.members?.length && Object.keys(state.roleAssignments).length === 0) {
         for (const m of data.members) {
           for (const role of m.roles || []) {
-            if (role.roleId) state.roleAssignments[role.roleId] = Number(m.userId);
+            if (role.roleId) state.roleAssignments[String(role.roleId)] = Number(m.userId);
           }
         }
       }
@@ -307,38 +307,56 @@
   }
 
   function renderRoles() {
-    const roles = (settings().roles || []).filter((r) => r.active);
+    const roles = (settings().roles || []).filter((r) => r && r.active !== false);
     const mems = members();
+    if (!mems.length) {
+      return shell(
+        "Schritt 3 von 5",
+        "Wer übernimmt welche Aufgabe?",
+        `<div class="gm-empty">Es sind keine Gruppenmitglieder gespeichert. Bitte einen Schritt zurück und die Personen erneut wählen.</div>`,
+        `<button type="button" class="gm-primary" id="gmRolesBackMembers">Zurück zu den Personen</button>`
+      );
+    }
     const body = `
-      <p class="gm-lead">Tippt zuerst auf eine Aufgabe, dann auf die Person.</p>
+      <p class="gm-lead">Wählt bei jeder Aufgabe die Person aus der Liste.</p>
       <div class="gm-role-board">
         ${roles
           .map((role) => {
-            const uid = state.roleAssignments[role.id];
+            const roleId = String(role.id);
+            const uid = state.roleAssignments[roleId];
             const person = mems.find((m) => String(m.userId) === String(uid));
             return `
-            <button type="button" class="gm-role-card ${state._pickedRole === role.id ? "is-picked" : ""}" data-pick-role="${esc(role.id)}">
-              <strong>${esc(role.name)}</strong>
-              <span>${esc(role.description || "")}</span>
-              <em>${person ? esc(person.displayName) : "noch frei"}</em>
-            </button>`;
+            <div class="gm-role-block">
+              <div class="gm-role-card ${person ? "is-picked" : ""}">
+                <strong>${esc(role.name)}</strong>
+                <span>${esc(role.description || "")}</span>
+                <em>${person ? esc(person.displayName) : "noch frei"}</em>
+              </div>
+              <label class="gm-label gm-role-assign-label">
+                Person für ${esc(role.name)}
+                <select class="gm-select" data-role-select="${esc(roleId)}">
+                  <option value="">– Person wählen –</option>
+                  ${mems
+                    .map((m) => {
+                      const id = String(m.userId);
+                      const selected = String(uid) === id ? "selected" : "";
+                      return `<option value="${esc(id)}" ${selected}>${esc(m.displayName)}</option>`;
+                    })
+                    .join("")}
+                </select>
+              </label>
+            </div>`;
           })
           .join("")}
       </div>
-      <div class="gm-people-row">
-        ${mems
-          .map(
-            (m) => `
-          <button type="button" class="gm-chip" data-assign-user="${m.userId}">${esc(m.displayName)}</button>`
-          )
-          .join("")}
-      </div>
       <button type="button" class="gm-ghost" id="gmSuggestRoles">Vorschlag übernehmen</button>`;
+    const allAssigned =
+      roles.length > 0 && roles.every((r) => state.roleAssignments[String(r.id)]);
     return shell(
       "Schritt 3 von 5",
       "Wer übernimmt welche Aufgabe?",
       body,
-      `<button type="button" class="gm-primary" id="gmRolesNext">Rollen bestätigen</button>`
+      `<button type="button" class="gm-primary" id="gmRolesNext" ${allAssigned ? "" : "disabled"}>Rollen bestätigen</button>`
     );
   }
 
@@ -762,7 +780,8 @@
       .gm-primary{background:#3dd6c6;color:#082028;width:100%}
       .gm-primary:disabled{opacity:.4;cursor:not-allowed}
       .gm-ghost{background:transparent;border:2px solid rgba(255,255,255,.2);color:inherit}
-      .gm-footer{position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent, rgba(8,16,24,.92) 30%);backdrop-filter:blur(6px)}
+      .gm-footer{position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent, rgba(8,16,24,.92) 30%);backdrop-filter:blur(6px);pointer-events:none}
+      .gm-footer > *{pointer-events:auto}
       .gm-footer-row{display:flex;gap:10px}
       .gm-footer-row .gm-primary,.gm-footer-row .gm-ghost{flex:1}
       .gm-footer-row--stack{flex-direction:column}
@@ -773,10 +792,13 @@
       .gm-save-badge{font-size:.75rem;opacity:.75;white-space:nowrap}
       .gm-handoff{min-height:220px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:8px}
       .gm-handoff-text{font-size:1.5rem;margin:0}
-      .gm-role-board{display:grid;gap:10px;margin-bottom:12px}
-      .gm-role-card{text-align:left;padding:14px;border-radius:16px;border:2px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:inherit;display:grid;gap:4px}
-      .gm-people-row,.gm-chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
-      .gm-chip{min-height:44px;padding:10px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:inherit}
+      .gm-role-board{display:grid;gap:16px;margin-bottom:12px}
+      .gm-role-block{display:grid;gap:10px;padding:14px;border-radius:16px;background:rgba(255,255,255,.04);position:relative;z-index:2}
+      .gm-role-card{text-align:left;padding:12px;border-radius:14px;border:2px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:inherit;display:grid;gap:4px}
+      .gm-role-assign-label{display:grid;gap:6px;font-size:.92rem;opacity:.95}
+      .gm-select{width:100%;min-height:52px;border-radius:14px;border:2px solid rgba(255,255,255,.25);background:rgba(0,0,0,.45);color:inherit;padding:10px 12px;font-size:1.05rem;font-weight:600;-webkit-appearance:menulist;appearance:auto;position:relative;z-index:3}
+      .gm-people-row,.gm-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0}
+      .gm-chip{min-height:48px;padding:10px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:inherit;cursor:pointer;font-size:1rem;font-weight:600;position:relative;z-index:3;touch-action:manipulation;-webkit-tap-highlight-color:rgba(61,214,198,.35)}
       .gm-choice{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:12px}
       .gm-choice-btn{min-height:56px;border-radius:16px;border:2px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:inherit;font-size:1.1rem;font-weight:700}
       .gm-summary{display:grid;gap:12px;padding:16px;border-radius:18px;background:rgba(255,255,255,.06)}
@@ -924,7 +946,7 @@
         if (data.suggestedAssignments) {
           state.roleAssignments = {};
           for (const a of data.suggestedAssignments) {
-            state.roleAssignments[a.roleId] = Number(a.userId);
+            if (a.roleId != null) state.roleAssignments[String(a.roleId)] = Number(a.userId);
           }
         }
         state.screen = "roles";
@@ -935,42 +957,50 @@
       }
     });
 
-    document.querySelectorAll("[data-pick-role]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state._pickedRole = btn.getAttribute("data-pick-role");
-        render();
-      });
-    });
-    document.querySelectorAll("[data-assign-user]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (!state._pickedRole) {
-          state.error = "Tippt zuerst auf eine Aufgabe.";
+    document.querySelectorAll("[data-role-select]").forEach((sel) => {
+      sel.addEventListener("change", () => {
+        clearFlash();
+        const roleId = String(sel.getAttribute("data-role-select") || "");
+        const uid = Number(sel.value);
+        if (!roleId) return;
+        if (!sel.value) {
+          delete state.roleAssignments[roleId];
           render();
           return;
         }
-        const uid = Number(btn.getAttribute("data-assign-user"));
+        if (!Number.isFinite(uid) || uid <= 0) {
+          state.error = "Diese Person konnte nicht zugeordnet werden.";
+          render();
+          return;
+        }
         if (!settings().allowMultiRoles) {
-          for (const [roleId, userId] of Object.entries(state.roleAssignments)) {
-            if (Number(userId) === uid && roleId !== state._pickedRole) {
-              delete state.roleAssignments[roleId];
+          for (const [rid, userId] of Object.entries(state.roleAssignments)) {
+            if (Number(userId) === uid && rid !== roleId) {
+              delete state.roleAssignments[rid];
             }
           }
         }
-        state.roleAssignments[state._pickedRole] = uid;
+        state.roleAssignments[roleId] = uid;
         state._pickedRole = null;
         render();
       });
     });
+    document.getElementById("gmRolesBackMembers")?.addEventListener("click", () => {
+      state.screen = "members";
+      render();
+    });
     document.getElementById("gmSuggestRoles")?.addEventListener("click", () => {
       const suggested = state.bundle?.suggestedAssignments || [];
       state.roleAssignments = {};
-      for (const a of suggested) state.roleAssignments[a.roleId] = Number(a.userId);
-      // if empty, rebuild from members + roles
-      if (!suggested.length) {
-        const roles = (settings().roles || []).filter((r) => r.active);
+      for (const a of suggested) {
+        if (a.roleId != null) state.roleAssignments[String(a.roleId)] = Number(a.userId);
+      }
+      if (!Object.keys(state.roleAssignments).length) {
+        const roles = (settings().roles || []).filter((r) => r && r.active !== false);
         const mems = members();
         roles.forEach((role, idx) => {
-          state.roleAssignments[role.id] = mems[idx % mems.length]?.userId;
+          const uid = mems[idx % mems.length]?.userId;
+          if (uid != null) state.roleAssignments[String(role.id)] = Number(uid);
         });
       }
       render();
