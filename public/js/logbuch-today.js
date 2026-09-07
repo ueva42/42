@@ -835,10 +835,9 @@
     root.querySelectorAll("[data-nav]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const nav = btn.dataset.nav;
+        if (!nav) return;
         const q = new URLSearchParams(btn.dataset.query || "");
-        if (nav === "plan" || nav === "check" || nav === "reflect") {
-          window.StudentRouter?.navigateToSection(nav, { query: q });
-        }
+        window.StudentRouter?.navigateToSection(nav, { query: q });
       });
     });
 

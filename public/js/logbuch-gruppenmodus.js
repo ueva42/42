@@ -1363,11 +1363,21 @@
     if (existing?.id) {
       state.selectedMembers = [];
       state.roleAssignments = {};
-      const full = await api(`/api/student/group-sessions/${existing.id}`);
-      applyBundle(full);
-      resumeScreenFromBundle();
-      render();
-      return;
+      try {
+        const full = await api(`/api/student/group-sessions/${existing.id}`);
+        applyBundle(full);
+        resumeScreenFromBundle();
+        render();
+        return;
+      } catch (err) {
+        // Kaputte/alte Session: löschen und neu starten
+        try {
+          await api(`/api/student/group-sessions/${existing.id}/delete`, { method: "POST" });
+        } catch (_) {}
+        state.bootstrap.activeSessions = (state.bootstrap.activeSessions || []).filter(
+          (s) => String(s.id) !== String(existing.id)
+        );
+      }
     }
     const data = await api("/api/student/group-sessions", {
       method: "POST",
@@ -1378,10 +1388,10 @@
       const full = await api(`/api/student/group-sessions/${data.session.id}`);
       applyBundle(full);
     } catch (loadErr) {
-      // Session existiert – Themen separat nachladen
       try {
         const t = await fetch(
-          `/api/student/group-mode/topics?subject=${encodeURIComponent(subject)}`
+          `/api/student/group-mode/topics?subject=${encodeURIComponent(subject)}`,
+          { credentials: "same-origin" }
         );
         const topicData = await t.json();
         if (state.bundle) state.bundle.topics = topicData.topics || [];
@@ -1389,6 +1399,8 @@
       console.warn("group session reload:", loadErr);
     }
     state.screen = "pick-topic";
+    if (data.resumed) resumeScreenFromBundle();
+    else state.screen = data.session?.topicId ? "members" : "pick-topic";
     render();
   }
 
