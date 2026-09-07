@@ -10,6 +10,46 @@
     "Biologie"
   ];
 
+  const ROLE_IMPORT_FORMAT_HINT = `Format (eine Zeile = ein Ziel, Felder mit ; getrennt):
+
+Rolle;Rollenbeschreibung;Zielart;Zieltext;Reihenfolge;Aktiv
+
+Zielart ist immer WAS oder WIE.
+Aktiv: ja oder nein.
+Das Fach musst du nicht eintragen – es ist oben schon gewählt.`;
+
+  function exampleImportText(subject) {
+    const s = String(subject || "Physik");
+    if (s.toLowerCase() === "sport") {
+      return `Rolle;Rollenbeschreibung;Zielart;Zieltext;Reihenfolge;Aktiv
+Aufbau;Bereitet Stationen vor;WAS;Ich baue die Übungsstation sicher auf.;1;ja
+Aufbau;Bereitet Stationen vor;WIE;Ich prüfe den Aufbau vor dem Start.;1;ja
+Coaching;Unterstützt andere beim Verbessern;WAS;Ich beobachte die Bewegung eines Gruppenmitglieds.;1;ja
+Coaching;Unterstützt andere beim Verbessern;WIE;Ich gebe eine konkrete und freundliche Rückmeldung.;1;ja`;
+    }
+    return `Rolle;Rollenbeschreibung;Zielart;Zieltext;Reihenfolge;Aktiv
+Versuch;Plant und führt Versuche sicher durch;WAS;Ich plane einen passenden Versuch.;1;ja
+Versuch;Plant und führt Versuche sicher durch;WAS;Ich bereite Material und Aufbau vor.;2;ja
+Versuch;Plant und führt Versuche sicher durch;WAS;Ich baue den Versuch sicher und richtig auf.;3;ja
+Versuch;Plant und führt Versuche sicher durch;WIE;Ich beachte die Sicherheitsregeln.;1;ja
+Versuch;Plant und führt Versuche sicher durch;WIE;Ich verändere immer nur eine Bedingung.;2;ja
+Protokoll;Dokumentiert Aufbau und Beobachtungen;WAS;Ich halte den Versuchsaufbau und die Beobachtungen fest.;1;ja
+Protokoll;Dokumentiert Aufbau und Beobachtungen;WIE;Ich notiere Messwerte mit den passenden Einheiten.;1;ja
+Ergebnis;Erklärt Zusammenhänge;WAS;Ich erkläre den Zusammenhang mit eigenen Worten.;1;ja
+Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
+  }
+
+  function downloadExampleTxt() {
+    const text = exampleImportText(state.subject);
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rollen-rollenziele-${String(state.subject || "fach").toLowerCase()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const state = {
     view: "overview", // overview | settings | roles | import
     classes: [],
@@ -297,7 +337,7 @@
           <button type="button" class="action" id="gmAddRole">Rolle hinzufügen</button>
           <button type="button" class="action" id="gmImportRoles">Rollen und Rollenziele importieren</button>
           <button type="button" class="action" id="gmCopyRoles">Vorlage aus anderem Fach übernehmen</button>
-          <a class="action" href="/api/teacher/group-mode/role-goals/sample.csv">Beispieldatei</a>
+          <button type="button" class="action" id="gmDownloadExample">Beispieldatei (.txt)</button>
         </div>
         ${state.message ? `<p class="gm-ok">${escapeHtml(state.message)}</p>` : ""}
         ${state.error ? `<p class="gm-err">${escapeHtml(state.error)}</p>` : ""}
@@ -321,9 +361,19 @@
         }
         ${
           step === 2
-            ? `<p>Datei auswählen (CSV)</p>
-               <input type="file" id="gmImportFile" accept=".csv,text/csv,text/plain" />
-               <textarea id="gmImportText" class="gm-textarea" rows="10" placeholder="Oder CSV hier einfügen…">${escapeHtml(state.importCsv)}</textarea>
+            ? `<div class="gm-import-format">
+                 <p><strong>So muss der Text formatiert sein</strong> (Felder mit <code>;</code> getrennt, eine Zeile pro Ziel):</p>
+                 <pre class="gm-pre">${escapeHtml(ROLE_IMPORT_FORMAT_HINT)}</pre>
+                 <p class="hint">Du kannst den Text hier einfügen oder eine .txt-Datei laden. Das Beispiel unten kannst du anpassen.</p>
+               </div>
+               <div class="gm-role-toolbar">
+                 <button type="button" class="action" id="gmFillExample">Beispiel einfügen</button>
+                 <button type="button" class="action" id="gmDownloadExample">Als .txt speichern</button>
+                 <label class="action gm-file-label">.txt laden
+                   <input type="file" id="gmImportFile" accept=".txt,text/plain" hidden />
+                 </label>
+               </div>
+               <textarea id="gmImportText" class="gm-textarea gm-textarea--import" rows="14" spellcheck="false" placeholder="Text hier einfügen…">${escapeHtml(state.importCsv || exampleImportText(state.subject))}</textarea>
                <div class="gm-footer-row">
                  <button type="button" class="action" id="gmImportBack">Zurück</button>
                  <button type="button" class="action" id="gmImportPreviewBtn">Import prüfen</button>
@@ -514,6 +564,10 @@
         .gm-goal-cols li.is-off,.gm-role-card.is-off{opacity:.55}
         .gm-role-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
         .gm-role-summary{margin:8px 0 12px;padding-left:18px}
+        .gm-pre{white-space:pre-wrap;background:rgba(0,0,0,.04);padding:12px;border-radius:8px;font-size:.9rem;line-height:1.45;max-width:720px}
+        .gm-textarea--import{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9rem;max-width:900px;min-height:280px}
+        .gm-file-label{cursor:pointer;display:inline-flex;align-items:center}
+        .gm-import-format{margin-bottom:12px}
         @media (max-width:700px){
           .gm-member-line,.gm-goal-cols{grid-template-columns:1fr}
         }
@@ -695,12 +749,20 @@
     document.getElementById("gmImportRoles")?.addEventListener("click", () => {
       state.view = "import";
       state.importStep = 1;
-      state.importCsv = "";
+      state.importCsv = exampleImportText(state.subject);
       state.importPreview = null;
       state.importSummary = null;
       state.importMode = "add_new";
       state.error = "";
       render();
+    });
+    document.getElementById("gmDownloadExample")?.addEventListener("click", () => {
+      downloadExampleTxt();
+    });
+    document.getElementById("gmFillExample")?.addEventListener("click", () => {
+      state.importCsv = exampleImportText(state.subject);
+      const ta = document.getElementById("gmImportText");
+      if (ta) ta.value = state.importCsv;
     });
     document.getElementById("gmCopyRoles")?.addEventListener("click", async () => {
       const source = prompt(
@@ -752,42 +814,67 @@
     });
     document.getElementById("gmImportPreviewBtn")?.addEventListener("click", async () => {
       state.importCsv = document.getElementById("gmImportText")?.value || state.importCsv;
-      const r = await fetch("/api/teacher/group-mode/role-goals/import/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          classId: state.classId,
-          subject: state.subject,
-          csvText: state.importCsv
-        })
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        state.error = data.error || "Vorschau fehlgeschlagen";
+      if (!String(state.importCsv || "").trim()) {
+        state.error = "Bitte zuerst Text einfügen oder eine .txt-Datei laden.";
         render();
         return;
       }
-      state.importPreview = data.preview;
-      state.importStep = 3;
-      state.error = "";
-      render();
+      try {
+        const r = await fetch("/api/teacher/group-mode/roles-import/preview", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            classId: state.classId,
+            subject: state.subject,
+            text: state.importCsv
+          })
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || data.success === false) {
+          state.error =
+            data.message ||
+            data.error ||
+            (r.status === 403
+              ? "Keine Berechtigung – bitte neu einloggen."
+              : "Vorschau fehlgeschlagen");
+          render();
+          return;
+        }
+        state.importPreview = data.preview;
+        state.importStep = 3;
+        state.error = "";
+        render();
+      } catch (err) {
+        state.error = err.message || "Vorschau fehlgeschlagen";
+        render();
+      }
     });
     document.getElementById("gmImportRun")?.addEventListener("click", async () => {
       state.saving = true;
       render();
       try {
-        const r = await fetch("/api/teacher/group-mode/role-goals/import/confirm", {
+        const r = await fetch("/api/teacher/group-mode/roles-import/confirm", {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             classId: state.classId,
             subject: state.subject,
-            csvText: state.importCsv,
+            text: state.importCsv,
             mode: state.importMode
           })
         });
-        const data = await r.json();
-        if (!r.ok || !data.success) throw new Error(data.error || "Import fehlgeschlagen");
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.success) {
+          throw new Error(
+            data.message ||
+              data.error ||
+              (r.status === 403
+                ? "Keine Berechtigung – bitte neu einloggen."
+                : "Import fehlgeschlagen")
+          );
+        }
         state.importSummary = data.summary;
         state.settings = data.settings;
       } catch (err) {
