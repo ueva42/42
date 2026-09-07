@@ -202,7 +202,7 @@
     const enabled = state.bootstrap?.enabledSubjects || [];
     const active = state.bootstrap?.activeSessions || [];
     const body = `
-      <p class="gm-lead">Ihr arbeitet zu zweit, zu dritt oder zu viert an einem iPad.</p>
+      <p class="gm-lead">Ihr arbeitet zu zweit, zu dritt oder zu viert an einem iPad – themengebunden am Levelplan. Eine angelegte Gruppe bleibt bestehen, bis ihr sie abschließt oder löscht.</p>
       ${
         active.length
           ? `<h3 class="gm-h3">Weiterarbeiten</h3>

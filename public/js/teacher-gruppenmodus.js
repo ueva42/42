@@ -15,7 +15,6 @@
     classes: [],
     classId: null,
     subject: "Physik",
-    date: new Date().toISOString().slice(0, 10),
     settings: null,
     sessions: [],
     expandedId: null,
@@ -77,7 +76,6 @@
     if (!state.classId) return;
     const q = new URLSearchParams({
       classId: String(state.classId),
-      date: state.date,
       subject: state.subject || ""
     });
     const r = await fetch(`/api/teacher/group-sessions?${q}`);
@@ -154,11 +152,8 @@
         <label>Fach
           <select id="gmSubjectSelect">${subjectOpts}</select>
         </label>
-        <label>Datum
-          <input type="date" id="gmDateInput" value="${escapeHtml(state.date)}" />
-        </label>
         <div class="gm-toolbar-actions">
-          <button type="button" class="action ${state.view === "overview" ? "gm-btn-active" : ""}" id="gmViewOverview">Gruppen heute</button>
+          <button type="button" class="action ${state.view === "overview" ? "gm-btn-active" : ""}" id="gmViewOverview">Offene Gruppen</button>
           <button type="button" class="action ${state.view === "settings" ? "gm-btn-active" : ""}" id="gmViewSettings">Einstellungen</button>
         </div>
       </div>`;
@@ -256,15 +251,15 @@
     if (!state.sessions.length) {
       return `
         <div class="panel gm-panel">
-          <h2>Gruppen heute</h2>
-          <p class="hint">Noch keine Gruppen für ${escapeHtml(state.date)} in ${escapeHtml(state.subject)}.</p>
-          <p class="hint">Schüler:innen starten den Gruppenmodus am iPad, sobald er unter Einstellungen aktiviert ist.</p>
+          <h2>Offene Gruppen</h2>
+          <p class="hint">Noch keine offenen Gruppen für ${escapeHtml(state.subject)}.</p>
+          <p class="hint">Gruppen sind themengebunden (Levelplan) und bleiben bestehen, bis sie abgeschlossen oder gelöscht werden.</p>
         </div>`;
     }
 
     return `
       <div class="panel gm-panel">
-        <h2>Gruppen heute</h2>
+        <h2>Offene Gruppen</h2>
         <div class="gm-session-list">
           ${state.sessions
             .map((bundle) => {
@@ -383,10 +378,6 @@
     });
     document.getElementById("gmSubjectSelect")?.addEventListener("change", async (e) => {
       state.subject = e.target.value;
-      await refresh();
-    });
-    document.getElementById("gmDateInput")?.addEventListener("change", async (e) => {
-      state.date = e.target.value;
       await refresh();
     });
     document.getElementById("gmViewOverview")?.addEventListener("click", async () => {

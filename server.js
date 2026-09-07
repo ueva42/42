@@ -5056,14 +5056,13 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
             SELECT gs.id, gs.subject, gs.status
             FROM group_sessions gs
             LEFT JOIN group_session_members gsm
-              ON gsm.session_id = gs.id AND gsm.user_id = $3
+              ON gsm.session_id = gs.id AND gsm.user_id = $2
             WHERE gs.class_id = $1
-              AND gs.session_date = $2::date
               AND gs.status <> 'closed'
-              AND (gs.host_user_id = $3 OR gsm.user_id IS NOT NULL)
-            ORDER BY gs.created_at DESC
+              AND (gs.host_user_id = $2 OR gsm.user_id IS NOT NULL)
+            ORDER BY gs.updated_at DESC NULLS LAST, gs.created_at DESC
           `,
-            [classId, date, studentId]
+            [classId, studentId]
           );
           for (const row of gmSessions.rows) {
             const key = Object.keys(groupModeBySubject).find(
