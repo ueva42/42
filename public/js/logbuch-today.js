@@ -484,7 +484,12 @@
 
   function groupModeForSubject(subject) {
     const map = state.data?.groupModeBySubject || {};
-    return subject && map[subject]?.enabled ? map[subject] : null;
+    if (!subject) return null;
+    if (map[subject]?.enabled) return map[subject];
+    const key = Object.keys(map).find(
+      (s) => String(s).trim().toLowerCase() === String(subject).trim().toLowerCase()
+    );
+    return key && map[key]?.enabled ? map[key] : null;
   }
 
   function renderGroupModeBlock(block, editable) {

@@ -1278,9 +1278,15 @@
   }
 
   async function loadBootstrap() {
-    const r = await fetch("/api/student/group-mode/bootstrap");
+    const r = await fetch("/api/student/group-mode/bootstrap", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
+      try {
+        localStorage.removeItem(LS_KEY);
+      } catch (_) {}
       throw new Error(data.message || data.error || "Gruppenarbeit konnte nicht geladen werden.");
     }
     state.bootstrap = data;
@@ -1372,7 +1378,11 @@
               resumeScreenFromBundle();
             }
           } catch {
+            try {
+              localStorage.removeItem(LS_KEY);
+            } catch (_) {}
             state.screen = "home";
+            state.error = "";
           }
         } else if (!subjectFromQuery) {
           state.screen = "home";

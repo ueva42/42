@@ -8,6 +8,7 @@ import {
   memberGoalsComplete,
   sessionProgress,
   suggestRoleAssignment,
+  toIsoDateOnly,
   validateMemberCount
 } from "../lib/group-mode.js";
 
@@ -19,6 +20,14 @@ function testClamp() {
   assert(clampGroupSize(2, 4).maxMembers === 4, "default max");
   assert(clampGroupSize(1, 3).minMembers === 2, "min at least 2");
   assert(clampGroupSize(3, 2).maxMembers >= 3, "max >= min");
+}
+
+function testDates() {
+  assert(toIsoDateOnly("2026-09-07") === "2026-09-07", "iso string");
+  assert(toIsoDateOnly(new Date(Date.UTC(2026, 8, 7))) === "2026-09-07", "date object");
+  const bad = String(new Date(Date.UTC(2026, 8, 7)));
+  assert(bad.slice(0, 10) !== "2026-09-07", "native string is not iso");
+  assert(toIsoDateOnly(bad) === "2026-09-07", "parses native date string");
 }
 
 function testMemberCount() {
@@ -98,6 +107,7 @@ function testGoals() {
 }
 
 testClamp();
+testDates();
 testMemberCount();
 testSuggestRoles();
 testCover();

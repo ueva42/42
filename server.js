@@ -5009,22 +5009,46 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     const homework = await fetchHomeworkForDate(studentId, date);
 
     const groupModeBySubject = {};
-    if (classId && schoolId) {
+    if (classId) {
       try {
         const gmSettings = await pool.query(
           `
           SELECT subject
           FROM group_mode_settings
-          WHERE school_id = $1 AND class_id = $2 AND enabled = TRUE
+          WHERE class_id = $1
+            AND enabled = TRUE
+            AND ($2::int IS NULL OR school_id = $2 OR school_id IS NULL)
         `,
-          [schoolId, classId]
+          [classId, schoolId]
         );
         for (const row of gmSettings.rows) {
-          groupModeBySubject[row.subject] = {
+          const key = String(row.subject || "").trim();
+          if (!key) continue;
+          groupModeBySubject[key] = {
             enabled: true,
             activeSessionId: null,
             status: null
           };
+        }
+        // Fallbacks ohne school_id-Filter, falls Einstellungen mit anderer school_id gespeichert wurden
+        if (!Object.keys(groupModeBySubject).length) {
+          const gmAny = await pool.query(
+            `
+            SELECT subject
+            FROM group_mode_settings
+            WHERE class_id = $1 AND enabled = TRUE
+          `,
+            [classId]
+          );
+          for (const row of gmAny.rows) {
+            const key = String(row.subject || "").trim();
+            if (!key) continue;
+            groupModeBySubject[key] = {
+              enabled: true,
+              activeSessionId: null,
+              status: null
+            };
+          }
         }
         if (Object.keys(groupModeBySubject).length) {
           const gmSessions = await pool.query(
@@ -5032,20 +5056,22 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
             SELECT gs.id, gs.subject, gs.status
             FROM group_sessions gs
             LEFT JOIN group_session_members gsm
-              ON gsm.session_id = gs.id AND gsm.user_id = $4
-            WHERE gs.school_id = $1
-              AND gs.class_id = $2
-              AND gs.session_date = $3
+              ON gsm.session_id = gs.id AND gsm.user_id = $3
+            WHERE gs.class_id = $1
+              AND gs.session_date = $2::date
               AND gs.status <> 'closed'
-              AND (gs.host_user_id = $4 OR gsm.user_id IS NOT NULL)
+              AND (gs.host_user_id = $3 OR gsm.user_id IS NOT NULL)
             ORDER BY gs.created_at DESC
           `,
-            [schoolId, classId, date, studentId]
+            [classId, date, studentId]
           );
           for (const row of gmSessions.rows) {
-            if (groupModeBySubject[row.subject] && !groupModeBySubject[row.subject].activeSessionId) {
-              groupModeBySubject[row.subject].activeSessionId = row.id;
-              groupModeBySubject[row.subject].status = row.status;
+            const key = Object.keys(groupModeBySubject).find(
+              (s) => s.toLowerCase() === String(row.subject || "").toLowerCase()
+            );
+            if (key && !groupModeBySubject[key].activeSessionId) {
+              groupModeBySubject[key].activeSessionId = row.id;
+              groupModeBySubject[key].status = row.status;
             }
           }
         }
