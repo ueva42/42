@@ -400,17 +400,51 @@
       </section>`;
   }
 
+  function mergeGroupModeFromBootstrap(todayData, bootstrap) {
+    const map = { ...(todayData.groupModeBySubject || {}) };
+    for (const s of bootstrap?.enabledSubjects || []) {
+      const key = String(s.subject || "").trim();
+      if (!key || !s.enabled) continue;
+      if (!map[key]) {
+        map[key] = { enabled: true, activeSessionId: null, status: null };
+      } else {
+        map[key].enabled = true;
+      }
+    }
+    for (const s of bootstrap?.activeSessions || []) {
+      const key = Object.keys(map).find(
+        (k) => k.toLowerCase() === String(s.subject || "").toLowerCase()
+      ) || String(s.subject || "").trim();
+      if (!key) continue;
+      if (!map[key]) map[key] = { enabled: true, activeSessionId: null, status: null };
+      map[key].enabled = true;
+      map[key].activeSessionId = s.id;
+      map[key].status = s.status;
+    }
+    todayData.groupModeBySubject = map;
+    return todayData;
+  }
+
+  function individualBlocks(blockList) {
+    return (blockList || []).filter((b) => {
+      const subject = b.entry?.subject || b.slot?.subject;
+      return !groupModeForSubject(subject);
+    });
+  }
+
   function renderTodayOverview(d, blockList, editable) {
     const ui = UI();
+    const solo = individualBlocks(blockList);
     const total = blockList.length;
-    const planned = blockList.filter((b) => b.entry).length;
-    const reflected = blockList.filter((b) => b.entry?.hasReflection).length;
+    const planned = solo.filter((b) => b.entry).length;
+    const reflected = solo.filter((b) => b.entry?.hasReflection).length;
+    const soloTotal = solo.length;
     const profile = window.__studentProfile || {};
     const todayXp = Number(profile.todayXp || 0);
     const xpTarget = Math.max(50, todayXp || 50);
     const pct = (n, den) => (den > 0 ? Math.min(100, Math.round((n / den) * 100)) : 0);
-    const dayPct = pct(reflected, total);
-    const goalsPct = pct(planned, total);
+    const dayPct = pct(reflected, soloTotal);
+    const goalsPct = pct(planned, soloTotal);
     const xpPct = pct(todayXp, xpTarget);
 
     const metric = ({ accent, label, value, sub, fill }) => `
@@ -452,7 +486,7 @@
             <div class="today-dash__featured-copy">
               <p class="today-dash__featured-eyebrow">Heute im Überblick</p>
               <h3 class="today-dash__featured-title">Tagesfortschritt</h3>
-              <p class="today-dash__featured-sub">${reflected} von ${total || 0} Stunden reflektiert</p>
+              <p class="today-dash__featured-sub">${reflected} von ${soloTotal || 0} Einzelstunden reflektiert</p>
             </div>
             <div class="today-dash__featured-pct" aria-hidden="true">
               <span>${dayPct}</span><small>%</small>
@@ -466,8 +500,8 @@
             ${metric({
               accent: "violet",
               label: "Ziele gesetzt",
-              value: `${planned}/${total || 0}`,
-              sub: `${goalsPct} % der Stunden`,
+              value: `${planned}/${soloTotal || 0}`,
+              sub: `${goalsPct} % der Einzelstunden`,
               fill: goalsPct
             })}
             ${metric({
@@ -986,9 +1020,22 @@
     if (!state.data) render();
 
     try {
-      const res = await fetch(`/api/student/log/today?date=${encodeURIComponent(dateIso)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const [todayRes, bootRes] = await Promise.all([
+        fetch(`/api/student/log/today?date=${encodeURIComponent(dateIso)}`, {
+          credentials: "same-origin",
+          cache: "no-store"
+        }),
+        fetch("/api/student/group-mode/bootstrap", {
+          credentials: "same-origin",
+          cache: "no-store"
+        }).catch(() => null)
+      ]);
+      if (!todayRes.ok) throw new Error(`HTTP ${todayRes.status}`);
+      let data = await todayRes.json();
+      if (bootRes && bootRes.ok) {
+        const bootstrap = await bootRes.json().catch(() => null);
+        if (bootstrap) data = mergeGroupModeFromBootstrap(data, bootstrap);
+      }
       state.data = data;
       state.loading = false;
       render();
