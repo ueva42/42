@@ -1251,6 +1251,11 @@
       <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
       <span class="nav-label">Termine</span>
     </div>
+
+    <div class="nav-item" data-tab="gruppenmodusTab" onclick="showTab('gruppenmodusTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      <span class="nav-label">Gruppenmodus</span>
+    </div>
     </div>
   </div>
 
@@ -1384,6 +1389,11 @@
     <!-- TERMINE -->
     <div id="termineTab" class="tab hidden">
       <div id="termineTabRoot"></div>
+    </div>
+
+    <!-- GRUPPENMODUS -->
+    <div id="gruppenmodusTab" class="tab hidden">
+      <div id="gruppenmodusTabRoot"></div>
     </div>
 
     <!-- XP TAB -->
@@ -1696,6 +1706,7 @@
 <script src="/js/teacher-levelplan-zuordnung.js?v=5"></script>
 <script src="/js/teacher-competencies.js?v=21"></script>
 <script src="/js/teacher-termine.js?v=1"></script>
+<script src="/js/teacher-gruppenmodus.js?v=1"></script>
 
 <script>
 const TEACHER_TAB_ROUTES = {
@@ -1708,6 +1719,7 @@ const TEACHER_TAB_ROUTES = {
   wasGoalsTab: "/teacher/was-goals",
   levelplanImportTab: "/teacher/levelplan-import",
   termineTab: "/teacher/termine",
+  gruppenmodusTab: "/teacher/gruppenmodus",
   competenciesTab: "/teacher/levelcheck-planen",
   xpTab: "/admin#xp",
   classProgressTab: "/admin#classProgress",
@@ -1731,6 +1743,7 @@ const ROUTE_TABS = {
   "/teacher/was-goals": "wasGoalsTab",
   "/teacher/levelplan-import": "levelplanImportTab",
   "/teacher/termine": "termineTab",
+  "/teacher/gruppenmodus": "gruppenmodusTab",
   "/teacher/levelcheck-planen": "competenciesTab",
   "/teacher/levelstatus": "competenciesTab",
   "/teacher/competencies": "competenciesTab",
@@ -1857,6 +1870,7 @@ function showTab(id, ev, options = {}) {
   if (id === "levelplanZuordnungTab" && window.TeacherLevelplanZuordnung) TeacherLevelplanZuordnung.init();
   if (id === "teacherWeekTab" && window.TeacherWeek) TeacherWeek.init();
   if (id === "termineTab" && window.TeacherTermine) TeacherTermine.init();
+  if (id === "gruppenmodusTab" && window.TeacherGruppenmodus) TeacherGruppenmodus.init();
   if (id === "competenciesTab" && window.TeacherCompetencies) TeacherCompetencies.init();
   if (id === "xpTab") loadXPInit();
   if (id === "classTab") loadClassesForManage();

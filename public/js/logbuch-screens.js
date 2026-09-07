@@ -33,6 +33,11 @@
       subtitle: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
       phase: null
     },
+    gruppenmodus: {
+      title: "Gruppenarbeit",
+      subtitle: "Laborarbeit mit eurer Gruppe an einem iPad.",
+      phase: null
+    },
     plan: {
       title: "Planen",
       subtitle: "Forethought – Was will ich in dieser Stunde erreichen?",
@@ -115,6 +120,11 @@
 
     if (section === "checkpoint-plan" && window.LogbuchCheckpointPlan) {
       window.LogbuchCheckpointPlan.init();
+      return;
+    }
+
+    if (section === "gruppenmodus" && window.LogbuchGruppenmodus) {
+      window.LogbuchGruppenmodus.init();
       return;
     }
 

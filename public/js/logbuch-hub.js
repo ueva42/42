@@ -52,6 +52,14 @@
       accent: "orange"
     },
     {
+      section: "gruppenmodus",
+      slug: "meine-checks",
+      title: "Gruppenarbeit",
+      text: "Laborarbeit mit eurer Gruppe an einem iPad.",
+      cta: "Gruppe starten",
+      accent: "green"
+    },
+    {
       section: "week",
       slug: "meine-woche",
       title: "Meine Woche",

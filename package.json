@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "reset-demo": "node scripts/reset-demo.js"
+    "reset-demo": "node scripts/reset-demo.js",
+    "test:group-mode": "node scripts/test-group-mode.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.932.0",

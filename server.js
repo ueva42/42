@@ -32,6 +32,8 @@ import {
   DEMO_STUDENT,
   DEMO_PASSWORD
 } from "./lib/demo-seed.js";
+import { migrateGroupModeTables } from "./lib/group-mode.js";
+import { registerGroupModeRoutes } from "./lib/group-mode-api.js";
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
 
 // -------------------------------------------------------
@@ -3194,6 +3196,8 @@ async function migrate() {
     ON subject_lesson_goals (school_id, subject, sort_order)
   `);
 
+  await migrateGroupModeTables(pool);
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_timetables_class_weekday
     ON timetables (class_id, weekday)
@@ -3767,6 +3771,18 @@ function isSuperadmin(req, res, next) {
     return denyAccess(req, res);
   next();
 }
+
+registerGroupModeRoutes(app, {
+  pool,
+  isAdmin,
+  isStudent,
+  getStudentClassContext,
+  getLevelChecksForClass,
+  LOG_SUBJECTS,
+  todayIsoDate,
+  LEVEL_CHECK_TIERS,
+  LEVEL_CHECK_TIER_LABELS
+});
 
 // -------------------------------------------------------
 // STUDENT: FIRST LOGIN – Passwort ändern
@@ -11544,6 +11560,7 @@ const teacherSpaPaths = [
   "/teacher/levelstatus",
   "/teacher/levelcheck-planen",
   "/teacher/termine",
+  "/teacher/gruppenmodus",
   "/teacher/lesson-goals",
   "/teacher/was-goals",
   "/teacher/levelplan-import"
@@ -11572,6 +11589,7 @@ const studentSpaPaths = [
   "/student/taktik-deck",
   "/student/zielsetzung",
   "/student/checkpoint-plan",
+  "/student/gruppenmodus",
   "/student/levelcheck",
   "/student/competencies",
   "/student/status",
