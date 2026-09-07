@@ -230,9 +230,9 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
           <label class="gm-check"><input type="checkbox" id="gmRoleSwitch" ${s.allowRoleSwitch ? "checked" : ""}/> Rollenwechsel zwischen Stunden</label>
           <label class="gm-check"><input type="checkbox" id="gmShared" ${s.enableSharedGoal ? "checked" : ""}/> Gemeinsames Vorhaben</label>
           <label class="gm-check"><input type="checkbox" id="gmWhat" ${s.enableWhatGoals ? "checked" : ""}/> Persönliche Was-Ziele</label>
-          <label>Max. Was-Ziele <input type="number" id="gmMaxWhat" min="1" max="3" value="${s.maxWhatGoals || 3}" /></label>
+          <label>Max. Was-Ziele / Rolle <input type="number" id="gmMaxWhat" min="1" max="3" value="${s.maxWhatGoals || 3}" /></label>
           <label class="gm-check"><input type="checkbox" id="gmHow" ${s.enableHowGoals ? "checked" : ""}/> Persönliche Wie-Ziele</label>
-          <label>Max. Wie-Ziele <input type="number" id="gmMaxHow" min="1" max="3" value="${s.maxHowGoals || 3}" /></label>
+          <label>Max. Wie-Ziele / Rolle <input type="number" id="gmMaxHow" min="1" max="3" value="${s.maxHowGoals || 3}" /></label>
           <label class="gm-check"><input type="checkbox" id="gmMid" ${s.enableMidCheck ? "checked" : ""}/> Zwischencheck</label>
           <label class="gm-check"><input type="checkbox" id="gmReflect" ${s.enableReflection ? "checked" : ""}/> Abschlussreflexion</label>
           <label class="gm-check"><input type="checkbox" id="gmFreeWhat" ${s.allowFreeWhatGoal ? "checked" : ""}/> Freie Was-Ziele erlauben</label>

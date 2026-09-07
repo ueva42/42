@@ -350,14 +350,31 @@
     };
   }
 
-  /** Pro Person/Rolle: mehrere Was- bzw. Wie-Ziele, höchstens 3 verschiedene. */
-  function goalPickLimit() {
+  /** Pro Rolle bis zu 3 Ziele – bei mehreren Rollen entsprechend mehr. */
+  function perRoleGoalLimit() {
     return 3;
+  }
+
+  function memberRoleCount(member) {
+    const roles = (member || currentMember())?.roles || [];
+    return Math.max(1, roles.length);
+  }
+
+  function goalPickLimit(member) {
+    return perRoleGoalLimit() * memberRoleCount(member);
+  }
+
+  function countGoalsForRole(list, roleName) {
+    const key = String(roleName || "").trim().toLowerCase();
+    return (list || []).filter(
+      (g) => String(g.roleName || "").trim().toLowerCase() === key
+    ).length;
   }
 
   function toggleDraftGoal(kind, goal) {
     const key = kind === "how" ? "howGoals" : "whatGoals";
     const max = goalPickLimit();
+    const perRole = perRoleGoalLimit();
     const list = [...(state.draftGoal[key] || [])];
     const idx = list.findIndex((g) => String(g.id) === String(goal.id));
     if (idx >= 0) list.splice(idx, 1);
@@ -367,7 +384,13 @@
         return true;
       }
       if (list.length >= max) {
-        state.error = `Höchstens ${max} verschiedene ${kind === "how" ? "Wie" : "Was"}-Ziele.`;
+        state.error = `Höchstens ${max} verschiedene ${kind === "how" ? "Wie" : "Was"}-Ziele (${perRole} pro Rolle).`;
+        return false;
+      }
+      if (countGoalsForRole(list, goal.roleName) >= perRole) {
+        state.error = goal.roleName
+          ? `Für „${goal.roleName}“ höchstens ${perRole} Ziele.`
+          : `Höchstens ${perRole} Ziele pro Rolle.`;
         return false;
       }
       list.push({ id: goal.id, text: goal.text, roleName: goal.roleName || null });
@@ -387,9 +410,15 @@
   function selectedGoalsPanel(kind) {
     const list = kind === "how" ? state.draftGoal.howGoals || [] : state.draftGoal.whatGoals || [];
     const max = goalPickLimit();
+    const perRole = perRoleGoalLimit();
+    const roles = memberRoleCount();
     const label = kind === "how" ? "Wie-Ziele" : "Was-Ziele";
+    const hint =
+      roles > 1
+        ? `Bis zu ${perRole} pro Rolle (max. ${max} ${label}).`
+        : `Bis zu ${max} verschiedene ${label}.`;
     if (!list.length) {
-      return `<p class="gm-muted">Noch keine Auswahl – tippe auf die Karten. Bis zu ${max} verschiedene ${label}.</p>`;
+      return `<p class="gm-muted">Noch keine Auswahl – tippe auf die Karten. ${hint}</p>`;
     }
     return `<div class="gm-selected-panel open">
       <p class="gm-label">Deine Auswahl (${list.length}/${max})</p>
@@ -628,9 +657,15 @@
     const multi = (m?.roles || []).length > 1;
     const selectedIds = new Set((state.draftGoal.whatGoals || []).map((g) => String(g.id)));
     const maxWhat = goalPickLimit();
+    const perRole = perRoleGoalLimit();
+    const rolesN = memberRoleCount();
+    const whatHint =
+      rolesN > 1
+        ? `Bis zu ${perRole} Was-Ziele pro Rolle (max. ${maxWhat}).`
+        : `Mehrere möglich – bis zu ${maxWhat} verschiedene Was-Ziele.`;
     const pickBody = `
       <p class="gm-lead">${esc(m.displayName)}, das ist heute deine Aufgabe: <strong>${esc(roles || "–")}</strong></p>
-      <p class="gm-muted">Mehrere möglich – bis zu ${maxWhat} verschiedene Was-Ziele.</p>
+      <p class="gm-muted">${whatHint}</p>
       ${selectedGoalsPanel("what")}
       ${
         goals.length
@@ -652,7 +687,7 @@
       <div class="plan-acc-stack">
         ${gmAccDone(1, "Deine Rolle", roles || "–")}
         ${shared ? gmAccDone(2, "Gemeinsames Ziel", shared) : ""}
-        ${gmAccOpen(shared ? 3 : 2, "Was ist heute dein Beitrag?", `Bis zu ${maxWhat} verschiedene Was-Ziele`, pickBody)}
+        ${gmAccOpen(shared ? 3 : 2, "Was ist heute dein Beitrag?", whatHint, pickBody)}
         ${gmAccLocked(shared ? 4 : 3, "Wie setzt du das um?")}
       </div>`;
     return shell(
@@ -670,6 +705,12 @@
     const selectedIds = new Set((state.draftGoal.howGoals || []).map((g) => String(g.id)));
     const selectedTexts = new Set((state.draftGoal.howGoals || []).map((g) => g.text));
     const maxHow = goalPickLimit();
+    const perRoleHow = perRoleGoalLimit();
+    const rolesHow = memberRoleCount();
+    const howHint =
+      rolesHow > 1
+        ? `Bis zu ${perRoleHow} Wie-Ziele pro Rolle (max. ${maxHow}).`
+        : `Mehrere möglich – bis zu ${maxHow} verschiedene Wie-Ziele.`;
     const whatSummary =
       (state.draftGoal.whatGoals || []).map((g) => g.text).join(" · ") ||
       state.draftGoal.whatGoalText ||
@@ -688,7 +729,7 @@
         }));
     const pickBody = `
       <p class="gm-lead">Wie möchtest du deinen Beitrag umsetzen?</p>
-      <p class="gm-muted">Mehrere möglich – bis zu ${maxHow} verschiedene Wie-Ziele.</p>
+      <p class="gm-muted">${howHint}</p>
       ${selectedGoalsPanel("how")}
       ${cardGrid(options, null, roleHow.length ? "how-id" : "how")}
       ${
@@ -704,7 +745,7 @@
     const body = `
       <div class="plan-acc-stack">
         ${gmAccDone(1, "Dein Was-Ziel", whatSummary)}
-        ${gmAccOpen(2, "Wie setzt du das um?", `Bis zu ${maxHow} verschiedene Wie-Ziele`, pickBody)}
+        ${gmAccOpen(2, "Wie setzt du das um?", howHint, pickBody)}
         ${gmAccLocked(3, "Bestätigung")}
       </div>`;
     return shell(
