@@ -132,18 +132,37 @@
       state.bundle = data;
       state.sessionId = data.session.id;
       state.sharedGoal = data.session.sharedGoal || state.sharedGoal;
-      if (data.members?.length && !state.selectedMembers.length) {
-        state.selectedMembers = data.members.map((m) => m.userId);
+      if (Array.isArray(data.members) && data.members.length) {
+        state.selectedMembers = data.members.map((m) => Number(m.userId));
       }
       if (data.members?.length && Object.keys(state.roleAssignments).length === 0) {
         for (const m of data.members) {
           for (const role of m.roles || []) {
-            if (role.roleId) state.roleAssignments[role.roleId] = m.userId;
+            if (role.roleId) state.roleAssignments[role.roleId] = Number(m.userId);
           }
         }
       }
     }
     persistLocal();
+  }
+
+  function sessionStatusLabel(session) {
+    if (!session) return "";
+    if (session.sharedGoal) return session.sharedGoal;
+    const step = session.setupStep;
+    if (session.status === "setup") {
+      if (step === "members") return "Mitglieder wählen";
+      if (step === "roles") return "Rollen verteilen";
+      if (step === "shared_goal") return "Gemeinsames Vorhaben";
+      if (step === "personal_goals") return "Persönliche Ziele";
+      if (step === "overview") return "Bereit zum Start";
+      return "Wird eingerichtet";
+    }
+    if (session.status === "active") return "In Arbeit";
+    if (session.status === "midcheck") return "Zwischencheck";
+    if (session.status === "reflecting") return "Abschluss";
+    if (session.status === "closed") return "Fertig";
+    return session.status || "";
   }
 
   function shell(stepLabel, title, body, footer) {
@@ -191,10 +210,13 @@
                ${active
                  .map(
                    (s) => `
-                 <button type="button" class="gm-card" data-resume="${esc(s.id)}">
-                   <span class="gm-card-title">${esc(s.subject)}${s.topicName ? `: ${esc(s.topicName)}` : ""}</span>
-                   <span class="gm-card-sub">${esc(s.sharedGoal || s.status)}</span>
-                 </button>`
+                 <div class="gm-card-wrap">
+                   <button type="button" class="gm-card" data-resume="${esc(s.id)}">
+                     <span class="gm-card-title">${esc(s.subject)}${s.topicName ? `: ${esc(s.topicName)}` : ""}</span>
+                     <span class="gm-card-sub">${esc(sessionStatusLabel(s))}</span>
+                   </button>
+                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe löschen">Löschen</button>
+                 </div>`
                  )
                  .join("")}
              </div>`
@@ -257,7 +279,7 @@
       <div class="gm-cards">
         ${classmates
           .map((c) => {
-            const selected = state.selectedMembers.includes(c.id);
+            const selected = state.selectedMembers.some((id) => Number(id) === Number(c.id));
             const busy = c.busyInOtherGroup;
             return `
             <button type="button" class="gm-card ${selected ? "is-selected" : ""} ${busy ? "is-disabled" : ""}"
@@ -720,6 +742,7 @@
       .gm-lead{margin:0 0 14px;line-height:1.4}
       .gm-h3{margin:16px 0 8px;font-size:1.05rem}
       .gm-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+      .gm-card-wrap{display:flex;flex-direction:column;gap:6px}
       .gm-card{text-align:left;min-height:88px;padding:16px;border-radius:18px;border:2px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:6px}
       .gm-card--static{cursor:default}
       .gm-card.is-selected,.gm-choice-btn.is-selected,.gm-chip.is-selected,.gm-role-card.is-picked{border-color:#3dd6c6;box-shadow:0 0 0 2px rgba(61,214,198,.35)}
@@ -727,6 +750,7 @@
       .gm-card-title{font-weight:700;font-size:1.05rem}
       .gm-card-sub{opacity:.75;font-size:.92rem}
       .gm-card-badge{font-size:.8rem;opacity:.8}
+      .gm-delete{min-height:40px;border-radius:12px;border:1px solid rgba(255,120,120,.35);background:rgba(180,40,40,.18);color:inherit;font-size:.9rem;cursor:pointer}
       .gm-primary,.gm-ghost{min-height:52px;padding:12px 18px;border-radius:16px;font-size:1.05rem;font-weight:700;border:0;cursor:pointer}
       .gm-primary{background:#3dd6c6;color:#082028;width:100%}
       .gm-primary:disabled{opacity:.4;cursor:not-allowed}
@@ -797,9 +821,41 @@
         clearFlash();
         try {
           const id = btn.getAttribute("data-resume");
+          state.selectedMembers = [];
+          state.roleAssignments = {};
           const full = await api(`/api/student/group-sessions/${id}`);
           applyBundle(full);
           resumeScreenFromBundle();
+          render();
+        } catch (err) {
+          state.error = err.message;
+          render();
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-delete]").forEach((btn) => {
+      btn.addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        clearFlash();
+        const id = btn.getAttribute("data-delete");
+        if (!id) return;
+        if (!window.confirm("Diese Gruppenarbeit wirklich löschen?")) return;
+        try {
+          await api(`/api/student/group-sessions/${id}/delete`, { method: "POST" });
+          if (String(state.sessionId) === String(id)) {
+            state.sessionId = null;
+            state.bundle = null;
+            state.selectedMembers = [];
+            state.roleAssignments = {};
+            try {
+              localStorage.removeItem(LS_KEY);
+            } catch (_) {}
+          }
+          state.message = "Gruppe gelöscht.";
+          await loadBootstrap();
+          state.screen = "home";
           render();
         } catch (err) {
           state.error = err.message;
@@ -841,8 +897,8 @@
       btn.addEventListener("click", () => {
         const id = Number(btn.getAttribute("data-member"));
         const max = settings().maxMembers || 4;
-        if (state.selectedMembers.includes(id)) {
-          state.selectedMembers = state.selectedMembers.filter((x) => x !== id);
+        if (state.selectedMembers.some((x) => Number(x) === id)) {
+          state.selectedMembers = state.selectedMembers.filter((x) => Number(x) !== id);
         } else if (state.selectedMembers.length < max) {
           state.selectedMembers = [...state.selectedMembers, id];
         }
@@ -1294,6 +1350,18 @@
 
   async function startSubject(subject, date) {
     clearFlash();
+    const existing = (state.bootstrap?.activeSessions || []).find(
+      (s) => String(s.subject || "").toLowerCase() === String(subject || "").toLowerCase()
+    );
+    if (existing?.id) {
+      state.selectedMembers = [];
+      state.roleAssignments = {};
+      const full = await api(`/api/student/group-sessions/${existing.id}`);
+      applyBundle(full);
+      resumeScreenFromBundle();
+      render();
+      return;
+    }
     const data = await api("/api/student/group-sessions", {
       method: "POST",
       body: JSON.stringify({ subject, date: date || undefined })
@@ -1370,12 +1438,17 @@
         const draft = restoreLocal();
         if (draft?.sessionId && !subjectFromQuery) {
           try {
+            state.selectedMembers = [];
+            state.roleAssignments = {};
             const full = await api(`/api/student/group-sessions/${draft.sessionId}`);
             applyBundle(full);
-            state.screen = draft.screen || "work";
             state.currentMemberIdx = draft.currentMemberIdx || 0;
-            if (["what", "how", "confirm", "mid", "reflect"].includes(state.screen)) {
+            if (full.session?.status === "setup") {
               resumeScreenFromBundle();
+            } else if (["what", "how", "confirm", "mid", "reflect"].includes(draft.screen)) {
+              resumeScreenFromBundle();
+            } else {
+              state.screen = draft.screen || "work";
             }
           } catch {
             try {

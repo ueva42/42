@@ -293,6 +293,7 @@
                               ? `<button type="button" class="action gm-close-force" data-close="${s.id}">Stunde beenden</button>`
                               : `<button type="button" class="action gm-reopen" data-reopen="${s.id}">Wieder öffnen</button>`
                           }
+                          <button type="button" class="action gm-delete-session" data-delete="${s.id}">Gruppe löschen</button>
                         </div>
                       </div>`
                     : ""
@@ -423,6 +424,14 @@
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-reopen");
         await fetch(`/api/teacher/group-sessions/${id}/reopen`, { method: "POST" });
+        await refresh();
+      });
+    });
+    document.querySelectorAll("[data-delete]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-delete");
+        if (!window.confirm("Diese Gruppe wirklich löschen?")) return;
+        await fetch(`/api/teacher/group-sessions/${id}/delete`, { method: "POST" });
         await refresh();
       });
     });
