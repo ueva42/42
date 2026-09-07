@@ -611,34 +611,52 @@
       );
     }
     const body = `
-      <p class="gm-lead">Wählt bei jeder Aufgabe die Person aus der Liste.</p>
+      <p class="gm-lead">Tippt bei jeder Aufgabe auf die Person, die sie übernimmt.</p>
       <div class="gm-role-board">
         ${roles
-          .map((role) => {
+          .map((role, idx) => {
             const roleId = String(role.id);
             const uid = state.roleAssignments[roleId];
             const person = mems.find((m) => String(m.userId) === String(uid));
+            const accent = tileAccentFor({ meta: role.name, title: role.name });
             return `
-            <div class="gm-role-block">
-              <div class="gm-role-card ${person ? "is-picked" : ""}">
-                <strong>${esc(role.name)}</strong>
-                <span>${esc(role.description || "")}</span>
-                <em>${person ? esc(person.displayName) : "noch frei"}</em>
+            <article class="goal-step-card goal-step-card--wide plan-mission-live gm-mission-card ${
+              person ? "is-ready" : ""
+            }">
+              <header class="goal-step-card__head">
+                <span class="goal-step-card__step" style="--tile-accent:${accent}">${
+                  person ? "✓" : String(idx + 1)
+                }</span>
+                <h3 class="goal-step-card__title">${esc(role.name)}</h3>
+                ${
+                  person
+                    ? `<span class="gm-mission-status is-ready">${esc(person.displayName)}</span>`
+                    : `<span class="gm-mission-status">Noch frei</span>`
+                }
+              </header>
+              <div class="mission-summary">
+                ${missionBlock(
+                  "Aufgabe",
+                  missionValue(role.description || "Rollenaufgabe in der Gruppe")
+                )}
+                ${missionBlock(
+                  "Wer übernimmt das?",
+                  cardGrid(
+                    mems.map((m) => ({
+                      id: `${roleId}:${m.userId}`,
+                      title: m.displayName,
+                      desc: String(uid) === String(m.userId) ? `Macht ${role.name}` : "Tippen zum Zuweisen",
+                      meta: role.name,
+                      icon: "◎",
+                      accent,
+                      selected: String(uid) === String(m.userId)
+                    })),
+                    null,
+                    "role-assign"
+                  )
+                )}
               </div>
-              <label class="gm-label gm-role-assign-label">
-                Person für ${esc(role.name)}
-                <select class="gm-select" data-role-select="${esc(roleId)}">
-                  <option value="">– Person wählen –</option>
-                  ${mems
-                    .map((m) => {
-                      const id = String(m.userId);
-                      const selected = String(uid) === id ? "selected" : "";
-                      return `<option value="${esc(id)}" ${selected}>${esc(m.displayName)}</option>`;
-                    })
-                    .join("")}
-                </select>
-              </label>
-            </div>`;
+            </article>`;
           })
           .join("")}
       </div>
@@ -740,7 +758,7 @@
                 id: g.id,
                 title: g.text,
                 meta: g.roleName || "",
-                desc: multi ? g.roleName || "Was-Ziel" : "Dein Beitrag in der Rolle",
+                desc: g.roleName ? `Rolle: ${g.roleName}` : "Was-Ziel",
                 selected: selectedIds.has(String(g.id))
               })),
               null,
@@ -787,7 +805,7 @@
           id: g.id,
           title: g.text,
           meta: g.roleName || "",
-          desc: multi ? g.roleName || "Wie-Ziel" : "So setzt du es um",
+          desc: g.roleName ? `Rolle: ${g.roleName}` : "Wie-Ziel",
           selected: selectedIds.has(String(g.id))
         }))
       : fallback.map((t) => ({
@@ -865,35 +883,65 @@
     );
   }
 
-  function renderGroupOverviewInner() {
+  function renderGroupOverviewInner(opts = {}) {
     const shared = state.bundle?.session?.sharedGoal || state.sharedGoal || "";
+    const withProgress = !!opts.withProgress;
     return `<div class="gm-overview-missions">
       ${members()
         .map((m, idx) => {
           const roles = (m.roles || []).map((r) => r.name).join(", ");
           const whatList = m.whatGoals || [];
           const howList = m.howGoals || [];
+          const phases = [
+            { label: "Ziele gesetzt", done: !!m.goalsComplete },
+            { label: "Zwischen-Check", done: !!m.midCheckAt },
+            { label: "Abschluss", done: !!m.reflectionAt }
+          ];
+          const openPhases = phases.filter((p) => !p.done);
+          const allDone = openPhases.length === 0;
+          const blocks = [
+            shared ? missionBlock("Gemeinsames Ziel", missionValue(shared)) : "",
+            missionBlock("Rolle", missionValue(roles || "–")),
+            missionBlock(
+              "Was-Ziele",
+              whatList.length
+                ? missionList(whatList)
+                : missionValue(m.whatGoalText || "–")
+            ),
+            missionBlock(
+              "Wie-Ziele",
+              howList.length
+                ? missionList(howList)
+                : missionValue(m.howGoalText || "–")
+            )
+          ];
+          if (withProgress) {
+            blocks.push(
+              missionBlock(
+                allDone ? "Alles erledigt" : "Was fehlt noch?",
+                `<ul class="mission-summary__list gm-progress-list">${phases
+                  .map(
+                    (p) =>
+                      `<li class="${p.done ? "is-done" : "is-open"}">${
+                        p.done ? "✓" : "○"
+                      } ${esc(p.label)}${p.done ? "" : " – noch offen"}</li>`
+                  )
+                  .join("")}</ul>`
+              )
+            );
+          }
           return renderMissionCard({
             title: m.displayName,
             step: String(idx + 1),
-            ready: !!m.goalsComplete,
-            status: m.goalsComplete ? "Fertig" : "Offen",
-            blocks: [
-              shared ? missionBlock("Gemeinsames Ziel", missionValue(shared)) : "",
-              missionBlock("Rolle", missionValue(roles || "–")),
-              missionBlock(
-                "Was-Ziele",
-                whatList.length
-                  ? missionList(whatList)
-                  : missionValue(m.whatGoalText || "–")
-              ),
-              missionBlock(
-                "Wie-Ziele",
-                howList.length
-                  ? missionList(howList)
-                  : missionValue(m.howGoalText || "–")
-              )
-            ].join("")
+            ready: withProgress ? allDone : !!m.goalsComplete,
+            status: withProgress
+              ? allDone
+                ? "Fertig"
+                : `${openPhases.length} offen`
+              : m.goalsComplete
+                ? "Fertig"
+                : "Offen",
+            blocks: blocks.join("")
           });
         })
         .join("")}
@@ -943,20 +991,8 @@
         )
       })}
       <div class="gm-overview-stack">
-        <p class="gm-label">Gruppenübersicht</p>
-        ${renderGroupOverviewInner()}
-      </div>
-      <div class="gm-status-list">
-        ${members()
-          .map((m) => {
-            const roles = (m.roles || []).map((r) => r.name).join(", ");
-            return `<div class="gm-status-row">
-              <strong>${esc(m.displayName)}</strong>
-              <span>${esc(roles)}</span>
-              <span>${m.goalsComplete ? "Ziel ✓" : "Ziel …"} · ${m.midCheckAt ? "Check ✓" : "Check …"} · ${m.reflectionAt ? "Ende ✓" : "Ende …"}</span>
-            </div>`;
-          })
-          .join("")}
+        <p class="gm-label">Gruppenübersicht – was fehlt noch?</p>
+        ${renderGroupOverviewInner({ withProgress: true })}
       </div>
       <h3 class="gm-h3">Ergebnis festhalten</h3>
       <textarea id="gmDocInput" class="gm-textarea" rows="3" placeholder="Kurze Beobachtung oder Ergebnis…"></textarea>
@@ -1236,8 +1272,8 @@
       .gm-handoff{min-height:220px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:8px}
       .gm-handoff-text{font-size:1.5rem;margin:0}
       .gm-role-board{display:grid;gap:16px;margin-bottom:12px}
-      .gm-role-block{display:grid;gap:10px;padding:14px;border-radius:16px;background:rgba(8,24,48,.55);border:1px solid rgba(34,211,238,.18)}
-      .gm-role-card{text-align:left;padding:12px;border-radius:14px;border:1px solid rgba(148,163,184,.28);background:rgba(8,24,48,.45);color:inherit;display:grid;gap:4px}
+      .gm-progress-list li.is-done{color:#67e8f9}
+      .gm-progress-list li.is-open{color:#94a3b8}
       .gm-role-assign-label{display:grid;gap:6px;font-size:.92rem}
       .gm-select{min-height:52px;font-weight:600;-webkit-appearance:menulist;appearance:auto}
       .gm-people-row,.gm-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0}
@@ -1419,19 +1455,21 @@
       }
     });
 
-    document.querySelectorAll("[data-role-select]").forEach((sel) => {
-      sel.addEventListener("change", () => {
+    document.querySelectorAll("[data-role-assign]").forEach((btn) => {
+      btn.addEventListener("click", () => {
         clearFlash();
-        const roleId = String(sel.getAttribute("data-role-select") || "");
-        const uid = Number(sel.value);
-        if (!roleId) return;
-        if (!sel.value) {
-          delete state.roleAssignments[roleId];
+        const raw = String(btn.getAttribute("data-role-assign") || "");
+        const sep = raw.indexOf(":");
+        if (sep < 1) return;
+        const roleId = raw.slice(0, sep);
+        const uid = Number(raw.slice(sep + 1));
+        if (!roleId || !Number.isFinite(uid) || uid <= 0) {
+          state.error = "Diese Person konnte nicht zugeordnet werden.";
           render();
           return;
         }
-        if (!Number.isFinite(uid) || uid <= 0) {
-          state.error = "Diese Person konnte nicht zugeordnet werden.";
+        if (String(state.roleAssignments[roleId]) === String(uid)) {
+          delete state.roleAssignments[roleId];
           render();
           return;
         }
@@ -1443,7 +1481,6 @@
           }
         }
         state.roleAssignments[roleId] = uid;
-        state._pickedRole = null;
         render();
       });
     });
