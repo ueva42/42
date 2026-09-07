@@ -3141,15 +3141,18 @@ async function ensureAdminSessionReady() {
         credentials: "same-origin",
         cache: "no-store"
       });
+      if (sessionRes.status === 401) {
+        return false;
+      }
       if (!sessionRes.ok) {
-        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
         continue;
       }
 
       const data = await sessionRes.json();
       if (data.role !== "admin") return false;
       if (data.ready === false) {
-        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
         continue;
       }
 
@@ -3157,8 +3160,11 @@ async function ensureAdminSessionReady() {
         credentials: "same-origin",
         cache: "no-store"
       });
+      if (warm.status === 401 || warm.status === 403) {
+        return false;
+      }
       if (!warm.ok) {
-        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
         continue;
       }
       const classes = await warm.json();
@@ -3166,8 +3172,19 @@ async function ensureAdminSessionReady() {
     } catch (err) {
       console.error("ensureAdminSessionReady", err);
     }
-    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+    await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
   }
+  // Bei vorübergehenden Serverfehlern nicht hart ausloggen – App trotzdem starten
+  try {
+    const sessionRes = await fetch("/api/auth/session", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    if (sessionRes.ok) {
+      const data = await sessionRes.json();
+      if (data.role === "admin" && data.authenticated !== false) return true;
+    }
+  } catch (_) {}
   return false;
 }
 
@@ -3186,7 +3203,26 @@ async function bootAdminApp() {
     initAdminRoute();
   } catch (err) {
     console.error(err);
-    window.location.href = "/login";
+    // Nur bei klarem Auth-Verlust umleiten, nicht bei jedem Renderfehler
+    try {
+      const sessionRes = await fetch("/api/auth/session", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      if (!sessionRes.ok) {
+        window.location.href = "/login";
+        return;
+      }
+      const data = await sessionRes.json();
+      if (data.role !== "admin") {
+        window.location.href = "/login";
+        return;
+      }
+      initNavSections();
+      initAdminRoute();
+    } catch (_) {
+      window.location.href = "/login";
+    }
   } finally {
     window.__authBootstrap = false;
   }

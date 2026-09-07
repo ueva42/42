@@ -113,7 +113,7 @@
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
         setSave("error");
-        throw new Error(data.error || data.message || "Das hat nicht geklappt.");
+        throw new Error(data.message || data.error || "Das hat nicht geklappt.");
       }
       if (data.success === false) {
         setSave("error");
@@ -783,19 +783,8 @@
 
     document.querySelectorAll("[data-subject]").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        clearFlash();
         try {
-          const subject = btn.getAttribute("data-subject");
-          const data = await api("/api/student/group-sessions", {
-            method: "POST",
-            body: JSON.stringify({ subject })
-          });
-          applyBundle(data);
-          // load topics into bundle
-          const full = await api(`/api/student/group-sessions/${data.session.id}`);
-          applyBundle(full);
-          state.screen = "pick-topic";
-          render();
+          await startSubject(btn.getAttribute("data-subject"));
         } catch (err) {
           state.error = err.message;
           render();
@@ -1290,36 +1279,108 @@
 
   async function loadBootstrap() {
     const r = await fetch("/api/student/group-mode/bootstrap");
-    state.bootstrap = await r.json();
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      throw new Error(data.message || data.error || "Gruppenarbeit konnte nicht geladen werden.");
+    }
+    state.bootstrap = data;
+  }
+
+  async function startSubject(subject, date) {
+    clearFlash();
+    const data = await api("/api/student/group-sessions", {
+      method: "POST",
+      body: JSON.stringify({ subject, date: date || undefined })
+    });
+    applyBundle(data);
+    try {
+      const full = await api(`/api/student/group-sessions/${data.session.id}`);
+      applyBundle(full);
+    } catch (loadErr) {
+      // Session existiert – Themen separat nachladen
+      try {
+        const t = await fetch(
+          `/api/student/group-mode/topics?subject=${encodeURIComponent(subject)}`
+        );
+        const topicData = await t.json();
+        if (state.bundle) state.bundle.topics = topicData.topics || [];
+      } catch (_) {}
+      console.warn("group session reload:", loadErr);
+    }
+    state.screen = "pick-topic";
+    render();
   }
 
   let initPromise = null;
-  async function init() {
+  async function init(query) {
     if (initPromise) return initPromise;
     initPromise = (async () => {
       state.loading = true;
       clearFlash();
+      const q = query instanceof URLSearchParams ? query : new URLSearchParams(query || "");
+      const subjectFromQuery = (q.get("subject") || "").trim();
+      const sessionFromQuery = (q.get("sessionId") || "").trim();
+      const dateFromQuery = (q.get("date") || "").trim();
+
       try {
         await loadBootstrap();
+        if (!state.bootstrap?.hasClass && state.bootstrap?.error) {
+          state.error = state.bootstrap.message || state.bootstrap.error;
+        }
+
+        if (sessionFromQuery) {
+          try {
+            const full = await api(`/api/student/group-sessions/${sessionFromQuery}`);
+            applyBundle(full);
+            resumeScreenFromBundle();
+            render();
+            return;
+          } catch (err) {
+            state.error = err.message || "Gruppe konnte nicht geöffnet werden.";
+          }
+        }
+
+        if (subjectFromQuery) {
+          const enabled = (state.bootstrap?.enabledSubjects || []).some(
+            (s) => s.subject === subjectFromQuery
+          );
+          if (enabled) {
+            const existing = (state.bootstrap?.activeSessions || []).find(
+              (s) => s.subject === subjectFromQuery
+            );
+            if (existing) {
+              const full = await api(`/api/student/group-sessions/${existing.id}`);
+              applyBundle(full);
+              resumeScreenFromBundle();
+              render();
+              return;
+            }
+            await startSubject(subjectFromQuery, dateFromQuery || state.bootstrap?.date);
+            return;
+          }
+          state.error = `Gruppenmodus für ${subjectFromQuery} ist nicht freigeschaltet.`;
+        }
+
         const draft = restoreLocal();
-        if (draft?.sessionId) {
+        if (draft?.sessionId && !subjectFromQuery) {
           try {
             const full = await api(`/api/student/group-sessions/${draft.sessionId}`);
             applyBundle(full);
             state.screen = draft.screen || "work";
             state.currentMemberIdx = draft.currentMemberIdx || 0;
             if (["what", "how", "confirm", "mid", "reflect"].includes(state.screen)) {
-              // privacy: don't restore mid-personal screens after reload
               resumeScreenFromBundle();
             }
           } catch {
             state.screen = "home";
           }
-        } else {
+        } else if (!subjectFromQuery) {
           state.screen = "home";
         }
       } catch (err) {
-        state.error = "Die Gruppenarbeit konnte nicht geladen werden.";
+        state.error =
+          err.message ||
+          "Die Gruppenarbeit konnte nicht geladen werden.";
         state.screen = "home";
       } finally {
         state.loading = false;

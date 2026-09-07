@@ -192,6 +192,9 @@
     if (!editable) return "Schau dir deine Stunden an.";
     for (const block of blockList) {
       const subject = block.entry?.subject || block.slot?.subject || "deiner Stunde";
+      if (groupModeForSubject(subject)) {
+        return `Als Nächstes: Gruppenarbeit in ${subject} starten oder fortsetzen.`;
+      }
       if (!block.entry) return `Setze als Nächstes dein Tagesziel in ${subject}.`;
       if (!block.entry.hasCheck) return `Als Nächstes: Zwischen-Check in ${subject}.`;
       if (!block.entry.hasReflection) return `Als Nächstes: Tagesabschluss in ${subject}.`;
@@ -479,10 +482,61 @@
       </section>`;
   }
 
+  function groupModeForSubject(subject) {
+    const map = state.data?.groupModeBySubject || {};
+    return subject && map[subject]?.enabled ? map[subject] : null;
+  }
+
+  function renderGroupModeBlock(block, editable) {
+    const ui = UI();
+    const slot = block.slot;
+    const subject = slot?.subject || "";
+    const gm = groupModeForSubject(subject);
+    const params = new URLSearchParams({ subject });
+    if (state.date) params.set("date", state.date);
+    if (gm?.activeSessionId) params.set("sessionId", gm.activeSessionId);
+
+    const statusLabel = gm?.activeSessionId
+      ? gm.status === "setup"
+        ? "Einrichtung offen"
+        : "Gruppe aktiv"
+      : "Gruppenarbeit";
+
+    const cta = !editable
+      ? ""
+      : gm?.activeSessionId
+        ? appPrimaryButton("Gruppenarbeit fortsetzen", "gruppenmodus", params.toString())
+        : appPrimaryButton("Gruppenarbeit starten", "gruppenmodus", params.toString());
+
+    return `
+      <article class="subject-lesson-card subject-lesson-card--active">
+        <div class="subject-lesson-card__top">
+          <div class="subject-lesson-card__icon" aria-hidden="true">
+            <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
+          </div>
+          <div class="subject-lesson-card__meta">
+            <div class="subject-lesson-card__head">
+              <h3 class="subject-lesson-card__subject">${ui.escapeHtml(subject || "Lernzeit")}</h3>
+              <span class="status-badge status-badge--active">${ui.escapeHtml(statusLabel)}</span>
+            </div>
+            ${slot?.timeslot ? `<span class="subject-lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
+          </div>
+        </div>
+        <p class="subject-lesson-card__hint">
+          In diesem Fach arbeitet ihr gemeinsam in der Gruppe – nicht mit einem einzelnen Tagesziel.
+        </p>
+        ${cta}
+      </article>`;
+  }
+
   function renderBlock(block, editable) {
     const ui = UI();
     const slot = block.slot;
     const entry = block.entry;
+    const gm = groupModeForSubject(slot?.subject || entry?.subject);
+    if (gm) {
+      return renderGroupModeBlock(block, editable);
+    }
 
     const status = lessonStatus(block);
     const phases = entry ? blockPhases(entry) : { plan: false, check: false, reflect: false };

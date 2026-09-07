@@ -124,7 +124,7 @@
     }
 
     if (section === "gruppenmodus" && window.LogbuchGruppenmodus) {
-      window.LogbuchGruppenmodus.init();
+      window.LogbuchGruppenmodus.init(query);
       return;
     }
 

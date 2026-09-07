@@ -4862,7 +4862,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     const isDemo = await isDemoSchoolId(pool, req.session.user.school_id);
     const demoToday = isDemo ? demoEffectiveIsoDate(todayIsoDate()) : todayIsoDate();
 
-    const { classId, className } = await getStudentClassContext(studentId);
+    const { classId, className, schoolId } = await getStudentClassContext(studentId);
 
     let timetable = [];
     if (classId && weekday) {
@@ -5008,6 +5008,52 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     const timetableSubjects = timetableSubjectsFromRows(timetable);
     const homework = await fetchHomeworkForDate(studentId, date);
 
+    const groupModeBySubject = {};
+    if (classId && schoolId) {
+      try {
+        const gmSettings = await pool.query(
+          `
+          SELECT subject
+          FROM group_mode_settings
+          WHERE school_id = $1 AND class_id = $2 AND enabled = TRUE
+        `,
+          [schoolId, classId]
+        );
+        for (const row of gmSettings.rows) {
+          groupModeBySubject[row.subject] = {
+            enabled: true,
+            activeSessionId: null,
+            status: null
+          };
+        }
+        if (Object.keys(groupModeBySubject).length) {
+          const gmSessions = await pool.query(
+            `
+            SELECT gs.id, gs.subject, gs.status
+            FROM group_sessions gs
+            LEFT JOIN group_session_members gsm
+              ON gsm.session_id = gs.id AND gsm.user_id = $4
+            WHERE gs.school_id = $1
+              AND gs.class_id = $2
+              AND gs.session_date = $3
+              AND gs.status <> 'closed'
+              AND (gs.host_user_id = $4 OR gsm.user_id IS NOT NULL)
+            ORDER BY gs.created_at DESC
+          `,
+            [schoolId, classId, date, studentId]
+          );
+          for (const row of gmSessions.rows) {
+            if (groupModeBySubject[row.subject] && !groupModeBySubject[row.subject].activeSessionId) {
+              groupModeBySubject[row.subject].activeSessionId = row.id;
+              groupModeBySubject[row.subject].status = row.status;
+            }
+          }
+        }
+      } catch (gmErr) {
+        console.error("⚠️ group mode in /today:", gmErr);
+      }
+    }
+
     res.json({
       date,
       weekday,
@@ -5024,7 +5070,8 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       blocks,
       phases,
       homework,
-      nextSchoolDay: nextSchoolDayIso(date)
+      nextSchoolDay: nextSchoolDayIso(date),
+      groupModeBySubject
     });
   } catch (err) {
     console.error("❌ /api/student/log/today:", err);
