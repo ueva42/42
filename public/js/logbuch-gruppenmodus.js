@@ -28,6 +28,7 @@
     reflectDraft: {},
     midStep: 1,
     reflectStep: 1,
+    missionFactIndex: 0,
     saveState: "idle", // idle | saving | saved | error
     message: "",
     error: "",
@@ -847,41 +848,49 @@
 
   function renderConfirm() {
     const m = currentMember();
-    const roles = (m?.roles || []).map((r) => r.name).join(", ");
-    const shared = state.bundle?.session?.sharedGoal || state.sharedGoal || "";
-    const whatList = state.draftGoal.whatGoals || [];
-    const howList = state.draftGoal.howGoals || [];
-    const myPlan = renderMissionCard({
-      title: "Dein Plan für heute",
-      step: "★",
-      ready: true,
-      blocks: [
-        missionBlock("Unser gemeinsames Ziel", missionValue(shared || "–")),
-        missionBlock("Meine Rolle", missionValue(roles || "–")),
-        missionBlock(
-          "Meine Was-Ziele",
-          whatList.length ? missionList(whatList) : missionValue(state.draftGoal.whatGoalText || "–")
-        ),
-        missionBlock(
-          "Meine Wie-Ziele",
-          howList.length ? missionList(howList) : missionValue(state.draftGoal.howGoalText || "–")
-        )
-      ].join("")
-    });
+    const draftMember = {
+      ...(m || {}),
+      whatGoals: state.draftGoal.whatGoals || [],
+      howGoals: state.draftGoal.howGoals || [],
+      whatGoalText: state.draftGoal.whatGoalText,
+      howGoalText: state.draftGoal.howGoalText
+    };
+    const factsDone = missionFactsComplete(draftMember);
     const body = `
-      ${myPlan}
-      <div class="gm-overview-stack">
+      <div class="plan-acc-stack">
+        ${gmAccOpen(
+          1,
+          "Meine Mission",
+          "Eintrag für Eintrag ansehen",
+          `${renderMemberMissionPager(draftMember)}
+           ${
+             factsDone
+               ? `<div class="plan-acc__continue">
+                    <p class="gm-muted">Passt alles? Dann weitergeben oder ändern.</p>
+                  </div>`
+               : ""
+           }`
+        )}
+        ${factsDone ? gmAccDone(2, "Gruppenübersicht", "bereit") : gmAccLocked(2, "Gruppenübersicht")}
+      </div>
+      ${
+        factsDone
+          ? `<div class="gm-overview-stack">
         <p class="gm-label">Gruppenübersicht</p>
         ${renderGroupOverviewInner()}
-      </div>`;
+      </div>`
+          : ""
+      }`;
     return shell(
       null,
       "Passt alles?",
       body,
-      `<div class="gm-footer-row">
+      factsDone
+        ? `<div class="gm-footer-row">
         <button type="button" class="gm-ghost" id="gmConfirmEdit">Ändern</button>
         <button type="button" class="gm-primary" id="gmConfirmOk">Passt so – weitergeben</button>
       </div>`
+        : ""
     );
   }
 
@@ -1039,43 +1048,112 @@
     return [];
   }
 
+  function memberMissionFacts(m, opts = {}) {
+    const facts = [];
+    const shared = state.bundle?.session?.sharedGoal || state.sharedGoal || "";
+    if (shared) facts.push(["Gemeinsames Ziel", shared]);
+
+    const roles = (m?.roles || []).map((r) => r.name).filter(Boolean);
+    if (roles.length === 1) facts.push(["Meine Rolle", roles[0]]);
+    else if (roles.length > 1) {
+      roles.forEach((r, i) => facts.push([`Rolle ${i + 1}`, r]));
+    } else {
+      facts.push(["Meine Rolle", "–"]);
+    }
+
+    const whatList = memberWhatList(m);
+    if (!whatList.length) facts.push(["Was-Ziel", "–"]);
+    else {
+      whatList.forEach((g, i) => {
+        const label = g.roleName
+          ? `Was-Ziel · ${g.roleName}`
+          : whatList.length > 1
+            ? `Was-Ziel ${i + 1}`
+            : "Was-Ziel";
+        facts.push([label, g.text || "–"]);
+      });
+    }
+
+    const howList = memberHowList(m);
+    if (!howList.length) facts.push(["Wie-Ziel", "–"]);
+    else {
+      howList.forEach((g, i) => {
+        const label = g.roleName
+          ? `Wie-Ziel · ${g.roleName}`
+          : howList.length > 1
+            ? `Wie-Ziel ${i + 1}`
+            : "Wie-Ziel";
+        facts.push([label, g.text || "–"]);
+      });
+    }
+
+    if (opts.withMid && m?.midCheckAt) {
+      const midRaw = m.midCheck;
+      const mid =
+        midRaw && typeof midRaw === "string"
+          ? (() => {
+              try {
+                return JSON.parse(midRaw);
+              } catch {
+                return {};
+              }
+            })()
+          : midRaw || {};
+      facts.push(["Zwischencheck · Weg", mid.onTrack || "–"]);
+      facts.push(["Zwischencheck · Vorankommen", mid.progress || "–"]);
+      facts.push([
+        "Zwischencheck · Ändern",
+        [mid.changeNeeded, mid.changeFocus].filter(Boolean).join(" · ") || "–"
+      ]);
+      (mid.changeStrategies || []).forEach((s, i) => {
+        facts.push([`Strategie ${i + 1}`, s]);
+      });
+    }
+    return facts;
+  }
+
+  function missionFactsComplete(m, opts = {}) {
+    const facts = memberMissionFacts(m, opts);
+    if (!facts.length) return true;
+    return (Number(state.missionFactIndex) || 0) >= facts.length - 1;
+  }
+
+  /** Wie Tagesziel-Check: Mission Feld für Feld. */
+  function renderMemberMissionPager(m, opts = {}) {
+    const facts = memberMissionFacts(m, opts);
+    if (!facts.length) {
+      return `<div class="check-daily-goal-card"><p>Noch keine Ziele hinterlegt.</p></div>`;
+    }
+    const idx = Math.min(
+      Math.max(0, Number(state.missionFactIndex) || 0),
+      facts.length - 1
+    );
+    const [label, value] = facts[idx];
+    const isLast = idx >= facts.length - 1;
+    return `
+      <section class="check-daily-goal">
+        <p class="plan-acc__hint" style="margin:0 0 10px">Mission ${idx + 1} von ${facts.length}</p>
+        <div class="check-daily-goal-card">
+          <p><strong>${esc(label)}:</strong><br>${esc(value)}</p>
+        </div>
+        ${
+          !isLast
+            ? `<div class="plan-acc__continue">
+                <button type="button" class="gm-primary" id="gmMissionFactNext">Weiter</button>
+              </div>`
+            : ""
+        }
+      </section>`;
+  }
+
   function renderMemberMissionSummary(m, opts = {}) {
+    // Kompakte Gesamtansicht (z. B. Übersicht) – Pager separat
     const roles = (m?.roles || []).map((r) => r.name).join(", ");
-    const midRaw = m?.midCheck;
-    const mid =
-      midRaw && typeof midRaw === "string"
-        ? (() => {
-            try {
-              return JSON.parse(midRaw);
-            } catch {
-              return {};
-            }
-          })()
-        : midRaw || {};
     const blocks = [
       missionBlock("Rolle", missionValue(roles || "–")),
       missionBlock("Was-Ziele", missionList(memberWhatList(m))),
       missionBlock("Wie-Ziele", missionList(memberHowList(m)))
     ];
-    if (opts.withMid && m?.midCheckAt) {
-      blocks.push(
-        missionBlock(
-          "Dein Zwischencheck",
-          `<ul class="mission-summary__list">
-            <li>Weg: ${esc(mid.onTrack || "–")}</li>
-            <li>Vorankommen: ${esc(mid.progress || "–")}</li>
-            <li>Ändern: ${esc(mid.changeNeeded || "–")}${
-              mid.changeFocus ? ` (${esc(mid.changeFocus)})` : ""
-            }</li>
-            ${
-              (mid.changeStrategies || []).length
-                ? `<li>Strategie: ${esc((mid.changeStrategies || []).join(" · "))}</li>`
-                : ""
-            }
-          </ul>`
-        )
-      );
-    }
     return renderMissionCard({
       title: opts.title || "Deine Mission",
       step: "★",
@@ -1156,10 +1234,14 @@
     const strategies = state.midDraft.changeStrategies || [];
 
     const step1Body = `
-      ${renderMemberMissionSummary(m)}
-      <div class="plan-acc__continue">
+      ${renderMemberMissionPager(m)}
+      ${
+        missionFactsComplete(m)
+          ? `<div class="plan-acc__continue">
         <button type="button" class="gm-primary" id="gmMidStep1Next">Weiter zum Check</button>
-      </div>`;
+      </div>`
+          : ""
+      }`;
     const step2Body = pickTiles(MID_ON_TRACK, state.midDraft.onTrack, "data-mid-onTrack");
     const step3Body = pickTiles(MID_PROGRESS, state.midDraft.progress, "data-mid-progress");
     const step4Body = `
@@ -1270,10 +1352,14 @@
     ];
 
     const step1Body = `
-      ${renderMemberMissionSummary(m, { withMid: true, title: "Deine Ziele heute" })}
-      <div class="plan-acc__continue">
+      ${renderMemberMissionPager(m, { withMid: true })}
+      ${
+        missionFactsComplete(m, { withMid: true })
+          ? `<div class="plan-acc__continue">
         <button type="button" class="gm-primary" id="gmReflectStep1Next">Weiter zur Reflexion</button>
-      </div>`;
+      </div>`
+          : ""
+      }`;
 
     const body = `
       <div class="plan-acc-stack">
@@ -1809,10 +1895,12 @@
       if (kind === "mid") {
         state.midDraft = { changeStrategies: [] };
         state.midStep = 1;
+        state.missionFactIndex = 0;
         state.screen = "mid";
       } else if (kind === "reflect") {
         state.reflectDraft = {};
         state.reflectStep = 1;
+        state.missionFactIndex = 0;
         state.screen = "reflect";
       } else {
         const m = currentMember();
@@ -1911,11 +1999,13 @@
         state.draftGoal.howGoals = [{ id: null, text: how }];
         state.draftGoal.howGoalText = how;
       }
+      state.missionFactIndex = 0;
       state.screen = "confirm";
       render();
     });
 
     document.getElementById("gmConfirmEdit")?.addEventListener("click", () => {
+      state.missionFactIndex = 0;
       state.screen = "what";
       render();
     });
@@ -2012,7 +2102,13 @@
       render();
     });
 
+    document.getElementById("gmMissionFactNext")?.addEventListener("click", () => {
+      state.missionFactIndex = (Number(state.missionFactIndex) || 0) + 1;
+      render();
+    });
+
     document.getElementById("gmMidStep1Next")?.addEventListener("click", () => {
+      state.missionFactIndex = 0;
       state.midStep = 2;
       render();
     });
@@ -2105,6 +2201,7 @@
     });
 
     document.getElementById("gmReflectStep1Next")?.addEventListener("click", () => {
+      state.missionFactIndex = 0;
       state.reflectStep = 2;
       render();
     });
