@@ -5458,7 +5458,8 @@ body.student-app .card.section > h2 {
 
 /* Mein Tag – App Layout */
 .today-app,
-.plan-app {
+.plan-app,
+.gm-app {
   --app-bg: #050816;
   --app-panel: rgba(8, 14, 35, 0.92);
   --app-line: rgba(103, 132, 255, 0.22);
@@ -5472,14 +5473,17 @@ body.student-app .card.section > h2 {
   margin: 0 auto;
 }
 
-.today-app {
+.today-app,
+#gruppenmodus-section .gm-app,
+#gruppenmodus-section .plan-app {
   max-width: none;
   width: 100%;
 }
 
 #today-section > .page-hero,
 #today-section > .today-status-panel,
-#plan-section > .page-hero {
+#plan-section > .page-hero,
+#gruppenmodus-section > .page-hero {
   display: none;
 }
 
@@ -11093,7 +11097,7 @@ h2 {
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=23"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=8"></script>
-<script src="/js/logbuch-gruppenmodus.js?v=20"></script>
+<script src="/js/logbuch-gruppenmodus.js?v=21"></script>
 <script src="/js/logbuch-screens.js?v=6"></script>
 
 <script>

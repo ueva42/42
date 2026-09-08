@@ -266,17 +266,37 @@
     return members ? `${status} · ${members}` : status;
   }
 
-  function shell(stepLabel, title, body, footer) {
+  function shell(stepLabel, title, body, footer, opts = {}) {
+    const meta = opts.meta || "Feste Gruppe · jede Stunde ein neues Ziel aus dem Levelplan.";
+    const chips = (opts.chips || []).filter(Boolean);
     return `
       <div class="gm-app plan-app plan-app--accordion">
-        <div class="gm-top">
-          <button type="button" class="gm-back" id="gmBackBtn" aria-label="Zurück">←</button>
-          <div class="gm-top-main">
-            ${stepLabel ? `<p class="gm-step">${esc(stepLabel)}</p>` : ""}
-            <h2 class="gm-title">${esc(title)}</h2>
+        <article class="plan-app-hero plan-app-hero--compact plan-app-hero--plan">
+          <div class="plan-app-hero__content">
+            <div class="plan-app-hero__icon" aria-hidden="true">
+              <img src="/icons/student/png/zielsetzung.png" alt="" aria-hidden="true">
+            </div>
+            <div class="plan-app-hero__copy">
+              ${stepLabel ? `<p class="plan-app-hero__eyebrow">${esc(stepLabel)}</p>` : `<p class="plan-app-hero__eyebrow">Laborarbeit</p>`}
+              <h2 class="plan-app-hero__title">${esc(title)}</h2>
+              <p class="plan-app-hero__meta">${esc(meta)}</p>
+              ${
+                chips.length
+                  ? `<div class="plan-app-hero__chips">${chips
+                      .map((c) => `<span class="plan-app-hero__chip">${esc(c)}</span>`)
+                      .join("")}</div>`
+                  : ""
+              }
+            </div>
           </div>
-          <span id="gmSaveBadge" class="gm-save-badge gm-save-badge--${state.saveState}"></span>
-        </div>
+          <div class="plan-app-hero__visual" aria-hidden="true">
+            <img src="/icons/student/hero/zielsetzung-hero.png?v=6" alt="" aria-hidden="true" loading="lazy">
+          </div>
+          <div class="gm-hero-tools">
+            <button type="button" class="gm-back" id="gmBackBtn" aria-label="Zurück">←</button>
+            <span id="gmSaveBadge" class="gm-save-badge gm-save-badge--${state.saveState}"></span>
+          </div>
+        </article>
         ${state.error ? `<div class="gm-banner gm-banner--err">${esc(state.error)}</div>` : ""}
         ${state.message ? `<div class="gm-banner gm-banner--ok">${esc(state.message)}</div>` : ""}
         <div class="gm-body">${body}</div>
@@ -506,19 +526,29 @@
   function renderHome() {
     const enabled = state.bootstrap?.enabledSubjects || [];
     const active = state.bootstrap?.activeSessions || [];
+    const fixed = state.bootstrap?.fixedGroups || [];
     const body = `
-      <p class="gm-lead">Ihr arbeitet zu zweit, zu dritt oder zu viert an einem iPad – themengebunden am Levelplan. Eine angelegte Gruppe bleibt bestehen, bis ihr sie abschließt oder löscht.</p>
+      <p class="gm-lead">Zuerst bildet ihr eine <strong>feste Gruppe</strong> (Personen + Rollen). In jeder Stunde wählt ihr dann ein <strong>neues Ziel</strong> aus dem Levelplan – die Gruppe bleibt.</p>
       ${
         active.length
-          ? `<h3 class="gm-h3">Weiterarbeiten</h3>
+          ? `<h3 class="gm-h3">Offene Stunde</h3>
              <div class="gm-cards">
                ${active
                  .map(
                    (s) => `
                  <div class="gm-card-wrap">
                    <button type="button" class="gm-card" data-resume="${esc(s.id)}">
-                     <span class="gm-card-title">${esc(s.subject)}${s.topicName ? `: ${esc(s.topicName)}` : ""}</span>
-                     <span class="gm-card-sub">${esc(sessionStatusLabel(s))}</span>
+                     <span class="gm-card-title">${esc(s.subject)}${
+                       s.groupName ? `: ${esc(s.groupName)}` : ""
+                     }</span>
+                     <span class="gm-card-sub">${esc(
+                       (s.memberNames || []).join(", ") || sessionStatusLabel(s)
+                     )}</span>
+                     <span class="gm-card-meta">${esc(
+                       s.topicName
+                         ? `Heute: ${s.topicName}`
+                         : "Noch kein Ziel für heute gewählt"
+                     )}</span>
                    </button>
                    <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe löschen">Löschen</button>
                  </div>`
@@ -528,8 +558,32 @@
           : ""
       }
       ${
+        fixed.length
+          ? `<h3 class="gm-h3">Eure festen Gruppen</h3>
+             <p class="gm-muted">Gruppe bleibt – wählt für die nächste Stunde ein neues Levelplan-Ziel.</p>
+             <div class="gm-cards">
+               ${fixed
+                 .map(
+                   (s) => `
+                 <div class="gm-card-wrap">
+                   <button type="button" class="gm-card" data-new-lesson="${esc(s.id)}">
+                     <span class="gm-card-title">${esc(s.subject)}${
+                       s.groupName ? `: ${esc(s.groupName)}` : ""
+                     }</span>
+                     <span class="gm-card-sub">${esc((s.memberNames || []).join(", ") || "Gruppe")}</span>
+                     <span class="gm-card-meta">Letztes Ziel: ${esc(s.topicName || "–")} · Heute neues Ziel wählen</span>
+                   </button>
+                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe löschen">Gruppe löschen</button>
+                 </div>`
+                 )
+                 .join("")}
+             </div>`
+          : ""
+      }
+      ${
         enabled.length
-          ? `<h3 class="gm-h3">Neue Laborarbeit starten</h3>
+          ? `<h3 class="gm-h3">Neue Gruppe anlegen</h3>
+             <p class="gm-muted">Nur nötig, wenn noch keine feste Gruppe für dieses Fach existiert.</p>
              ${cardGrid(
                enabled.map((s) => ({
                  id: s.subject,
@@ -541,11 +595,17 @@
              )}`
           : `<div class="gm-empty">Eure Lehrkraft hat den Gruppenmodus noch nicht freigeschaltet.</div>`
       }`;
-    return shell(null, "Gruppenarbeit", body, "");
+    return shell(null, "Gruppenarbeit", body, "", {
+      meta: "Feste Gruppe wählen oder neu anlegen – dann Ziel für heute."
+    });
   }
 
   function renderPickTopic() {
     const topics = state.bundle?.topics || [];
+    const names = members()
+      .map((m) => m.displayName)
+      .filter(Boolean)
+      .join(", ");
     const body =
       topics.length === 0
         ? `<div class="gm-empty">Für dieses Fach gibt es noch keinen Levelplan.
@@ -554,7 +614,12 @@
                  ? "Ihr könnt trotzdem starten und freie Ziele nutzen."
                  : "Bitte fragt eure Lehrkraft oder wählt ein anderes Fach."
              }</div>`
-        : cardGrid(
+        : `${
+            names
+              ? `<p class="gm-muted">Gruppe: ${esc(names)} – welches Ziel bearbeitet ihr <strong>heute</strong>?</p>`
+              : ""
+          }
+          ${cardGrid(
             topics.map((t) => ({
               id: t.id,
               title: t.name,
@@ -563,16 +628,19 @@
             })),
             state.bundle?.session?.topicId,
             "topic"
-          );
+          )}`;
 
     const footer =
       topics.length === 0 && settings().allowFreeWhatGoal
         ? `<button type="button" class="gm-primary" id="gmSkipTopic">Ohne Raster weiter</button>`
         : `<button type="button" class="gm-primary" id="gmTopicNext" ${
             state.bundle?.session?.topicId ? "" : "disabled"
-          }>Weiter</button>`;
+          }>Dieses Ziel für heute</button>`;
 
-    return shell("Schritt 1 von 5", "Welches Thema bearbeitet ihr?", body, footer);
+    return shell("Schritt 3 von 5", "Welches Ziel heute?", body, footer, {
+      meta: "Die Gruppe bleibt fest – nur das Levelplan-Ziel wechselt von Stunde zu Stunde.",
+      chips: [state.bundle?.session?.subject, names].filter(Boolean)
+    });
   }
 
   function renderMembers() {
@@ -596,7 +664,7 @@
       )}`;
     const ok = state.selectedMembers.length >= min && state.selectedMembers.length <= max;
     return shell(
-      "Schritt 2 von 5",
+      "Schritt 1 von 5",
       "Wer arbeitet heute zusammen?",
       body,
       `<button type="button" class="gm-primary" id="gmMembersNext" ${ok ? "" : "disabled"}>Weiter</button>`
@@ -608,7 +676,7 @@
     const mems = members();
     if (!mems.length) {
       return shell(
-        "Schritt 3 von 5",
+        "Schritt 2 von 5",
         "Wer übernimmt welche Aufgabe?",
         `<div class="gm-empty">Es sind keine Gruppenmitglieder gespeichert. Bitte einen Schritt zurück und die Personen erneut wählen.</div>`,
         `<button type="button" class="gm-primary" id="gmRolesBackMembers">Zurück zu den Personen</button>`
@@ -668,7 +736,7 @@
     const allAssigned =
       roles.length > 0 && roles.every((r) => state.roleAssignments[String(r.id)]);
     return shell(
-      "Schritt 3 von 5",
+      "Schritt 2 von 5",
       "Wer übernimmt welche Aufgabe?",
       body,
       `<button type="button" class="gm-primary" id="gmRolesNext" ${allAssigned ? "" : "disabled"}>Rollen bestätigen</button>`
@@ -1617,7 +1685,8 @@
   function renderDone() {
     const body = `
       <div class="gm-handoff">
-        <p class="gm-handoff-text">Eure Laborarbeit ist für heute abgeschlossen.</p>
+        <p class="gm-handoff-text">Für heute fertig.</p>
+        <p class="gm-muted">Eure Gruppe bleibt bestehen. Nächste Stunde wählt ihr ein neues Ziel aus dem Levelplan.</p>
       </div>
       <div class="gm-cards">
         ${members()
@@ -1635,7 +1704,8 @@
       null,
       "Geschafft!",
       body,
-      `<button type="button" class="gm-primary" id="gmBackHome">Zur Übersicht</button>`
+      `<button type="button" class="gm-primary" id="gmBackHome">Zur Übersicht</button>`,
+      { meta: "Gruppe bleibt – nächstes Mal neues Ziel." }
     );
   }
 
@@ -1715,11 +1785,10 @@
 
   function styles() {
     return `<style>
-      .gm-app{max-width:820px;margin:0 auto;padding:8px 4px 110px;font-size:1.05rem;color:inherit}
-      .gm-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
-      .gm-back{min-width:48px;min-height:48px;border-radius:14px;border:1px solid rgba(34,211,238,.28);background:rgba(8,24,48,.72);color:#e0f2fe;font-size:1.2rem}
-      .gm-title{margin:0;font-family:Orbitron,"Bebas Neue",system-ui,sans-serif;letter-spacing:.04em;font-size:1.45rem;line-height:1.2;text-transform:uppercase}
-      .gm-step{margin:0 0 4px;font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:#67e8f9;opacity:.9}
+      .gm-app{width:100%;max-width:none;margin:0;padding:0 0 110px;font-size:1.05rem;color:inherit}
+      .gm-hero-tools{position:absolute;top:12px;right:12px;display:flex;align-items:center;gap:8px;z-index:2}
+      .gm-app .plan-app-hero{position:relative}
+      .gm-back{min-width:44px;min-height:44px;border-radius:14px;border:1px solid rgba(34,211,238,.28);background:rgba(8,24,48,.72);color:#e0f2fe;font-size:1.15rem;cursor:pointer}
       .gm-muted{margin:0 0 10px;opacity:.72;font-size:.92rem}
       .gm-label{margin:0 0 6px;font-family:Orbitron,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;font-size:.82rem;color:#a5f3fc}
       .gm-lead{margin:0 0 14px;line-height:1.45}
@@ -1734,7 +1803,7 @@
       .gm-mission-card .goal-step-card__head{justify-content:flex-start}
       .gm-mission-status{margin-left:auto;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:999px;border:1px solid rgba(148,163,184,.35);color:#94a3b8}
       .gm-mission-status.is-ready{border-color:rgba(34,211,238,.55);color:#67e8f9;background:rgba(34,211,238,.12);box-shadow:0 0 14px rgba(34,211,238,.2)}
-      .gm-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+      .gm-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
       .gm-card-wrap{display:flex;flex-direction:column;gap:6px}
       .gm-card{position:relative;text-align:left;min-height:88px;padding:16px 44px 16px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.28);background:rgba(8,24,48,.55);color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,box-shadow .15s,transform .15s}
       .gm-card-check{position:absolute;right:14px;top:14px;width:22px;height:22px;border-radius:999px;border:1px solid rgba(148,163,184,.45);display:flex;align-items:center;justify-content:center;font-size:.8rem;color:transparent;background:transparent}
@@ -1763,7 +1832,7 @@
       .gm-banner{padding:10px 12px;border-radius:12px;margin-bottom:10px}
       .gm-banner--err{background:rgba(220,60,60,.2)}
       .gm-banner--ok{background:rgba(34,211,238,.16);border:1px solid rgba(34,211,238,.28)}
-      .gm-save-badge{font-size:.75rem;opacity:.75;white-space:nowrap}
+      .gm-save-badge{font-size:.75rem;opacity:.85;white-space:nowrap;padding:6px 8px;border-radius:999px;background:rgba(8,24,48,.55)}
       .gm-handoff{min-height:220px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:8px}
       .gm-handoff-text{font-size:1.5rem;margin:0}
       .gm-role-board{display:grid;gap:16px;margin-bottom:12px}
@@ -1869,6 +1938,25 @@
       });
     });
 
+    document.querySelectorAll("[data-new-lesson]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        clearFlash();
+        try {
+          const id = btn.getAttribute("data-new-lesson");
+          const data = await api(`/api/student/group-sessions/${id}/new-lesson`, {
+            method: "POST"
+          });
+          applyBundle(data);
+          state.screen = "pick-topic";
+          state.message = "Gruppe bleibt – wählt jetzt das Ziel für heute.";
+          render();
+        } catch (err) {
+          state.error = err.message;
+          render();
+        }
+      });
+    });
+
     document.querySelectorAll("[data-topic]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         clearFlash();
@@ -1879,20 +1967,9 @@
             body: JSON.stringify({ topicId })
           });
           applyBundle(data);
-          // Nächste Stunde / bestehende Gruppe: Mitglieder überspringen → Rollen
-          if (data.resumed || data.continueGroup || members().length) {
-            const st = data.session?.status || state.bundle?.session?.status;
-            if (["active", "midcheck", "reflecting"].includes(st)) {
-              state.screen = "work";
-              state.message = "Gruppe fortgesetzt – weiter in der Laborarbeit.";
-            } else {
-              state.screen = members().length ? "roles" : "members";
-              state.message =
-                members().length
-                  ? "Gruppe fortgesetzt – weiter bei den Rollen."
-                  : state.message;
-            }
-          }
+          state.screen = settings().enableSharedGoal ? "shared" : "handoff";
+          state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
+          if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
           render();
         } catch (err) {
           state.error = err.message;
@@ -1902,16 +1979,15 @@
     });
 
     document.getElementById("gmTopicNext")?.addEventListener("click", () => {
-      if (members().length) {
-        resumeScreenFromBundle();
-        if (state.screen === "members") state.screen = "roles";
-      } else {
-        state.screen = "members";
-      }
+      state.screen = settings().enableSharedGoal ? "shared" : "handoff";
+      state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
+      if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
       render();
     });
     document.getElementById("gmSkipTopic")?.addEventListener("click", () => {
-      state.screen = members().length ? "roles" : "members";
+      state.screen = settings().enableSharedGoal ? "shared" : "handoff";
+      state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
+      if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
       render();
     });
 
@@ -2011,9 +2087,7 @@
           body: JSON.stringify({ assignments })
         });
         applyBundle(data);
-        state.screen = settings().enableSharedGoal ? "shared" : "handoff";
-        state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
-        if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
+        state.screen = "pick-topic";
         render();
       } catch (err) {
         state.error = err.message;
@@ -2519,17 +2593,18 @@
     const hasMembers = mems.length > 0;
     const hasRoles = mems.some((m) => (m.roles || []).length);
     const step = s.setupStep;
-    if (!s.topicId) {
-      state.screen = "pick-topic";
-      return;
-    }
-    if (!hasMembers) {
+
+    // Feste Gruppe zuerst: Personen → Rollen → Ziel der Stunde → Vorhaben → persönliche Ziele
+    if (!hasMembers || step === "members") {
       state.screen = "members";
       return;
     }
-    // Gruppe schon eingeteilt → Rollen / weiter im Setup
-    if (!hasRoles || step === "roles" || step === "members") {
+    if (!hasRoles || step === "roles") {
       state.screen = "roles";
+      return;
+    }
+    if (!s.topicId || step === "topic") {
+      state.screen = "pick-topic";
       return;
     }
     if (step === "shared_goal" || (settings().enableSharedGoal && !s.sharedGoal)) {
@@ -2547,10 +2622,10 @@
   function onBack() {
     clearFlash();
     const map = {
-      "pick-topic": "home",
-      members: "pick-topic",
+      members: "home",
       roles: "members",
-      shared: "roles",
+      "pick-topic": "roles",
+      shared: "pick-topic",
       handoff: "shared",
       what: "handoff",
       how: "what",
@@ -2629,9 +2704,9 @@
       } catch (_) {}
       console.warn("group session reload:", loadErr);
     }
-    state.screen = "pick-topic";
+    state.screen = "members";
     if (data.resumed) resumeScreenFromBundle();
-    else state.screen = data.session?.topicId ? "members" : "pick-topic";
+    else state.screen = "members";
     render();
   }
 
