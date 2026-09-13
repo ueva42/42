@@ -149,8 +149,17 @@
   }
 
   function normalizeType(cp) {
-    const type = cp?.checkpointType || "klassenarbeit";
-    return type === "test" || type === "praesentation" || type === "custom" ? type : "klassenarbeit";
+    const type = String(cp?.checkpointType || "klassenarbeit").trim().toLowerCase();
+    if (
+      type === "test" ||
+      type === "praesentation" ||
+      type === "custom" ||
+      type === "levelcheck" ||
+      type === "klassenarbeit"
+    ) {
+      return type;
+    }
+    return "klassenarbeit";
   }
 
   function checkpointById(id) {

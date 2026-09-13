@@ -839,6 +839,84 @@
       margin-top: 4px;
     }
 
+    .class-xp-banner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 10px 14px;
+      margin: 14px 0 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      background: linear-gradient(120deg, rgba(14, 165, 233, 0.12), rgba(168, 85, 247, 0.1));
+    }
+    .class-xp-banner__label {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7dd3fc;
+    }
+    .class-xp-banner strong {
+      font-size: 22px;
+      color: #f8fafc;
+      font-family: "Orbitron", sans-serif;
+    }
+    .class-xp-banner__hint {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .class-rank-toast {
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: #86efac;
+    }
+    .class-rank-toast.is-error { color: #fca5a5; }
+    .freedom-rank-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 220px;
+    }
+    .freedom-rank-cell img {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .freedom-rank-cell select {
+      flex: 1;
+      min-width: 160px;
+    }
+    .freedom-rank-cell.is-saving { opacity: 0.65; pointer-events: none; }
+    .freedom-rank-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--rank-color, #e2e8f0);
+    }
+    .freedom-rank-badge__icon {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+    }
+    #levelTable td img {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      vertical-align: middle;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     /* ================================
        MODAL
     ================================== */
@@ -994,6 +1072,14 @@
     .td-modal-head h3 { margin:0; font-family:"Orbitron",system-ui; font-size:15px; }
     .td-modal-close { border:none; background:transparent; color:#e5e7eb; font-size:18px; cursor:pointer; }
     .td-modal-sub { font-size:12px; opacity:0.65; margin:8px 0 14px; }
+    .tm-eval-percent-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 160px;
+    }
+    .tm-eval-percent-cell input[type="range"] { flex: 1; }
+    .tm-eval-percent-cell input[type="number"] { width: 64px; }
     .td-detail-table { width:100%; border-collapse:collapse; font-size:12px; }
     .td-detail-table th, .td-detail-table td { border-bottom:1px solid rgba(148,163,184,0.2); padding:8px 6px; text-align:left; }
     .tab-placeholder { opacity:0.75; font-size:14px; padding:20px 0; }
@@ -1305,7 +1391,7 @@
 
     <div class="nav-item" data-tab="levelTab" onclick="showTab('levelTab', event)">
       <svg viewBox="0 0 24 24"><path d="M4 21h16v-2H4v2zm2-4h12v-3H6v3zm3-5h6V4H9v8z"/></svg>
-      <span class="nav-label">Levelsystem</span>
+      <span class="nav-label">Freiheitsränge</span>
     </div>
     </div>
   </div>
@@ -1529,9 +1615,23 @@
         <!-- Passwortkarten-Button -->
         <button class="action" onclick="printPasswordCards()">Passwortkarten drucken</button>
 
+        <div id="classXpBanner" class="class-xp-banner" hidden>
+          <span class="class-xp-banner__label">Klassen-XP</span>
+          <strong id="classXpTotal">0</strong>
+          <span class="class-xp-banner__hint">Summe verdienter XP · unabhängig vom Freiheitsrang</span>
+        </div>
+        <p id="classRankToast" class="class-rank-toast" hidden role="status"></p>
+
         <table id="classStudentTable">
           <thead>
-            <tr><th>Name</th><th>Passwort</th><th>Reset</th><th>Löschen</th></tr>
+            <tr>
+              <th>Name</th>
+              <th>Freiheitsrang</th>
+              <th>XP</th>
+              <th>Passwort</th>
+              <th>Reset</th>
+              <th>Löschen</th>
+            </tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -1631,22 +1731,20 @@
       </div>
     </div>
 
-    <!-- LEVEL -->
+    <!-- FREIHEITSRÄNGE -->
     <div id="levelTab" class="tab hidden">
       <div class="panel">
-        <h2>Levelsystem</h2>
+        <h2>Freiheitsränge</h2>
         <p class="hint">
-          Das XP-Levelsystem ist fest verankert und kann nicht geändert werden:<br>
-          <b>Rookie</b> (0) → <b>Scout</b> (100) → <b>Fixer</b> (200) →
-          <b>Operator</b> (300) → <b>Street Legend</b> (500) → <b>Logic Legend</b> (1000).
+          Freiheitsränge werden unabhängig von XP vergeben. XP bleiben für persönliche Erfolge und Klassenchallenges erhalten.
         </p>
       </div>
 
       <div class="panel">
-        <h3>Feste Level-Stufen</h3>
+        <h3>Ränge (manuell durch Lehrkraft)</h3>
         <table id="levelTable">
           <thead>
-            <tr><th>Name</th><th>Mindest-XP</th></tr>
+            <tr><th>Symbol</th><th>Name</th><th>Vergabe</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -1695,6 +1793,7 @@
 <script src="/js/client-cache-reset.js?v=1"></script>
 <script src="/js/demo-banner.js?v=2"></script>
 <script src="/js/auth-fetch.js?v=8"></script>
+<script src="/js/freedom-ranks.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=4"></script>
 <script src="/js/teacher-timetable.js?v=4"></script>
@@ -1705,7 +1804,7 @@
 <script src="/js/teacher-levelplan.js?v=10"></script>
 <script src="/js/teacher-levelplan-zuordnung.js?v=5"></script>
 <script src="/js/teacher-competencies.js?v=21"></script>
-<script src="/js/teacher-termine.js?v=1"></script>
+<script src="/js/teacher-termine.js?v=2"></script>
 <script src="/js/teacher-gruppenmodus.js?v=8"></script>
 
 <script>
@@ -1931,12 +2030,23 @@ async function loadXPInit() {
   loadXPStudents();
 }
 
+function parseStudentListPayload(data) {
+  if (Array.isArray(data)) {
+    return { students: data, classXp: null, freedomRanks: window.FreedomRanks?.list || [] };
+  }
+  return {
+    students: Array.isArray(data?.students) ? data.students : [],
+    classXp: data?.classXp ?? null,
+    freedomRanks: data?.freedomRanks || window.FreedomRanks?.list || []
+  };
+}
+
 async function loadXPStudents() {
   const classId = document.getElementById("xpClassSelect").value;
   if (!classId) return;
 
   const r = await fetch(`/api/student?classId=${classId}`);
-  const students = await r.json();
+  const { students } = parseStudentListPayload(await r.json());
 
   const tbody = document.querySelector("#xpStudentTable tbody");
   tbody.innerHTML = "";
@@ -1983,7 +2093,7 @@ async function addXPAll() {
 
   const classId = document.getElementById("xpClassSelect").value;
   const r = await fetch(`/api/student?classId=${classId}`);
-  const students = await r.json();
+  const { students } = parseStudentListPayload(await r.json());
 
   for (let s of students) {
     await fetch("/api/xp", {
@@ -2032,7 +2142,7 @@ async function addMissionXPAll() {
   if (!missionId || !classId) return;
 
   const r = await fetch(`/api/student?classId=${classId}`);
-  const students = await r.json();
+  const { students } = parseStudentListPayload(await r.json());
 
   for (let s of students) {
     await fetch("/api/xpmission", {
@@ -2167,21 +2277,96 @@ async function loadClassStudents() {
   if (!classId) return;
 
   const r = await fetch(`/api/student?classId=${classId}`);
-  const students = await r.json();
+  const { students, classXp } = parseStudentListPayload(await r.json());
+
+  const banner = document.getElementById("classXpBanner");
+  const xpEl = document.getElementById("classXpTotal");
+  if (banner && xpEl) {
+    banner.hidden = false;
+    xpEl.textContent = Number(classXp || 0).toLocaleString("de-DE");
+  }
 
   const tbody = document.querySelector("#classStudentTable tbody");
   tbody.innerHTML = "";
 
   students.forEach(s => {
+    const rankId = s.freedomRank || s.freedom_rank || "starter";
+    const rank = window.FreedomRanks?.get(rankId) || { id: rankId, label: rankId, icon: "", symbol: "" };
     const tr = document.createElement("tr");
+    tr.dataset.studentId = String(s.id);
     tr.innerHTML = `
       <td>${s.name}</td>
+      <td>
+        <div class="freedom-rank-cell" id="rankCell_${s.id}">
+          <img src="${rank.icon}" alt="${rank.label}" width="28" height="28" />
+          <label class="sr-only" for="rankSelect_${s.id}">Freiheitsrang für ${s.name}</label>
+          <select
+            id="rankSelect_${s.id}"
+            aria-label="Freiheitsrang für ${s.name}"
+            data-student-id="${s.id}"
+            data-prev="${rankId}"
+            onchange="onFreedomRankChange(this)"
+          >
+            ${window.FreedomRanks ? window.FreedomRanks.optionHtml(rankId) : ""}
+          </select>
+        </div>
+      </td>
+      <td>${Number(s.xp || 0).toLocaleString("de-DE")}</td>
       <td id="pw_${s.id}">${s.password}</td>
       <td><button class="action" onclick="resetStudentPassword(${s.id})">Reset</button></td>
       <td><button class="delete" onclick="deleteStudent(${s.id})">X</button></td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+function showClassRankToast(message, isError) {
+  const el = document.getElementById("classRankToast");
+  if (!el) return;
+  el.hidden = false;
+  el.textContent = message;
+  el.classList.toggle("is-error", !!isError);
+  clearTimeout(showClassRankToast._t);
+  showClassRankToast._t = setTimeout(() => {
+    el.hidden = true;
+  }, 2800);
+}
+
+async function onFreedomRankChange(selectEl) {
+  const studentId = selectEl.dataset.studentId;
+  const prev = selectEl.dataset.prev;
+  const next = selectEl.value;
+  const cell = document.getElementById(`rankCell_${studentId}`);
+  if (!studentId || !next || next === prev) return;
+
+  if (cell) cell.classList.add("is-saving");
+  try {
+    const r = await fetch(`/api/student/${studentId}/freedom-rank`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ freedomRank: next })
+    });
+    const data = await r.json();
+    if (!r.ok || !data.success) {
+      selectEl.value = prev;
+      showClassRankToast(data.message || "Freiheitsrang konnte nicht gespeichert werden.", true);
+      return;
+    }
+    selectEl.dataset.prev = next;
+    const rank = window.FreedomRanks?.get(next);
+    const img = cell?.querySelector("img");
+    if (img && rank) {
+      img.src = rank.icon;
+      img.alt = rank.label;
+    }
+    showClassRankToast(data.message || "Freiheitsrang gespeichert");
+  } catch (err) {
+    console.error(err);
+    selectEl.value = prev;
+    showClassRankToast("Netzwerkfehler beim Speichern des Freiheitsrangs.", true);
+  } finally {
+    if (cell) cell.classList.remove("is-saving");
+  }
 }
 
 /* Schüler anlegen */
@@ -2441,28 +2626,22 @@ async function deleteCharacter(id) {
   loadCharacters();
 }
 
-/* ---------------------------- LEVELS (festes Design) ---------------------------- */
+/* ---------------------------- FREIHEITSRÄNGE ---------------------------- */
 async function loadLevels() {
   const tbody = document.querySelector("#levelTable tbody");
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  try {
-    const r = await fetch("/api/levels");
-    const data = await r.json();
-    const levels = Array.isArray(data) ? data : data.levels || [];
-
-    levels.forEach((l) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${l.name}</td>
-        <td>${l.min_xp}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  } catch (err) {
-    console.error(err);
-  }
+  const ranks = window.FreedomRanks?.list || [];
+  ranks.forEach((l) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><img src="${l.icon}" alt="${l.label}" width="36" height="36" /></td>
+      <td>${l.symbol} ${l.label}</td>
+      <td>manuell durch Lehrkraft</td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 /* ---------------------------- PROFIL & PASSWORT (ADMIN) ---------------------------- */

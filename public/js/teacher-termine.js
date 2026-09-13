@@ -2,7 +2,7 @@
  * Lehrkraft – Termine (anstehende Nachweise einsehen).
  */
 (function () {
-  const TYPE_ORDER = ["klassenarbeit", "test", "praesentation", "custom"];
+  const TYPE_ORDER = ["klassenarbeit", "test", "levelcheck", "praesentation", "custom"];
 
   const state = {
     classId: null,
@@ -10,7 +10,10 @@
     data: null,
     loading: false,
     message: "",
-    error: ""
+    error: "",
+    evalCheckpointId: null,
+    evalData: null,
+    evalSaving: false
   };
 
   function escapeHtml(str) {
@@ -49,8 +52,17 @@
   }
 
   function normalizeType(cp) {
-    const type = cp?.checkpointType || "klassenarbeit";
-    return type === "test" || type === "praesentation" || type === "custom" ? type : "klassenarbeit";
+    const type = String(cp?.checkpointType || cp?.type || "klassenarbeit").trim().toLowerCase();
+    if (
+      type === "test" ||
+      type === "praesentation" ||
+      type === "custom" ||
+      type === "levelcheck" ||
+      type === "klassenarbeit"
+    ) {
+      return type;
+    }
+    return "klassenarbeit";
   }
 
   function linkedGoalLabels(cp, levelChecks) {
@@ -169,6 +181,94 @@
     return `<ul class="tc-checkpoint-overview tc-termine-list">${rows}</ul>`;
   }
 
+  function recentPastCheckpoints() {
+    const today = todayIso();
+    return allCheckpoints()
+      .filter((cp) => cp.dateIso < today)
+      .sort((a, b) => b.dateIso.localeCompare(a.dateIso))
+      .slice(0, 12);
+  }
+
+  function renderPastLevelchecks() {
+    const items = recentPastCheckpoints().filter((cp) => cp.typeKey === "levelcheck");
+    if (!items.length) {
+      return `<p class="hint">Noch keine vergangenen Levelchecks zum Bewerten.</p>`;
+    }
+    const rows = items
+      .map(
+        (cp) => `
+      <li class="tc-checkpoint-item">
+        <div class="tc-checkpoint-item-body tc-termine-item-body">
+          <span class="tc-checkpoint-item-date">${escapeHtml(isoToGerman(cp.dateIso))}</span>
+          <span class="tc-termine-subject">${escapeHtml(cp.subject)}</span>
+          <span class="tc-termine-type">${escapeHtml(cp.typeLabel)}</span>
+          <span class="tc-checkpoint-item-thema">${escapeHtml(cp.topicName || "–")}</span>
+        </div>
+        <button type="button" class="action tc-termine-eval" data-checkpoint-id="${escapeHtml(cp.id)}">Bewerten</button>
+      </li>`
+      )
+      .join("");
+    return `<ul class="tc-checkpoint-overview tc-termine-list">${rows}</ul>`;
+  }
+
+  function renderEvalModal() {
+    if (!state.evalCheckpointId || !state.evalData) return "";
+    const cp = state.evalData.checkpoint || {};
+    const options = (state.evalData.statusOptions || [])
+      .map(
+        (o) =>
+          `<option value="${escapeHtml(o.id)}">${escapeHtml(o.label)}</option>`
+      )
+      .join("");
+
+    const rows = (state.evalData.evaluations || [])
+      .map((ev) => {
+        const statusOpts = (state.evalData.statusOptions || [])
+          .map(
+            (o) =>
+              `<option value="${escapeHtml(o.id)}" ${o.id === (ev.status || "not_evaluated") ? "selected" : ""}>${escapeHtml(o.label)}</option>`
+          )
+          .join("");
+        const pct = ev.percent == null ? "" : String(ev.percent);
+        return `
+        <tr data-student-id="${escapeHtml(ev.studentId)}">
+          <td>${escapeHtml(ev.name)}</td>
+          <td>
+            <select class="tm-eval-status" aria-label="Status für ${escapeHtml(ev.name)}">${statusOpts}</select>
+          </td>
+          <td class="tm-eval-percent-cell">
+            <input type="range" class="tm-eval-slider" min="0" max="100" step="1" value="${pct === "" ? 0 : pct}" aria-label="Prozent für ${escapeHtml(ev.name)}" />
+            <input type="number" class="tm-eval-percent" min="0" max="100" step="1" value="${escapeHtml(pct)}" placeholder="–" aria-label="Prozentzahl für ${escapeHtml(ev.name)}" />
+          </td>
+          <td>
+            <button type="button" class="action tm-eval-save" ${state.evalSaving ? "disabled" : ""}>Speichern</button>
+          </td>
+        </tr>`;
+      })
+      .join("");
+
+    return `
+      <div class="td-modal-overlay" id="tmEvalOverlay">
+        <div class="td-modal" role="dialog" aria-modal="true" aria-label="Levelcheck bewerten">
+          <div class="td-modal-head">
+            <div>
+              <h3>Levelcheck bewerten</h3>
+              <p class="td-modal-sub">${escapeHtml(cp.typeLabel || "Levelcheck")} · ${escapeHtml(cp.subject || "")} · ${escapeHtml(cp.topicName || "")}</p>
+            </div>
+            <button type="button" class="td-modal-close" id="tmEvalClose">✕</button>
+          </div>
+          <p class="hint">Status wird bewusst gesetzt (nicht aus Prozent berechnet). Bestanden kann verknüpfte Themen freischalten – XP und Freiheitsrang bleiben unverändert.</p>
+          <table class="td-detail-table tm-eval-table">
+            <thead>
+              <tr><th>Schüler:in</th><th>Status</th><th>Prozent (optional)</th><th></th></tr>
+            </thead>
+            <tbody>${rows || `<tr><td colspan="4">Keine Schüler:innen in der Klasse.</td></tr>`}</tbody>
+          </table>
+          <button type="button" class="action" id="tmEvalClose2" style="margin-top:12px;">Schließen</button>
+        </div>
+      </div>`;
+  }
+
   function render() {
     const root = document.getElementById("termineTabRoot");
     if (!root) return;
@@ -215,8 +315,13 @@
           <button type="button" class="action" id="tmNewCheckpointBtn">Neuen Nachweis planen</button>
         </div>
 
+        <h3>Anstehend</h3>
         ${renderList()}
-      </div>`;
+
+        <h3 style="margin-top:18px;">Vergangene Levelchecks</h3>
+        ${renderPastLevelchecks()}
+      </div>
+      ${renderEvalModal()}`;
 
     fillClassSelect(root);
     bindHandlers(root);
@@ -265,6 +370,96 @@
         if (cp) openCheckpointInPlan(cp);
       });
     });
+
+    root.querySelectorAll(".tc-termine-eval").forEach((btn) => {
+      btn.addEventListener("click", () => openEvalModal(btn.dataset.checkpointId));
+    });
+
+    const closeEval = () => {
+      state.evalCheckpointId = null;
+      state.evalData = null;
+      render();
+    };
+    root.querySelector("#tmEvalClose")?.addEventListener("click", closeEval);
+    root.querySelector("#tmEvalClose2")?.addEventListener("click", closeEval);
+    root.querySelector("#tmEvalOverlay")?.addEventListener("click", (e) => {
+      if (e.target.id === "tmEvalOverlay") closeEval();
+    });
+
+    root.querySelectorAll(".tm-eval-table tr[data-student-id]").forEach((tr) => {
+      const slider = tr.querySelector(".tm-eval-slider");
+      const number = tr.querySelector(".tm-eval-percent");
+      slider?.addEventListener("input", () => {
+        if (number) number.value = slider.value;
+      });
+      number?.addEventListener("input", () => {
+        if (!slider) return;
+        const n = Number(number.value);
+        if (Number.isFinite(n)) slider.value = String(Math.max(0, Math.min(100, n)));
+      });
+      tr.querySelector(".tm-eval-save")?.addEventListener("click", () => {
+        saveEvaluation(tr);
+      });
+    });
+  }
+
+  async function openEvalModal(checkpointId) {
+    if (!checkpointId) return;
+    state.message = "";
+    state.error = "";
+    try {
+      const res = await fetch(
+        `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(checkpointId)}/evaluations`
+      );
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        state.error = data.message || "Bewertung konnte nicht geladen werden.";
+        render();
+        return;
+      }
+      state.evalCheckpointId = checkpointId;
+      state.evalData = data;
+      render();
+    } catch (err) {
+      console.error(err);
+      state.error = "Netzwerkfehler beim Laden der Bewertung.";
+      render();
+    }
+  }
+
+  async function saveEvaluation(tr) {
+    const studentId = tr.dataset.studentId;
+    const status = tr.querySelector(".tm-eval-status")?.value || "not_evaluated";
+    const percentRaw = tr.querySelector(".tm-eval-percent")?.value;
+    const percent = percentRaw === "" || percentRaw == null ? null : Number(percentRaw);
+    if (!state.evalCheckpointId || !studentId) return;
+
+    const btn = tr.querySelector(".tm-eval-save");
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch(
+        `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(state.evalCheckpointId)}/evaluations/${encodeURIComponent(studentId)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status, percent })
+        }
+      );
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        state.error = data.message || "Speichern fehlgeschlagen.";
+        await openEvalModal(state.evalCheckpointId);
+        return;
+      }
+      state.message = "Levelcheck-Bewertung gespeichert.";
+      state.error = "";
+      await openEvalModal(state.evalCheckpointId);
+    } catch (err) {
+      console.error(err);
+      state.error = "Netzwerkfehler beim Speichern.";
+      if (btn) btn.disabled = false;
+      render();
+    }
   }
 
   async function loadClasses() {

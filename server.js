@@ -34,6 +34,19 @@ import {
 } from "./lib/demo-seed.js";
 import { migrateGroupModeTables } from "./lib/group-mode.js";
 import { registerGroupModeRoutes } from "./lib/group-mode-api.js";
+import {
+  FREEDOM_RANKS,
+  FREEDOM_RANK_DEFAULT,
+  FREEDOM_RANK_IDS,
+  isValidFreedomRank,
+  serializeFreedomRank
+} from "./lib/freedom-ranks.js";
+import {
+  LEVELCHECK_EVAL_STATUSES,
+  LEVELCHECK_EVAL_STATUS_LABELS,
+  parseLevelcheckPercent,
+  resolveLevelcheckEvalStatus
+} from "./lib/levelcheck-evaluation.js";
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
 
 // -------------------------------------------------------
@@ -2291,14 +2304,32 @@ async function recalcAllStudentLevels() {
 // -------------------------------------------------------
 // Helper – XP Summe pro Klasse
 // -------------------------------------------------------
+/**
+ * Klassen-XP = Summe verdienter XP (positive Buchungen).
+ * Ausgaben persönlicher XP senken den Klassenfortschritt nicht.
+ * Fallback auf users.xp, falls noch keine Transaktionen existieren.
+ */
 async function getClassTotalXP(classId, schoolId) {
   const r = await pool.query(
     `
-    SELECT COALESCE(SUM(xp),0) AS total
-    FROM users
-    WHERE role='student'
-      AND class_id=$1
-      AND school_id=$2
+    SELECT COALESCE(SUM(earned), 0) AS total
+    FROM (
+      SELECT
+        u.id,
+        COALESCE(
+          (
+            SELECT SUM(t.amount)
+            FROM xp_transactions t
+            WHERE t.student_id = u.id
+              AND t.amount > 0
+          ),
+          u.xp
+        ) AS earned
+      FROM users u
+      WHERE u.role = 'student'
+        AND u.class_id = $1
+        AND u.school_id = $2
+    ) s
   `,
     [classId, schoolId]
   );
@@ -2424,6 +2455,43 @@ async function migrate() {
   await ensureColumn("users", "first_login", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("users", "has_seen_start_briefing", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("users", "school_id", "INTEGER");
+
+  // Freiheitsrang (manuell durch Lehrkraft, unabhängig von XP)
+  await ensureColumn(
+    "users",
+    "freedom_rank",
+    `TEXT NOT NULL DEFAULT '${FREEDOM_RANK_DEFAULT}'`
+  );
+  await ensureColumn("users", "freedom_rank_updated_at", "TIMESTAMP");
+  await ensureColumn("users", "freedom_rank_updated_by", "INTEGER");
+
+  await pool.query(`
+    UPDATE users
+    SET freedom_rank = '${FREEDOM_RANK_DEFAULT}'
+    WHERE role = 'student'
+      AND (
+        freedom_rank IS NULL
+        OR freedom_rank = ''
+        OR freedom_rank NOT IN (${FREEDOM_RANK_IDS.map((id) => `'${id}'`).join(",")})
+      )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS freedom_rank_history (
+      id SERIAL PRIMARY KEY,
+      school_id INTEGER,
+      student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      previous_rank TEXT,
+      new_rank TEXT NOT NULL,
+      changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_freedom_rank_history_student
+    ON freedom_rank_history (student_id, created_at DESC)
+  `);
 
     // -------------------------------------------------------
   // UNIQUE-CONSTRAINTS (wichtig für ON CONFLICT)
@@ -3151,6 +3219,45 @@ async function migrate() {
     ON student_checkpoints (user_id, checkpoint_date)
   `);
 
+  // Levelcheck-Bewertung pro Schüler (getrennt von XP & Freiheitsrang)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_check_checkpoint_evaluations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER,
+      checkpoint_id UUID NOT NULL REFERENCES level_check_checkpoints(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'not_evaluated',
+      percent INTEGER,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (checkpoint_id, user_id),
+      CHECK (status IN ('not_evaluated', 'passed', 'failed')),
+      CHECK (percent IS NULL OR (percent >= 0 AND percent <= 100))
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_lc_checkpoint_eval_user
+    ON level_check_checkpoint_evaluations (user_id, checkpoint_id)
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_check_unlocked_goals (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id INTEGER,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      goal_id UUID NOT NULL REFERENCES level_check_goals(id) ON DELETE CASCADE,
+      unlocked_by_checkpoint_id UUID REFERENCES level_check_checkpoints(id) ON DELETE SET NULL,
+      unlocked_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (user_id, goal_id)
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_lc_unlocked_goals_user
+    ON level_check_unlocked_goals (user_id)
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS student_homework (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -3852,6 +3959,7 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     `
     SELECT u.id,u.name,u.xp,u.character_id,u.level_id,u.school_id,
            u.has_seen_start_briefing,
+           u.freedom_rank,u.freedom_rank_updated_at,
            l.name AS level_name,l.min_xp AS level_min_xp
     FROM users u
     LEFT JOIN levels l ON l.id = u.level_id
@@ -3861,6 +3969,14 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   );
 
   const user = userData.rows[0];
+  const freedomRank = serializeFreedomRank(user.freedom_rank);
+  user.freedom_rank = freedomRank.id;
+  user.freedom_rank_label = freedomRank.label;
+  user.freedom_rank_icon = freedomRank.icon;
+  user.freedom_rank_color = freedomRank.color;
+  user.freedom_rank_symbol = freedomRank.symbol;
+  // Anzeige: Freiheitsrang statt XP-Levelname
+  user.display_rank_label = freedomRank.label;
   let character = null;
 
   if (user.character_id) {
@@ -3971,7 +4087,29 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     uploads: uploads.rows,
     levels: levels.rows,
     xp_per_mission: xpByMission,
+    freedomRanks: FREEDOM_RANKS.map(serializeFreedomRank),
+    freedomRank,
     hasSeenStartBriefing: !!user.has_seen_start_briefing
+  });
+});
+
+// Schüler dürfen den eigenen Freiheitsrang nicht ändern
+app.patch("/api/student/me/freedom-rank", isStudent, (_req, res) => {
+  res.status(403).json({
+    success: false,
+    message: "Freiheitsränge setzt nur die Lehrkraft."
+  });
+});
+app.put("/api/student/me/freedom-rank", isStudent, (_req, res) => {
+  res.status(403).json({
+    success: false,
+    message: "Freiheitsränge setzt nur die Lehrkraft."
+  });
+});
+app.post("/api/student/me/freedom-rank", isStudent, (_req, res) => {
+  res.status(403).json({
+    success: false,
+    message: "Freiheitsränge setzt nur die Lehrkraft."
   });
 });
 
@@ -6292,6 +6430,20 @@ app.get("/api/student/checkpoint-plan", isStudent, async (req, res) => {
 
     const checks = await getLevelChecksForClass(classId, schoolId, studentId);
     let events = buildCheckpointPlanEvents(checks);
+    const evalMap = await loadEvaluationsByCheckpointIds(
+      studentId,
+      events.map((e) => e.id)
+    );
+    events = events.map((e) => {
+      const ev = evalMap[String(e.id)];
+      return {
+        ...e,
+        evaluationStatus: ev?.status || "not_evaluated",
+        evaluationStatusLabel:
+          ev?.statusLabel || LEVELCHECK_EVAL_STATUS_LABELS.not_evaluated,
+        evaluationPercent: ev?.percent ?? null
+      };
+    });
     const subjectsWithTopics = [...new Set(checks.map((c) => c.subject))];
 
     if (subjectFilter && LOG_SUBJECTS.includes(subjectFilter)) {
@@ -7549,6 +7701,292 @@ app.delete("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) 
     res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
+
+async function syncLevelcheckUnlocksForEval(client, {
+  schoolId,
+  userId,
+  checkpointId,
+  status,
+  linkedGoalIds
+}) {
+  await client.query(
+    `
+    DELETE FROM level_check_unlocked_goals
+    WHERE user_id = $1
+      AND unlocked_by_checkpoint_id = $2
+  `,
+    [userId, checkpointId]
+  );
+
+  if (status !== "passed") return [];
+
+  const unlocked = [];
+  for (const goalId of linkedGoalIds || []) {
+    const ins = await client.query(
+      `
+      INSERT INTO level_check_unlocked_goals
+        (school_id, user_id, goal_id, unlocked_by_checkpoint_id)
+      VALUES ($1, $2, $3::uuid, $4::uuid)
+      ON CONFLICT (user_id, goal_id)
+      DO UPDATE SET
+        unlocked_by_checkpoint_id = EXCLUDED.unlocked_by_checkpoint_id,
+        unlocked_at = NOW()
+      RETURNING goal_id
+    `,
+      [schoolId, userId, goalId, checkpointId]
+    );
+    if (ins.rows[0]) unlocked.push(String(ins.rows[0].goal_id));
+  }
+  return unlocked;
+}
+
+async function loadEvaluationsByCheckpointIds(userId, checkpointIds) {
+  if (!checkpointIds.length) return {};
+  const r = await pool.query(
+    `
+    SELECT checkpoint_id, status, percent, updated_at
+    FROM level_check_checkpoint_evaluations
+    WHERE user_id = $1
+      AND checkpoint_id = ANY($2::uuid[])
+  `,
+    [userId, checkpointIds]
+  );
+  const map = {};
+  for (const row of r.rows) {
+    map[String(row.checkpoint_id)] = {
+      status: row.status || "not_evaluated",
+      statusLabel:
+        LEVELCHECK_EVAL_STATUS_LABELS[row.status] ||
+        LEVELCHECK_EVAL_STATUS_LABELS.not_evaluated,
+      percent: row.percent == null ? null : Number(row.percent),
+      updatedAt: row.updated_at
+    };
+  }
+  return map;
+}
+
+app.get(
+  "/api/teacher/levelcheck-checkpoints/:checkpointId/evaluations",
+  isAdmin,
+  async (req, res) => {
+    try {
+      const schoolId = req.session.user.school_id;
+      const checkpointId = req.params.checkpointId;
+
+      const cp = await pool.query(
+        `
+        SELECT
+          cp.id,
+          cp.checkpoint_date,
+          cp.checkpoint_type,
+          cp.checkpoint_type_label,
+          cp.linked_subtopic_ids,
+          lc.class_id,
+          lc.subject,
+          lc.name AS topic_name
+        FROM level_check_checkpoints cp
+        JOIN level_checks lc ON lc.id = cp.level_check_id
+        WHERE cp.id = $1
+          AND (
+            cp.school_id = $2
+            OR lc.school_id = $2
+            OR EXISTS (SELECT 1 FROM classes c WHERE c.id = lc.class_id AND c.school_id = $2)
+          )
+        LIMIT 1
+      `,
+        [checkpointId, schoolId]
+      );
+
+      if (!cp.rows.length) {
+        return res.status(404).json({ success: false, message: "Checkpoint nicht gefunden." });
+      }
+
+      const row = cp.rows[0];
+      const students = await pool.query(
+        `
+        SELECT u.id, u.name, u.xp, u.freedom_rank,
+               e.status, e.percent, e.updated_at
+        FROM users u
+        LEFT JOIN level_check_checkpoint_evaluations e
+          ON e.user_id = u.id AND e.checkpoint_id = $1
+        WHERE u.role = 'student'
+          AND u.class_id = $2
+          AND u.school_id = $3
+        ORDER BY u.name ASC
+      `,
+        [checkpointId, row.class_id, schoolId]
+      );
+
+      res.json({
+        success: true,
+        checkpoint: {
+          id: row.id,
+          date: row.checkpoint_date,
+          type: normalizeCheckpointType(row.checkpoint_type),
+          typeLabel: resolveCheckpointTypeLabel(row.checkpoint_type, row.checkpoint_type_label),
+          subject: row.subject,
+          topicName: row.topic_name,
+          linkedSubtopicIds: Array.isArray(row.linked_subtopic_ids)
+            ? row.linked_subtopic_ids.map(String)
+            : []
+        },
+        statusOptions: LEVELCHECK_EVAL_STATUSES.map((id) => ({
+          id,
+          label: LEVELCHECK_EVAL_STATUS_LABELS[id]
+        })),
+        evaluations: students.rows.map((s) => ({
+          studentId: s.id,
+          name: s.name,
+          xp: Number(s.xp || 0),
+          freedomRank: serializeFreedomRank(s.freedom_rank).id,
+          status: s.status || "not_evaluated",
+          statusLabel:
+            LEVELCHECK_EVAL_STATUS_LABELS[s.status] ||
+            LEVELCHECK_EVAL_STATUS_LABELS.not_evaluated,
+          percent: s.percent == null ? null : Number(s.percent),
+          updatedAt: s.updated_at || null
+        }))
+      });
+    } catch (err) {
+      console.error("❌ GET checkpoint evaluations:", err);
+      res.status(500).json({ success: false, message: "Serverfehler" });
+    }
+  }
+);
+
+app.patch(
+  "/api/teacher/levelcheck-checkpoints/:checkpointId/evaluations/:studentId",
+  isAdmin,
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const schoolId = req.session.user.school_id;
+      const adminId = req.session.user.id;
+      const checkpointId = req.params.checkpointId;
+      const studentId = Number(req.params.studentId);
+
+      if (!Number.isFinite(studentId)) {
+        return res.status(400).json({ success: false, message: "Ungültige Schüler-ID." });
+      }
+
+      const statusRes = resolveLevelcheckEvalStatus(req.body?.status);
+      if (!statusRes.ok) {
+        return res.status(400).json({ success: false, message: statusRes.error });
+      }
+      const percentRes = parseLevelcheckPercent(req.body?.percent);
+      if (!percentRes.ok) {
+        return res.status(400).json({ success: false, message: percentRes.error });
+      }
+
+      const cp = await client.query(
+        `
+        SELECT
+          cp.id,
+          cp.linked_subtopic_ids,
+          lc.class_id,
+          u.xp AS student_xp,
+          u.freedom_rank
+        FROM level_check_checkpoints cp
+        JOIN level_checks lc ON lc.id = cp.level_check_id
+        JOIN users u
+          ON u.id = $3
+         AND u.role = 'student'
+         AND u.class_id = lc.class_id
+         AND u.school_id = $2
+        WHERE cp.id = $1
+          AND (
+            cp.school_id = $2
+            OR lc.school_id = $2
+            OR EXISTS (SELECT 1 FROM classes c WHERE c.id = lc.class_id AND c.school_id = $2)
+          )
+        LIMIT 1
+      `,
+        [checkpointId, schoolId, studentId]
+      );
+
+      if (!cp.rows.length) {
+        return res.status(404).json({
+          success: false,
+          message: "Checkpoint oder Schüler:in nicht gefunden."
+        });
+      }
+
+      const beforeXp = Number(cp.rows[0].student_xp || 0);
+      const beforeRank = cp.rows[0].freedom_rank || FREEDOM_RANK_DEFAULT;
+      const linkedGoalIds = Array.isArray(cp.rows[0].linked_subtopic_ids)
+        ? cp.rows[0].linked_subtopic_ids.map(String)
+        : [];
+
+      await client.query("BEGIN");
+
+      const upsert = await client.query(
+        `
+        INSERT INTO level_check_checkpoint_evaluations
+          (school_id, checkpoint_id, user_id, status, percent, updated_by, updated_at)
+        VALUES ($1, $2::uuid, $3, $4, $5, $6, NOW())
+        ON CONFLICT (checkpoint_id, user_id)
+        DO UPDATE SET
+          status = EXCLUDED.status,
+          percent = EXCLUDED.percent,
+          updated_by = EXCLUDED.updated_by,
+          updated_at = NOW()
+        RETURNING status, percent, updated_at
+      `,
+        [
+          schoolId,
+          checkpointId,
+          studentId,
+          statusRes.status,
+          percentRes.value,
+          adminId
+        ]
+      );
+
+      const unlockedGoalIds = await syncLevelcheckUnlocksForEval(client, {
+        schoolId,
+        userId: studentId,
+        checkpointId,
+        status: statusRes.status,
+        linkedGoalIds
+      });
+
+      const after = await client.query(
+        `SELECT xp, freedom_rank FROM users WHERE id = $1`,
+        [studentId]
+      );
+
+      await client.query("COMMIT");
+
+      const afterXp = Number(after.rows[0]?.xp || 0);
+      const afterRank = after.rows[0]?.freedom_rank || FREEDOM_RANK_DEFAULT;
+
+      res.json({
+        success: true,
+        evaluation: {
+          studentId,
+          status: upsert.rows[0].status,
+          statusLabel: LEVELCHECK_EVAL_STATUS_LABELS[upsert.rows[0].status],
+          percent:
+            upsert.rows[0].percent == null ? null : Number(upsert.rows[0].percent),
+          updatedAt: upsert.rows[0].updated_at
+        },
+        unlockedGoalIds,
+        xpUnchanged: afterXp === beforeXp,
+        freedomRankUnchanged: afterRank === beforeRank,
+        xp: afterXp,
+        freedomRank: serializeFreedomRank(afterRank)
+      });
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (_) {}
+      console.error("❌ PATCH checkpoint evaluation:", err);
+      res.status(500).json({ success: false, message: "Serverfehler" });
+    } finally {
+      client.release();
+    }
+  }
+);
 
 function parseLevelplanImportText(raw) {
   const lines = String(raw || "")
@@ -10728,14 +11166,160 @@ app.get("/api/student", isAdmin, async (req, res) => {
 
   if (!classId) return res.json([]);
 
-  const r = await pool.query(`
-    SELECT id,name,password,xp
-    FROM users
-    WHERE role='student' AND class_id=$1 AND school_id=$2
-    ORDER BY name ASC
-  `, [classId, schoolId]);
+  const classXp = await getClassTotalXP(classId, schoolId);
 
-  res.json(r.rows);
+  const r = await pool.query(
+    `
+    SELECT
+      u.id,
+      u.name,
+      u.password,
+      u.xp,
+      u.freedom_rank,
+      COALESCE(
+        (
+          SELECT SUM(t.amount)
+          FROM xp_transactions t
+          WHERE t.student_id = u.id
+            AND t.amount > 0
+        ),
+        u.xp
+      ) AS earned_xp
+    FROM users u
+    WHERE u.role = 'student'
+      AND u.class_id = $1
+      AND u.school_id = $2
+    ORDER BY u.name ASC
+  `,
+    [classId, schoolId]
+  );
+
+  const students = r.rows.map((row) => {
+    const rank = serializeFreedomRank(row.freedom_rank);
+    return {
+      id: row.id,
+      name: row.name,
+      password: row.password,
+      xp: Number(row.xp || 0),
+      earnedXp: Number(row.earned_xp || 0),
+      freedomRank: rank.id,
+      freedomRankLabel: rank.label,
+      freedomRankIcon: rank.icon,
+      freedomRankColor: rank.color,
+      freedomRankSymbol: rank.symbol
+    };
+  });
+
+  res.json({
+    students,
+    classXp,
+    freedomRanks: FREEDOM_RANKS.map(serializeFreedomRank)
+  });
+});
+
+app.patch("/api/student/:id/freedom-rank", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const adminId = req.session.user.id;
+    if (String(req.params.id) === "me") {
+      return res.status(403).json({
+        success: false,
+        message: "Freiheitsränge setzt nur die Lehrkraft für Schüler:innen."
+      });
+    }
+    const studentId = Number(req.params.id);
+    const nextRank = String(req.body?.freedomRank || req.body?.freedom_rank || "").trim();
+
+    if (!Number.isFinite(studentId)) {
+      return res.status(400).json({ success: false, message: "Ungültige Schüler-ID." });
+    }
+    if (!isValidFreedomRank(nextRank)) {
+      return res.status(400).json({
+        success: false,
+        message: "Ungültiger Freiheitsrang.",
+        allowed: FREEDOM_RANK_IDS
+      });
+    }
+
+    const existing = await pool.query(
+      `
+      SELECT id, freedom_rank, xp
+      FROM users
+      WHERE id = $1
+        AND school_id = $2
+        AND role = 'student'
+      LIMIT 1
+    `,
+      [studentId, schoolId]
+    );
+
+    if (!existing.rows.length) {
+      return res.status(404).json({ success: false, message: "Schüler:in nicht gefunden." });
+    }
+
+    const prevRank = existing.rows[0].freedom_rank || FREEDOM_RANK_DEFAULT;
+    const prevXp = Number(existing.rows[0].xp || 0);
+
+    if (prevRank === nextRank) {
+      const rank = serializeFreedomRank(nextRank);
+      return res.json({
+        success: true,
+        unchanged: true,
+        studentId,
+        freedomRank: rank,
+        xp: prevXp,
+        message: "Freiheitsrang unverändert."
+      });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const upd = await client.query(
+        `
+        UPDATE users
+        SET freedom_rank = $1,
+            freedom_rank_updated_at = NOW(),
+            freedom_rank_updated_by = $2
+        WHERE id = $3
+          AND school_id = $4
+          AND role = 'student'
+        RETURNING id, freedom_rank, xp
+      `,
+        [nextRank, adminId, studentId, schoolId]
+      );
+
+      await client.query(
+        `
+        INSERT INTO freedom_rank_history
+          (school_id, student_id, previous_rank, new_rank, changed_by)
+        VALUES ($1, $2, $3, $4, $5)
+      `,
+        [schoolId, studentId, prevRank, nextRank, adminId]
+      );
+
+      await client.query("COMMIT");
+
+      const row = upd.rows[0];
+      res.json({
+        success: true,
+        studentId: row.id,
+        previousRank: prevRank,
+        freedomRank: serializeFreedomRank(row.freedom_rank),
+        xp: Number(row.xp || 0),
+        xpUnchanged: Number(row.xp || 0) === prevXp,
+        message: "Freiheitsrang gespeichert."
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error("❌ PATCH /api/student/:id/freedom-rank:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
 });
 
 // -------------------------------------------------------
@@ -10771,9 +11355,9 @@ app.post("/api/student", isAdmin, async (req, res) => {
   const tempPassword = generateTempPassword();
 
   await pool.query(`
-    INSERT INTO users (name,password,role,class_id,school_id,xp,first_login)
-    VALUES ($1,$2,'student',$3,$4,0,TRUE)
-  `, [name, tempPassword, classId, schoolId]);
+    INSERT INTO users (name,password,role,class_id,school_id,xp,first_login,freedom_rank)
+    VALUES ($1,$2,'student',$3,$4,0,TRUE,$5)
+  `, [name, tempPassword, classId, schoolId, FREEDOM_RANK_DEFAULT]);
 
   res.json({ success: true });
 });
@@ -11214,7 +11798,9 @@ app.get("/api/levels", isAdmin, async (req, res) => {
     res.json({
       locked: true,
       designNote:
-        "Das Levelsystem gehört zum festen Streets-of-Logic-Design und kann nicht geändert werden.",
+        "Freiheitsränge werden manuell durch die Lehrkraft vergeben und sind unabhängig von XP.",
+      freedomRanks: FREEDOM_RANKS.map(serializeFreedomRank),
+      // Legacy XP-Stufen bleiben intern (z. B. Social-Form-Unlock), UI zeigt Freiheitsränge
       levels: r.rows,
       catalog: SYSTEM_LEVELS
     });
@@ -11222,6 +11808,14 @@ app.get("/api/levels", isAdmin, async (req, res) => {
     console.error("❌ GET /api/levels:", err);
     res.status(500).json({ error: "Serverfehler" });
   }
+});
+
+app.get("/api/freedom-ranks", isAdmin, (_req, res) => {
+  res.json({
+    ranks: FREEDOM_RANKS.map(serializeFreedomRank),
+    note:
+      "Freiheitsränge werden unabhängig von XP vergeben. XP bleiben für persönliche Erfolge und Klassenchallenges erhalten."
+  });
 });
 
 app.post("/api/levels", isAdmin, async (_req, res) => {

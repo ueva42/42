@@ -454,10 +454,16 @@
     const firstName = firstNameFromProfile(p);
     set("hubGreetingTitle", `Hey ${firstName}!`);
     set("topbarXp", String(p.xp ?? "–"));
-    set("topbarLevel", p.levelName || "–");
+    const topLevel = document.getElementById("topbarLevel");
+    if (topLevel) {
+      const icon = p.freedomRankIcon
+        ? `<img src="${p.freedomRankIcon}" alt="" width="18" height="18" style="vertical-align:-3px;margin-right:4px;object-fit:contain;" aria-hidden="true">`
+        : "";
+      topLevel.innerHTML = `${icon}Freiheitsrang: ${p.freedomRankLabel || p.levelName || "–"}`;
+    }
     set("hubHeroNext", p.nextLevelLabel || "–");
     set("hubXpMeta", p.xpProgressLabel || "–");
-    set("hubXpLevel", p.levelName && p.levelName !== "—" ? p.levelName : "Level");
+    set("hubXpLevel", p.freedomRankLabel || p.levelName || "Freiheitsrang");
     const xpFill = document.getElementById("hubXpFill");
     if (xpFill) {
       xpFill.style.width = `${Math.max(0, Math.min(100, Number(p.xpPct) || 0))}%`;

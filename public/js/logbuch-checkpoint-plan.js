@@ -325,6 +325,13 @@
     const classes = ["mcp-card"];
     if (opts.isNext) classes.push("is-next");
     if (opts.past) classes.push("is-past");
+    const evalLabel = event.evaluationStatusLabel || "";
+    const evalPct =
+      event.evaluationPercent != null ? ` · ${event.evaluationPercent} %` : "";
+    const evalLine =
+      opts.past || event.evaluationStatus
+        ? `<p class="mcp-card__eval">${escapeHtml(evalLabel || "Noch nicht bewertet")}${escapeHtml(evalPct)}</p>`
+        : "";
 
     return `
       <article class="${classes.join(" ")}" style="--mcp-c:${color}">
@@ -341,6 +348,7 @@
           <span class="mcp-pill" style="--mcp-c:${color}">${escapeHtml(event.typeLabel || event.type)}</span>
           · ${escapeHtml(formatDateShort(event.date))}
         </p>
+        ${evalLine}
       </article>`;
   }
 
