@@ -2965,6 +2965,123 @@ body.student-app {
     inset 0 0 28px rgba(168, 85, 247, 0.08);
 }
 
+.lc-dial {
+  --pct: 0;
+  --threshold: 70;
+  --accent: #22d3ee;
+  --size: 168px;
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  margin: 8px auto 4px;
+  border-radius: 50%;
+  touch-action: none;
+  user-select: none;
+}
+.lc-dial.is-editable { cursor: grab; }
+.lc-dial.is-editable:active { cursor: grabbing; }
+.lc-dial__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      var(--accent) calc(var(--pct) * 1%),
+      rgba(148, 163, 184, 0.18) 0
+    );
+  box-shadow:
+    0 0 28px color-mix(in srgb, var(--accent) 35%, transparent),
+    inset 0 0 22px rgba(0, 0, 0, 0.45);
+}
+.lc-dial__ring::after {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  border-radius: 50%;
+  background: rgba(2, 6, 23, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+.lc-dial__threshold {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from calc(var(--threshold) * 3.6deg - 90deg),
+    transparent 0 2deg,
+    rgba(250, 204, 21, 0.95) 2deg 4deg,
+    transparent 4deg 360deg
+  );
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.lc-dial__knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px;
+  border-radius: 50%;
+  background: #f8fafc;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+  transform: rotate(calc(var(--pct) * 3.6deg - 90deg)) translate(calc(var(--size) / 2 - 9px));
+  pointer-events: none;
+}
+.lc-dial__center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  z-index: 2;
+  pointer-events: none;
+}
+.lc-dial__center strong {
+  font-family: "Orbitron", system-ui;
+  font-size: 28px;
+  color: #f8fafc;
+  line-height: 1.1;
+}
+.lc-dial__center span {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.lc-dial.is-pass .lc-dial__center strong { color: #86efac; }
+.lc-dial__hint {
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 6px 0 10px;
+}
+.lc-dial__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  max-width: 280px;
+  margin: 0 auto 8px;
+}
+.lc-dial__range {
+  width: 100%;
+  accent-color: #22d3ee;
+}
+.zielpfad-result-dial,
+.lc-dial-modal-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.zielpfad-hero-panel__lock {
+  margin: 8px 0 0;
+  color: #fbbf24;
+  font-size: 13px;
+}
+.zielpfad-modal--dial {
+  max-width: 420px;
+}
+
 .zielpfad-grade-glow__label {
   font-size: 11px;
   font-weight: 800;
@@ -11096,7 +11213,7 @@ h2 {
 <script src="/js/logbuch-levelplan.js?v=16"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
-<script src="/js/logbuch-zielsetzung.js?v=23"></script>
+<script src="/js/logbuch-zielsetzung.js?v=24"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=9"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=21"></script>
 <script src="/js/logbuch-screens.js?v=6"></script>

@@ -13,6 +13,7 @@
   };
   const ZIELPFAD_PRIMARY_GRADES = C.ZIELPFAD_PRIMARY_GRADES || ["3", "2", "1"];
   const GRADE_ACCENTS = { 3: "#22d3ee", 2: "#a855f7", 1: "#f472b6" };
+  const PASS_PERCENT_DEFAULT = 70;
 
   /** Fallback-Matrix – gleiche Werte wie server.js, falls Constants nicht geladen sind */
   const FALLBACK_GRADE_RULES = {
@@ -256,11 +257,19 @@
     return Number.isFinite(n) ? n : null;
   }
 
+  function passPercent() {
+    const n = Number(state.data?.levelcheckPassPercent);
+    return Number.isFinite(n) ? n : PASS_PERCENT_DEFAULT;
+  }
+
+  function hasLevelcheckResult(topic) {
+    return topic?.levelcheckPercent != null && Number.isFinite(Number(topic.levelcheckPercent));
+  }
+
   function isTargetGradeMet(topic) {
-    const target = parseGradeValue(topic?.targetGrade);
-    const achieved = parseGradeValue(topic?.achievedGrade);
-    if (target == null || achieved == null) return null;
-    return achieved <= target;
+    // Ohne Note: Ziel gilt als „geschafft“, wenn Levelcheck-Ergebnis ≥ Schwelle
+    if (!hasLevelcheckResult(topic)) return null;
+    return !!topic.levelcheckPassed;
   }
 
   function isCheckpointPast(topic) {
@@ -272,9 +281,15 @@
   function splitTopicsForSubject(group) {
     const topics = group?.topics || [];
     const upcomingId = upcomingTopicMeta()?.id;
-    const upcoming = upcomingId
+    let upcoming = upcomingId
       ? topics.find((t) => t.id === upcomingId) || null
       : null;
+    if (!upcoming) {
+      upcoming =
+        topics.find((t) => !t.locked && !t.levelcheckPassed) ||
+        topics.find((t) => !t.locked) ||
+        null;
+    }
     const past = topics
       .filter((t) => !upcoming || t.id !== upcoming.id)
       .sort((a, b) => {
@@ -540,25 +555,54 @@
   }
 
   function renderAchievedGradeSelect(topicId, selected, saving) {
-    const topic = findTopic(topicId);
+    return "";
+  }
+
+  function renderLevelcheckDial(topic, opts = {}) {
+    const threshold = topic.unlockThreshold || passPercent();
+    const pct =
+      topic.levelcheckPercent != null ? Number(topic.levelcheckPercent) : Number(opts.draft ?? 0);
+    const passed = pct >= threshold;
+    const accent = passed ? "#22c55e" : "#22d3ee";
+    const editable = opts.editable !== false;
+
     return `
-      <label class="zielpfad-result__select-wrap">
-        <span class="zielpfad-result__select-label">Erreichte Note ${renderXpHint("achievedGrade", topic)}</span>
-        <select
-          class="zs-achieved-select zielpfad-result__select"
-          data-topic-id="${escapeHtml(topicId)}"
-          data-field="achievedGradeKey"
-          ${saving ? "disabled" : ""}
-        >
-          <option value="">– wählen –</option>
-          ${gradeOptions()
-            .map(
-              (g) =>
-                `<option value="${escapeHtml(g.value)}" ${selected === String(g.value) ? "selected" : ""}>${escapeHtml(g.label)}</option>`
-            )
-            .join("")}
-        </select>
-      </label>`;
+      <div
+        class="lc-dial ${passed ? "is-pass" : ""} ${editable ? "is-editable" : ""}"
+        data-lc-dial
+        data-topic-id="${escapeHtml(topic.id)}"
+        data-threshold="${threshold}"
+        style="--pct:${pct}; --threshold:${threshold}; --accent:${accent}"
+        role="slider"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="${pct}"
+        aria-label="Levelcheck-Ergebnis in Prozent"
+        tabindex="${editable ? "0" : "-1"}"
+      >
+        <div class="lc-dial__ring" aria-hidden="true"></div>
+        <div class="lc-dial__threshold" aria-hidden="true" title="Freigabe ab ${threshold} %"></div>
+        <div class="lc-dial__knob" aria-hidden="true"></div>
+        <div class="lc-dial__center">
+          <strong data-lc-dial-value>${pct} %</strong>
+          <span>richtig</span>
+        </div>
+      </div>
+      <p class="lc-dial__hint">
+        ${
+          passed
+            ? `Ab ${threshold} % – nächstes Thema freigeschaltet.`
+            : `Drehen oder schieben · ab ${threshold} % freigeschaltet.`
+        }
+      </p>
+      ${
+        editable
+          ? `<div class="lc-dial__controls">
+              <input type="range" class="lc-dial__range" min="0" max="100" step="1" value="${pct}" aria-label="Prozent-Schieberegler" />
+              <button type="button" class="zielpfad-btn" data-lc-dial-save data-topic-id="${escapeHtml(topic.id)}">Ergebnis speichern</button>
+            </div>`
+          : ""
+      }`;
   }
 
   function renderFeedbackField(topic, fieldKey, label, hint) {
@@ -604,7 +648,7 @@
   }
 
   function renderFeedbackSection(topic) {
-    if (!topic.achievedGrade) return "";
+    if (!hasLevelcheckResult(topic)) return "";
     const V = window.LogbuchVisuals;
     if (!V) return "";
 
@@ -664,7 +708,8 @@
     }
 
     const targetLabel = formatGradeLabel(topic.targetGradeLabel || topic.targetGrade);
-    const achievedLabel = formatGradeLabel(topic.achievedGradeLabel || topic.achievedGrade);
+    const resultLabel =
+      topic.levelcheckPercent != null ? `${Number(topic.levelcheckPercent)} %` : "–";
 
     return `
       <section class="zielpfad-eval">
@@ -702,8 +747,8 @@
               <strong>${escapeHtml(targetLabel)}</strong>
             </div>
             <div class="zielpfad-take-item">
-              <span>Erreichte Note</span>
-              <strong>${escapeHtml(achievedLabel)}</strong>
+              <span>Levelcheck</span>
+              <strong>${escapeHtml(resultLabel)}</strong>
             </div>
             <div class="zielpfad-take-item">
               <span>Glow</span>
@@ -738,21 +783,28 @@
     const goalPart = hasTarget
       ? formatGradeLabel(topic.targetGradeLabel || topic.targetGrade)
       : "–";
-    const hasAchieved = !!topic?.achievedGrade;
-    const achievedPart = hasAchieved
-      ? formatGradeLabel(topic.achievedGradeLabel || topic.achievedGrade)
-      : "Noch nicht eingetragen";
+    const hasResult = hasLevelcheckResult(topic);
+    const resultPart = hasResult ? `${Number(topic.levelcheckPercent)} %` : "Noch nicht eingetragen";
     const past = topic ? isCheckpointPast(topic) : false;
+    const locked = !!topic?.locked;
+    const threshold = topic?.unlockThreshold || passPercent();
 
     return `
       <article class="zielpfad-hero-panel">
         <div class="zielpfad-hero-panel__meta">
-          <p class="zielpfad-hero-panel__eyebrow">Mein Zielpfad</p>
+          <p class="zielpfad-hero-panel__eyebrow">Mein Lernstand</p>
           <h2 class="zielpfad-hero-panel__title">${subject} · ${name}</h2>
           <p class="zielpfad-hero-panel__sub">${typePart} · ${datePart}</p>
+          ${
+            locked
+              ? `<p class="zielpfad-hero-panel__lock">${escapeHtml(
+                  topic.unlockHint || `Noch gesperrt – zuerst ${threshold} % im vorherigen Thema.`
+                )}</p>`
+              : ""
+          }
         </div>
         ${
-          topic
+          topic && !locked
             ? `<div class="zielpfad-hero-panel__grades">
                 <article class="zielpfad-grade-glow zielpfad-grade-glow--target">
                   <span class="zielpfad-grade-glow__label">Meine Zielnote</span>
@@ -768,24 +820,38 @@
                   >${hasTarget ? "Zielnote ändern" : "Zielnote festlegen"}</button>
                 </article>
                 <article class="zielpfad-grade-glow zielpfad-grade-glow--achieved">
-                  <span class="zielpfad-grade-glow__label">Erreichte Note</span>
-                  <strong class="zielpfad-grade-glow__value ${hasAchieved ? "" : "is-muted"}">${escapeHtml(achievedPart)}</strong>
+                  <span class="zielpfad-grade-glow__label">Levelcheck-Ergebnis</span>
+                  <strong class="zielpfad-grade-glow__value ${hasResult ? "" : "is-muted"}">${escapeHtml(resultPart)}</strong>
                   <p class="zielpfad-grade-glow__hint">${
-                    hasAchieved ? "Dein Ergebnis nach dem Check." : "Das trägst du nach dem Check ein."
+                    topic.levelcheckPassed
+                      ? `Bestanden (≥ ${threshold} %) – nächstes Thema frei.`
+                      : hasResult
+                        ? `Noch unter ${threshold} % – weiter üben.`
+                        : "Nach dem Check den Anteil richtiger Antworten eintragen."
                   }</p>
                   ${
-                    past || hasAchieved
+                    past || hasResult
                       ? `<button
                           type="button"
                           class="zielpfad-btn zielpfad-btn--ghost"
-                          data-zs-open-achieved-grade-modal
+                          data-zs-open-levelcheck-result
                           data-topic-id="${escapeHtml(topic.id)}"
                         >Ergebnis eintragen</button>`
                       : `<button type="button" class="zielpfad-btn zielpfad-btn--ghost" disabled>Ergebnis eintragen</button>`
                   }
                 </article>
               </div>`
-            : ""
+            : topic && locked
+              ? `<div class="zielpfad-hero-panel__grades">
+                  <article class="zielpfad-grade-glow">
+                    <span class="zielpfad-grade-glow__label">Thema gesperrt</span>
+                    <strong class="zielpfad-grade-glow__value is-muted">🔒</strong>
+                    <p class="zielpfad-grade-glow__hint">${escapeHtml(
+                      topic.unlockHint || `Freigabe ab ${threshold} % im vorherigen Thema.`
+                    )}</p>
+                  </article>
+                </div>`
+              : ""
         }
       </article>`;
   }
@@ -907,46 +973,32 @@
   }
 
   function renderAchievedGradeModal() {
-    if (!state.modal || state.modal.type !== "achievedGrade") return "";
+    return "";
+  }
+
+  function renderLevelcheckResultModal() {
+    if (!state.modal || state.modal.type !== "levelcheckResult") return "";
     const topic = findTopic(state.modal.topicId);
     if (!topic) return "";
-
-    const options = gradeOptions();
-    const selected = topic.achievedGrade != null ? String(topic.achievedGrade) : "";
+    const draft =
+      state.modal.draft != null
+        ? Number(state.modal.draft)
+        : topic.levelcheckPercent != null
+          ? Number(topic.levelcheckPercent)
+          : 70;
 
     return `
-      <div class="zielpfad-modal-backdrop" role="dialog" aria-modal="true" aria-label="Erreichte Note auswählen">
-        <div class="zielpfad-modal">
+      <div class="zielpfad-modal-backdrop" role="dialog" aria-modal="true" aria-label="Levelcheck-Ergebnis">
+        <div class="zielpfad-modal zielpfad-modal--dial">
           <div class="zielpfad-modal__head">
             <div class="zielpfad-modal__titles">
-              <h3 class="zielpfad-modal__title">Erreichte Note auswählen</h3>
-              <p class="zielpfad-modal__sub">Setze deine erreichte Note für den Check.</p>
+              <h3 class="zielpfad-modal__title">Levelcheck-Ergebnis</h3>
+              <p class="zielpfad-modal__sub">Wie viel Prozent hast du richtig? Keine Note – nur der Anteil.</p>
             </div>
             <button type="button" class="zielpfad-modal__close" data-zs-close-grade-modal>Schließen</button>
           </div>
-
-          <div class="zielpfad-grade-tile-grid">
-            ${options
-              .map((g) => {
-                const val = String(g.value);
-                const isSel = selected && val === selected;
-                return `
-                  <button
-                    type="button"
-                    class="zielpfad-grade-tile ${isSel ? "is-selected" : ""}"
-                    data-zs-select-achieved-grade="1"
-                    data-topic-id="${escapeHtml(topic.id)}"
-                    data-grade="${escapeHtml(val)}"
-                    aria-pressed="${isSel ? "true" : "false"}"
-                  >
-                    <span class="zielpfad-grade-tile__label">${escapeHtml(g.label)}</span>
-                  </button>`;
-              })
-              .join("")}
-          </div>
-
-          <div class="zielpfad-modal__foot">
-            <p class="zielpfad-modal__hint">Hinweis: XP wird pro Feld nur einmal vergeben.</p>
+          <div class="lc-dial-modal-body">
+            ${renderLevelcheckDial({ ...topic, levelcheckPercent: draft }, { editable: true, draft })}
           </div>
         </div>
       </div>`;
@@ -1156,9 +1208,10 @@
   function renderGoalResultBadge(topic) {
     const met = isTargetGradeMet(topic);
     if (met === null) return "";
+    const threshold = topic.unlockThreshold || passPercent();
     return met
-      ? `<span class="zs-goal-badge zs-goal-badge-met">Ziel erreicht ✓</span>`
-      : `<span class="zs-goal-badge zs-goal-badge-missed">Ziel verfehlt</span>`;
+      ? `<span class="zs-goal-badge zs-goal-badge-met">≥ ${threshold} % – Thema bestanden ✓</span>`
+      : `<span class="zs-goal-badge zs-goal-badge-missed">Unter ${threshold} % – noch üben</span>`;
   }
 
   function renderResultSection(topic) {
@@ -1166,57 +1219,32 @@
 
     const saving = state.saving === topic.id;
     const past = isCheckpointPast(topic);
-    const targetLabel = formatGradeLabel(topic.targetGradeLabel || topic.targetGrade);
-    const achievedLabel = topic.achievedGrade
-      ? formatGradeLabel(topic.achievedGradeLabel || topic.achievedGrade)
-      : null;
-    const hasAchieved = !!topic.achievedGrade;
+    const hasResult = hasLevelcheckResult(topic);
+    const threshold = topic.unlockThreshold || passPercent();
 
     let body = "";
-    if (!past && !hasAchieved) {
-      body = `<p class="zielpfad-result__pending">Ergebnis wird nach dem Check eingetragen.</p>`;
+    if (!past && !hasResult) {
+      body = `<p class="zielpfad-result__pending">Nach dem Levelcheck trägst du hier deinen %-Anteil richtiger Antworten ein.</p>`;
     } else {
-      const diff =
-        topic.achievedGrade && topic.targetGrade
-          ? parseGradeValue(topic.achievedGrade) - parseGradeValue(topic.targetGrade)
-          : null;
-      const diffText =
-        diff == null
-          ? ""
-          : diff === 0
-            ? "Genau dein Ziel erreicht."
-            : diff < 0
-              ? `${Math.abs(diff)} Noten besser als dein Ziel.`
-              : `${diff} Noten über deinem Ziel.`;
-
       body = `
-        <div class="zielpfad-result-grid">
-          <div class="zielpfad-result-stat">
-            <span>Zielnote</span>
-            <strong>${escapeHtml(targetLabel)}</strong>
-          </div>
-          <div class="zielpfad-result-stat">
-            <span>Erreichte Note</span>
-            <strong>${achievedLabel ? escapeHtml(achievedLabel) : "–"}</strong>
-          </div>
+        <div class="zielpfad-result-dial">
+          ${renderLevelcheckDial(topic, { editable: true })}
         </div>
-        ${diffText ? `<p class="zielpfad-result__diff">${escapeHtml(diffText)}</p>` : ""}
         ${renderGoalResultBadge(topic)}
         ${
-          past && !hasAchieved
-            ? `<div class="zielpfad-result__form">
-                <button type="button" class="zielpfad-btn" data-zs-open-achieved-grade-modal data-topic-id="${escapeHtml(
-                  topic.id
-                )}" ${saving ? "disabled" : ""}>Ergebnis eintragen</button>
-              </div>`
-            : ""
+          topic.levelcheckPassed
+            ? `<p class="zielpfad-result__diff">Nächstes Thema ist freigeschaltet (ab ${threshold} %).</p>`
+            : hasResult
+              ? `<p class="zielpfad-result__diff">Noch unter ${threshold} % – das nächste Thema bleibt gesperrt.</p>`
+              : ""
         }
+        ${saving ? `<p class="hint">Speichert…</p>` : ""}
         ${renderFeedbackSection(topic)}`;
     }
 
     return `
       <section class="zielpfad-block zielpfad-result">
-        <h3 class="zielpfad-block__title">Ergebnis nach dem Check</h3>
+        <h3 class="zielpfad-block__title">Ergebnis nach dem Levelcheck</h3>
         <article class="zielpfad-result-card">${body}</article>
       </section>`;
   }
@@ -1261,7 +1289,7 @@
       prog && prog.hasRecommended && prog.total > 0
         ? Math.round((prog.completed / prog.total) * 100)
         : null;
-    const reflectionDone = topic.achievedGrade
+    const reflectionDone = hasLevelcheckResult(topic)
       ? [topic.grow, topic.glow, topic.nextGoal].filter((v) => String(v ?? "").trim()).length
       : 0;
 
@@ -1273,7 +1301,9 @@
             <p class="zielpfad-archived-card__meta">${typePart}${datePart}</p>
             <div class="zielpfad-archived-card__grades">
               <span>Ziel: ${escapeHtml(topic.targetGradeLabel || "–")}</span>
-              <span>Erreicht: ${escapeHtml(topic.achievedGradeLabel || "–")}</span>
+              <span>Levelcheck: ${
+                hasLevelcheckResult(topic) ? `${Number(topic.levelcheckPercent)} %` : "–"
+              }</span>
             </div>
             ${renderGoalResultBadge(topic)}
             <p class="zielpfad-archived-card__reflection">
@@ -1304,6 +1334,12 @@
   }
 
   function renderTopicZielpfad(topic) {
+    if (topic?.locked) {
+      return `
+      <div class="zielpfad-topic is-locked" data-topic-id="${escapeHtml(topic.id)}">
+        ${renderZielpfadHero(topic)}
+      </div>`;
+    }
     return `
       <div class="zielpfad-topic" data-topic-id="${escapeHtml(topic.id)}">
         ${renderLevelCards(topic)}
@@ -1429,7 +1465,7 @@
     const group = visibleGroups()[0];
     const { upcoming } = group ? splitTopicsForSubject(group) : { upcoming: null };
     const modalHtml = renderTargetGradeModal();
-    const achievedModalHtml = renderAchievedGradeModal();
+    const achievedModalHtml = renderLevelcheckResultModal();
 
     root.innerHTML =
       V?.pageShell(`
@@ -1483,11 +1519,31 @@
       });
     });
 
+    root.querySelectorAll("[data-zs-open-levelcheck-result]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const topicId = btn.dataset.topicId;
+        if (!topicId) return;
+        const topic = findTopic(topicId);
+        state.modal = {
+          type: "levelcheckResult",
+          topicId,
+          draft: topic?.levelcheckPercent != null ? Number(topic.levelcheckPercent) : 70
+        };
+        state.message = "";
+        render();
+      });
+    });
+
     root.querySelectorAll("[data-zs-open-achieved-grade-modal]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const topicId = btn.dataset.topicId;
         if (!topicId) return;
-        state.modal = { type: "achievedGrade", topicId };
+        const topic = findTopic(topicId);
+        state.modal = {
+          type: "levelcheckResult",
+          topicId,
+          draft: topic?.levelcheckPercent != null ? Number(topic.levelcheckPercent) : 70
+        };
         state.message = "";
         render();
       });
@@ -1495,14 +1551,11 @@
 
     root.querySelectorAll("[data-zs-select-achieved-grade]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const topicId = btn.dataset.topicId;
-        const grade = btn.dataset.grade;
-        if (!topicId || !grade) return;
-        state.modal = null;
-        saveField(topicId, "achievedGradeKey", grade);
+        /* Note-Eingabe entfernt – Levelcheck-% nutzen */
       });
     });
 
+    bindLevelcheckDials(root);
     // Reflection tiles (GLOW / GROW / NEXT) – wir speichern beim Tippen (Ausnahme: Eigene Antwort => Input anzeigen)
     root
       .querySelectorAll(".strategy-tile[data-zs-select-reflection]")
@@ -1612,7 +1665,8 @@
 
   function feedbackFieldLabel(apiField) {
     if (apiField === "targetGradeKey") return "Zielnote";
-    if (apiField === "achievedGradeKey") return "Erreichte Note";
+    if (apiField === "achievedGradeKey") return "Levelcheck-Ergebnis";
+    if (apiField === "levelcheckPercent") return "Levelcheck-Ergebnis";
     if (apiField === "growText") return "Grow";
     if (apiField === "glowText") return "Glow";
     if (apiField === "nextGoalText") return "Ziel für nächste Klassenarbeit";
@@ -1625,8 +1679,8 @@
       const label =
         item.field === "targetGrade"
           ? "Zielnote"
-          : item.field === "achievedGrade"
-            ? "Erreichte Note"
+          : item.field === "achievedGrade" || item.field === "levelcheckPercent"
+            ? "Levelcheck"
             : item.field === "grow"
               ? "Grow"
               : item.field === "glow"
@@ -1639,6 +1693,108 @@
     return ` · ${parts.join(", ")}`;
   }
 
+  function syncDialVisual(dial, pct) {
+    const threshold = Number(dial.dataset.threshold) || passPercent();
+    const passed = pct >= threshold;
+    dial.style.setProperty("--pct", String(pct));
+    dial.style.setProperty("--accent", passed ? "#22c55e" : "#22d3ee");
+    dial.classList.toggle("is-pass", passed);
+    dial.setAttribute("aria-valuenow", String(pct));
+    const valueEl = dial.querySelector("[data-lc-dial-value]");
+    if (valueEl) valueEl.textContent = `${pct} %`;
+    const range = dial.parentElement?.querySelector(".lc-dial__range") ||
+      dial.closest(".lc-dial-modal-body, .zielpfad-result-dial")?.querySelector(".lc-dial__range");
+    if (range && Number(range.value) !== pct) range.value = String(pct);
+    const hint = dial.parentElement?.querySelector(".lc-dial__hint");
+    if (hint) {
+      hint.textContent = passed
+        ? `Ab ${threshold} % – nächstes Thema freigeschaltet.`
+        : `Drehen oder schieben · ab ${threshold} % freigeschaltet.`;
+    }
+    if (state.modal?.type === "levelcheckResult" && state.modal.topicId === dial.dataset.topicId) {
+      state.modal.draft = pct;
+    }
+  }
+
+  function percentFromPointer(dial, clientX, clientY) {
+    const rect = dial.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const angle = Math.atan2(clientY - cy, clientX - cx); // -PI..PI, 0 = east
+    // Map: top (-PI/2) = 0%, clockwise to 100%
+    let deg = ((angle + Math.PI / 2) * 180) / Math.PI;
+    if (deg < 0) deg += 360;
+    return Math.max(0, Math.min(100, Math.round(deg / 3.6)));
+  }
+
+  function bindLevelcheckDials(root) {
+    root.querySelectorAll("[data-lc-dial].is-editable").forEach((dial) => {
+      let dragging = false;
+
+      const setFromEvent = (e) => {
+        const point = e.touches ? e.touches[0] : e;
+        if (!point) return;
+        const pct = percentFromPointer(dial, point.clientX, point.clientY);
+        syncDialVisual(dial, pct);
+      };
+
+      dial.addEventListener("pointerdown", (e) => {
+        dragging = true;
+        dial.setPointerCapture?.(e.pointerId);
+        setFromEvent(e);
+        e.preventDefault();
+      });
+      dial.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        setFromEvent(e);
+      });
+      dial.addEventListener("pointerup", () => {
+        dragging = false;
+      });
+      dial.addEventListener("pointercancel", () => {
+        dragging = false;
+      });
+      dial.addEventListener("keydown", (e) => {
+        const cur = Number(dial.getAttribute("aria-valuenow") || 0);
+        let next = cur;
+        if (e.key === "ArrowRight" || e.key === "ArrowUp") next = Math.min(100, cur + 1);
+        if (e.key === "ArrowLeft" || e.key === "ArrowDown") next = Math.max(0, cur - 1);
+        if (e.key === "PageUp") next = Math.min(100, cur + 10);
+        if (e.key === "PageDown") next = Math.max(0, cur - 10);
+        if (e.key === "Home") next = 0;
+        if (e.key === "End") next = 100;
+        if (next !== cur) {
+          e.preventDefault();
+          syncDialVisual(dial, next);
+        }
+      });
+    });
+
+    root.querySelectorAll(".lc-dial__range").forEach((range) => {
+      range.addEventListener("input", () => {
+        const wrap =
+          range.closest(".lc-dial-modal-body, .zielpfad-result-dial, .zielpfad-modal") ||
+          range.parentElement;
+        const dial = wrap?.querySelector("[data-lc-dial]");
+        if (!dial) return;
+        syncDialVisual(dial, Number(range.value) || 0);
+      });
+    });
+
+    root.querySelectorAll("[data-lc-dial-save]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const topicId = btn.dataset.topicId;
+        const wrap =
+          btn.closest(".lc-dial-modal-body, .zielpfad-result-dial, .zielpfad-modal") ||
+          btn.parentElement;
+        const dial = wrap?.querySelector(`[data-lc-dial][data-topic-id="${topicId}"]`);
+        const pct = Number(dial?.getAttribute("aria-valuenow") ?? 0);
+        state.modal = null;
+        saveField(topicId, "levelcheckPercent", pct);
+      });
+    });
+  }
+
   async function saveField(topicId, field, value) {
     state.saving =
       field.startsWith("grow") || field.startsWith("glow") || field.startsWith("nextGoal")
@@ -1649,11 +1805,7 @@
     render();
 
     const body = { levelCheckId: topicId };
-    if (field === "targetGradeKey" || field === "achievedGradeKey") {
-      body[field] = value;
-    } else {
-      body[field] = value;
-    }
+    body[field] = value;
 
     try {
       const res = await fetch("/api/student/zielsetzung", {
@@ -1670,20 +1822,44 @@
         return;
       }
 
+      const topic = findTopic(topicId);
+      if (topic) {
+        if (field === "targetGradeKey") {
+          topic.targetGrade = data.targetGrade;
+          topic.targetGradeLabel = data.targetGradeLabel || formatGradeLabel(data.targetGrade);
+        }
+        if (field === "levelcheckPercent") {
+          topic.levelcheckPercent = data.levelcheckPercent;
+          topic.levelcheckPassed = !!data.levelcheckPassed;
+          if (topic.xpAwarded) topic.xpAwarded.achievedGrade = true;
+        }
+        if (field === "achievedGradeKey") {
+          topic.achievedGrade = data.achievedGrade;
+          topic.achievedGradeLabel = data.achievedGradeLabel;
+        }
+        if (field === "growText") topic.grow = data.grow;
+        if (field === "glowText") topic.glow = data.glow;
+        if (field === "nextGoalText") topic.nextGoal = data.nextGoal;
+        if (data.xpAwardedFlags && topic.xpAwarded) {
+          Object.assign(topic.xpAwarded, {
+            targetGrade: data.xpAwardedFlags.targetGrade,
+            achievedGrade: data.xpAwardedFlags.achievedGrade,
+            grow: data.xpAwardedFlags.grow,
+            glow: data.xpAwardedFlags.glow,
+            nextGoal: data.xpAwardedFlags.nextGoal
+          });
+        }
+      }
+
       const label = feedbackFieldLabel(field);
-      const xpMsg = buildXpMessage(data.xpDetails);
-      if (value === "" || value == null) {
-        state.message = `${label} entfernt.`;
-      } else if (field === "targetGradeKey" || field === "achievedGradeKey") {
-        state.message = `${label} ${formatGradeLabel(value)} gespeichert${xpMsg}.`;
-      } else {
-        state.message = `${label} gespeichert${xpMsg}.`;
-      }
-
-      if (data.xpAwarded > 0 && typeof window.loadMe === "function") {
-        await window.loadMe();
-      }
-
+      const unlockMsg =
+        field === "levelcheckPercent" && data.nextTopicUnlocked
+          ? " · Nächstes Thema freigeschaltet"
+          : field === "levelcheckPercent" && data.levelcheckPercent != null
+            ? ` · ${data.levelcheckPercent} % gespeichert`
+            : "";
+      state.message = `${label} gespeichert${unlockMsg}${buildXpMessage(data.xpDetails)}`;
+      // Unlock-Status für alle Themen neu laden
       await loadData(initGeneration);
     } catch (err) {
       console.error(err);

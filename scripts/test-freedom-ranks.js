@@ -13,9 +13,12 @@ import {
 import {
   LEVELCHECK_EVAL_STATUSES,
   LEVELCHECK_EVAL_STATUS_LABELS,
+  LEVELCHECK_PASS_PERCENT,
   parseLevelcheckPercent,
   resolveLevelcheckEvalStatus,
-  normalizeLevelcheckEvalStatus
+  normalizeLevelcheckEvalStatus,
+  isLevelcheckPassPercent,
+  applyLevelcheckTopicUnlocks
 } from "../lib/levelcheck-evaluation.js";
 import fs from "fs";
 import path from "path";
@@ -128,6 +131,28 @@ function testLevelcheckPercentBounds() {
   assert(!parseLevelcheckPercent("abc").ok, "string rejected");
 }
 
+function testPassThresholdAndUnlock() {
+  assert(isLevelcheckPassPercent(69) === false, "69 fails");
+  assert(isLevelcheckPassPercent(70) === true, "70 passes");
+  assert(LEVELCHECK_PASS_PERCENT === 70, "threshold 70");
+
+  const topics = applyLevelcheckTopicUnlocks([
+    { id: "a", name: "A", sortOrder: 1, levelcheckPercent: 70 },
+    { id: "b", name: "B", sortOrder: 2, levelcheckPercent: null },
+    { id: "c", name: "C", sortOrder: 3, levelcheckPercent: null }
+  ]);
+  assert(topics[0].locked === false, "first unlocked");
+  assert(topics[0].levelcheckPassed === true, "first passed");
+  assert(topics[1].locked === false, "second unlocked after 70");
+  assert(topics[2].locked === true, "third locked until second passes");
+
+  const blocked = applyLevelcheckTopicUnlocks([
+    { id: "a", name: "A", sortOrder: 1, levelcheckPercent: 50 },
+    { id: "b", name: "B", sortOrder: 2 }
+  ]);
+  assert(blocked[1].locked === true, "second locked under 70");
+}
+
 function testPassedUnlockDoesNotTouchXpOrRank() {
   const before = { xp: 88, freedom_rank: "navigator" };
   const evaluation = { status: "passed", unlockedGoalIds: ["g1", "g2"] };
@@ -150,6 +175,7 @@ testXpIndependentFromRank();
 testClassXpEarnedNotSpend();
 testLevelcheckEvalStatuses();
 testLevelcheckPercentBounds();
+testPassThresholdAndUnlock();
 testPassedUnlockDoesNotTouchXpOrRank();
 testNewStudentDefault();
 

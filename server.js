@@ -44,8 +44,11 @@ import {
 import {
   LEVELCHECK_EVAL_STATUSES,
   LEVELCHECK_EVAL_STATUS_LABELS,
+  LEVELCHECK_PASS_PERCENT,
   parseLevelcheckPercent,
-  resolveLevelcheckEvalStatus
+  resolveLevelcheckEvalStatus,
+  isLevelcheckPassPercent,
+  applyLevelcheckTopicUnlocks
 } from "./lib/levelcheck-evaluation.js";
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
 
@@ -441,6 +444,10 @@ function buildTopicTargetProgress(check, targetsRow = null) {
   const markCounts = countGoalMarksCumulative(check.goals);
   const targetKey = normalizeTargetGradeKey(targetsRow?.targetGradeKey);
   const achievedKey = normalizeTargetGradeKey(targetsRow?.achievedGradeKey);
+  const levelcheckPercent =
+    targetsRow?.levelcheckPercent == null
+      ? null
+      : Number(targetsRow.levelcheckPercent);
   const recommended = targetKey ? recommendedTierCounts(totalGoals, targetKey) : null;
   const displayCheckpoint = topicDisplayCheckpoint(check);
 
@@ -484,6 +491,9 @@ function buildTopicTargetProgress(check, targetsRow = null) {
     targetGradeLabel: formatGradeLabel(targetKey),
     achievedGrade: achievedKey,
     achievedGradeLabel: formatGradeLabel(achievedKey),
+    levelcheckPercent: Number.isInteger(levelcheckPercent) ? levelcheckPercent : null,
+    levelcheckPassed: isLevelcheckPassPercent(levelcheckPercent),
+    unlockThreshold: LEVELCHECK_PASS_PERCENT,
     grow: targetsRow?.growText ?? null,
     glow: targetsRow?.glowText ?? null,
     nextGoal: targetsRow?.nextGoalText ?? null,
@@ -646,6 +656,7 @@ async function fetchTargetGradesByCheck(studentId, checkIds) {
         target_grade_key,
         target_grade,
         achieved_grade_key,
+        levelcheck_percent,
         grow_text,
         glow_text,
         next_goal_text,
@@ -663,7 +674,7 @@ async function fetchTargetGradesByCheck(studentId, checkIds) {
     console.error("❌ fetchTargetGradesByCheck (full):", err.message);
     targetsRes = await pool.query(
       `
-      SELECT level_check_id, target_grade_key, target_grade, achieved_grade_key
+      SELECT level_check_id, target_grade_key, target_grade, achieved_grade_key, levelcheck_percent
       FROM level_check_targets
       WHERE user_id = $1 AND level_check_id = ANY($2::uuid[])
     `,
@@ -677,6 +688,8 @@ async function fetchTargetGradesByCheck(studentId, checkIds) {
         normalizeTargetGradeKey(row.target_grade_key) ||
         normalizeTargetGradeKey(row.target_grade),
       achievedGradeKey: normalizeTargetGradeKey(row.achieved_grade_key),
+      levelcheckPercent:
+        row.levelcheck_percent == null ? null : Number(row.levelcheck_percent),
       growText: row.grow_text ?? null,
       glowText: row.glow_text ?? null,
       nextGoalText: row.next_goal_text ?? null,
@@ -712,12 +725,18 @@ function groupZielsetzungBySubject(topics) {
   const grouped = [];
   for (const subject of LOG_SUBJECTS) {
     if (bySubject[subject]?.length) {
-      grouped.push({ subject, topics: bySubject[subject] });
+      grouped.push({
+        subject,
+        topics: applyLevelcheckTopicUnlocks(bySubject[subject])
+      });
       delete bySubject[subject];
     }
   }
   for (const [subject, topicsList] of Object.entries(bySubject)) {
-    grouped.push({ subject, topics: topicsList });
+    grouped.push({
+      subject,
+      topics: applyLevelcheckTopicUnlocks(topicsList)
+    });
   }
   return grouped;
 }
@@ -3184,7 +3203,20 @@ async function migrate() {
   await ensureColumn("level_check_targets", "xp_grow_awarded", "BOOLEAN DEFAULT FALSE");
   await ensureColumn("level_check_targets", "xp_glow_awarded", "BOOLEAN DEFAULT FALSE");
   await ensureColumn("level_check_targets", "xp_next_goal_awarded", "BOOLEAN DEFAULT FALSE");
+  await ensureColumn("level_check_targets", "levelcheck_percent", "INTEGER");
 
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'level_check_targets_percent_check'
+      ) THEN
+        ALTER TABLE level_check_targets
+        ADD CONSTRAINT level_check_targets_percent_check
+        CHECK (levelcheck_percent IS NULL OR (levelcheck_percent >= 0 AND levelcheck_percent <= 100));
+      END IF;
+    END$$;
+  `);
   await pool.query(`
     ALTER TABLE level_check_targets
     ALTER COLUMN target_grade DROP NOT NULL
@@ -6591,19 +6623,28 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
     });
     const grouped = groupZielsetzungBySubject(topics);
     const upcomingBySubject = {};
-    for (const subject of subjectsFromZielsetzungGroups(grouped)) {
-      const upcoming = pickUpcomingLevelCheck(checks, subject);
-      if (upcoming) {
+    for (const group of grouped) {
+      const subject = group.subject;
+      const active =
+        (group.topics || []).find((t) => !t.locked && !t.levelcheckPassed) ||
+        (group.topics || []).find((t) => !t.locked) ||
+        null;
+      const upcomingCheck = pickUpcomingLevelCheck(checks, subject);
+      const chosen =
+        active ||
+        (upcomingCheck
+          ? (group.topics || []).find((t) => t.id === upcomingCheck.id)
+          : null);
+      if (chosen) {
         upcomingBySubject[subject] = {
-          id: upcoming.id,
-          name: upcoming.name,
-          checkpointDate: upcoming.checkpointDate,
-          checkpointDateLabel: formatGermanDate(upcoming.checkpointDate),
-          checkpointType: normalizeCheckpointType(upcoming.checkpointType),
-          checkpointTypeLabel: resolveCheckpointTypeLabel(
-            upcoming.checkpointType,
-            upcoming.checkpointTypeLabel
-          )
+          id: chosen.id,
+          name: chosen.name,
+          checkpointDate: chosen.checkpointDate,
+          checkpointDateLabel: chosen.checkpointDateLabel,
+          checkpointTypeLabel: chosen.checkpointTypeLabel,
+          locked: !!chosen.locked,
+          levelcheckPercent: chosen.levelcheckPercent,
+          levelcheckPassed: !!chosen.levelcheckPassed
         };
       }
     }
@@ -6615,7 +6656,8 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
       upcomingBySubject,
       gradeOptions: TARGET_GRADE_OPTIONS,
       feedbackOptions: buildZielsetzungFeedbackOptions(),
-      xpValues: ZIELSETZUNG_XP
+      xpValues: ZIELSETZUNG_XP,
+      levelcheckPassPercent: LEVELCHECK_PASS_PERCENT
     });
   } catch (err) {
     console.error("❌ /api/student/zielsetzung:", err);
@@ -6633,6 +6675,10 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       || Object.prototype.hasOwnProperty.call(req.body, "targetGrade");
     const hasAchieved = Object.prototype.hasOwnProperty.call(req.body, "achievedGradeKey")
       || Object.prototype.hasOwnProperty.call(req.body, "achievedGrade");
+    const hasLevelcheckPercent = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "levelcheckPercent"
+    );
     const hasGrow = Object.prototype.hasOwnProperty.call(req.body, "growText")
       || Object.prototype.hasOwnProperty.call(req.body, "grow");
     const hasGlow = Object.prototype.hasOwnProperty.call(req.body, "glowText")
@@ -6664,6 +6710,15 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       }
     }
 
+    let levelcheckPercent;
+    if (hasLevelcheckPercent) {
+      const parsed = parseLevelcheckPercent(req.body.levelcheckPercent);
+      if (!parsed.ok) {
+        return res.status(400).json({ success: false, message: parsed.error });
+      }
+      levelcheckPercent = parsed.value;
+    }
+
     let growText;
     if (hasGrow) {
       growText = normalizeFeedbackText(req.body.growText ?? req.body.grow);
@@ -6683,7 +6738,14 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Thema fehlt." });
     }
 
-    if (!hasTarget && !hasAchieved && !hasGrow && !hasGlow && !hasNextGoal) {
+    if (
+      !hasTarget &&
+      !hasAchieved &&
+      !hasLevelcheckPercent &&
+      !hasGrow &&
+      !hasGlow &&
+      !hasNextGoal
+    ) {
       return res.json({ success: false, message: "Keine Daten zum Speichern übergeben." });
     }
 
@@ -6692,12 +6754,34 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Thema nicht gefunden." });
     }
 
+    // Unlock-Gate: gesperrte Themen dürfen nicht bearbeitet werden
+    const classChecks = await getLevelChecksForClass(classId, schoolId, studentId);
+    const classTargets = await fetchTargetGradesByCheck(
+      studentId,
+      classChecks.map((c) => c.id)
+    );
+    const subjectTopics = applyLevelcheckTopicUnlocks(
+      classChecks
+        .filter((c) => c.subject === checkRow.subject)
+        .map((c) => buildTopicTargetProgress(c, classTargets[c.id] ?? null))
+    );
+    const selfTopic = subjectTopics.find((t) => String(t.id) === String(levelCheckId));
+    if (selfTopic?.locked) {
+      return res.status(403).json({
+        success: false,
+        message:
+          selfTopic.unlockHint ||
+          `Dieses Thema ist noch gesperrt. Mindestens ${LEVELCHECK_PASS_PERCENT} % im vorherigen Thema nötig.`
+      });
+    }
+
     const existingRes = await pool.query(
       `
       SELECT
         target_grade_key,
         target_grade,
         achieved_grade_key,
+        levelcheck_percent,
         grow_text,
         glow_text,
         next_goal_text,
@@ -6721,6 +6805,11 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
     const finalAchieved = hasAchieved
       ? achievedGradeKey
       : normalizeTargetGradeKey(existing?.achieved_grade_key);
+    const finalPercent = hasLevelcheckPercent
+      ? levelcheckPercent
+      : existing?.levelcheck_percent == null
+        ? null
+        : Number(existing.levelcheck_percent);
     const finalGrow = hasGrow ? growText : (existing?.grow_text ?? null);
     const finalGlow = hasGlow ? glowText : (existing?.glow_text ?? null);
     const finalNextGoal = hasNextGoal ? nextGoalText : (existing?.next_goal_text ?? null);
@@ -6728,6 +6817,7 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
     const hasAnyData =
       finalTarget ||
       finalAchieved ||
+      finalPercent != null ||
       finalGrow ||
       finalGlow ||
       finalNextGoal;
@@ -6743,6 +6833,8 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
         success: true,
         targetGrade: null,
         achievedGrade: null,
+        levelcheckPercent: null,
+        levelcheckPassed: false,
         grow: null,
         glow: null,
         nextGoal: null,
@@ -6779,7 +6871,8 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       }
     }
 
-    if (finalAchieved && !xpAchievedAwarded) {
+    // XP für Ergebnis: einmalig beim ersten Prozent-Eintrag (ohne Note)
+    if (finalPercent != null && !xpAchievedAwarded) {
       const amount = await awardZielsetzungXPOnce(
         studentId,
         schoolId,
@@ -6790,11 +6883,13 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       if (amount) {
         xpAchievedAwarded = true;
         xpAwardedTotal += amount;
-        xpDetails.push({ field: "achievedGrade", amount });
+        xpDetails.push({ field: "levelcheckPercent", amount });
       }
     }
 
-    if (finalAchieved && finalGrow && !xpGrowAwarded) {
+    const hasResult = finalPercent != null || finalAchieved;
+
+    if (hasResult && finalGrow && !xpGrowAwarded) {
       const amount = await awardZielsetzungXPOnce(
         studentId,
         schoolId,
@@ -6809,7 +6904,7 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       }
     }
 
-    if (finalAchieved && finalGlow && !xpGlowAwarded) {
+    if (hasResult && finalGlow && !xpGlowAwarded) {
       const amount = await awardZielsetzungXPOnce(
         studentId,
         schoolId,
@@ -6824,12 +6919,12 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       }
     }
 
-    if (finalAchieved && finalNextGoal && !xpNextGoalAwarded) {
+    if (hasResult && finalNextGoal && !xpNextGoalAwarded) {
       const amount = await awardZielsetzungXPOnce(
         studentId,
         schoolId,
         levelCheckId,
-        "nextGoal",
+        "next_goal",
         ZIELSETZUNG_XP.nextGoal
       );
       if (amount) {
@@ -6839,7 +6934,7 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       }
     }
 
-    const upsert = await pool.query(
+    await pool.query(
       `
       INSERT INTO level_check_targets (
         school_id,
@@ -6848,6 +6943,7 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
         target_grade,
         target_grade_key,
         achieved_grade_key,
+        levelcheck_percent,
         grow_text,
         glow_text,
         next_goal_text,
@@ -6855,14 +6951,17 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
         xp_achieved_awarded,
         xp_grow_awarded,
         xp_glow_awarded,
-        xp_next_goal_awarded
+        xp_next_goal_awarded,
+        updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
       ON CONFLICT (level_check_id, user_id)
       DO UPDATE SET
+        school_id = EXCLUDED.school_id,
         target_grade = EXCLUDED.target_grade,
         target_grade_key = EXCLUDED.target_grade_key,
         achieved_grade_key = EXCLUDED.achieved_grade_key,
+        levelcheck_percent = EXCLUDED.levelcheck_percent,
         grow_text = EXCLUDED.grow_text,
         glow_text = EXCLUDED.glow_text,
         next_goal_text = EXCLUDED.next_goal_text,
@@ -6872,13 +6971,6 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
         xp_glow_awarded = EXCLUDED.xp_glow_awarded,
         xp_next_goal_awarded = EXCLUDED.xp_next_goal_awarded,
         updated_at = NOW()
-      RETURNING
-        target_grade_key,
-        target_grade,
-        achieved_grade_key,
-        grow_text,
-        glow_text,
-        next_goal_text
     `,
       [
         schoolId,
@@ -6887,6 +6979,7 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
         wholeGrade,
         finalTarget,
         finalAchieved,
+        finalPercent,
         finalGrow,
         finalGlow,
         finalNextGoal,
@@ -6898,18 +6991,31 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       ]
     );
 
-    res.json({
+    const passed = isLevelcheckPassPercent(finalPercent);
+
+    return res.json({
       success: true,
-      targetGrade:
-        upsert.rows[0].target_grade_key || (upsert.rows[0].target_grade != null
-          ? String(upsert.rows[0].target_grade)
-          : null),
-      achievedGrade: upsert.rows[0].achieved_grade_key || null,
-      grow: upsert.rows[0].grow_text || null,
-      glow: upsert.rows[0].glow_text || null,
-      nextGoal: upsert.rows[0].next_goal_text || null,
+      targetGrade: finalTarget,
+      targetGradeLabel: formatGradeLabel(finalTarget),
+      achievedGrade: finalAchieved,
+      achievedGradeLabel: formatGradeLabel(finalAchieved),
+      levelcheckPercent: finalPercent,
+      levelcheckPassed: passed,
+      unlockThreshold: LEVELCHECK_PASS_PERCENT,
+      nextTopicUnlocked: passed,
+      grow: finalGrow,
+      glow: finalGlow,
+      nextGoal: finalNextGoal,
       xpAwarded: xpAwardedTotal,
-      xpDetails
+      xpDetails,
+      xpAwardedFlags: {
+        targetGrade: xpTargetAwarded,
+        achievedGrade: xpAchievedAwarded,
+        levelcheckPercent: xpAchievedAwarded,
+        grow: xpGrowAwarded,
+        glow: xpGlowAwarded,
+        nextGoal: xpNextGoalAwarded
+      }
     });
   } catch (err) {
     console.error("❌ POST /api/student/zielsetzung:", err);
