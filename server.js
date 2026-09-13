@@ -173,6 +173,9 @@ const CHECKPOINT_TYPES = {
   custom: "Eigene Angabe"
 };
 
+/** Nachweise mit Zielnote (Zielpfad). Levelcheck bewusst ausgenommen. */
+const GRADED_CHECKPOINT_TYPES = new Set(["klassenarbeit", "test"]);
+
 const PLAN_CHECKPOINT_TYPES = new Set(["klassenarbeit", "test", "levelcheck"]);
 
 const CHECKPOINT_TYPE_OPTIONS = Object.entries(CHECKPOINT_TYPES).map(([value, label]) => ({
@@ -180,6 +183,13 @@ const CHECKPOINT_TYPE_OPTIONS = Object.entries(CHECKPOINT_TYPES).map(([value, la
   label
 }));
 
+function isGradedCheckpointType(raw) {
+  return GRADED_CHECKPOINT_TYPES.has(normalizeCheckpointType(raw));
+}
+
+function isLevelcheckCheckpointType(raw) {
+  return normalizeCheckpointType(raw) === "levelcheck";
+}
 /** Klassenstufen für Levelplan-Kataloge (nicht einzelne Klassen). */
 const GRADE_LEVELS = ["5", "6", "7", "8", "9", "10"];
 
@@ -419,22 +429,32 @@ function recommendedTierCounts(totalGoals, targetGradeKey) {
   return out;
 }
 
-function topicDisplayCheckpoint(check) {
+function topicDisplayCheckpoint(check, opts = {}) {
+  const typeFilter = opts.types instanceof Set ? opts.types : null;
   const cps = Array.isArray(check.checkpoints) ? check.checkpoints : [];
   if (cps.length) {
     const today = todayIsoDate();
-    const dated = cps
-      .map((cp) => ({ ...cp, checkpointDate: normalizeIsoDate(cp.checkpointDate) }))
-      .filter((cp) => cp.checkpointDate)
-      .sort((a, b) => a.checkpointDate.localeCompare(b.checkpointDate));
+    let dated = cps
+      .map((cp) => ({
+        ...cp,
+        checkpointDate: normalizeIsoDate(cp.checkpointDate),
+        checkpointType: normalizeCheckpointType(cp.checkpointType)
+      }))
+      .filter((cp) => cp.checkpointDate);
+    if (typeFilter) {
+      dated = dated.filter((cp) => typeFilter.has(cp.checkpointType));
+    }
+    dated.sort((a, b) => a.checkpointDate.localeCompare(b.checkpointDate));
     const future = dated.filter((cp) => cp.checkpointDate >= today);
     return future[0] || dated[dated.length - 1] || null;
   }
   const legacyDate = normalizeIsoDate(check.checkpointDate);
   if (!legacyDate) return null;
+  const legacyType = normalizeCheckpointType(check.checkpointType);
+  if (typeFilter && !typeFilter.has(legacyType)) return null;
   return {
     checkpointDate: legacyDate,
-    checkpointType: check.checkpointType,
+    checkpointType: legacyType,
     checkpointTypeLabel: check.checkpointTypeLabel
   };
 }
@@ -449,7 +469,12 @@ function buildTopicTargetProgress(check, targetsRow = null) {
       ? null
       : Number(targetsRow.levelcheckPercent);
   const recommended = targetKey ? recommendedTierCounts(totalGoals, targetKey) : null;
-  const displayCheckpoint = topicDisplayCheckpoint(check);
+  const gradedCheckpoint = topicDisplayCheckpoint(check, { types: GRADED_CHECKPOINT_TYPES });
+  const levelcheckCheckpoint = topicDisplayCheckpoint(check, {
+    types: new Set(["levelcheck"])
+  });
+  const displayCheckpoint = gradedCheckpoint || levelcheckCheckpoint || topicDisplayCheckpoint(check);
+  const checkpointType = normalizeCheckpointType(displayCheckpoint?.checkpointType);
 
   const tiers = LEVEL_CHECK_TIERS.map((tier) => {
     const required = recommended?.[tier] ?? null;
@@ -480,10 +505,24 @@ function buildTopicTargetProgress(check, targetsRow = null) {
     name: check.name,
     checkpointDate: normalizeIsoDate(displayCheckpoint?.checkpointDate),
     checkpointDateLabel: formatGermanDate(displayCheckpoint?.checkpointDate),
+    checkpointType,
     checkpointTypeLabel: resolveCheckpointTypeLabel(
       displayCheckpoint?.checkpointType,
       displayCheckpoint?.checkpointTypeLabel
     ),
+    requiresTargetGrade: !!gradedCheckpoint,
+    hasGradedCheckpoint: !!gradedCheckpoint,
+    hasLevelcheckCheckpoint: !!levelcheckCheckpoint,
+    levelcheckCheckpoint: levelcheckCheckpoint
+      ? {
+          id: levelcheckCheckpoint.id || null,
+          date: normalizeIsoDate(levelcheckCheckpoint.checkpointDate),
+          dateLabel: formatGermanDate(levelcheckCheckpoint.checkpointDate),
+          linkedGoalIds: Array.isArray(levelcheckCheckpoint.linkedSubtopicIds)
+            ? levelcheckCheckpoint.linkedSubtopicIds.map(String)
+            : []
+        }
+      : null,
     sortOrder: check.sortOrder ?? 0,
     totalGoals,
     unmarked: markCounts.unmarked,
@@ -1524,9 +1563,17 @@ function parsePlanBStrategyText(value) {
 }
 
 function pickUpcomingLevelCheck(checks, subject = null) {
-  const flat = flattenScheduledCheckpoints(checks).filter(
+  return pickUpcomingCheckpoint(checks, subject, null);
+}
+
+/** Upcoming/past checkpoint, optional type filter (Set of normalized types). */
+function pickUpcomingCheckpoint(checks, subject = null, typeFilter = null) {
+  let flat = flattenScheduledCheckpoints(checks).filter(
     (c) => !subject || c.subject === subject
   );
+  if (typeFilter instanceof Set) {
+    flat = flat.filter((c) => typeFilter.has(normalizeCheckpointType(c.checkpointType)));
+  }
   if (flat.length) {
     const today = todayIsoDate();
     const future = flat
@@ -1534,37 +1581,76 @@ function pickUpcomingLevelCheck(checks, subject = null) {
       .sort((a, b) => a.checkpointDate.localeCompare(b.checkpointDate));
     if (future.length) {
       const pick = future[0];
-      return {
-        id: pick.levelCheckId,
-        checkpointId: pick.id,
-        name: pick.name,
-        subject: pick.subject,
-        sortOrder: pick.sortOrder,
-        checkpointDate: pick.checkpointDate,
-        checkpointType: pick.checkpointType,
-        checkpointTypeLabel: pick.checkpointTypeLabel,
-        linkedSubtopicIds: pick.linkedSubtopicIds
-      };
+      return serializeUpcomingCheckpointPick(pick);
     }
     const past = flat.sort((a, b) => b.checkpointDate.localeCompare(a.checkpointDate));
-    const pick = past[0];
-    return {
-      id: pick.levelCheckId,
-      checkpointId: pick.id,
-      name: pick.name,
-      subject: pick.subject,
-      sortOrder: pick.sortOrder,
-      checkpointDate: pick.checkpointDate,
-      checkpointType: pick.checkpointType,
-      checkpointTypeLabel: pick.checkpointTypeLabel,
-      linkedSubtopicIds: pick.linkedSubtopicIds
-    };
+    return serializeUpcomingCheckpointPick(past[0]);
   }
+
+  if (typeFilter) return null;
 
   const filtered = (checks || []).filter((c) => !subject || c.subject === subject);
   if (!filtered.length) return null;
 
   return filtered.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))[0];
+}
+
+function serializeUpcomingCheckpointPick(pick) {
+  if (!pick) return null;
+  return {
+    id: pick.levelCheckId,
+    checkpointId: pick.id,
+    name: pick.name,
+    subject: pick.subject,
+    sortOrder: pick.sortOrder,
+    checkpointDate: pick.checkpointDate,
+    checkpointType: normalizeCheckpointType(pick.checkpointType),
+    checkpointTypeLabel: resolveCheckpointTypeLabel(
+      pick.checkpointType,
+      pick.checkpointTypeLabel
+    ),
+    linkedSubtopicIds: Array.isArray(pick.linkedSubtopicIds)
+      ? pick.linkedSubtopicIds.map(String)
+      : []
+  };
+}
+
+function buildScheduledLevelchecksPayload(checks, targetsByCheck = {}) {
+  const today = todayIsoDate();
+  return flattenScheduledCheckpoints(checks)
+    .filter((c) => isLevelcheckCheckpointType(c.checkpointType))
+    .map((c) => {
+      const target = targetsByCheck[c.levelCheckId] || {};
+      const percent =
+        target.levelcheckPercent == null ? null : Number(target.levelcheckPercent);
+      const linkedGoalIds = Array.isArray(c.linkedSubtopicIds)
+        ? c.linkedSubtopicIds.map(String)
+        : [];
+      const goalLabels = [];
+      for (const goal of c.goals || []) {
+        if (linkedGoalIds.includes(String(goal.id))) {
+          goalLabels.push(goal.text || goal.goalText || "Ziel");
+        }
+      }
+      return {
+        id: c.id,
+        levelCheckId: c.levelCheckId,
+        subject: c.subject,
+        topicName: c.name,
+        date: c.checkpointDate,
+        dateLabel: formatGermanDate(c.checkpointDate),
+        type: "levelcheck",
+        typeLabel: resolveCheckpointTypeLabel("levelcheck", c.checkpointTypeLabel),
+        linkedGoalIds,
+        linkedGoalLabels: goalLabels,
+        isPast: c.checkpointDate < today,
+        isUpcoming: c.checkpointDate >= today,
+        levelcheckPercent: Number.isInteger(percent) ? percent : null,
+        levelcheckPassed: isLevelcheckPassPercent(percent),
+        unlockThreshold: LEVELCHECK_PASS_PERCENT
+      };
+    })
+    .sort((a, b) => a.date.localeCompare(b.date) || a.topicName.localeCompare(b.topicName, "de"));
 }
 
 function formatGermanDate(isoDate) {
@@ -6546,6 +6632,7 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
     const targetsByCheck = await fetchTargetGradesByCheck(studentId, checkIds);
     const checksWithTargets = attachTargetProgressToChecks(checks, targetsByCheck);
     const activeLevels = await getClassActiveLevels(classId);
+    const scheduledLevelchecks = buildScheduledLevelchecksPayload(checks, targetsByCheck);
 
     res.json({
       hasClass: true,
@@ -6559,7 +6646,9 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
       statusOptions: LEVEL_STATUS_VALUES.map((id) => ({
         id,
         label: LEVEL_STATUS_LABELS[id]
-      }))
+      })),
+      scheduledLevelchecks,
+      levelcheckPassPercent: LEVELCHECK_PASS_PERCENT
     });
   } catch (err) {
     console.error("❌ /api/student/levelplan:", err);
@@ -6625,23 +6714,32 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
     const upcomingBySubject = {};
     for (const group of grouped) {
       const subject = group.subject;
-      const active =
-        (group.topics || []).find((t) => !t.locked && !t.levelcheckPassed) ||
-        (group.topics || []).find((t) => !t.locked) ||
-        null;
-      const upcomingCheck = pickUpcomingLevelCheck(checks, subject);
-      const chosen =
-        active ||
-        (upcomingCheck
-          ? (group.topics || []).find((t) => t.id === upcomingCheck.id)
-          : null);
+      // Zielpfad: nur Klassenarbeit/Test – Levelchecks laufen über den Levelplan
+      const gradedPick = pickUpcomingCheckpoint(checks, subject, GRADED_CHECKPOINT_TYPES);
+      let chosen = gradedPick
+        ? (group.topics || []).find((t) => t.id === gradedPick.id)
+        : null;
+      if (!chosen) {
+        chosen =
+          (group.topics || []).find(
+            (t) => !t.locked && t.requiresTargetGrade && !t.levelcheckPassed
+          ) ||
+          (group.topics || []).find((t) => !t.locked && t.requiresTargetGrade) ||
+          null;
+      }
       if (chosen) {
         upcomingBySubject[subject] = {
           id: chosen.id,
           name: chosen.name,
-          checkpointDate: chosen.checkpointDate,
-          checkpointDateLabel: chosen.checkpointDateLabel,
-          checkpointTypeLabel: chosen.checkpointTypeLabel,
+          checkpointDate: chosen.checkpointDate || gradedPick?.checkpointDate || null,
+          checkpointDateLabel:
+            chosen.checkpointDateLabel ||
+            formatGermanDate(gradedPick?.checkpointDate) ||
+            null,
+          checkpointType: chosen.checkpointType || gradedPick?.checkpointType || null,
+          checkpointTypeLabel:
+            chosen.checkpointTypeLabel || gradedPick?.checkpointTypeLabel || null,
+          requiresTargetGrade: chosen.requiresTargetGrade !== false,
           locked: !!chosen.locked,
           levelcheckPercent: chosen.levelcheckPercent,
           levelcheckPassed: !!chosen.levelcheckPassed
@@ -6657,7 +6755,8 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
       gradeOptions: TARGET_GRADE_OPTIONS,
       feedbackOptions: buildZielsetzungFeedbackOptions(),
       xpValues: ZIELSETZUNG_XP,
-      levelcheckPassPercent: LEVELCHECK_PASS_PERCENT
+      levelcheckPassPercent: LEVELCHECK_PASS_PERCENT,
+      gradedCheckpointTypes: [...GRADED_CHECKPOINT_TYPES]
     });
   } catch (err) {
     console.error("❌ /api/student/zielsetzung:", err);
@@ -6772,6 +6871,14 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
         message:
           selfTopic.unlockHint ||
           `Dieses Thema ist noch gesperrt. Mindestens ${LEVELCHECK_PASS_PERCENT} % im vorherigen Thema nötig.`
+      });
+    }
+
+    if (hasTarget && selfTopic && selfTopic.requiresTargetGrade === false) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Für Levelchecks gibt es keine Zielnote. Trage das %-Ergebnis im Levelplan ein."
       });
     }
 

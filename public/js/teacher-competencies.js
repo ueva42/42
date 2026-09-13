@@ -392,7 +392,13 @@
 
           <div class="tc-linked-block">
             <h4 class="tc-linked-title">Was-Ziele für diesen Nachweis</h4>
-            <p class="tc-hint">Themen und Unterthemen aus dem Levelplan markieren – auch über mehrere Themen hinweg.</p>
+            <p class="tc-hint" id="tcLinkedHint">
+              ${
+                values.type === "levelcheck"
+                  ? "Levelcheck: genau die Ziele anhaken, die geprüft werden. Danach erscheinen sie im Schüler-Levelplan."
+                  : "Themen und Unterthemen aus dem Levelplan markieren – auch über mehrere Themen hinweg."
+              }
+            </p>
             <div class="tc-topic-goal-groups">${goalSections}</div>
           </div>
 
@@ -554,6 +560,7 @@
     const btn = card?.querySelector("#tcSaveCheckpointBtn");
     const typeEl = card?.querySelector(".tc-checkpoint-type");
     const customEl = card?.querySelector(".tc-checkpoint-type-custom");
+    const hint = card?.querySelector("#tcLinkedHint");
     if (!btn || !typeEl) return;
     const type = typeEl.value || "klassenarbeit";
     const label = typeLabelFor(
@@ -561,6 +568,12 @@
       type === "custom" ? customEl?.value?.trim() || "Eigene Bezeichnung" : null
     );
     btn.textContent = `${label} speichern`;
+    if (hint) {
+      hint.textContent =
+        type === "levelcheck"
+          ? "Levelcheck: genau die Ziele anhaken, die geprüft werden. Danach erscheinen sie im Schüler-Levelplan."
+          : "Themen und Unterthemen aus dem Levelplan markieren – auch über mehrere Themen hinweg.";
+    }
   }
 
   function readCheckpointPayload() {

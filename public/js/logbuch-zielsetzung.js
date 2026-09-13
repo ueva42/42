@@ -648,7 +648,12 @@
   }
 
   function renderFeedbackSection(topic) {
-    if (!hasLevelcheckResult(topic)) return "";
+    // Reflexion nach Zielnote-Pfad (KA/Test) – Levelcheck-Reflexion läuft über Levelplan-% 
+    if (!topic?.targetGrade || topic.requiresTargetGrade === false) return "";
+    if (!hasLevelcheckResult(topic) && !topic.achievedGrade) {
+      // Optional: reflection still after target without % for KA - keep glow/grow available after target
+      // For now allow feedback once target is set
+    }
     const V = window.LogbuchVisuals;
     if (!V) return "";
 
@@ -783,34 +788,39 @@
     const goalPart = hasTarget
       ? formatGradeLabel(topic.targetGradeLabel || topic.targetGrade)
       : "–";
-    const hasResult = hasLevelcheckResult(topic);
-    const resultPart = hasResult ? `${Number(topic.levelcheckPercent)} %` : "Noch nicht eingetragen";
-    const past = topic ? isCheckpointPast(topic) : false;
     const locked = !!topic?.locked;
     const threshold = topic?.unlockThreshold || passPercent();
+    const showZielnote = topic?.requiresTargetGrade !== false;
 
     return `
       <article class="zielpfad-hero-panel">
         <div class="zielpfad-hero-panel__meta">
-          <p class="zielpfad-hero-panel__eyebrow">Mein Lernstand</p>
+          <p class="zielpfad-hero-panel__eyebrow">Mein Zielpfad</p>
           <h2 class="zielpfad-hero-panel__title">${subject} · ${name}</h2>
           <p class="zielpfad-hero-panel__sub">${typePart} · ${datePart}</p>
           ${
             locked
               ? `<p class="zielpfad-hero-panel__lock">${escapeHtml(
-                  topic.unlockHint || `Noch gesperrt – zuerst ${threshold} % im vorherigen Thema.`
+                  topic.unlockHint || `Noch gesperrt – zuerst ${threshold} % im vorherigen Levelcheck.`
                 )}</p>`
+              : ""
+          }
+          ${
+            !showZielnote
+              ? `<p class="zielpfad-hero-panel__lock">Levelchecks ohne Zielnote – Ergebnis und geprüfte Ziele findest du im <b>Levelplan</b>.</p>`
               : ""
           }
         </div>
         ${
-          topic && !locked
+          topic && !locked && showZielnote
             ? `<div class="zielpfad-hero-panel__grades">
                 <article class="zielpfad-grade-glow zielpfad-grade-glow--target">
                   <span class="zielpfad-grade-glow__label">Meine Zielnote</span>
                   <strong class="zielpfad-grade-glow__value">${escapeHtml(goalPart)}</strong>
                   <p class="zielpfad-grade-glow__hint">${
-                    hasTarget ? "Darauf arbeite ich hin." : "Lege fest, worauf du hinarbeitest."
+                    hasTarget
+                      ? "Für Klassenarbeit oder Test."
+                      : "Zielnote nur für Klassenarbeit / Test."
                   }</p>
                   <button
                     type="button"
@@ -819,27 +829,6 @@
                     data-topic-id="${escapeHtml(topic.id)}"
                   >${hasTarget ? "Zielnote ändern" : "Zielnote festlegen"}</button>
                 </article>
-                <article class="zielpfad-grade-glow zielpfad-grade-glow--achieved">
-                  <span class="zielpfad-grade-glow__label">Levelcheck-Ergebnis</span>
-                  <strong class="zielpfad-grade-glow__value ${hasResult ? "" : "is-muted"}">${escapeHtml(resultPart)}</strong>
-                  <p class="zielpfad-grade-glow__hint">${
-                    topic.levelcheckPassed
-                      ? `Bestanden (≥ ${threshold} %) – nächstes Thema frei.`
-                      : hasResult
-                        ? `Noch unter ${threshold} % – weiter üben.`
-                        : "Nach dem Check den Anteil richtiger Antworten eintragen."
-                  }</p>
-                  ${
-                    past || hasResult
-                      ? `<button
-                          type="button"
-                          class="zielpfad-btn zielpfad-btn--ghost"
-                          data-zs-open-levelcheck-result
-                          data-topic-id="${escapeHtml(topic.id)}"
-                        >Ergebnis eintragen</button>`
-                      : `<button type="button" class="zielpfad-btn zielpfad-btn--ghost" disabled>Ergebnis eintragen</button>`
-                  }
-                </article>
               </div>`
             : topic && locked
               ? `<div class="zielpfad-hero-panel__grades">
@@ -847,7 +836,7 @@
                     <span class="zielpfad-grade-glow__label">Thema gesperrt</span>
                     <strong class="zielpfad-grade-glow__value is-muted">🔒</strong>
                     <p class="zielpfad-grade-glow__hint">${escapeHtml(
-                      topic.unlockHint || `Freigabe ab ${threshold} % im vorherigen Thema.`
+                      topic.unlockHint || `Freigabe ab ${threshold} % im vorherigen Levelcheck.`
                     )}</p>
                   </article>
                 </div>`
@@ -1215,37 +1204,18 @@
   }
 
   function renderResultSection(topic) {
-    if (!topic?.targetGrade) return "";
-
-    const saving = state.saving === topic.id;
-    const past = isCheckpointPast(topic);
-    const hasResult = hasLevelcheckResult(topic);
-    const threshold = topic.unlockThreshold || passPercent();
-
-    let body = "";
-    if (!past && !hasResult) {
-      body = `<p class="zielpfad-result__pending">Nach dem Levelcheck trägst du hier deinen %-Anteil richtiger Antworten ein.</p>`;
-    } else {
-      body = `
-        <div class="zielpfad-result-dial">
-          ${renderLevelcheckDial(topic, { editable: true })}
-        </div>
-        ${renderGoalResultBadge(topic)}
-        ${
-          topic.levelcheckPassed
-            ? `<p class="zielpfad-result__diff">Nächstes Thema ist freigeschaltet (ab ${threshold} %).</p>`
-            : hasResult
-              ? `<p class="zielpfad-result__diff">Noch unter ${threshold} % – das nächste Thema bleibt gesperrt.</p>`
-              : ""
-        }
-        ${saving ? `<p class="hint">Speichert…</p>` : ""}
-        ${renderFeedbackSection(topic)}`;
-    }
-
+    // %-Ergebnis gehört zum Levelcheck-Flow im Levelplan, nicht zur Zielnote
+    if (!topic?.targetGrade || topic.requiresTargetGrade === false) return "";
     return `
       <section class="zielpfad-block zielpfad-result">
-        <h3 class="zielpfad-block__title">Ergebnis nach dem Levelcheck</h3>
-        <article class="zielpfad-result-card">${body}</article>
+        <h3 class="zielpfad-block__title">Nach der Klassenarbeit / dem Test</h3>
+        <article class="zielpfad-result-card">
+          <p class="zielpfad-result__pending">
+            Levelcheck-Ergebnisse trägst du im <b>Levelplan</b> ein (Kreisregler, ab 70 % nächstes Thema).
+            Hier geht es um deine Zielnote für Klassenarbeit oder Test.
+          </p>
+          ${renderFeedbackSection(topic)}
+        </article>
       </section>`;
   }
 

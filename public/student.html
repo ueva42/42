@@ -6185,6 +6185,92 @@ body.student-app .card.section > h2 {
   color: #e2e8f0;
 }
 
+.lp-lc-banner {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(168, 85, 247, 0.18), transparent 50%),
+    rgba(8, 12, 28, 0.92);
+}
+.lp-lc-banner__head h3 {
+  margin: 0 0 4px;
+  font-family: "Orbitron", system-ui;
+  font-size: 15px;
+  color: #e9d5ff;
+}
+.lp-lc-banner__head p {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+.lp-lc-grid {
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 720px) {
+  .lp-lc-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+.lp-lc-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(2, 6, 23, 0.55);
+}
+.lp-lc-card.is-pass { border-color: rgba(34, 197, 94, 0.45); }
+.lp-lc-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.lp-lc-card__badge {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c4b5fd;
+  font-weight: 700;
+}
+.lp-lc-card__date { font-size: 12px; color: #94a3b8; }
+.lp-lc-card__title { margin: 0 0 4px; font-weight: 700; color: #f8fafc; }
+.lp-lc-card__meta,
+.lp-lc-card__status,
+.lp-lc-card__hint {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+.lp-lc-dial-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.lp-lc-dial-wrap .lc-dial { --size: 140px; }
+.lp-lc-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fef08a;
+  background: rgba(250, 204, 21, 0.16);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  vertical-align: middle;
+}
+.lp-table__row.is-levelcheck-goal,
+.lp-mobile-card.is-levelcheck-goal {
+  background: rgba(250, 204, 21, 0.06);
+  box-shadow: inset 3px 0 0 rgba(250, 204, 21, 0.75);
+}
+.lp-table-hint--lc { color: #fde68a; }
+
 .lp-dash {
   display: flex;
   flex-direction: column;
@@ -11210,10 +11296,10 @@ h2 {
 <script src="/js/logbuch-reflect.js?v=6"></script>
 <script src="/js/logbuch-today.js?v=33"></script>
 <script src="/js/logbuch-week.js?v=9"></script>
-<script src="/js/logbuch-levelplan.js?v=16"></script>
+<script src="/js/logbuch-levelplan.js?v=17"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
-<script src="/js/logbuch-zielsetzung.js?v=24"></script>
+<script src="/js/logbuch-zielsetzung.js?v=25"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=9"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=21"></script>
 <script src="/js/logbuch-screens.js?v=6"></script>
