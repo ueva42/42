@@ -64,6 +64,26 @@
     return (state.catalogs || []).filter((c) => String(c.gradeLevel) === String(state.gradeLevel));
   }
 
+  function applySubjectToPreviewRows(rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    if (!state.subject) return list;
+    return list.map((row) => {
+      const missing = (row.missing || []).filter((m) => m !== "fach");
+      if (!row.thema) missing.push("thema");
+      if (!row.unterthema) missing.push("unterthema");
+      if (!row.rookieZiel) missing.push("rookie");
+      if (!row.operatorZiel) missing.push("operator");
+      if (!row.streetLegendZiel) missing.push("streetLegend");
+      const uniqueMissing = [...new Set(missing)];
+      return {
+        ...row,
+        fach: state.subject,
+        missing: uniqueMissing,
+        status: uniqueMissing.length ? "Unvollständig" : "OK"
+      };
+    });
+  }
+
   function renderPreviewTable() {
     if (!hasPreview()) return "";
 
@@ -132,16 +152,16 @@
 
         <div class="lpi-toolbar">
           <label>Klassenstufe:
-            <select id="lpiGradeSelect">${gradeOptions}</select>
+            <select id="lpiGradeSelect" ${state.saving ? "disabled" : ""}>${gradeOptions}</select>
           </label>
           <label>Levelplan:
-            <select id="lpiCatalogSelect">
+            <select id="lpiCatalogSelect" ${state.saving ? "disabled" : ""}>
               <option value="">— Neuer Levelplan —</option>
               ${catalogOptions}
             </select>
           </label>
           <label>Fach:
-            <select id="lpiSubjectSelect">
+            <select id="lpiSubjectSelect" ${state.saving ? "disabled" : ""}>
               ${state.subjects
                 .map(
                   (s) =>
@@ -154,7 +174,7 @@
 
         <label class="lpi-label" for="lpiCatalogName" style="${state.catalogId ? "display:none" : ""}">
           Name für neuen Levelplan
-          <input id="lpiCatalogName" type="text" placeholder="z. B. Potenzen und Wurzeln" value="${escapeHtml(state.catalogName)}">
+          <input id="lpiCatalogName" type="text" placeholder="z. B. Potenzen und Wurzeln" value="${escapeHtml(state.catalogName)}" ${state.saving ? "disabled" : ""}>
         </label>
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
@@ -170,10 +190,10 @@ Ich schreibe alle Möglichkeiten geordnet auf und zähle sie richtig ab.
 Operator
 Ich bestimme die Anzahl der Möglichkeiten mit Tabelle oder Baumdiagramm.
 Street Legend
-Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.text)}</textarea>
+Ich löse Zählaufgaben sicher und begründe meinen Weg." ${state.saving ? "disabled" : ""}>${escapeHtml(state.text)}</textarea>
 
         <div class="lpi-actions">
-          <button type="button" class="action" id="lpiPreviewBtn" ${state.loading ? "disabled" : ""}>
+          <button type="button" class="action" id="lpiPreviewBtn" ${state.loading || state.saving ? "disabled" : ""}>
             ${state.loading ? "Erstelle Vorschau…" : "Vorschau erstellen"}
           </button>
           ${
@@ -193,6 +213,7 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
 
   function bindHandlers(root) {
     root.querySelector("#lpiGradeSelect")?.addEventListener("change", async (e) => {
+      if (state.saving) return;
       state.gradeLevel = e.target.value;
       state.catalogId = null;
       state.message = "";
@@ -202,6 +223,7 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
     });
 
     root.querySelector("#lpiCatalogSelect")?.addEventListener("change", (e) => {
+      if (state.saving) return;
       state.catalogId = e.target.value || null;
       state.message = "";
       state.error = "";
@@ -213,9 +235,13 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
     });
 
     root.querySelector("#lpiSubjectSelect")?.addEventListener("change", (e) => {
+      if (state.saving) return;
       state.subject = e.target.value;
       state.message = "";
       state.error = "";
+      if (hasPreview()) {
+        state.previewRows = applySubjectToPreviewRows(state.previewRows);
+      }
       render();
     });
 
@@ -279,25 +305,10 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
         return;
       }
 
-      state.previewRows = Array.isArray(data.rows) ? data.rows : [];
-      if (state.subject) {
-        state.previewRows = state.previewRows.map((row) => {
-          const missing = (row.missing || []).filter((m) => m !== "fach");
-          if (!row.thema) missing.push("thema");
-          if (!row.unterthema) missing.push("unterthema");
-          if (!row.rookieZiel) missing.push("rookie");
-          if (!row.operatorZiel) missing.push("operator");
-          if (!row.streetLegendZiel) missing.push("streetLegend");
-          const uniqueMissing = [...new Set(missing)];
-          return {
-            ...row,
-            fach: state.subject,
-            missing: uniqueMissing,
-            status: uniqueMissing.length ? "Unvollständig" : "OK"
-          };
-        });
-      }
-      state.message = `Vorschau erstellt: ${data.summary?.ok || 0} OK, ${data.summary?.incomplete || 0} unvollständig.`;
+      state.previewRows = applySubjectToPreviewRows(Array.isArray(data.rows) ? data.rows : []);
+      const ok = okRows().length;
+      const incomplete = state.previewRows.length - ok;
+      state.message = `Vorschau erstellt: ${ok} OK, ${incomplete} unvollständig.`;
       render();
     } catch (err) {
       console.error(err);
@@ -308,9 +319,18 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
   }
 
   async function confirmImport() {
+    if (state.saving) return;
+
     const rows = okRows();
     if (!rows.length) {
       state.error = "Keine gültigen Einträge zum Importieren.";
+      render();
+      return;
+    }
+
+    const text = state.text.trim();
+    if (!text) {
+      state.error = "Levelplan-Text fehlt – bitte erneut Vorschau erstellen.";
       render();
       return;
     }
@@ -358,14 +378,22 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
           gradeLevel: state.gradeLevel,
           catalogId: state.catalogId || null,
           catalogName: state.catalogName.trim(),
-          rows
+          subject: state.subject || null,
+          text
         })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       state.saving = false;
 
-      if (!data.success) {
-        state.error = data.message || "Import fehlgeschlagen.";
+      if (!res.ok || !data.success) {
+        state.error =
+          data.message ||
+          (res.status === 413
+            ? "Der Levelplan ist zu groß. Bitte in kleinere Teile aufteilen."
+            : "Import fehlgeschlagen.");
+        if (Array.isArray(data.rows) && data.rows.length) {
+          state.previewRows = applySubjectToPreviewRows(data.rows);
+        }
         render();
         return;
       }
@@ -376,7 +404,7 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
       await loadCatalogs();
       state.message =
         (data.message || "Import erfolgreich.") +
-        " Für den nächsten Import ist wieder „Neuer Levelplan“ vorausgewählt.";
+        " Unter „Levelplan“ kannst du ihn einer Klasse zuweisen. Für den nächsten Import ist wieder „Neuer Levelplan“ vorausgewählt.";
       state.previewRows = [];
       render();
     } catch (err) {
@@ -388,6 +416,12 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg.">${escapeHtml(state.tex
   }
 
   async function init() {
+    // Laufenden Import nicht durch Tab-Reinit abbrechen / leeren
+    if (state.saving || state.loading) {
+      render();
+      return;
+    }
+
     state.message = "";
     state.error = "";
     state.previewRows = [];

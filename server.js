@@ -2201,8 +2201,8 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.set("trust proxy", 1);
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: "2mb" }));
+app.use(bodyParser.urlencoded({ extended: true, limit: "2mb" }));
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -3215,7 +3215,24 @@ async function migrate() {
       ADD PRIMARY KEY (class_id, subject, catalog_id)
   `).catch(() => {});
   await ensureColumn("level_checks", "catalog_id", "UUID");
-  await pool.query(`ALTER TABLE level_checks ALTER COLUMN class_id DROP NOT NULL`).catch(() => {});
+  // Katalog-Themen haben keine Klasse – class_id muss NULL erlauben
+  await pool.query(`ALTER TABLE level_checks ALTER COLUMN class_id DROP NOT NULL`).catch((err) => {
+    console.warn("⚠️ level_checks.class_id DROP NOT NULL:", err.message);
+  });
+  {
+    const nullCheck = await pool.query(`
+      SELECT is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'level_checks'
+        AND column_name = 'class_id'
+    `);
+    if (nullCheck.rows[0]?.is_nullable === "NO") {
+      console.error(
+        "❌ level_checks.class_id ist noch NOT NULL – Levelplan-Import in Kataloge schlägt fehl."
+      );
+    }
+  }
   await ensureColumn(
     "level_check_checkpoints",
     "class_id",
@@ -8344,23 +8361,49 @@ function parseLevelplanImportText(raw) {
 
   pushCurrent();
 
-  return rows.map((row) => {
-    const normalizedFach = normalizeImportSubject(row.fach);
+  return normalizeLevelplanImportRows(rows);
+}
+
+/** Status/Missing neu berechnen; optional Fach aus Dropdown überschreiben. */
+function normalizeLevelplanImportRows(rows, subjectOverride = null) {
+  const override = subjectOverride
+    ? normalizeImportSubject(subjectOverride)
+    : null;
+
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    const rawFach = override?.subject || row.fach || row.subject || "";
+    const normalizedFach = normalizeImportSubject(rawFach);
     const fach = normalizedFach.subject;
+    const thema = String(row.thema || row.topic || "").trim();
+    const unterthema = String(row.unterthema || row.goal || row.goal_text || "").trim();
+    const rookieZiel = String(row.rookieZiel || row.rookie_goal_text || "").trim();
+    const operatorZiel = String(row.operatorZiel || row.operator_goal_text || "").trim();
+    const streetLegendZiel = String(
+      row.streetLegendZiel || row.street_legend_goal_text || ""
+    ).trim();
 
     const missing = [];
     if (!fach) missing.push("fach");
-    if (!row.thema) missing.push("thema");
-    if (!row.unterthema) missing.push("unterthema");
-    if (!row.rookieZiel) missing.push("rookie");
-    if (!row.operatorZiel) missing.push("operator");
-    if (!row.streetLegendZiel) missing.push("streetLegend");
+    if (!thema) missing.push("thema");
+    if (!unterthema) missing.push("unterthema");
+    if (!rookieZiel) missing.push("rookie");
+    if (!operatorZiel) missing.push("operator");
+    if (!streetLegendZiel) missing.push("streetLegend");
 
     let status = "OK";
     if (missing.length) status = "Unvollständig";
-    else if (fach && !normalizedFach.known) status = "Unbekanntes Fach";
+    else if (fach && !normalizedFach.known && !override?.known) status = "Unbekanntes Fach";
 
-    return { ...row, fach, status, missing };
+    return {
+      fach,
+      thema,
+      unterthema,
+      rookieZiel,
+      operatorZiel,
+      streetLegendZiel,
+      status,
+      missing
+    };
   });
 }
 
@@ -8445,19 +8488,31 @@ async function importLevelplanRowsToCatalog(catalogId, schoolId, rows) {
       continue;
     }
 
+    const fach = String(row.fach || "").trim();
+    const thema = String(row.thema || "").trim();
+    const unterthema = String(row.unterthema || "").trim();
+    const rookieZiel = String(row.rookieZiel || "").trim();
+    const operatorZiel = String(row.operatorZiel || "").trim();
+    const streetLegendZiel = String(row.streetLegendZiel || "").trim();
+
+    if (!fach || !thema || !unterthema || !rookieZiel || !operatorZiel || !streetLegendZiel) {
+      skipped.push({ ...row, status: "Unvollständig" });
+      continue;
+    }
+
     const levelCheckId = await findOrCreateLevelCheckTopicForCatalog(
       catalogId,
       schoolId,
-      row.fach,
-      row.thema
+      fach,
+      thema
     );
 
     const existingGoal = await findLevelCheckGoalForCatalog(
       catalogId,
       schoolId,
-      row.fach,
-      row.thema,
-      row.unterthema
+      fach,
+      thema,
+      unterthema
     );
 
     if (existingGoal) {
@@ -8472,9 +8527,9 @@ async function importLevelplanRowsToCatalog(catalogId, schoolId, rows) {
         WHERE id = $4
       `,
         [
-          row.rookieZiel.slice(0, 500),
-          row.operatorZiel.slice(0, 500),
-          row.streetLegendZiel.slice(0, 500),
+          rookieZiel.slice(0, 500),
+          operatorZiel.slice(0, 500),
+          streetLegendZiel.slice(0, 500),
           existingGoal.id
         ]
       );
@@ -8502,11 +8557,11 @@ async function importLevelplanRowsToCatalog(catalogId, schoolId, rows) {
       [
         schoolId,
         levelCheckId,
-        row.unterthema.slice(0, 300),
+        unterthema.slice(0, 300),
         orderRes.rows[0].next_order,
-        row.rookieZiel.slice(0, 500),
-        row.operatorZiel.slice(0, 500),
-        row.streetLegendZiel.slice(0, 500)
+        rookieZiel.slice(0, 500),
+        operatorZiel.slice(0, 500),
+        streetLegendZiel.slice(0, 500)
       ]
     );
     created++;
@@ -8846,18 +8901,47 @@ app.post("/api/teacher/levelplan-import/preview", isAdmin, async (req, res) => {
 app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
+    if (!schoolId) {
+      return res.json({
+        success: false,
+        message: "Keine Schule in der Sitzung – bitte neu einloggen."
+      });
+    }
+
     const gradeLevel = String(req.body.gradeLevel || "").trim();
     let catalogId = String(req.body.catalogId || "").trim() || null;
     const catalogName = String(req.body.catalogName || "").trim();
-    const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+    const subjectOverride = String(req.body.subject || "").trim() || null;
+    const text = String(req.body.text || "");
+
+    let rows = [];
+    if (text.trim()) {
+      rows = normalizeLevelplanImportRows(parseLevelplanImportText(text), subjectOverride);
+    } else {
+      rows = normalizeLevelplanImportRows(req.body.rows, subjectOverride);
+    }
 
     if (!gradeLevel || !GRADE_LEVELS.includes(gradeLevel)) {
       return res.json({ success: false, message: "Bitte eine gültige Klassenstufe wählen." });
     }
-    if (!rows.length) {
-      return res.json({ success: false, message: "Keine Daten zum Importieren." });
+
+    const okRows = rows.filter((r) => r.status === "OK");
+    if (!okRows.length) {
+      return res.json({
+        success: false,
+        message:
+          "Keine gültigen Einträge zum Importieren. Bitte Fach wählen und Vorschau prüfen (alle Spalten müssen gefüllt sein).",
+        rows,
+        summary: {
+          total: rows.length,
+          ok: 0,
+          incomplete: rows.filter((r) => r.status === "Unvollständig").length,
+          invalidSubject: rows.filter((r) => r.status === "Unbekanntes Fach").length
+        }
+      });
     }
 
+    let createdNewCatalog = false;
     if (catalogId) {
       const catalogRes = await pool.query(
         "SELECT id FROM level_plan_catalogs WHERE id = $1 AND school_id = $2 AND grade_level = $3",
@@ -8867,8 +8951,8 @@ app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
         return res.json({ success: false, message: "Levelplan nicht gefunden." });
       }
     } else {
-      const subjectHint = String(rows.find((r) => r.fach)?.fach || "Levelplan").trim();
-      const name = catalogName || suggestCatalogNameFromRows(rows, subjectHint, gradeLevel);
+      const subjectHint = String(okRows.find((r) => r.fach)?.fach || subjectOverride || "Levelplan").trim();
+      const name = catalogName || suggestCatalogNameFromRows(okRows, subjectHint, gradeLevel);
       const ins = await pool.query(
         `
         INSERT INTO level_plan_catalogs (school_id, grade_level, name)
@@ -8878,9 +8962,31 @@ app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
         [schoolId, gradeLevel, name.slice(0, 120)]
       );
       catalogId = ins.rows[0].id;
+      createdNewCatalog = true;
     }
 
-    const result = await importLevelplanRowsToCatalog(catalogId, schoolId, rows);
+    let result;
+    try {
+      result = await importLevelplanRowsToCatalog(catalogId, schoolId, okRows);
+    } catch (importErr) {
+      if (createdNewCatalog && catalogId) {
+        await deleteLevelPlanCatalogForSchool(catalogId, schoolId).catch(() => {});
+      }
+      throw importErr;
+    }
+
+    if (!(result.created + result.updated)) {
+      if (createdNewCatalog && catalogId) {
+        await deleteLevelPlanCatalogForSchool(catalogId, schoolId).catch(() => {});
+      }
+      return res.json({
+        success: false,
+        message: "Import hat keine Einträge geschrieben. Bitte Vorschau und Fach prüfen.",
+        catalogId: createdNewCatalog ? null : catalogId,
+        ...result
+      });
+    }
+
     res.json({
       success: true,
       catalogId,
@@ -8891,7 +8997,14 @@ app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ POST /api/teacher/levelplan-import/confirm:", err);
-    res.status(500).json({ success: false, message: "Serverfehler" });
+    const hint =
+      /null value.*class_id/i.test(String(err?.message || ""))
+        ? " Datenbank: class_id muss für Katalog-Themen leer sein dürfen."
+        : "";
+    res.status(500).json({
+      success: false,
+      message: `Serverfehler beim Import.${hint}`
+    });
   }
 });
 
