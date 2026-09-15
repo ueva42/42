@@ -8,7 +8,8 @@
     "reset-demo": "node scripts/reset-demo.js",
     "test:group-mode": "node scripts/test-group-mode.js",
     "test:freedom-ranks": "node scripts/test-freedom-ranks.js",
-    "test": "npm run test:group-mode && npm run test:freedom-ranks"
+    "test:levelplan-import": "node scripts/test-levelplan-import.js",
+    "test": "npm run test:group-mode && npm run test:freedom-ranks && npm run test:levelplan-import"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.932.0",

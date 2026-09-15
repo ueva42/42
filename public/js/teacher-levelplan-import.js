@@ -66,20 +66,26 @@
 
   function applySubjectToPreviewRows(rows) {
     const list = Array.isArray(rows) ? rows : [];
-    if (!state.subject) return list;
     return list.map((row) => {
-      const missing = (row.missing || []).filter((m) => m !== "fach");
-      if (!row.thema) missing.push("thema");
-      if (!row.unterthema) missing.push("unterthema");
+      const fach = state.subject || row.fach || "";
+      let thema = String(row.thema || "").trim();
+      let unterthema = String(row.unterthema || "").trim();
+      if (!thema && unterthema && unterthema !== "Unbenannt") thema = unterthema;
+      if (!unterthema && thema) unterthema = thema;
+      const missing = [];
+      if (!fach) missing.push("fach");
+      if (!thema) missing.push("thema");
+      if (!unterthema) missing.push("unterthema");
       if (!row.rookieZiel) missing.push("rookie");
       if (!row.operatorZiel) missing.push("operator");
       if (!row.streetLegendZiel) missing.push("streetLegend");
-      const uniqueMissing = [...new Set(missing)];
       return {
         ...row,
-        fach: state.subject,
-        missing: uniqueMissing,
-        status: uniqueMissing.length ? "Unvollständig" : "OK"
+        fach,
+        thema,
+        unterthema,
+        missing,
+        status: missing.length ? "Unvollständig" : "OK"
       };
     });
   }
@@ -146,6 +152,7 @@
         <h2>Levelplan importieren</h2>
         <p class="hint">
           Der Import gehört zu einer <strong>Klassenstufe</strong> (z.&nbsp;B. 9 oder 10) – noch keiner einzelnen Klasse.
+          Eine Überschrift vor Rookie/Operator/Street Legend reicht als Thema.
           Für jeden neuen Plan „<strong>— Neuer Levelplan —</strong>“ wählen (sonst werden Themen an den vorhandenen Plan angehängt).
           Klassen weist du den Plan unter <strong>Levelplan</strong> zu.
         </p>
@@ -294,7 +301,7 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg." ${state.saving ? "disa
       const res = await fetch("/api/teacher/levelplan-import/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text, subject: state.subject || null })
       });
       const data = await res.json();
       state.loading = false;
