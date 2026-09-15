@@ -531,7 +531,7 @@
       <section class="lp-lc-banner" aria-label="Levelchecks">
         <div class="lp-lc-banner__head">
           <h3>Levelcheck</h3>
-          <p>Keine Zielnote – nur die geprüften Ziele. Ab ${passPercent()} % ist das nächste Thema frei.</p>
+          <p>Keine Zielnote – nur die geprüften Ziele. Mit dem Kreisregler trägst du dein Ergebnis ein.</p>
         </div>
         <div class="lp-lc-grid">${cards}</div>
       </section>`;
@@ -924,9 +924,7 @@
         render();
         return;
       }
-      state.message = data.nextTopicUnlocked
-        ? `Levelcheck ${percent} % · nächstes Thema freigeschaltet`
-        : `Levelcheck ${percent} % gespeichert`;
+      state.message = `Levelcheck ${percent} % gespeichert`;
       await loadData(initGeneration);
     } catch (err) {
       console.error(err);

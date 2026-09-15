@@ -6882,7 +6882,6 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Thema nicht gefunden." });
     }
 
-    // Unlock-Gate: gesperrte Themen dürfen nicht bearbeitet werden
     const classChecks = await getLevelChecksForClass(classId, schoolId, studentId);
     const classTargets = await fetchTargetGradesByCheck(
       studentId,
@@ -6894,14 +6893,6 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
         .map((c) => buildTopicTargetProgress(c, classTargets[c.id] ?? null))
     );
     const selfTopic = subjectTopics.find((t) => String(t.id) === String(levelCheckId));
-    if (selfTopic?.locked) {
-      return res.status(403).json({
-        success: false,
-        message:
-          selfTopic.unlockHint ||
-          `Dieses Thema ist noch gesperrt. Mindestens ${LEVELCHECK_PASS_PERCENT} % im vorherigen Thema nötig.`
-      });
-    }
 
     if (hasTarget && selfTopic && selfTopic.requiresTargetGrade === false) {
       return res.status(400).json({
@@ -7937,10 +7928,108 @@ app.delete("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) 
     }
 
     await pool.query("DELETE FROM level_check_checkpoints WHERE id = $1", [checkpointId]);
-    res.json({ success: true });
+    res.json({ success: true, message: "Termin gelöscht." });
   } catch (err) {
     console.error("❌ DELETE /api/teacher/levelcheck-checkpoints:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.post("/api/teacher/classes/:classId/reset-school-year", isAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.params.classId);
+    const confirmClassName = String(req.body.confirmClassName || "").trim();
+    const confirmPhrase = String(req.body.confirmPhrase || "").trim();
+
+    if (!schoolId || !classId) {
+      return res.json({ success: false, message: "Klasse fehlt." });
+    }
+    if (confirmPhrase !== "Schuljahr zurücksetzen") {
+      return res.json({
+        success: false,
+        message: "Bitte zur Bestätigung genau „Schuljahr zurücksetzen“ schreiben."
+      });
+    }
+
+    const classRes = await pool.query(
+      "SELECT id, name FROM classes WHERE id = $1 AND school_id = $2",
+      [classId, schoolId]
+    );
+    if (!classRes.rows.length) {
+      return res.json({ success: false, message: "Klasse nicht gefunden." });
+    }
+    if (confirmClassName !== classRes.rows[0].name) {
+      return res.json({ success: false, message: "Klassenname stimmt nicht." });
+    }
+
+    const classTopics = await getLevelChecksForClass(classId, schoolId);
+    const topicIds = classTopics.map((t) => t.id);
+
+    await client.query("BEGIN");
+
+    const cps = await client.query(
+      `
+      SELECT id
+      FROM level_check_checkpoints
+      WHERE class_id = $1
+        AND (school_id = $2 OR school_id IS NULL)
+    `,
+      [classId, schoolId]
+    );
+    const checkpointIds = cps.rows.map((row) => row.id);
+
+    if (checkpointIds.length) {
+      await client.query(
+        `
+        DELETE FROM level_check_unlocked_goals
+        WHERE unlocked_by_checkpoint_id = ANY($1::uuid[])
+      `,
+        [checkpointIds]
+      );
+      await client.query("DELETE FROM level_check_checkpoints WHERE id = ANY($1::uuid[])", [
+        checkpointIds
+      ]);
+    }
+
+    if (topicIds.length) {
+      await client.query(
+        `
+        UPDATE level_check_targets
+        SET levelcheck_percent = NULL,
+            achieved_grade_key = NULL,
+            grow_text = NULL,
+            glow_text = NULL,
+            next_goal_text = NULL,
+            xp_achieved_awarded = FALSE,
+            xp_grow_awarded = FALSE,
+            xp_glow_awarded = FALSE,
+            xp_next_goal_awarded = FALSE,
+            updated_at = NOW()
+        WHERE level_check_id = ANY($1::uuid[])
+          AND user_id IN (
+            SELECT id FROM users WHERE class_id = $2 AND role = 'student'
+          )
+      `,
+        [topicIds, classId]
+      );
+    }
+
+    await client.query("COMMIT");
+    res.json({
+      success: true,
+      removedCheckpoints: checkpointIds.length,
+      message: `${checkpointIds.length} Termin(e) gelöscht. Check-Ergebnisse der Klasse zurückgesetzt. Levelplan, XP und Freiheitsränge bleiben.`
+    });
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) {}
+    console.error("❌ POST /api/teacher/classes/:classId/reset-school-year:", err);
+    res.status(500).json({ success: false, message: "Serverfehler beim Zurücksetzen." });
+  } finally {
+    client.release();
   }
 });
 

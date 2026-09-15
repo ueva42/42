@@ -44,6 +44,7 @@
     data: null,
     loading: false,
     saving: false,
+    deleting: false,
     message: "",
     error: "",
     expandedTopicIds: new Set()
@@ -404,9 +405,16 @@
 
           <div class="tc-save-row">
             ${isEditing ? `<button type="button" class="tc-link-btn" id="tcNewCheckpointBtn">Neuen Checkpoint planen</button>` : ""}
-            <button type="button" class="action" id="tcSaveCheckpointBtn" ${state.saving ? "disabled" : ""}>
+            <button type="button" class="action" id="tcSaveCheckpointBtn" ${state.saving || state.deleting ? "disabled" : ""}>
               ${state.saving ? "Speichern…" : `${escapeHtml(saveLabel)} speichern`}
             </button>
+            ${
+              isEditing
+                ? `<button type="button" class="tc-delete-btn" id="tcDeleteCheckpointBtn" ${state.saving || state.deleting ? "disabled" : ""}>
+                    ${state.deleting ? "Löschen…" : "Termin löschen"}
+                  </button>`
+                : ""
+            }
           </div>
         </article>
       </section>`;
@@ -550,6 +558,10 @@
         saveCheckpoint();
       });
 
+      card.querySelector("#tcDeleteCheckpointBtn")?.addEventListener("click", () => {
+        deleteCheckpoint();
+      });
+
       card.querySelector("#tcNewCheckpointBtn")?.addEventListener("click", resetNewForm);
     }
 
@@ -657,6 +669,43 @@
       console.error(err);
       state.saving = false;
       state.error = "Netzwerkfehler beim Speichern.";
+      render();
+    }
+  }
+
+  async function deleteCheckpoint() {
+    if (!state.editCheckpointId || state.deleting || state.saving) return;
+    const cp = checkpointById(state.editCheckpointId);
+    const label = cp
+      ? `${isoToGerman(cp.checkpointDate)} · ${typeLabelFor(cp.checkpointType, cp.checkpointTypeLabel)}`
+      : "diesen Termin";
+    if (!confirm(`Termin wirklich löschen?\n\n${label}`)) return;
+
+    state.deleting = true;
+    state.error = "";
+    state.message = "";
+    render();
+    try {
+      const res = await fetch(
+        `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(state.editCheckpointId)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json().catch(() => ({}));
+      state.deleting = false;
+      if (!res.ok || !data.success) {
+        state.error = data.message || "Löschen fehlgeschlagen.";
+        render();
+        return;
+      }
+      state.message = data.message || "Termin gelöscht.";
+      state.editCheckpointId = null;
+      clearFormDraft();
+      clearRouteParams();
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      state.deleting = false;
+      state.error = "Netzwerkfehler beim Löschen.";
       render();
     }
   }

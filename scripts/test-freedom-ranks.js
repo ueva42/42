@@ -141,16 +141,17 @@ function testPassThresholdAndUnlock() {
     { id: "b", name: "B", sortOrder: 2, levelcheckPercent: null },
     { id: "c", name: "C", sortOrder: 3, levelcheckPercent: null }
   ]);
-  assert(topics[0].locked === false, "first unlocked");
+  assert(topics[0].locked === false, "first open");
   assert(topics[0].levelcheckPassed === true, "first passed");
-  assert(topics[1].locked === false, "second unlocked after 70");
-  assert(topics[2].locked === true, "third locked until second passes");
+  assert(topics[1].locked === false, "second stays open");
+  assert(topics[2].locked === false, "later topics stay open");
 
-  const blocked = applyLevelcheckTopicUnlocks([
+  const under = applyLevelcheckTopicUnlocks([
     { id: "a", name: "A", sortOrder: 1, levelcheckPercent: 50 },
     { id: "b", name: "B", sortOrder: 2 }
   ]);
-  assert(blocked[1].locked === true, "second locked under 70");
+  assert(under[0].levelcheckPassed === false, "50 does not pass check");
+  assert(under[1].locked === false, "next topic stays open under 70");
 }
 
 function testPassedUnlockDoesNotTouchXpOrRank() {

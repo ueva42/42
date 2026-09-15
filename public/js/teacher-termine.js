@@ -13,7 +13,11 @@
     error: "",
     evalCheckpointId: null,
     evalData: null,
-    evalSaving: false
+    evalSaving: false,
+    deletingId: null,
+    resetting: false,
+    resetClassName: "",
+    resetPhrase: ""
   };
 
   function escapeHtml(str) {
@@ -173,7 +177,12 @@
             <span class="tc-checkpoint-item-goals">${goalText}</span>
             <span class="tc-when tc-when-upcoming">anstehend</span>
           </div>
-          <button type="button" class="tc-edit-btn tc-termine-edit" data-checkpoint-id="${escapeHtml(cp.id)}">Bearbeiten</button>
+          <div class="tc-termine-btns">
+            <button type="button" class="tc-edit-btn tc-termine-edit" data-checkpoint-id="${escapeHtml(cp.id)}">Bearbeiten</button>
+            <button type="button" class="tc-delete-btn tc-termine-delete" data-checkpoint-id="${escapeHtml(cp.id)}" ${
+              state.deletingId === String(cp.id) ? "disabled" : ""
+            }>${state.deletingId === String(cp.id) ? "Löschen…" : "Löschen"}</button>
+          </div>
         </li>`;
       })
       .join("");
@@ -181,34 +190,71 @@
     return `<ul class="tc-checkpoint-overview tc-termine-list">${rows}</ul>`;
   }
 
-  function recentPastCheckpoints() {
+  function selectedClassName() {
+    const match = (window.__tmClasses || []).find((c) => sameId(c.id, state.classId));
+    return match?.name || "";
+  }
+
+  function pastCheckpoints() {
     const today = todayIso();
     return allCheckpoints()
       .filter((cp) => cp.dateIso < today)
-      .sort((a, b) => b.dateIso.localeCompare(a.dateIso))
-      .slice(0, 12);
+      .sort((a, b) => b.dateIso.localeCompare(a.dateIso));
   }
 
-  function renderPastLevelchecks() {
-    const items = recentPastCheckpoints().filter((cp) => cp.typeKey === "levelcheck");
+  function renderPastWorks() {
+    const items = pastCheckpoints();
     if (!items.length) {
-      return `<p class="hint">Noch keine vergangenen Levelchecks zum Bewerten.</p>`;
+      return `<p class="hint">Keine vergangenen Arbeiten${state.subjectFilter ? ` für ${escapeHtml(state.subjectFilter)}` : ""}.</p>`;
     }
     const rows = items
-      .map(
-        (cp) => `
+      .map((cp) => {
+        const evalBtn =
+          cp.typeKey === "levelcheck"
+            ? `<button type="button" class="action tc-termine-eval" data-checkpoint-id="${escapeHtml(cp.id)}">Bewerten</button>`
+            : "";
+        return `
       <li class="tc-checkpoint-item">
         <div class="tc-checkpoint-item-body tc-termine-item-body">
           <span class="tc-checkpoint-item-date">${escapeHtml(isoToGerman(cp.dateIso))}</span>
           <span class="tc-termine-subject">${escapeHtml(cp.subject)}</span>
           <span class="tc-termine-type">${escapeHtml(cp.typeLabel)}</span>
           <span class="tc-checkpoint-item-thema">${escapeHtml(cp.topicName || "–")}</span>
+          <span class="tc-when tc-when-past">vergangen</span>
         </div>
-        <button type="button" class="action tc-termine-eval" data-checkpoint-id="${escapeHtml(cp.id)}">Bewerten</button>
-      </li>`
-      )
+        <div class="tc-termine-btns">
+          ${evalBtn}
+          <button type="button" class="tc-delete-btn tc-termine-delete" data-checkpoint-id="${escapeHtml(cp.id)}" ${
+            state.deletingId === String(cp.id) ? "disabled" : ""
+          }>${state.deletingId === String(cp.id) ? "Löschen…" : "Löschen"}</button>
+        </div>
+      </li>`;
+      })
       .join("");
     return `<ul class="tc-checkpoint-overview tc-termine-list">${rows}</ul>`;
+  }
+
+  function renderYearReset() {
+    const className = selectedClassName();
+    const count = allCheckpoints().length;
+    return `
+      <section class="tc-year-reset" aria-label="Schuljahr zurücksetzen">
+        <h3>Neues Schuljahr</h3>
+        <p class="hint">
+          Löscht <strong>alle Termine und Arbeiten</strong> dieser Klasse (Klassenarbeiten, Tests, Levelchecks)
+          inklusive Bewertungen und %-Ergebnisse. Levelplan, XP, Freiheitsränge und Schüler:innen bleiben.
+        </p>
+        <p class="hint">Aktuell ${count} Termin(e) in ${escapeHtml(className || "dieser Klasse")}.</p>
+        <label class="lpi-label" for="tmResetClassName">Klassenname zur Bestätigung
+          <input id="tmResetClassName" type="text" autocomplete="off" placeholder="${escapeHtml(className)}" value="${escapeHtml(state.resetClassName)}" ${state.resetting ? "disabled" : ""}>
+        </label>
+        <label class="lpi-label" for="tmResetPhrase">Genau schreiben: Schuljahr zurücksetzen
+          <input id="tmResetPhrase" type="text" autocomplete="off" placeholder="Schuljahr zurücksetzen" value="${escapeHtml(state.resetPhrase)}" ${state.resetting ? "disabled" : ""}>
+        </label>
+        <button type="button" class="tc-delete-btn tc-topic-delete-btn" id="tmResetYearBtn" ${state.resetting ? "disabled" : ""}>
+          ${state.resetting ? "Setze zurück…" : "Schuljahr zurücksetzen"}
+        </button>
+      </section>`;
   }
 
   function renderEvalModal() {
@@ -296,7 +342,7 @@
       <div class="panel">
         <h2>Termine</h2>
         <p class="hint">
-          Alle anstehenden Nachweise auf einen Blick. Mit „Bearbeiten“ springst du direkt zu Levelcheck planen.
+          Alle anstehenden Nachweise auf einen Blick. Mit „Bearbeiten“ springst du zu Levelcheck planen, mit „Löschen“ entfernst du den Termin.
         </p>
 
         <div class="tc-toolbar">
@@ -318,8 +364,10 @@
         <h3>Anstehend</h3>
         ${renderList()}
 
-        <h3 style="margin-top:18px;">Vergangene Levelchecks</h3>
-        ${renderPastLevelchecks()}
+        <h3 style="margin-top:18px;">Vergangene Arbeiten</h3>
+        ${renderPastWorks()}
+
+        ${renderYearReset()}
       </div>
       ${renderEvalModal()}`;
 
@@ -343,6 +391,8 @@
       state.classId = Number(e.target.value);
       state.message = "";
       state.error = "";
+      state.resetClassName = "";
+      state.resetPhrase = "";
       loadData();
     });
 
@@ -370,6 +420,18 @@
         if (cp) openCheckpointInPlan(cp);
       });
     });
+
+    root.querySelectorAll(".tc-termine-delete").forEach((btn) => {
+      btn.addEventListener("click", () => deleteCheckpoint(btn.dataset.checkpointId));
+    });
+
+    root.querySelector("#tmResetClassName")?.addEventListener("input", (e) => {
+      state.resetClassName = e.target.value;
+    });
+    root.querySelector("#tmResetPhrase")?.addEventListener("input", (e) => {
+      state.resetPhrase = e.target.value;
+    });
+    root.querySelector("#tmResetYearBtn")?.addEventListener("click", resetSchoolYear);
 
     root.querySelectorAll(".tc-termine-eval").forEach((btn) => {
       btn.addEventListener("click", () => openEvalModal(btn.dataset.checkpointId));
@@ -458,6 +520,107 @@
       console.error(err);
       state.error = "Netzwerkfehler beim Speichern.";
       if (btn) btn.disabled = false;
+      render();
+    }
+  }
+
+  async function deleteCheckpoint(checkpointId) {
+    if (!checkpointId || state.deletingId) return;
+    const cp = allCheckpoints().find((item) => sameId(item.id, checkpointId));
+    const label = cp
+      ? `${isoToGerman(cp.dateIso)} · ${cp.subject} · ${cp.typeLabel || "Nachweis"}`
+      : "diesen Termin";
+    if (!confirm(`Termin wirklich löschen?\n\n${label}`)) return;
+
+    state.deletingId = String(checkpointId);
+    state.error = "";
+    state.message = "";
+    render();
+    try {
+      const res = await fetch(
+        `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(checkpointId)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json().catch(() => ({}));
+      state.deletingId = null;
+      if (!res.ok || !data.success) {
+        state.error = data.message || "Löschen fehlgeschlagen.";
+        render();
+        return;
+      }
+      state.message = data.message || "Termin gelöscht.";
+      if (sameId(state.evalCheckpointId, checkpointId)) {
+        state.evalCheckpointId = null;
+        state.evalData = null;
+      }
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      state.deletingId = null;
+      state.error = "Netzwerkfehler beim Löschen.";
+      render();
+    }
+  }
+
+  async function resetSchoolYear() {
+    if (state.resetting) return;
+    const className = selectedClassName();
+    const typedName = String(state.resetClassName || "").trim();
+    const typedPhrase = String(state.resetPhrase || "").trim();
+    if (!className) {
+      state.error = "Bitte zuerst eine Klasse wählen.";
+      render();
+      return;
+    }
+    if (typedName !== className) {
+      state.error = `Bitte den Klassennamen genau eingeben: ${className}`;
+      render();
+      return;
+    }
+    if (typedPhrase !== "Schuljahr zurücksetzen") {
+      state.error = "Bitte zur Bestätigung genau „Schuljahr zurücksetzen“ schreiben.";
+      render();
+      return;
+    }
+    if (
+      !confirm(
+        `Alle Termine und Arbeiten von Klasse ${className} unwiderruflich löschen?\n\nLevelplan, XP und Freiheitsränge bleiben.`
+      )
+    ) {
+      return;
+    }
+
+    state.resetting = true;
+    state.error = "";
+    state.message = "";
+    render();
+    try {
+      const res = await fetch(
+        `/api/teacher/classes/${encodeURIComponent(state.classId)}/reset-school-year`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            confirmClassName: typedName,
+            confirmPhrase: typedPhrase
+          })
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      state.resetting = false;
+      if (!res.ok || !data.success) {
+        state.error = data.message || "Zurücksetzen fehlgeschlagen.";
+        render();
+        return;
+      }
+      state.resetClassName = "";
+      state.resetPhrase = "";
+      state.message = data.message || "Schuljahr zurückgesetzt.";
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      state.resetting = false;
+      state.error = "Netzwerkfehler beim Zurücksetzen.";
       render();
     }
   }

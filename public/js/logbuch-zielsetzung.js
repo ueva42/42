@@ -581,7 +581,7 @@
         tabindex="${editable ? "0" : "-1"}"
       >
         <div class="lc-dial__ring" aria-hidden="true"></div>
-        <div class="lc-dial__threshold" aria-hidden="true" title="Freigabe ab ${threshold} %"></div>
+        <div class="lc-dial__threshold" aria-hidden="true" title="Check erreicht ab ${threshold} %"></div>
         <div class="lc-dial__knob" aria-hidden="true"></div>
         <div class="lc-dial__center">
           <strong data-lc-dial-value>${pct} %</strong>
@@ -591,8 +591,8 @@
       <p class="lc-dial__hint">
         ${
           passed
-            ? `Ab ${threshold} % – nächstes Thema freigeschaltet.`
-            : `Drehen oder schieben · ab ${threshold} % freigeschaltet.`
+            ? `Ab ${threshold} % gilt der Check als erreicht.`
+            : `Drehen oder schieben · Markierung bei ${threshold} %.`
         }
       </p>
       ${
@@ -789,7 +789,6 @@
       ? formatGradeLabel(topic.targetGradeLabel || topic.targetGrade)
       : "–";
     const locked = !!topic?.locked;
-    const threshold = topic?.unlockThreshold || passPercent();
     const showZielnote = topic?.requiresTargetGrade !== false;
 
     return `
@@ -798,13 +797,6 @@
           <p class="zielpfad-hero-panel__eyebrow">Mein Zielpfad</p>
           <h2 class="zielpfad-hero-panel__title">${subject} · ${name}</h2>
           <p class="zielpfad-hero-panel__sub">${typePart} · ${datePart}</p>
-          ${
-            locked
-              ? `<p class="zielpfad-hero-panel__lock">${escapeHtml(
-                  topic.unlockHint || `Noch gesperrt – zuerst ${threshold} % im vorherigen Levelcheck.`
-                )}</p>`
-              : ""
-          }
           ${
             !showZielnote
               ? `<p class="zielpfad-hero-panel__lock">Levelchecks ohne Zielnote – Ergebnis und geprüfte Ziele findest du im <b>Levelplan</b>.</p>`
@@ -830,16 +822,6 @@
                   >${hasTarget ? "Zielnote ändern" : "Zielnote festlegen"}</button>
                 </article>
               </div>`
-            : topic && locked
-              ? `<div class="zielpfad-hero-panel__grades">
-                  <article class="zielpfad-grade-glow">
-                    <span class="zielpfad-grade-glow__label">Thema gesperrt</span>
-                    <strong class="zielpfad-grade-glow__value is-muted">🔒</strong>
-                    <p class="zielpfad-grade-glow__hint">${escapeHtml(
-                      topic.unlockHint || `Freigabe ab ${threshold} % im vorherigen Levelcheck.`
-                    )}</p>
-                  </article>
-                </div>`
               : ""
         }
       </article>`;
@@ -1211,7 +1193,7 @@
         <h3 class="zielpfad-block__title">Nach der Klassenarbeit / dem Test</h3>
         <article class="zielpfad-result-card">
           <p class="zielpfad-result__pending">
-            Levelcheck-Ergebnisse trägst du im <b>Levelplan</b> ein (Kreisregler, ab 70 % nächstes Thema).
+            Levelcheck-Ergebnisse trägst du im <b>Levelplan</b> ein (Kreisregler).
             Hier geht es um deine Zielnote für Klassenarbeit oder Test.
           </p>
           ${renderFeedbackSection(topic)}
@@ -1304,12 +1286,6 @@
   }
 
   function renderTopicZielpfad(topic) {
-    if (topic?.locked) {
-      return `
-      <div class="zielpfad-topic is-locked" data-topic-id="${escapeHtml(topic.id)}">
-        ${renderZielpfadHero(topic)}
-      </div>`;
-    }
     return `
       <div class="zielpfad-topic" data-topic-id="${escapeHtml(topic.id)}">
         ${renderLevelCards(topic)}
@@ -1678,8 +1654,8 @@
     const hint = dial.parentElement?.querySelector(".lc-dial__hint");
     if (hint) {
       hint.textContent = passed
-        ? `Ab ${threshold} % – nächstes Thema freigeschaltet.`
-        : `Drehen oder schieben · ab ${threshold} % freigeschaltet.`;
+        ? `Ab ${threshold} % gilt der Check als erreicht.`
+        : `Drehen oder schieben · Markierung bei ${threshold} %.`;
     }
     if (state.modal?.type === "levelcheckResult" && state.modal.topicId === dial.dataset.topicId) {
       state.modal.draft = pct;
@@ -1823,11 +1799,9 @@
 
       const label = feedbackFieldLabel(field);
       const unlockMsg =
-        field === "levelcheckPercent" && data.nextTopicUnlocked
-          ? " · Nächstes Thema freigeschaltet"
-          : field === "levelcheckPercent" && data.levelcheckPercent != null
-            ? ` · ${data.levelcheckPercent} % gespeichert`
-            : "";
+        field === "levelcheckPercent" && data.levelcheckPercent != null
+          ? ` · ${data.levelcheckPercent} % gespeichert`
+          : "";
       state.message = `${label} gespeichert${unlockMsg}${buildXpMessage(data.xpDetails)}`;
       // Unlock-Status für alle Themen neu laden
       await loadData(initGeneration);
