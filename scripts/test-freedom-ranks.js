@@ -18,7 +18,8 @@ import {
   resolveLevelcheckEvalStatus,
   normalizeLevelcheckEvalStatus,
   isLevelcheckPassPercent,
-  applyLevelcheckTopicUnlocks
+  applyLevelcheckTopicUnlocks,
+  splitZielsetzungTopics
 } from "../lib/levelcheck-evaluation.js";
 import fs from "fs";
 import path from "path";
@@ -154,6 +155,56 @@ function testPassThresholdAndUnlock() {
   assert(under[1].locked === false, "next topic stays open under 70");
 }
 
+function testZielsetzungPastArbeitenNeedCheckpoints() {
+  const today = "2026-09-15";
+  const catalogOnly = splitZielsetzungTopics(
+    [
+      { id: "koerper", name: "Körper", sortOrder: 1, hasGradedCheckpoint: false },
+      { id: "kreis", name: "Kreis", sortOrder: 2, hasGradedCheckpoint: false },
+      { id: "potenzen", name: "Potenzen und Wurzeln", sortOrder: 3, hasGradedCheckpoint: false }
+    ],
+    null,
+    today
+  );
+  assert(catalogOnly.upcoming === null, "no upcoming without KA");
+  assert(catalogOnly.past.length === 0, "catalog topics are not past Arbeiten");
+
+  const afterWipe = splitZielsetzungTopics(
+    [
+      { id: "a", name: "A", hasGradedCheckpoint: false, checkpointDate: null },
+      { id: "b", name: "B", hasGradedCheckpoint: false, checkpointDate: "2026-03-01" }
+    ],
+    "a",
+    today
+  );
+  assert(afterWipe.upcoming === null, "upcoming id ignored without graded checkpoint");
+  assert(afterWipe.past.length === 0, "wipe leaves no archived Arbeiten");
+
+  const withKa = splitZielsetzungTopics(
+    [
+      {
+        id: "future",
+        name: "Zukunft",
+        hasGradedCheckpoint: true,
+        checkpointDate: "2026-10-01",
+        sortOrder: 2
+      },
+      {
+        id: "past",
+        name: "Vergangen",
+        hasGradedCheckpoint: true,
+        checkpointDate: "2026-03-01",
+        sortOrder: 1
+      },
+      { id: "catalog", name: "Katalog", hasGradedCheckpoint: false, sortOrder: 0 }
+    ],
+    "future",
+    today
+  );
+  assert(withKa.upcoming?.id === "future", "upcoming KA");
+  assert(withKa.past.length === 1 && withKa.past[0].id === "past", "only past KA archived");
+}
+
 function testPassedUnlockDoesNotTouchXpOrRank() {
   const before = { xp: 88, freedom_rank: "navigator" };
   const evaluation = { status: "passed", unlockedGoalIds: ["g1", "g2"] };
@@ -177,6 +228,7 @@ testClassXpEarnedNotSpend();
 testLevelcheckEvalStatuses();
 testLevelcheckPercentBounds();
 testPassThresholdAndUnlock();
+testZielsetzungPastArbeitenNeedCheckpoints();
 testPassedUnlockDoesNotTouchXpOrRank();
 testNewStudentDefault();
 

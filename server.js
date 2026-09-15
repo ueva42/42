@@ -52,7 +52,8 @@ import {
   parseLevelcheckPercent,
   resolveLevelcheckEvalStatus,
   isLevelcheckPassPercent,
-  applyLevelcheckTopicUnlocks
+  applyLevelcheckTopicUnlocks,
+  splitZielsetzungTopics
 } from "./lib/levelcheck-evaluation.js";
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
 
@@ -516,6 +517,11 @@ function buildTopicTargetProgress(check, targetsRow = null) {
     ),
     requiresTargetGrade: !!gradedCheckpoint,
     hasGradedCheckpoint: !!gradedCheckpoint,
+    isPastArbeit: !!(
+      gradedCheckpoint &&
+      normalizeIsoDate(gradedCheckpoint.checkpointDate) &&
+      normalizeIsoDate(gradedCheckpoint.checkpointDate) < todayIsoDate()
+    ),
     hasLevelcheckCheckpoint: !!levelcheckCheckpoint,
     levelcheckCheckpoint: levelcheckCheckpoint
       ? {
@@ -6735,7 +6741,9 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
           onTrack: null,
           summary: null,
           workItems: [],
-          allWorkItems: []
+          allWorkItems: [],
+          hasGradedCheckpoint: false,
+          isPastArbeit: false
         };
       }
     });
@@ -6745,17 +6753,12 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
       const subject = group.subject;
       // Zielpfad: nur Klassenarbeit/Test – Levelchecks laufen über den Levelplan
       const gradedPick = pickUpcomingCheckpoint(checks, subject, GRADED_CHECKPOINT_TYPES);
-      let chosen = gradedPick
-        ? (group.topics || []).find((t) => t.id === gradedPick.id)
-        : null;
-      if (!chosen) {
-        chosen =
-          (group.topics || []).find(
-            (t) => !t.locked && t.requiresTargetGrade && !t.levelcheckPassed
-          ) ||
-          (group.topics || []).find((t) => !t.locked && t.requiresTargetGrade) ||
-          null;
-      }
+      const { upcoming: splitUpcoming } = splitZielsetzungTopics(
+        group.topics,
+        gradedPick?.id,
+        todayIsoDate()
+      );
+      const chosen = splitUpcoming;
       if (chosen) {
         upcomingBySubject[subject] = {
           id: chosen.id,
@@ -7973,21 +7976,41 @@ app.post("/api/teacher/classes/:classId/reset-school-year", isAdmin, async (req,
       `
       SELECT id
       FROM level_check_checkpoints
-      WHERE class_id = $1
-        AND (school_id = $2 OR school_id IS NULL)
+      WHERE (school_id = $2 OR school_id IS NULL)
+        AND (
+          class_id = $1
+          OR (
+            class_id IS NULL
+            AND level_check_id IN (SELECT id FROM level_checks WHERE class_id = $1)
+          )
+        )
     `,
       [classId, schoolId]
     );
     const checkpointIds = cps.rows.map((row) => row.id);
 
+    await client.query(
+      `
+      DELETE FROM level_check_unlocked_goals
+      WHERE user_id IN (
+        SELECT id FROM users WHERE class_id = $1 AND role = 'student'
+      )
+    `,
+      [classId]
+    );
+
+    await client.query(
+      `
+      DELETE FROM level_check_checkpoint_evaluations
+      WHERE user_id IN (
+        SELECT id FROM users WHERE class_id = $1 AND role = 'student'
+      )
+         OR checkpoint_id = ANY($2::uuid[])
+    `,
+      [classId, checkpointIds]
+    );
+
     if (checkpointIds.length) {
-      await client.query(
-        `
-        DELETE FROM level_check_unlocked_goals
-        WHERE unlocked_by_checkpoint_id = ANY($1::uuid[])
-      `,
-        [checkpointIds]
-      );
       await client.query("DELETE FROM level_check_checkpoints WHERE id = ANY($1::uuid[])", [
         checkpointIds
       ]);
@@ -7996,17 +8019,7 @@ app.post("/api/teacher/classes/:classId/reset-school-year", isAdmin, async (req,
     if (topicIds.length) {
       await client.query(
         `
-        UPDATE level_check_targets
-        SET levelcheck_percent = NULL,
-            achieved_grade_key = NULL,
-            grow_text = NULL,
-            glow_text = NULL,
-            next_goal_text = NULL,
-            xp_achieved_awarded = FALSE,
-            xp_grow_awarded = FALSE,
-            xp_glow_awarded = FALSE,
-            xp_next_goal_awarded = FALSE,
-            updated_at = NOW()
+        DELETE FROM level_check_targets
         WHERE level_check_id = ANY($1::uuid[])
           AND user_id IN (
             SELECT id FROM users WHERE class_id = $2 AND role = 'student'
@@ -8020,7 +8033,7 @@ app.post("/api/teacher/classes/:classId/reset-school-year", isAdmin, async (req,
     res.json({
       success: true,
       removedCheckpoints: checkpointIds.length,
-      message: `${checkpointIds.length} Termin(e) gelöscht. Check-Ergebnisse der Klasse zurückgesetzt. Levelplan, XP und Freiheitsränge bleiben.`
+      message: `${checkpointIds.length} Termin(e) gelöscht. Zielsetzung (vergangene Arbeiten, Zielnote, Feedback) der Klasse geleert. Levelplan, XP und Freiheitsränge bleiben.`
     });
   } catch (err) {
     try {

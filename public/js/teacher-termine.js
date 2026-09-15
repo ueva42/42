@@ -242,7 +242,8 @@
         <h3>Neues Schuljahr</h3>
         <p class="hint">
           Löscht <strong>alle Termine und Arbeiten</strong> dieser Klasse (Klassenarbeiten, Tests, Levelchecks)
-          inklusive Bewertungen und %-Ergebnisse. Levelplan, XP, Freiheitsränge und Schüler:innen bleiben.
+          inklusive Bewertungen, Zielnoten und der Schüler-Liste „Vergangene Arbeiten“.
+          Levelplan, XP, Freiheitsränge und Schüler:innen bleiben.
         </p>
         <p class="hint">Aktuell ${count} Termin(e) in ${escapeHtml(className || "dieser Klasse")}.</p>
         <label class="lpi-label" for="tmResetClassName">Klassenname zur Bestätigung
@@ -584,7 +585,7 @@
     }
     if (
       !confirm(
-        `Alle Termine und Arbeiten von Klasse ${className} unwiderruflich löschen?\n\nLevelplan, XP und Freiheitsränge bleiben.`
+        `Alle Termine und Arbeiten von Klasse ${className} unwiderruflich löschen?\n\nAuch Zielnoten und vergangene Arbeiten in der Schüler-Zielsetzung verschwinden.\nLevelplan, XP und Freiheitsränge bleiben.`
       )
     ) {
       return;

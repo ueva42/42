@@ -278,20 +278,23 @@
     return topic.checkpointDate < today;
   }
 
+  function isPastGradedArbeit(topic) {
+    if (topic?.isPastArbeit === true && topic?.hasGradedCheckpoint) return true;
+    return !!(topic?.hasGradedCheckpoint && isCheckpointPast(topic));
+  }
+
   function splitTopicsForSubject(group) {
     const topics = group?.topics || [];
     const upcomingId = upcomingTopicMeta()?.id;
     let upcoming = upcomingId
-      ? topics.find((t) => t.id === upcomingId) || null
+      ? topics.find((t) => t.id === upcomingId && t.hasGradedCheckpoint) || null
       : null;
     if (!upcoming) {
       upcoming =
-        topics.find((t) => !t.locked && !t.levelcheckPassed) ||
-        topics.find((t) => !t.locked) ||
-        null;
+        topics.find((t) => t.hasGradedCheckpoint && !isCheckpointPast(t)) || null;
     }
     const past = topics
-      .filter((t) => !upcoming || t.id !== upcoming.id)
+      .filter((t) => isPastGradedArbeit(t) && (!upcoming || t.id !== upcoming.id))
       .sort((a, b) => {
         const da = a.checkpointDate || "";
         const db = b.checkpointDate || "";
