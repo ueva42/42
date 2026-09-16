@@ -311,26 +311,33 @@
     return Number.isInteger(n) && n >= 0 && n <= 100 ? n : null;
   }
 
+  function materialLinkLabel(goal, material) {
+    const raw = String(material?.label || goal.materialLabel || "").trim();
+    if (!raw || /^(quiz|lerncheck)(\s+öffnen)?$/i.test(raw)) return "Material";
+    return raw;
+  }
+
   function renderPracticeDial(goal) {
     if (!hasQuizMaterial(goal)) return "";
     const pct = practicePercentOf(goal);
-    const shown = pct == null ? "" : String(pct);
+    const shown = pct == null ? 0 : pct;
     const passed = pct != null && pct >= passPercent();
     return `
-      <label class="lp-practice-chip ${passed ? "is-pass" : ""}" data-lp-practice-wrap data-goal-id="${escapeHtml(goal.id)}" title="Ergebnis vom Quiz">
-        <input
-          type="number"
-          class="lp-practice-input"
-          min="0"
-          max="100"
-          step="1"
-          inputmode="numeric"
-          value="${escapeHtml(shown)}"
-          placeholder="–"
-          aria-label="Prozent im Quiz"
-        />
-        <span class="lp-practice-chip__suffix">%</span>
-      </label>`;
+      <div class="lp-practice-slider ${passed ? "is-pass" : ""}" data-lp-practice-wrap data-goal-id="${escapeHtml(goal.id)}">
+        <p class="lp-practice-caption">Lernnachweis</p>
+        <div class="lp-practice-slider__row">
+          <input
+            type="range"
+            class="lp-practice-range"
+            min="0"
+            max="100"
+            step="1"
+            value="${shown}"
+            aria-label="Lernnachweis in Prozent"
+          />
+          <strong class="lp-practice-slider__value" data-lp-practice-value>${pct == null ? "–" : `${pct} %`}</strong>
+        </div>
+      </div>`;
   }
 
   function renderMaterialCell(goal) {
@@ -339,8 +346,7 @@
     let body = `<span class="lp-material-empty" aria-hidden="true">–</span>`;
     if (type === "url" && (material?.url || goal.practiceUrl)) {
       const url = material?.url || goal.practiceUrl;
-      const rawLabel = material?.label || goal.materialLabel || "Quiz";
-      const label = /lerncheck/i.test(rawLabel) ? "Quiz" : rawLabel;
+      const label = materialLinkLabel(goal, material);
       body = `<a class="lp-material-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
     } else if (type === "reference" || type === "note") {
       const parts = [material?.label || goal.materialLabel, material?.note || goal.materialNote].filter(Boolean);
@@ -944,23 +950,26 @@
   const practiceSaveTimers = {};
 
   function bindPracticeDials(root) {
-    root.querySelectorAll(".lp-practice-input").forEach((input) => {
-      const wrap = input.closest("[data-lp-practice-wrap]");
+    root.querySelectorAll(".lp-practice-range").forEach((range) => {
+      const wrap = range.closest("[data-lp-practice-wrap]");
       const goalId = wrap?.dataset.goalId;
       if (!goalId) return;
+      const valueEl = wrap.querySelector("[data-lp-practice-value]");
       const commit = () => {
-        const parsed = Number(String(input.value).trim());
+        const parsed = Number(range.value);
         if (!Number.isInteger(parsed) || parsed < 0 || parsed > 100) return;
         wrap.classList.toggle("is-pass", parsed >= passPercent());
+        if (valueEl) valueEl.textContent = `${parsed} %`;
         savePracticePercent(goalId, parsed);
       };
-      input.addEventListener("input", () => {
-        const parsed = Number(String(input.value).trim());
-        wrap.classList.toggle("is-pass", Number.isInteger(parsed) && parsed >= passPercent());
+      range.addEventListener("input", () => {
+        const parsed = Number(range.value) || 0;
+        wrap.classList.toggle("is-pass", parsed >= passPercent());
+        if (valueEl) valueEl.textContent = `${parsed} %`;
         clearTimeout(practiceSaveTimers[goalId]);
-        practiceSaveTimers[goalId] = setTimeout(commit, 450);
+        practiceSaveTimers[goalId] = setTimeout(commit, 400);
       });
-      input.addEventListener("change", commit);
+      range.addEventListener("change", commit);
     });
   }
 

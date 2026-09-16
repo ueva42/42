@@ -6445,8 +6445,8 @@ body.student-app .card.section > h2 {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 108px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .lp-status-wrap.is-open .lp-status-cell {
@@ -6473,7 +6473,7 @@ body.student-app .card.section > h2 {
 
 .lp-table__topic {
   text-align: left;
-  width: 28%;
+  width: 22%;
 }
 
 .lp-topic-btn {
@@ -6501,47 +6501,55 @@ body.student-app .card.section > h2 {
 
 .lp-material-cell {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+.lp-practice-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.lp-practice-caption {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.lp-practice-slider__row {
+  display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-.lp-practice-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  min-height: 34px;
-  padding: 0 8px 0 6px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(15, 23, 42, 0.85);
-  color: #94a3b8;
-  font-size: 12px;
-  font-weight: 800;
-}
-.lp-practice-chip.is-pass {
-  border-color: rgba(34, 197, 94, 0.45);
-  color: #86efac;
-}
-.lp-practice-input {
-  width: 2.4em;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: right;
-  padding: 0;
-  appearance: textfield;
-}
-.lp-practice-input::-webkit-outer-spin-button,
-.lp-practice-input::-webkit-inner-spin-button {
-  appearance: none;
+.lp-practice-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 6px;
   margin: 0;
+  accent-color: #22d3ee;
+}
+.lp-practice-slider.is-pass .lp-practice-range {
+  accent-color: #22c55e;
+}
+.lp-practice-slider__value {
+  flex: 0 0 2.8em;
+  font-size: 11px;
+  font-weight: 800;
+  color: #cbd5e1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.lp-practice-slider.is-pass .lp-practice-slider__value {
+  color: #86efac;
 }
 .lp-table__material,
 .lp-table td:last-child {
-  width: 18%;
+  width: 24%;
 }
 
 .lp-status-cell {
@@ -6549,16 +6557,17 @@ body.student-app .card.section > h2 {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
-  min-height: 44px;
-  border-radius: 12px;
+  min-height: 28px;
+  padding: 4px 6px;
+  border-radius: 8px;
   border: 1px solid rgba(148, 163, 184, 0.18);
   background: rgba(15, 23, 42, 0.85);
   color: #cbd5e1;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
@@ -6628,14 +6637,15 @@ body.student-app .card.section > h2 {
 .lp-material-link {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
+  align-self: flex-start;
+  min-height: 28px;
   max-width: 100%;
-  padding: 6px 10px;
-  border-radius: 10px;
+  padding: 4px 8px;
+  border-radius: 8px;
   border: 1px solid rgba(34, 211, 238, 0.35);
   background: rgba(34, 211, 238, 0.1);
   color: #a5f3fc;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
@@ -11355,7 +11365,7 @@ h2 {
 <script src="/js/logbuch-reflect.js?v=6"></script>
 <script src="/js/logbuch-today.js?v=34"></script>
 <script src="/js/logbuch-week.js?v=9"></script>
-<script src="/js/logbuch-levelplan.js?v=21"></script>
+<script src="/js/logbuch-levelplan.js?v=22"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=27"></script>
