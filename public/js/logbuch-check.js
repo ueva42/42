@@ -135,6 +135,8 @@
     entryId: null,
     entry: null,
     existingCheck: null,
+    plannedWork: null,
+    needsMidCheck: true,
     onTrack: null,
     understands: null,
     progress: null,
@@ -283,24 +285,35 @@
   }
 
   function missionSummaryLine(entry) {
-    const parts = [
-      entry?.what_goal_text,
-      levelLabel(entry?.selected_level, entry),
-      entry?.subject
-    ].filter(Boolean);
-    return parts.join(" · ") || "Mission ansehen";
+    const work = plannedWorkFromState();
+    const parts = [work.whatGoalText, work.levelLabel, work.subject || entry?.subject].filter(Boolean);
+    return parts.join(" · ") || "Heute geplant ansehen";
+  }
+
+  function plannedWorkFromState() {
+    const work = state.plannedWork || {};
+    const entry = state.entry || {};
+    return {
+      whatGoalText: work.whatGoalText || entry.what_goal_text || "",
+      howGoalText: work.howGoalText || entry.how_goal_text || entry.goal || "",
+      levelGoalText: work.levelGoalText || entry.level_goal_text || "",
+      detailsText: work.detailsText || entry.details_text || "",
+      levelLabel: work.levelLabel || levelLabel(entry.selected_level, entry),
+      planB: work.planB || entry.plan_b_strategy_text || "",
+      subject: work.subject || entry.subject || ""
+    };
   }
 
   function missionFacts(entry) {
+    const work = plannedWorkFromState();
     const facts = [
-      ["Was-Ziel", entry.what_goal_text || "–"],
-      ["Level", levelLabel(entry.selected_level, entry)],
-      ["Fachliches Ziel", entry.level_goal_text || "–"],
-      ["Mein Weg zum Ziel", entry.how_goal_text || entry.goal || "–"]
+      ["Was-Ziel", work.whatGoalText || "–"],
+      ["Level", work.levelLabel || "–"],
+      ["Fachliches Ziel", work.levelGoalText || "–"],
+      ["Mein Weg zum Ziel", work.howGoalText || "–"]
     ];
-    if (entry.plan_b_strategy_text) {
-      facts.push(["Plan B", entry.plan_b_strategy_text]);
-    }
+    if (work.detailsText) facts.push(["Konkret", work.detailsText]);
+    if (work.planB) facts.push(["Plan B", work.planB]);
     return facts;
   }
 
@@ -331,17 +344,33 @@
   }
 
   function renderDailyGoalCard(ui, entry) {
-    const facts = missionFacts(entry);
+    const work = plannedWorkFromState();
+    const empty = !work.whatGoalText && !work.howGoalText && !work.levelGoalText;
     return `
       <section class="check-daily-goal">
-        <h3 class="check-daily-goal-title">Meine Mission</h3>
+        <h3 class="check-daily-goal-title">Heute geplant</h3>
         <div class="check-daily-goal-card">
-          ${facts
-            .map(
-              ([label, value]) =>
-                `<p><strong>${ui.escapeHtml(label)}:</strong><br>${ui.escapeHtml(value)}</p>`
-            )
-            .join("")}
+          ${
+            empty
+              ? `<p>Für ${ui.escapeHtml(work.subject || "dieses Fach")} ist noch kein Was-Ziel hinterlegt. Setze zuerst dein Tagesziel.</p>`
+              : `<p><strong>Was-Ziel:</strong><br>${ui.escapeHtml(work.whatGoalText || "–")}</p>
+                 <p><strong>Level:</strong><br>${ui.escapeHtml(work.levelLabel || "–")}</p>
+                 ${
+                   work.levelGoalText
+                     ? `<p><strong>Fachliches Ziel:</strong><br>${ui.escapeHtml(work.levelGoalText)}</p>`
+                     : ""
+                 }
+                 ${
+                   work.howGoalText
+                     ? `<p><strong>Mein Weg zum Ziel:</strong><br>${ui.escapeHtml(work.howGoalText)}</p>`
+                     : ""
+                 }
+                 ${
+                   work.detailsText
+                     ? `<p><strong>Konkret:</strong><br>${ui.escapeHtml(work.detailsText)}</p>`
+                     : ""
+                 }`
+          }
         </div>
       </section>`;
   }
@@ -587,7 +616,7 @@
           <div class="plan-app-hero__copy">
             <p class="plan-app-hero__eyebrow">Schritt 2 von 3 · Check</p>
             <h2 class="plan-app-hero__title">Zwischen-Check</h2>
-            <p class="plan-app-hero__meta">Wie läuft es gerade in deiner Stunde?</p>
+            <p class="plan-app-hero__meta">Wie läuft es mit deinem heutigen Was-Ziel?</p>
             ${
               chips.length
                 ? `<div class="plan-app-hero__chips">${chips
@@ -697,6 +726,29 @@
       return;
     }
 
+    if (state.needsMidCheck === false && !state.existingCheck) {
+      const rootSkip = document.getElementById("check-screen-root");
+      if (!rootSkip) return;
+      const uiSkip = UI();
+      rootSkip.innerHTML = `
+        <div class="plan-app">
+          ${renderDailyGoalCard(uiSkip, state.entry)}
+          <div class="logbuch-msg logbuch-msg-info">
+            Heute steht ${uiSkip.escapeHtml(state.entry.subject || "dieses Fach")} nur einmal im Stundenplan – der Zwischen-Check entfällt.
+          </div>
+          ${uiSkip.btnPrimary("Zum Tagesabschluss", "checkGoReflectBtn", false, "today-app-btn")}
+          ${uiSkip.btnGhost("Zurück zu Mein Tag", "checkBackBtn", "today-app-btn today-app-btn--ghost")}
+        </div>`;
+      rootSkip.querySelector("#checkGoReflectBtn")?.addEventListener("click", () => {
+        const q = new URLSearchParams({ entryId: state.entryId });
+        window.StudentRouter?.navigateToSection("reflect", { query: q });
+      });
+      rootSkip.querySelector("#checkBackBtn")?.addEventListener("click", () => {
+        window.StudentRouter?.navigateToSection("today");
+      });
+      return;
+    }
+
     const ui = UI();
     const visuals = V();
     const e = state.entry;
@@ -746,13 +798,14 @@
     root.innerHTML = `
       <div class="plan-app check-app plan-app--accordion">
         ${renderHero(ui, e, dateIso)}
+        ${renderDailyGoalCard(ui, e)}
         ${
           state.existingCheck?.canEdit
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest deinen Zwischen-Check – beim Speichern gibt es kein zusätzliches XP.</div>`
             : ""
         }
         <div class="plan-acc-stack">
-          ${renderAccordionStep(1, "Meine Mission", ui.escapeHtml(missionSummaryLine(e)), missionBody, {
+          ${renderAccordionStep(1, "Heute geplant", ui.escapeHtml(missionSummaryLine(e)), missionBody, {
             done: s1,
             canOpen: true,
             hint: "Kurz ansehen, dann weiter"
@@ -957,6 +1010,8 @@
     state.strategyModalId = null;
     state.entry = null;
     state.existingCheck = null;
+    state.plannedWork = null;
+    state.needsMidCheck = true;
     state.submitting = false;
     state.errorMsg = "";
     state.activeStep = 1;
@@ -983,6 +1038,8 @@
       }
       state.entry = data.entry;
       state.existingCheck = data.existingCheck || null;
+      state.plannedWork = data.plannedWork || null;
+      state.needsMidCheck = data.needsMidCheck !== false;
       if (state.existingCheck?.canEdit) applyCheckToState(state.existingCheck);
       render();
     } catch (err) {

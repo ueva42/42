@@ -55,6 +55,12 @@ import {
   applyLevelcheckTopicUnlocks,
   splitZielsetzungTopics
 } from "./lib/levelcheck-evaluation.js";
+import {
+  TIMETABLE_FREE_SUBJECT,
+  isTimetableFreeSubject,
+  countTimetableSlotsBySubject,
+  subjectNeedsMidCheck
+} from "./lib/logbuch-day.js";
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
 
 // -------------------------------------------------------
@@ -872,12 +878,6 @@ const TIMETABLE_DEFAULT_TIMES = [
   "13.05-13.50"
 ];
 
-const TIMETABLE_FREE_SUBJECT = "Frei";
-
-function isTimetableFreeSubject(subject) {
-  return subject === TIMETABLE_FREE_SUBJECT;
-}
-
 function timetableSubjectsFromRows(rows) {
   return [...new Set(rows.map((t) => t.subject).filter((s) => s && !isTimetableFreeSubject(s)))];
 }
@@ -1683,9 +1683,101 @@ function formatGermanDate(isoDate) {
 }
 
 function weekdayFromIsoDate(dateStr) {
-  const d = new Date(`${dateStr}T12:00:00`);
+  const iso = normalizeIsoDate(dateStr) || String(dateStr || "").slice(0, 10);
+  const d = new Date(`${iso}T12:00:00`);
   const jsDay = d.getDay();
   return jsDay >= 1 && jsDay <= 5 ? jsDay : null;
+}
+
+function mapPlannedWorkFromEntry(row, extra = {}) {
+  const whatGoalText = extra.whatGoalText || row.what_goal_text || null;
+  const howGoalText = row.how_goal_text || row.goal || null;
+  return {
+    whatGoalId: row.what_goal_id || null,
+    whatGoalText,
+    howGoalText,
+    detailsText: row.details_text || null,
+    selectedLevel: row.selected_level || null,
+    levelGoalText: row.level_goal_text || null,
+    planB: row.plan_b_strategy_text || null,
+    levelLabel: row.selected_level
+      ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+      : extra.levelLabel || null,
+    subject: row.subject || extra.subject || null,
+    date: normalizeIsoDate(row.date) || extra.date || null,
+    timeslot: row.timeslot || extra.timeslot || null
+  };
+}
+
+async function resolveWhatGoalText(row) {
+  if (row?.what_goal_text) return row.what_goal_text;
+  if (!row?.what_goal_id) return null;
+  const g = await pool.query(
+    `SELECT goal_text FROM level_check_goals WHERE id = $1 LIMIT 1`,
+    [row.what_goal_id]
+  );
+  return g.rows[0]?.goal_text || null;
+}
+
+async function midCheckInfoForStudent(studentId, date, subject) {
+  const iso = normalizeIsoDate(date);
+  const weekday = weekdayFromIsoDate(iso);
+  const { classId } = await getStudentClassContext(studentId);
+  let timetable = [];
+  if (classId && weekday) {
+    timetable = await fetchTimetableForClassDay(classId, weekday);
+  }
+  const counts = countTimetableSlotsBySubject(timetable);
+  const slotCount = subject ? counts[subject] || 0 : 0;
+  return {
+    subjectSlotCount: slotCount,
+    needsMidCheck: subjectNeedsMidCheck(slotCount),
+    subjectSlotCounts: counts
+  };
+}
+
+async function findStudentAccessibleLevelCheckGoal(goalId, classId, schoolId) {
+  if (!goalId || !classId) return null;
+  const r = await pool.query(
+    `
+    SELECT g.id, g.level_check_id, lc.class_id, lc.catalog_id, lc.subject
+    FROM level_check_goals g
+    JOIN level_checks lc ON lc.id = g.level_check_id
+    LEFT JOIN classes c ON c.id = lc.class_id
+    WHERE g.id = $1
+      AND COALESCE(g.active, true) = true
+      AND (
+        (
+          lc.catalog_id IS NULL
+          AND lc.class_id = $2
+          AND NOT EXISTS (
+            SELECT 1 FROM class_level_plan_assignments a
+            WHERE a.class_id = $2 AND a.subject = lc.subject
+          )
+        )
+        OR (
+          lc.catalog_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM class_level_plan_assignments a
+            WHERE a.class_id = $2
+              AND a.subject = lc.subject
+              AND a.catalog_id = lc.catalog_id
+          )
+        )
+      )
+      AND (
+        lc.school_id = $3
+        OR c.school_id = $3
+        OR EXISTS (
+          SELECT 1 FROM level_plan_catalogs cat
+          WHERE cat.id = lc.catalog_id AND cat.school_id = $3
+        )
+      )
+    LIMIT 1
+    `,
+    [goalId, classId, schoolId]
+  );
+  return r.rows[0] || null;
 }
 
 const LOG_TIME_WASTERS = [
@@ -3153,6 +3245,29 @@ async function migrate() {
   await ensureColumn("level_check_marks", "status", "TEXT DEFAULT 'sicher'");
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS level_check_goal_progress (
+      goal_id UUID NOT NULL REFERENCES level_check_goals(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      school_id INTEGER,
+      practice_percent INTEGER,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      PRIMARY KEY (goal_id, user_id)
+    )
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'level_check_goal_progress_percent_range'
+      ) THEN
+        ALTER TABLE level_check_goal_progress
+        ADD CONSTRAINT level_check_goal_progress_percent_range
+        CHECK (practice_percent IS NULL OR (practice_percent >= 0 AND practice_percent <= 100));
+      END IF;
+    END$$;
+  `);
+
+  await pool.query(`
     ALTER TABLE level_check_marks
     DROP CONSTRAINT IF EXISTS level_check_marks_goal_id_user_id_key
   `).catch(() => {});
@@ -3679,6 +3794,10 @@ async function migrate() {
   );
   await pool.query(
     "UPDATE level_check_marks SET school_id=$1 WHERE school_id IS NULL",
+    [defaultSchoolId]
+  );
+  await pool.query(
+    "UPDATE level_check_goal_progress SET school_id=$1 WHERE school_id IS NULL",
     [defaultSchoolId]
   );
   await pool.query(
@@ -5274,6 +5393,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     const activeTimetable = timetable.filter(
       (slot) => slot.subject && !isTimetableFreeSubject(slot.subject)
     );
+    const subjectSlotCounts = countTimetableSlotsBySubject(activeTimetable);
 
     const seenSubjects = new Set();
     const uniqueTimetableSlots = [];
@@ -5289,14 +5409,25 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     for (const slot of uniqueTimetableSlots) {
       const entry = findEntryForSlot(slot);
       if (entry) usedEntryIds.add(entry.id);
-      blocks.push({ slot, entry });
+      const needsMidCheck = subjectNeedsMidCheck(subjectSlotCounts[slot.subject] || 0);
+      if (entry) entry.needsMidCheck = needsMidCheck;
+      blocks.push({
+        slot,
+        entry,
+        subjectSlotCount: subjectSlotCounts[slot.subject] || 0,
+        needsMidCheck
+      });
     }
 
     for (const entry of entries) {
       if (!usedEntryIds.has(entry.id)) {
+        const needsMidCheck = subjectNeedsMidCheck(subjectSlotCounts[entry.subject] || 0);
+        entry.needsMidCheck = needsMidCheck;
         blocks.push({
           slot: { subject: entry.subject, timeslot: entry.timeslot, room: null },
-          entry
+          entry,
+          subjectSlotCount: subjectSlotCounts[entry.subject] || 0,
+          needsMidCheck
         });
       }
     }
@@ -5392,6 +5523,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       className,
       timetable: uniqueTimetableSlots,
       timetableSubjects,
+      subjectSlotCounts,
       subjects: LOG_SUBJECTS,
       entries,
       blocks,
@@ -5544,7 +5676,7 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
       `
       SELECT
         id, date, timeslot, subject, goal,
-        what_goal_text, how_goal_text, details_text,
+        what_goal_id, what_goal_text, how_goal_text, details_text,
         selected_level, level_goal_text, plan_b_strategy_text,
         created_at
       FROM log_entries
@@ -5554,16 +5686,22 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
     );
 
     if (!entryRes.rows.length) {
-      return res.json({ entry: null, existingCheck: null });
+      return res.json({ entry: null, existingCheck: null, plannedWork: null, needsMidCheck: false });
     }
 
     const row = entryRes.rows[0];
+    const whatGoalText = await resolveWhatGoalText(row);
     const entry = {
       ...row,
+      what_goal_text: whatGoalText || row.what_goal_text || null,
       level_label: row.selected_level
         ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
         : null
     };
+    const plannedWork = mapPlannedWorkFromEntry(entry, { whatGoalText });
+    const mid = await midCheckInfoForStudent(studentId, row.date, row.subject);
+    entry.needsMidCheck = mid.needsMidCheck;
+    entry.subjectSlotCount = mid.subjectSlotCount;
 
     const checkRes = await pool.query(
       `
@@ -5584,7 +5722,10 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
 
     res.json({
       entry,
-      existingCheck
+      existingCheck,
+      plannedWork,
+      needsMidCheck: mid.needsMidCheck,
+      subjectSlotCount: mid.subjectSlotCount
     });
   } catch (err) {
     console.error("❌ /api/student/log/check-context:", err);
@@ -5614,12 +5755,26 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
     }
 
     const entryRes = await pool.query(
-      "SELECT id FROM log_entries WHERE id=$1 AND user_id=$2",
+      "SELECT id, date, subject FROM log_entries WHERE id=$1 AND user_id=$2",
       [logEntryId, studentId]
     );
 
     if (!entryRes.rows.length) {
       return res.json({ success: false, message: "Lern-Eintrag nicht gefunden." });
+    }
+
+    const mid = await midCheckInfoForStudent(
+      studentId,
+      entryRes.rows[0].date,
+      entryRes.rows[0].subject
+    );
+    if (!mid.needsMidCheck) {
+      return res.json({
+        success: false,
+        message:
+          "Zwischen-Check gibt es nur, wenn das Fach heute mindestens zweimal im Stundenplan steht.",
+        needsMidCheck: false
+      });
     }
 
     const onTrackVal = onTrack;
@@ -6317,6 +6472,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
   );
 
   let marksByGoal = {};
+  let practiceByGoal = {};
   if (studentId) {
     const marksRes = await pool.query(
       `
@@ -6331,6 +6487,20 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       if (!marksByGoal[row.goal_id]) marksByGoal[row.goal_id] = [];
       marksByGoal[row.goal_id].push(row);
     }
+
+    const practiceRes = await pool.query(
+      `
+      SELECT p.goal_id, p.practice_percent
+      FROM level_check_goal_progress p
+      JOIN level_check_goals g ON g.id = p.goal_id
+      WHERE p.user_id=$1 AND g.level_check_id = ANY($2::uuid[])
+    `,
+      [studentId, checkIds]
+    );
+    for (const row of practiceRes.rows) {
+      const n = row.practice_percent == null ? null : Number(row.practice_percent);
+      practiceByGoal[row.goal_id] = Number.isInteger(n) ? n : null;
+    }
   }
 
   const goalsByCheck = {};
@@ -6343,6 +6513,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       rookieGoalText: g.rookie_goal_text || null,
       operatorGoalText: g.operator_goal_text || null,
       streetLegendGoalText: g.street_legend_goal_text || null,
+      practicePercent: practiceByGoal[g.id] ?? null,
       ...mapGoalMaterialFields(g),
       mark: buildGoalMarkFromRows(marksByGoal[g.id])
     });
@@ -6612,6 +6783,49 @@ app.get("/api/student/checkpoint-plan", isStudent, async (req, res) => {
     const monthPrefix = `${month}-`;
     const monthEvents = events.filter((e) => e.date.startsWith(monthPrefix));
 
+    const [y, m] = month.split("-").map(Number);
+    const monthStart = `${month}-01`;
+    const monthEndDate = new Date(y, m, 0).getDate();
+    const monthEnd = `${month}-${String(monthEndDate).padStart(2, "0")}`;
+    const workRes = await pool.query(
+      `
+      SELECT
+        le.date::text AS date,
+        le.subject,
+        le.timeslot,
+        le.what_goal_text,
+        le.how_goal_text,
+        le.level_goal_text,
+        le.selected_level,
+        le.details_text,
+        le.what_goal_id
+      FROM log_entries le
+      WHERE le.user_id = $1
+        AND le.date >= $2::date
+        AND le.date <= $3::date
+      ORDER BY le.date ASC, le.timeslot ASC NULLS LAST, le.created_at ASC
+    `,
+      [studentId, monthStart, monthEnd]
+    );
+    const dayWorkByDate = {};
+    for (const row of workRes.rows) {
+      if (subjectFilter && row.subject !== subjectFilter) continue;
+      const iso = String(row.date).slice(0, 10);
+      if (!dayWorkByDate[iso]) dayWorkByDate[iso] = [];
+      dayWorkByDate[iso].push({
+        subject: row.subject,
+        timeslot: row.timeslot || null,
+        whatGoalText: row.what_goal_text || null,
+        howGoalText: row.how_goal_text || null,
+        levelGoalText: row.level_goal_text || null,
+        detailsText: row.details_text || null,
+        selectedLevel: row.selected_level || null,
+        levelLabel: row.selected_level
+          ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+          : null
+      });
+    }
+
     res.json({
       hasClass: true,
       subjects: LOG_SUBJECTS,
@@ -6623,7 +6837,8 @@ app.get("/api/student/checkpoint-plan", isStudent, async (req, res) => {
       events: monthEvents,
       upcoming,
       eventsByDate: groupEventsByDate(monthEvents),
-      allEventsByDate: groupEventsByDate(events)
+      allEventsByDate: groupEventsByDate(events),
+      dayWorkByDate
     });
   } catch (err) {
     console.error("❌ /api/student/checkpoint-plan:", err);
@@ -7291,19 +7506,8 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Ungültiger Status." });
     }
 
-    const goalRes = await pool.query(
-      `
-      SELECT g.id
-      FROM level_check_goals g
-      JOIN level_checks lc ON lc.id = g.level_check_id
-      LEFT JOIN classes c ON c.id = lc.class_id
-      WHERE g.id=$1
-        AND lc.class_id=$2
-        AND (lc.school_id = $3 OR c.school_id = $3 OR lc.school_id IS NULL)
-    `,
-      [goalId, classId, schoolId]
-    );
-    if (!goalRes.rows.length) {
+    const goalRes = await findStudentAccessibleLevelCheckGoal(goalId, classId, schoolId);
+    if (!goalRes) {
       return res.json({ success: false, message: "Ziel nicht gefunden." });
     }
 
@@ -7371,6 +7575,65 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ /api/student/levelcheck-mark:", err);
+    res.status(500).json({ success: false, message: "Speichern fehlgeschlagen." });
+  }
+});
+
+app.post("/api/student/levelcheck-practice-percent", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const classId = req.session.user.class_id;
+    const goalId = req.body.goalId;
+    const parsed = parseLevelcheckPercent(req.body.practicePercent);
+
+    if (!classId) {
+      return res.json({ success: false, message: "Keine Klasse zugeordnet." });
+    }
+    if (!goalId) {
+      return res.json({ success: false, message: "Ziel fehlt." });
+    }
+    if (!parsed.ok) {
+      return res.json({ success: false, message: parsed.error });
+    }
+
+    const goal = await findStudentAccessibleLevelCheckGoal(goalId, classId, schoolId);
+    if (!goal) {
+      return res.json({ success: false, message: "Ziel nicht gefunden." });
+    }
+
+    if (parsed.value == null) {
+      await pool.query(
+        `DELETE FROM level_check_goal_progress WHERE goal_id=$1 AND user_id=$2`,
+        [goalId, studentId]
+      );
+      return res.json({
+        success: true,
+        goalId,
+        practicePercent: null
+      });
+    }
+
+    await pool.query(
+      `
+      INSERT INTO level_check_goal_progress (school_id, goal_id, user_id, practice_percent, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (goal_id, user_id)
+      DO UPDATE SET
+        practice_percent = EXCLUDED.practice_percent,
+        school_id = COALESCE(EXCLUDED.school_id, level_check_goal_progress.school_id),
+        updated_at = NOW()
+    `,
+      [schoolId, goalId, studentId, parsed.value]
+    );
+
+    res.json({
+      success: true,
+      goalId,
+      practicePercent: parsed.value
+    });
+  } catch (err) {
+    console.error("❌ /api/student/levelcheck-practice-percent:", err);
     res.status(500).json({ success: false, message: "Speichern fehlgeschlagen." });
   }
 });

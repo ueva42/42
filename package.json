@@ -9,7 +9,8 @@
     "test:group-mode": "node scripts/test-group-mode.js",
     "test:freedom-ranks": "node scripts/test-freedom-ranks.js",
     "test:levelplan-import": "node scripts/test-levelplan-import.js",
-    "test": "npm run test:group-mode && npm run test:freedom-ranks && npm run test:levelplan-import"
+    "test:student-day-checks": "node scripts/test-student-day-checks.js",
+    "test": "npm run test:group-mode && npm run test:freedom-ranks && npm run test:levelplan-import && npm run test:student-day-checks"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.932.0",

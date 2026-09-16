@@ -182,6 +182,53 @@
     });
   }
 
+  function dayWorkFor(iso) {
+    const byDate = state.data?.dayWorkByDate || {};
+    return byDate[iso] || [];
+  }
+
+  function renderDayWorkCard(item) {
+    const parts = [
+      item.whatGoalText,
+      item.levelLabel,
+      item.levelGoalText,
+      item.howGoalText
+    ].filter(Boolean);
+    const title = item.whatGoalText || item.levelGoalText || "Geplantes Ziel";
+    return `
+      <article class="mcp-card mcp-card--work">
+        <div class="mcp-card__top">
+          <span class="mcp-card__subject">${escapeHtml(item.subject || "")}</span>
+          ${item.timeslot ? `<span class="mcp-card__countdown">${escapeHtml(item.timeslot)}</span>` : ""}
+        </div>
+        <h4 class="mcp-card__title">${escapeHtml(title)}</h4>
+        <p class="mcp-card__date">
+          <span class="mcp-pill" style="--mcp-c:#22c55e">Heute geplant</span>
+          ${item.levelLabel ? ` · ${escapeHtml(item.levelLabel)}` : ""}
+        </p>
+        ${
+          parts.length > 1
+            ? `<p class="mcp-card__eval">${escapeHtml(
+                [item.howGoalText, item.detailsText].filter(Boolean).join(" · ")
+              )}</p>`
+            : ""
+        }
+      </article>`;
+  }
+
+  function renderTodayWork() {
+    const today = todayIso();
+    const work = dayWorkFor(today);
+    if (!work.length) return "";
+    return `
+      <section class="mcp-next">
+        <p class="mcp-kicker">Heute gearbeitet</p>
+        <div class="mcp-work-list">
+          ${work.map(renderDayWorkCard).join("")}
+        </div>
+      </section>`;
+  }
+
   function renderHero() {
     return `
       <header class="mcp-hero">
@@ -268,6 +315,7 @@
   function renderDayCell(cell) {
     const { iso, inMonth } = cell;
     const events = eventsForDate(iso);
+    const work = dayWorkFor(iso);
     const isToday = iso === todayIso();
     const selected = state.selectedDay === iso;
     const dayNum = Number(iso.slice(8));
@@ -275,25 +323,37 @@
       .slice(0, 3)
       .map((t) => `<span class="mcp-dot" style="background:${typeColor(t)}"></span>`)
       .join("");
+    const workDot = work.length
+      ? `<span class="mcp-dot" style="background:#22c55e"></span>`
+      : "";
 
     let meta = "";
-    if (events.length === 1) {
+    if (events.length === 1 && !work.length) {
       meta = `<span class="mcp-day__meta">${escapeHtml(events[0].typeShort || events[0].typeLabel || "Termin")}</span>`;
-    } else if (events.length > 1) {
-      meta = `<span class="mcp-day__meta">${events.length} Termine</span>`;
+    } else if (events.length || work.length) {
+      const bits = [];
+      if (events.length) bits.push(`${events.length} Termin${events.length === 1 ? "" : "e"}`);
+      if (work.length) bits.push(`${work.length} Ziel${work.length === 1 ? "" : "e"}`);
+      meta = `<span class="mcp-day__meta">${escapeHtml(bits.join(" · "))}</span>`;
     }
 
     return `
       <button
         type="button"
-        class="mcp-day ${inMonth ? "" : "is-out"} ${isToday ? "is-today" : ""} ${selected ? "is-selected" : ""} ${events.length ? "has-events" : ""}"
+        class="mcp-day ${inMonth ? "" : "is-out"} ${isToday ? "is-today" : ""} ${selected ? "is-selected" : ""} ${
+          events.length || work.length ? "has-events" : ""
+        }"
         data-mcp-day="${escapeHtml(iso)}"
-        aria-label="${escapeHtml(formatDate(iso))}${events.length ? `, ${events.length} Termine` : ""}"
+        aria-label="${escapeHtml(formatDate(iso))}${
+          events.length || work.length
+            ? `, ${events.length + work.length} Einträge`
+            : ""
+        }"
       >
         <span class="mcp-day__n">${dayNum}</span>
         ${isToday ? `<span class="mcp-day__today">Heute</span>` : ""}
         ${meta}
-        ${dots ? `<span class="mcp-day__dots">${dots}</span>` : ""}
+        ${dots || workDot ? `<span class="mcp-day__dots">${dots}${workDot}</span>` : ""}
       </button>`;
   }
 
@@ -378,6 +438,8 @@
   function renderDayDrawer() {
     if (!state.selectedDay) return "";
     const events = eventsForDate(state.selectedDay);
+    const work = dayWorkFor(state.selectedDay);
+    const isToday = state.selectedDay === todayIso();
     return `
       <div class="mcp-drawer-backdrop" id="mcpDrawerBackdrop" aria-hidden="true"></div>
       <aside class="mcp-drawer" role="dialog" aria-modal="true" aria-label="Tagesdetails">
@@ -387,9 +449,23 @@
         </div>
         <div class="mcp-drawer__list">
           ${
+            work.length
+              ? `<p class="mcp-kicker" style="margin:0 0 8px">${isToday ? "Heute geplant" : "Geplante Arbeit"}</p>${work
+                  .map(renderDayWorkCard)
+                  .join("")}`
+              : ""
+          }
+          ${
             events.length
-              ? events.map((e) => renderEventCard(e, { past: e.date < todayIso() })).join("")
-              : `<p class="mcp-muted">Keine Termine an diesem Tag.</p>`
+              ? `${work.length ? `<p class="mcp-kicker" style="margin:16px 0 8px">Termine</p>` : ""}${events
+                  .map((e) => renderEventCard(e, { past: e.date < todayIso() }))
+                  .join("")}`
+              : ""
+          }
+          ${
+            !work.length && !events.length
+              ? `<p class="mcp-muted">Keine geplante Arbeit und keine Termine an diesem Tag.</p>`
+              : ""
           }
         </div>
       </aside>`;
@@ -435,6 +511,7 @@
       <div class="mcp-app">
         ${renderHero()}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
+        ${renderTodayWork()}
         ${renderNextCard()}
         ${renderFilters()}
         <div class="mcp-dash">

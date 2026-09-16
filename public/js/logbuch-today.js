@@ -46,11 +46,18 @@
     return "–";
   }
 
-  function blockPhases(entry) {
+  function blockNeedsMidCheck(block, entry) {
+    if (block && typeof block.needsMidCheck === "boolean") return block.needsMidCheck;
+    if (entry && typeof entry.needsMidCheck === "boolean") return entry.needsMidCheck;
+    return true;
+  }
+
+  function blockPhases(entry, needsMidCheck = true) {
     return {
       plan: !!entry,
-      check: !!entry?.hasCheck,
-      reflect: !!entry?.hasReflection
+      check: needsMidCheck ? !!entry?.hasCheck : true,
+      reflect: !!entry?.hasReflection,
+      checkRequired: needsMidCheck
     };
   }
 
@@ -63,7 +70,7 @@
   function renderPhasePills(phases) {
     const items = [
       { key: "plan", label: "Plan" },
-      { key: "check", label: "Check" },
+      ...(phases.checkRequired === false ? [] : [{ key: "check", label: "Check" }]),
       { key: "reflect", label: "Reflexion" }
     ];
     return items
@@ -74,20 +81,23 @@
       .join("");
   }
 
-  function renderActionSelect(entry) {
+  function renderActionSelect(entry, needsMidCheck) {
     const ui = UI();
     const hasCheck = entry.hasCheck;
     const hasReflection = entry.hasReflection;
+    const checkRequired = needsMidCheck !== false;
 
-    if (hasCheck && hasReflection) {
+    if ((checkRequired ? hasCheck : true) && hasReflection) {
       return `<p class="today-block-done-label">Alle Schritte erledigt ✓</p>`;
     }
 
     let options = `<option value="">Nächster Schritt…</option>`;
-    if (!hasCheck) {
-      options += `<option value="check">Zwischen-Check</option>`;
-    } else {
-      options += `<option value="" disabled>Check ✓</option>`;
+    if (checkRequired) {
+      if (!hasCheck) {
+        options += `<option value="check">Zwischen-Check</option>`;
+      } else {
+        options += `<option value="" disabled>Check ✓</option>`;
+      }
     }
     if (!hasReflection) {
       options += `<option value="reflect">Tagesabschluss</option>`;
@@ -171,9 +181,9 @@
       </button>`;
   }
 
-  function primaryAction(entry, editable) {
+  function primaryAction(entry, editable, needsMidCheck) {
     if (!editable || entry.hasReflection) return null;
-    if (!entry.hasCheck) {
+    if (needsMidCheck !== false && !entry.hasCheck) {
       return navButton("Zwischen-Check", "check", new URLSearchParams({ entryId: entry.id }).toString(), true);
     }
     return navButton("Tagesabschluss", "reflect", new URLSearchParams({ entryId: entry.id }).toString(), true);
@@ -196,7 +206,9 @@
         return `Als Nächstes: Gruppenarbeit in ${subject} starten oder fortsetzen.`;
       }
       if (!block.entry) return `Setze als Nächstes dein Tagesziel in ${subject}.`;
-      if (!block.entry.hasCheck) return `Als Nächstes: Zwischen-Check in ${subject}.`;
+      if (blockNeedsMidCheck(block, block.entry) && !block.entry.hasCheck) {
+        return `Als Nächstes: Zwischen-Check in ${subject}.`;
+      }
       if (!block.entry.hasReflection) return `Als Nächstes: Tagesabschluss in ${subject}.`;
     }
     return "Stark – alle Stunden für heute sind erledigt.";
@@ -209,7 +221,13 @@
   }
 
   function lessonStepCount(phases) {
-    return [phases.plan, phases.check, phases.reflect].filter(Boolean).length;
+    const parts = [phases.plan, phases.reflect];
+    if (phases.checkRequired !== false) parts.splice(1, 0, phases.check);
+    return parts.filter(Boolean).length;
+  }
+
+  function lessonStepTotal(phases) {
+    return phases.checkRequired === false ? 2 : 3;
   }
 
   function homeworkSubjects() {
@@ -577,14 +595,18 @@
       return renderGroupModeBlock(block, editable);
     }
 
+    const needsMidCheck = blockNeedsMidCheck(block, entry);
     const status = lessonStatus(block);
-    const phases = entry ? blockPhases(entry) : { plan: false, check: false, reflect: false };
+    const phases = entry
+      ? blockPhases(entry, needsMidCheck)
+      : { plan: false, check: false, reflect: false, checkRequired: needsMidCheck };
     const stepsDone = lessonStepCount(phases);
+    const stepsTotal = lessonStepTotal(phases);
     const V = window.LogbuchVisuals;
     const miniRing = V
       ? V.circularProgress({
           completed: stepsDone,
-          total: 3,
+          total: stepsTotal,
           size: 56,
           accent: status.key === "done" ? "#22c55e" : status.key === "active" ? "#38bdf8" : "#a855f7"
         })
@@ -661,10 +683,12 @@
       ? navButton(editable ? "Reflexion bearbeiten" : "Reflexion ansehen", "reflect", reflectParams.toString())
       : "";
 
-    const primary = primaryAction(entry, editable);
+    const primary = primaryAction(entry, editable, needsMidCheck);
     const secondary = [viewPlanBtn, viewCheckBtn, viewReflectBtn].filter(Boolean);
-    const nextSelect = !readOnly && !(entry.hasCheck && entry.hasReflection) ? renderActionSelect(entry) : "";
-    const allDone = entry.hasCheck && entry.hasReflection;
+    const checkRequired = needsMidCheck;
+    const allDone = (checkRequired ? entry.hasCheck : true) && entry.hasReflection;
+    const nextSelect =
+      !readOnly && !allDone ? renderActionSelect(entry, needsMidCheck) : "";
 
     const checkpointHint = entry.checkpoint_title
       ? `<p class="subject-lesson-card__meta">${ui.escapeHtml(entry.checkpoint_title)}</p>`
@@ -710,7 +734,7 @@
   function renderPhaseStepper(phases) {
     const items = [
       { key: "plan", label: "Plan" },
-      { key: "check", label: "Check" },
+      ...(phases.checkRequired === false ? [] : [{ key: "check", label: "Check" }]),
       { key: "reflect", label: "Abschluss" }
     ];
     return `

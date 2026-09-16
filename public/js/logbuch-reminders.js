@@ -297,7 +297,8 @@ window.LogbuchReminders = (function () {
             timeslot: b.slot.timeslot || b.entry.timeslot,
             subject: b.slot.subject || b.entry.subject,
             hasCheck: !!b.entry.hasCheck || !!b.entry.check_id,
-            hasReflection: !!b.entry.hasReflection || !!b.entry.reflection_id
+            hasReflection: !!b.entry.hasReflection || !!b.entry.reflection_id,
+            needsMidCheck: b.needsMidCheck !== false && b.entry.needsMidCheck !== false
           };
         }
         if (b?.id && b?.subject) {
@@ -306,7 +307,8 @@ window.LogbuchReminders = (function () {
             timeslot: b.timeslot,
             subject: b.subject,
             hasCheck: !!b.hasCheck,
-            hasReflection: !!b.hasReflection
+            hasReflection: !!b.hasReflection,
+            needsMidCheck: b.needsMidCheck !== false
           };
         }
         return null;
@@ -342,8 +344,9 @@ window.LogbuchReminders = (function () {
       const checkState = store[reminderKey(entry.id, "check")] || {};
       const reflectState = store[reminderKey(entry.id, "reflect")] || {};
 
-      // Zwischen-Check
-      if (!block.hasCheck && remain >= 10) {
+      // Zwischen-Check nur bei 2+ Stunden desselben Fachs
+      const needsMidCheck = block.needsMidCheck !== false && entry.needsMidCheck !== false;
+      if (needsMidCheck && !block.hasCheck && remain >= 10) {
         const latePlan = now > checkAt && !checkState.firedAt;
         const due =
           shouldFire(entry.id, "check", checkAt, now, parsed.end, checkState.snoozeUntil) ||

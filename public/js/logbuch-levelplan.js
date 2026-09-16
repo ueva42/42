@@ -300,21 +300,66 @@
     }
   }
 
+  function hasQuizMaterial(goal) {
+    const material = goal.material || null;
+    const type = material?.type || goal.materialType || (goal.practiceUrl ? "url" : "none");
+    return type !== "none" || !!goal.practiceUrl;
+  }
+
+  function practicePercentOf(goal) {
+    const n = Number(goal?.practicePercent);
+    return Number.isInteger(n) && n >= 0 && n <= 100 ? n : null;
+  }
+
+  function renderPracticeDial(goal) {
+    if (!hasQuizMaterial(goal)) return "";
+    const pct = practicePercentOf(goal);
+    const shown = pct == null ? 70 : pct;
+    const passed = shown >= passPercent();
+    const threshold = passPercent();
+    return `
+      <div class="lp-practice-dial-wrap" data-lp-practice-wrap data-goal-id="${escapeHtml(goal.id)}">
+        <p class="lp-practice-dial-label">Lerncheck</p>
+        <div
+          class="lc-dial ${passed ? "is-pass" : ""} is-editable"
+          data-lp-practice-dial
+          data-goal-id="${escapeHtml(goal.id)}"
+          data-threshold="${threshold}"
+          style="--pct:${shown}; --threshold:${threshold}; --accent:${passed ? "#22c55e" : "#22d3ee"}"
+          role="slider"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="${shown}"
+          aria-label="Prozent im Lerncheck"
+          tabindex="0"
+        >
+          <div class="lc-dial__ring" aria-hidden="true"></div>
+          <div class="lc-dial__threshold" aria-hidden="true"></div>
+          <div class="lc-dial__knob" aria-hidden="true"></div>
+          <div class="lc-dial__center"><strong data-lp-practice-value>${shown} %</strong><span>richtig</span></div>
+        </div>
+        <input type="range" class="lc-dial__range lp-practice-range" min="0" max="100" step="1" value="${shown}" aria-label="Lerncheck Prozent" />
+        <button type="button" class="zielpfad-btn lp-practice-save" data-lp-save-practice="${escapeHtml(goal.id)}">
+          ${state.saving === `practice_${goal.id}` ? "Speichern…" : "Ergebnis speichern"}
+        </button>
+      </div>`;
+  }
+
   function renderMaterialCell(goal) {
     const material = goal.material || null;
     const type = material?.type || goal.materialType || (goal.practiceUrl ? "url" : "none");
+    let body = `<span class="lp-material-empty" aria-hidden="true">–</span>`;
     if (type === "url" && (material?.url || goal.practiceUrl)) {
       const url = material?.url || goal.practiceUrl;
-      const label = material?.label || goal.materialLabel || "Aufgaben öffnen";
-      return `<a class="lp-material-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
-    }
-    if (type === "reference" || type === "note") {
+      const label = material?.label || goal.materialLabel || "Lerncheck öffnen";
+      body = `<a class="lp-material-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+    } else if (type === "reference" || type === "note") {
       const parts = [material?.label || goal.materialLabel, material?.note || goal.materialNote].filter(Boolean);
       if (parts.length) {
-        return `<span class="lp-material-hint">${escapeHtml(parts.join(" · "))}</span>`;
+        body = `<span class="lp-material-hint">${escapeHtml(parts.join(" · "))}</span>`;
       }
     }
-    return `<span class="lp-material-empty" aria-hidden="true">–</span>`;
+    return `<div class="lp-material-cell">${body}${renderPracticeDial(goal)}</div>`;
   }
 
   function renderStatusButton(goal, tier) {
@@ -835,6 +880,7 @@
     }
 
     bindLevelcheckDials(root);
+    bindPracticeDials(root);
   }
 
   function syncLcDial(dial, pct) {
@@ -904,6 +950,97 @@
         saveLevelcheckPercent(topicId, pct);
       });
     });
+  }
+
+  function syncPracticeDial(dial, pct) {
+    const threshold = Number(dial.dataset.threshold) || passPercent();
+    const passed = pct >= threshold;
+    dial.style.setProperty("--pct", String(pct));
+    dial.style.setProperty("--accent", passed ? "#22c55e" : "#22d3ee");
+    dial.classList.toggle("is-pass", passed);
+    dial.setAttribute("aria-valuenow", String(pct));
+    const valueEl = dial.querySelector("[data-lp-practice-value]");
+    if (valueEl) valueEl.textContent = `${pct} %`;
+    const wrap = dial.closest("[data-lp-practice-wrap]");
+    const range = wrap?.querySelector(".lp-practice-range");
+    if (range) range.value = String(pct);
+  }
+
+  function bindPracticeDials(root) {
+    root.querySelectorAll("[data-lp-practice-dial].is-editable").forEach((dial) => {
+      let dragging = false;
+      const setFromEvent = (e) => {
+        const point = e.touches ? e.touches[0] : e;
+        if (!point) return;
+        syncPracticeDial(dial, percentFromPointer(dial, point.clientX, point.clientY));
+      };
+      dial.addEventListener("pointerdown", (e) => {
+        dragging = true;
+        dial.setPointerCapture?.(e.pointerId);
+        setFromEvent(e);
+        e.preventDefault();
+      });
+      dial.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        setFromEvent(e);
+      });
+      dial.addEventListener("pointerup", () => {
+        dragging = false;
+      });
+      dial.addEventListener("pointercancel", () => {
+        dragging = false;
+      });
+    });
+
+    root.querySelectorAll(".lp-practice-range").forEach((range) => {
+      range.addEventListener("input", () => {
+        const dial = range.closest("[data-lp-practice-wrap]")?.querySelector("[data-lp-practice-dial]");
+        if (dial) syncPracticeDial(dial, Number(range.value) || 0);
+      });
+    });
+
+    root.querySelectorAll("[data-lp-save-practice]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const goalId = btn.dataset.lpSavePractice;
+        const dial = btn
+          .closest("[data-lp-practice-wrap]")
+          ?.querySelector(`[data-lp-practice-dial][data-goal-id="${goalId}"]`);
+        const pct = Number(dial?.getAttribute("aria-valuenow") ?? 0);
+        savePracticePercent(goalId, pct);
+      });
+    });
+  }
+
+  async function savePracticePercent(goalId, percent) {
+    const goal = findGoal(goalId);
+    if (goal) goal.practicePercent = percent;
+    state.saving = `practice_${goalId}`;
+    state.error = "";
+    state.message = "";
+    render();
+    try {
+      const res = await fetch("/api/student/levelcheck-practice-percent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goalId, practicePercent: percent })
+      });
+      const data = await res.json();
+      state.saving = null;
+      if (!data.success) {
+        state.error = data.message || "Speichern fehlgeschlagen.";
+        await loadData(initGeneration);
+        return;
+      }
+      const stored = findGoal(goalId);
+      if (stored) stored.practicePercent = data.practicePercent;
+      state.message = `Lerncheck ${percent} % gespeichert`;
+      render();
+    } catch (err) {
+      console.error(err);
+      state.saving = null;
+      state.error = "Netzwerkfehler beim Speichern.";
+      render();
+    }
   }
 
   async function saveLevelcheckPercent(topicId, percent) {
