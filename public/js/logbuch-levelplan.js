@@ -314,27 +314,23 @@
   function renderPracticeDial(goal) {
     if (!hasQuizMaterial(goal)) return "";
     const pct = practicePercentOf(goal);
-    const shown = pct == null ? 70 : pct;
-    const passed = shown >= passPercent();
+    const shown = pct == null ? "" : String(pct);
+    const passed = pct != null && pct >= passPercent();
     return `
-      <div class="lp-practice-compact ${passed ? "is-pass" : ""}" data-lp-practice-wrap data-goal-id="${escapeHtml(goal.id)}">
-        <div class="lp-practice-compact__row">
-          <span class="lp-practice-compact__label">Quiz</span>
-          <input
-            type="range"
-            class="lp-practice-range"
-            min="0"
-            max="100"
-            step="1"
-            value="${shown}"
-            aria-label="Prozent im Lerncheck"
-          />
-          <strong class="lp-practice-compact__value" data-lp-practice-value>${shown} %</strong>
-        </div>
-        <button type="button" class="lp-practice-save" data-lp-save-practice="${escapeHtml(goal.id)}">
-          ${state.saving === `practice_${goal.id}` ? "…" : "Speichern"}
-        </button>
-      </div>`;
+      <label class="lp-practice-chip ${passed ? "is-pass" : ""}" data-lp-practice-wrap data-goal-id="${escapeHtml(goal.id)}" title="Ergebnis vom Quiz">
+        <input
+          type="number"
+          class="lp-practice-input"
+          min="0"
+          max="100"
+          step="1"
+          inputmode="numeric"
+          value="${escapeHtml(shown)}"
+          placeholder="–"
+          aria-label="Prozent im Quiz"
+        />
+        <span class="lp-practice-chip__suffix">%</span>
+      </label>`;
   }
 
   function renderMaterialCell(goal) {
@@ -343,7 +339,8 @@
     let body = `<span class="lp-material-empty" aria-hidden="true">–</span>`;
     if (type === "url" && (material?.url || goal.practiceUrl)) {
       const url = material?.url || goal.practiceUrl;
-      const label = material?.label || goal.materialLabel || "Lerncheck öffnen";
+      const rawLabel = material?.label || goal.materialLabel || "Quiz";
+      const label = /lerncheck/i.test(rawLabel) ? "Quiz" : rawLabel;
       body = `<a class="lp-material-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
     } else if (type === "reference" || type === "note") {
       const parts = [material?.label || goal.materialLabel, material?.note || goal.materialNote].filter(Boolean);
@@ -944,40 +941,32 @@
     });
   }
 
-  function syncPracticeCompact(wrap, pct) {
-    const passed = pct >= passPercent();
-    wrap.classList.toggle("is-pass", passed);
-    const valueEl = wrap.querySelector("[data-lp-practice-value]");
-    if (valueEl) valueEl.textContent = `${pct} %`;
-    const range = wrap.querySelector(".lp-practice-range");
-    if (range && Number(range.value) !== pct) range.value = String(pct);
-  }
+  const practiceSaveTimers = {};
 
   function bindPracticeDials(root) {
-    root.querySelectorAll(".lp-practice-range").forEach((range) => {
-      range.addEventListener("input", () => {
-        const wrap = range.closest("[data-lp-practice-wrap]");
-        if (wrap) syncPracticeCompact(wrap, Number(range.value) || 0);
+    root.querySelectorAll(".lp-practice-input").forEach((input) => {
+      const wrap = input.closest("[data-lp-practice-wrap]");
+      const goalId = wrap?.dataset.goalId;
+      if (!goalId) return;
+      const commit = () => {
+        const parsed = Number(String(input.value).trim());
+        if (!Number.isInteger(parsed) || parsed < 0 || parsed > 100) return;
+        wrap.classList.toggle("is-pass", parsed >= passPercent());
+        savePracticePercent(goalId, parsed);
+      };
+      input.addEventListener("input", () => {
+        const parsed = Number(String(input.value).trim());
+        wrap.classList.toggle("is-pass", Number.isInteger(parsed) && parsed >= passPercent());
+        clearTimeout(practiceSaveTimers[goalId]);
+        practiceSaveTimers[goalId] = setTimeout(commit, 450);
       });
-    });
-
-    root.querySelectorAll("[data-lp-save-practice]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const wrap = btn.closest("[data-lp-practice-wrap]");
-        const goalId = btn.dataset.lpSavePractice;
-        const pct = Number(wrap?.querySelector(".lp-practice-range")?.value ?? 0);
-        savePracticePercent(goalId, pct);
-      });
+      input.addEventListener("change", commit);
     });
   }
 
   async function savePracticePercent(goalId, percent) {
     const goal = findGoal(goalId);
     if (goal) goal.practicePercent = percent;
-    state.saving = `practice_${goalId}`;
-    state.error = "";
-    state.message = "";
-    render();
     try {
       const res = await fetch("/api/student/levelcheck-practice-percent", {
         method: "POST",
@@ -985,21 +974,15 @@
         body: JSON.stringify({ goalId, practicePercent: percent })
       });
       const data = await res.json();
-      state.saving = null;
       if (!data.success) {
-        state.error = data.message || "Speichern fehlgeschlagen.";
-        await loadData(initGeneration);
+        state.error = data.message || "Quiz-Ergebnis konnte nicht gespeichert werden.";
         return;
       }
       const stored = findGoal(goalId);
       if (stored) stored.practicePercent = data.practicePercent;
-      state.message = `Lerncheck ${percent} % gespeichert`;
-      render();
     } catch (err) {
       console.error(err);
-      state.saving = null;
-      state.error = "Netzwerkfehler beim Speichern.";
-      render();
+      state.error = "Netzwerkfehler beim Speichern des Quiz-Ergebnisses.";
     }
   }
 
