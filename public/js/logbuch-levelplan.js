@@ -324,7 +324,6 @@
     const passed = pct != null && pct >= passPercent();
     return `
       <div class="lp-practice-slider ${passed ? "is-pass" : ""}" data-lp-practice-wrap data-goal-id="${escapeHtml(goal.id)}">
-        <p class="lp-practice-caption">Lernnachweis</p>
         <div class="lp-practice-slider__row">
           <input
             type="range"
@@ -337,6 +336,7 @@
           />
           <strong class="lp-practice-slider__value" data-lp-practice-value>${pct == null ? "–" : `${pct} %`}</strong>
         </div>
+        <p class="lp-practice-caption">Lernnachweis</p>
       </div>`;
   }
 
