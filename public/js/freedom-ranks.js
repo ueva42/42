@@ -72,7 +72,7 @@
       ? `<span class="freedom-rank-badge__label">${r.label}</span>`
       : "";
     return `
-      <span class="freedom-rank-badge" style="--rank-color:${r.color}" title="Freiheitsrang: ${r.label}">
+      <span class="freedom-rank-badge" style="--rank-color:${r.color}" title="Level: ${r.label}">
         <img class="freedom-rank-badge__icon" src="${r.icon}" alt="${r.label}" width="${size}" height="${size}" loading="lazy" />
         ${label}
       </span>`;

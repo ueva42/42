@@ -6504,7 +6504,7 @@ body.student-app .card.section > h2 {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  gap: 6px;
+  gap: 10px;
   min-width: 0;
 }
 .lp-practice-slider {
@@ -11009,7 +11009,7 @@ h2 {
       <span class="student-topbar-pill student-topbar-pill-xp">
         <span class="student-topbar-pill__xp"><span id="topbarXp">–</span> XP</span>
         <span class="student-topbar-pill__sep" aria-hidden="true">·</span>
-        <span class="student-topbar-pill__level" id="topbarLevel" title="Freiheitsrang">–</span>
+        <span class="student-topbar-pill__level" id="topbarLevel" title="Level">–</span>
       </span>
       <div id="notifWrap" class="notif-wrap">
         <button id="notifBell" class="notif-bell" type="button" aria-label="Benachrichtigungen">
@@ -11358,12 +11358,12 @@ h2 {
 
 <script src="/js/demo-banner.js?v=2"></script>
 <script src="/js/auth-fetch.js?v=8"></script>
-<script src="/js/freedom-ranks.js?v=1"></script>
+<script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=29"></script>
-<script src="/js/logbuch-visuals.js?v=10"></script>
+<script src="/js/logbuch-hub.js?v=30"></script>
+<script src="/js/logbuch-visuals.js?v=11"></script>
 <script src="/js/logbuch-reminders.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=8"></script>
@@ -11674,7 +11674,7 @@ function updateStudentProfile(u, levels, character, traits) {
     const iconHtml = freedom.icon
       ? `<img src="${freedom.icon}" alt="" width="18" height="18" style="vertical-align:-3px;margin-right:4px;object-fit:contain;" aria-hidden="true">`
       : "";
-    topLevel.innerHTML = `${iconHtml}Freiheitsrang: ${freedom.label}`;
+    topLevel.innerHTML = `${iconHtml}Level: ${freedom.label}`;
   }
 
   if (window.LogbuchHub) window.LogbuchHub.refreshStats();
@@ -11701,7 +11701,7 @@ window.loadMe = async function loadMe() {
           ${u.freedom_rank_icon ? `<img src="${u.freedom_rank_icon}" alt="" width="28" height="28" style="object-fit:contain;" aria-hidden="true">` : ""}
           ${u.freedom_rank_label || u.display_rank_label || "Starter"}
         </span>
-        <span class="stat-card__label">Freiheitsrang</span>
+        <span class="stat-card__label">Level</span>
       </div>
     </div>
   `;

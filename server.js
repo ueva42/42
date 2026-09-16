@@ -11751,7 +11751,7 @@ app.patch("/api/student/:id/freedom-rank", isAdmin, async (req, res) => {
     if (!isValidFreedomRank(nextRank)) {
       return res.status(400).json({
         success: false,
-        message: "Ungültiger Freiheitsrang.",
+        message: "Ungültiges Level.",
         allowed: FREEDOM_RANK_IDS
       });
     }
@@ -11783,7 +11783,7 @@ app.patch("/api/student/:id/freedom-rank", isAdmin, async (req, res) => {
         studentId,
         freedomRank: rank,
         xp: prevXp,
-        message: "Freiheitsrang unverändert."
+        message: "Level unverändert."
       });
     }
 
@@ -11823,7 +11823,7 @@ app.patch("/api/student/:id/freedom-rank", isAdmin, async (req, res) => {
         freedomRank: serializeFreedomRank(row.freedom_rank),
         xp: Number(row.xp || 0),
         xpUnchanged: Number(row.xp || 0) === prevXp,
-        message: "Freiheitsrang gespeichert."
+        message: "Level gespeichert."
       });
     } catch (err) {
       await client.query("ROLLBACK");

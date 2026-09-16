@@ -459,11 +459,11 @@
       const icon = p.freedomRankIcon
         ? `<img src="${p.freedomRankIcon}" alt="" width="18" height="18" style="vertical-align:-3px;margin-right:4px;object-fit:contain;" aria-hidden="true">`
         : "";
-      topLevel.innerHTML = `${icon}Freiheitsrang: ${p.freedomRankLabel || p.levelName || "–"}`;
+      topLevel.innerHTML = `${icon}Level: ${p.freedomRankLabel || p.levelName || "–"}`;
     }
     set("hubHeroNext", p.nextLevelLabel || "–");
     set("hubXpMeta", p.xpProgressLabel || "–");
-    set("hubXpLevel", p.freedomRankLabel || p.levelName || "Freiheitsrang");
+    set("hubXpLevel", p.freedomRankLabel || p.levelName || "–");
     const xpFill = document.getElementById("hubXpFill");
     if (xpFill) {
       xpFill.style.width = `${Math.max(0, Math.min(100, Number(p.xpPct) || 0))}%`;

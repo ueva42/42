@@ -294,7 +294,7 @@ window.LogbuchVisuals = {
         { value: total.toLocaleString("de-DE"), label: "XP gesamt", accent: true },
         { value: weekXp, label: "XP diese Woche" },
         { value: todayXp, label: "XP heute" },
-        { value: profile?.freedomRankLabel || profile?.levelName || "–", label: "Freiheitsrang", accent: true }
+        { value: profile?.freedomRankLabel || profile?.levelName || "–", label: "Level", accent: true }
       ]),
       chartTitle: "XP der letzten 7 Tage",
       chart: V.miniBarChart(weekData)
@@ -474,7 +474,7 @@ window.LogbuchVisuals = {
       ${V.pageKpi(
         [
           { value: xp.toLocaleString("de-DE"), label: "XP", accent: true },
-          { value: u.freedom_rank_label || profile?.freedomRankLabel || u.level_name || "–", label: "Freiheitsrang" },
+          { value: u.freedom_rank_label || profile?.freedomRankLabel || u.level_name || "–", label: "Level" },
           { value: (data.traits || []).length, label: "Eigenschaften" },
           { value: (data.items || []).length, label: "Items" }
         ],

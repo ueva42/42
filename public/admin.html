@@ -1635,7 +1635,7 @@
         <div id="classXpBanner" class="class-xp-banner" hidden>
           <span class="class-xp-banner__label">Klassen-XP</span>
           <strong id="classXpTotal">0</strong>
-          <span class="class-xp-banner__hint">Summe verdienter XP · unabhängig vom Freiheitsrang</span>
+          <span class="class-xp-banner__hint">Summe verdienter XP · unabhängig vom Level</span>
         </div>
         <p id="classRankToast" class="class-rank-toast" hidden role="status"></p>
 
@@ -1643,7 +1643,7 @@
           <thead>
             <tr>
               <th>Name</th>
-              <th>Freiheitsrang</th>
+              <th>Level</th>
               <th>XP</th>
               <th>Passwort</th>
               <th>Reset</th>
@@ -1810,7 +1810,7 @@
 <script src="/js/client-cache-reset.js?v=1"></script>
 <script src="/js/demo-banner.js?v=2"></script>
 <script src="/js/auth-fetch.js?v=8"></script>
-<script src="/js/freedom-ranks.js?v=1"></script>
+<script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=4"></script>
 <script src="/js/teacher-timetable.js?v=4"></script>
@@ -1821,7 +1821,7 @@
 <script src="/js/teacher-levelplan.js?v=10"></script>
 <script src="/js/teacher-levelplan-zuordnung.js?v=5"></script>
 <script src="/js/teacher-competencies.js?v=23"></script>
-<script src="/js/teacher-termine.js?v=4"></script>
+<script src="/js/teacher-termine.js?v=5"></script>
 <script src="/js/teacher-gruppenmodus.js?v=8"></script>
 
 <script>
@@ -2316,10 +2316,10 @@ async function loadClassStudents() {
       <td>
         <div class="freedom-rank-cell" id="rankCell_${s.id}">
           <img src="${rank.icon}" alt="${rank.label}" width="28" height="28" />
-          <label class="sr-only" for="rankSelect_${s.id}">Freiheitsrang für ${s.name}</label>
+          <label class="sr-only" for="rankSelect_${s.id}">Level für ${s.name}</label>
           <select
             id="rankSelect_${s.id}"
-            aria-label="Freiheitsrang für ${s.name}"
+            aria-label="Level für ${s.name}"
             data-student-id="${s.id}"
             data-prev="${rankId}"
             onchange="onFreedomRankChange(this)"
@@ -2366,7 +2366,7 @@ async function onFreedomRankChange(selectEl) {
     const data = await r.json();
     if (!r.ok || !data.success) {
       selectEl.value = prev;
-      showClassRankToast(data.message || "Freiheitsrang konnte nicht gespeichert werden.", true);
+      showClassRankToast(data.message || "Level konnte nicht gespeichert werden.", true);
       return;
     }
     selectEl.dataset.prev = next;
@@ -2376,11 +2376,11 @@ async function onFreedomRankChange(selectEl) {
       img.src = rank.icon;
       img.alt = rank.label;
     }
-    showClassRankToast(data.message || "Freiheitsrang gespeichert");
+    showClassRankToast(data.message || "Level gespeichert");
   } catch (err) {
     console.error(err);
     selectEl.value = prev;
-    showClassRankToast("Netzwerkfehler beim Speichern des Freiheitsrangs.", true);
+    showClassRankToast("Netzwerkfehler beim Speichern des Levels.", true);
   } finally {
     if (cell) cell.classList.remove("is-saving");
   }

@@ -304,7 +304,7 @@
             </div>
             <button type="button" class="td-modal-close" id="tmEvalClose">✕</button>
           </div>
-          <p class="hint">Status wird bewusst gesetzt (nicht aus Prozent berechnet). Bestanden kann verknüpfte Themen freischalten – XP und Freiheitsrang bleiben unverändert.</p>
+          <p class="hint">Status wird bewusst gesetzt (nicht aus Prozent berechnet). Bestanden kann verknüpfte Themen freischalten – XP und Level bleiben unverändert.</p>
           <table class="td-detail-table tm-eval-table">
             <thead>
               <tr><th>Schüler:in</th><th>Status</th><th>Prozent (optional)</th><th></th></tr>
