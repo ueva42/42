@@ -316,31 +316,23 @@
     const pct = practicePercentOf(goal);
     const shown = pct == null ? 70 : pct;
     const passed = shown >= passPercent();
-    const threshold = passPercent();
     return `
-      <div class="lp-practice-dial-wrap" data-lp-practice-wrap data-goal-id="${escapeHtml(goal.id)}">
-        <p class="lp-practice-dial-label">Lerncheck</p>
-        <div
-          class="lc-dial ${passed ? "is-pass" : ""} is-editable"
-          data-lp-practice-dial
-          data-goal-id="${escapeHtml(goal.id)}"
-          data-threshold="${threshold}"
-          style="--pct:${shown}; --threshold:${threshold}; --accent:${passed ? "#22c55e" : "#22d3ee"}"
-          role="slider"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow="${shown}"
-          aria-label="Prozent im Lerncheck"
-          tabindex="0"
-        >
-          <div class="lc-dial__ring" aria-hidden="true"></div>
-          <div class="lc-dial__threshold" aria-hidden="true"></div>
-          <div class="lc-dial__knob" aria-hidden="true"></div>
-          <div class="lc-dial__center"><strong data-lp-practice-value>${shown} %</strong><span>richtig</span></div>
+      <div class="lp-practice-compact ${passed ? "is-pass" : ""}" data-lp-practice-wrap data-goal-id="${escapeHtml(goal.id)}">
+        <div class="lp-practice-compact__row">
+          <span class="lp-practice-compact__label">Quiz</span>
+          <input
+            type="range"
+            class="lp-practice-range"
+            min="0"
+            max="100"
+            step="1"
+            value="${shown}"
+            aria-label="Prozent im Lerncheck"
+          />
+          <strong class="lp-practice-compact__value" data-lp-practice-value>${shown} %</strong>
         </div>
-        <input type="range" class="lc-dial__range lp-practice-range" min="0" max="100" step="1" value="${shown}" aria-label="Lerncheck Prozent" />
-        <button type="button" class="zielpfad-btn lp-practice-save" data-lp-save-practice="${escapeHtml(goal.id)}">
-          ${state.saving === `practice_${goal.id}` ? "Speichern…" : "Ergebnis speichern"}
+        <button type="button" class="lp-practice-save" data-lp-save-practice="${escapeHtml(goal.id)}">
+          ${state.saving === `practice_${goal.id}` ? "…" : "Speichern"}
         </button>
       </div>`;
   }
@@ -952,60 +944,28 @@
     });
   }
 
-  function syncPracticeDial(dial, pct) {
-    const threshold = Number(dial.dataset.threshold) || passPercent();
-    const passed = pct >= threshold;
-    dial.style.setProperty("--pct", String(pct));
-    dial.style.setProperty("--accent", passed ? "#22c55e" : "#22d3ee");
-    dial.classList.toggle("is-pass", passed);
-    dial.setAttribute("aria-valuenow", String(pct));
-    const valueEl = dial.querySelector("[data-lp-practice-value]");
+  function syncPracticeCompact(wrap, pct) {
+    const passed = pct >= passPercent();
+    wrap.classList.toggle("is-pass", passed);
+    const valueEl = wrap.querySelector("[data-lp-practice-value]");
     if (valueEl) valueEl.textContent = `${pct} %`;
-    const wrap = dial.closest("[data-lp-practice-wrap]");
-    const range = wrap?.querySelector(".lp-practice-range");
-    if (range) range.value = String(pct);
+    const range = wrap.querySelector(".lp-practice-range");
+    if (range && Number(range.value) !== pct) range.value = String(pct);
   }
 
   function bindPracticeDials(root) {
-    root.querySelectorAll("[data-lp-practice-dial].is-editable").forEach((dial) => {
-      let dragging = false;
-      const setFromEvent = (e) => {
-        const point = e.touches ? e.touches[0] : e;
-        if (!point) return;
-        syncPracticeDial(dial, percentFromPointer(dial, point.clientX, point.clientY));
-      };
-      dial.addEventListener("pointerdown", (e) => {
-        dragging = true;
-        dial.setPointerCapture?.(e.pointerId);
-        setFromEvent(e);
-        e.preventDefault();
-      });
-      dial.addEventListener("pointermove", (e) => {
-        if (!dragging) return;
-        setFromEvent(e);
-      });
-      dial.addEventListener("pointerup", () => {
-        dragging = false;
-      });
-      dial.addEventListener("pointercancel", () => {
-        dragging = false;
-      });
-    });
-
     root.querySelectorAll(".lp-practice-range").forEach((range) => {
       range.addEventListener("input", () => {
-        const dial = range.closest("[data-lp-practice-wrap]")?.querySelector("[data-lp-practice-dial]");
-        if (dial) syncPracticeDial(dial, Number(range.value) || 0);
+        const wrap = range.closest("[data-lp-practice-wrap]");
+        if (wrap) syncPracticeCompact(wrap, Number(range.value) || 0);
       });
     });
 
     root.querySelectorAll("[data-lp-save-practice]").forEach((btn) => {
       btn.addEventListener("click", () => {
+        const wrap = btn.closest("[data-lp-practice-wrap]");
         const goalId = btn.dataset.lpSavePractice;
-        const dial = btn
-          .closest("[data-lp-practice-wrap]")
-          ?.querySelector(`[data-lp-practice-dial][data-goal-id="${goalId}"]`);
-        const pct = Number(dial?.getAttribute("aria-valuenow") ?? 0);
+        const pct = Number(wrap?.querySelector(".lp-practice-range")?.value ?? 0);
         savePracticePercent(goalId, pct);
       });
     });
