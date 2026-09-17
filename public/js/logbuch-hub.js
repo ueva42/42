@@ -4,8 +4,14 @@
 (function () {
   const UI = () => window.LogbuchUI;
 
-  const icon = (slug) => `/icons/student/png/${slug}.png`;
-  const hero = (slug) => `/icons/student/hero/${slug}-hero.png?v=6`;
+  const icon = (slug) =>
+    slug === "materialschrank"
+      ? "/icons/student/svg/materialschrank.svg"
+      : `/icons/student/png/${slug}.png`;
+  const hero = (slug) =>
+    slug === "materialschrank"
+      ? "/icons/student/svg/materialschrank.svg"
+      : `/icons/student/hero/${slug}-hero.png?v=6`;
 
   /** Central artwork mapping for hub tiles (fit/position only — assets stay fixed). */
   const TILE_ARTWORK = {
@@ -18,7 +24,8 @@
     missionen: { fit: "cover", position: "center right" },
     belohnungen: { fit: "cover", position: "center right" },
     charakter: { fit: "cover", position: "center right" },
-    "xp-historie": { fit: "cover", position: "center right" }
+    "xp-historie": { fit: "cover", position: "center right" },
+    materialschrank: { fit: "contain", position: "center right" }
   };
 
   const DASHBOARD_HERO = {
@@ -82,6 +89,14 @@
       text: "Sieh deine Entwicklung und was du schon sicher kannst.",
       cta: "Fortschritt ansehen",
       accent: "green"
+    },
+    {
+      section: "materialschrank",
+      slug: "materialschrank",
+      title: "Materialschrank",
+      text: "Links zu Übungen, Tools und Arbeitsblättern.",
+      cta: "Öffnen",
+      accent: "cyan"
     },
     {
       section: "taktik-deck",

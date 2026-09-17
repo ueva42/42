@@ -33,6 +33,11 @@
       subtitle: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
       phase: null
     },
+    materialschrank: {
+      title: "Materialschrank",
+      subtitle: "Übungen, Tools und Arbeitsblätter – einfach antippen und öffnen.",
+      phase: null
+    },
     gruppenmodus: {
       title: "Gruppenarbeit",
       subtitle: "Laborarbeit mit eurer Gruppe an einem iPad.",
@@ -120,6 +125,11 @@
 
     if (section === "checkpoint-plan" && window.LogbuchCheckpointPlan) {
       window.LogbuchCheckpointPlan.init();
+      return;
+    }
+
+    if (section === "materialschrank" && window.LogbuchMaterialschrank) {
+      window.LogbuchMaterialschrank.init();
       return;
     }
 

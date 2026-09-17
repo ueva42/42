@@ -2677,6 +2677,22 @@ async function migrate() {
   await ensureColumn("schools", "regelregal_url", "TEXT");
   await ensureColumn("schools", "regelregal_label", "TEXT");
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS school_material_tiles (
+      id SERIAL PRIMARY KEY,
+      school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      note TEXT,
+      url TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_school_material_tiles_school
+    ON school_material_tiles (school_id, sort_order ASC, id ASC)
+  `);
+
   // USERS
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -4121,6 +4137,186 @@ app.get("/api/admin/me", isAdmin, async (req, res) => {
   } catch (err) {
     console.error("❌ /api/admin/me:", err);
     res.status(500).json({ success: false, message: "Profil konnte nicht geladen werden." });
+  }
+});
+
+const MATERIAL_TILE_MAX = 40;
+
+function mapMaterialTile(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    note: row.note || "",
+    url: row.url,
+    sortOrder: row.sort_order
+  };
+}
+
+async function listMaterialTiles(schoolId) {
+  const r = await pool.query(
+    `
+    SELECT id, title, note, url, sort_order
+    FROM school_material_tiles
+    WHERE school_id = $1
+    ORDER BY sort_order ASC, id ASC
+  `,
+    [schoolId]
+  );
+  return r.rows.map(mapMaterialTile);
+}
+
+app.get("/api/student/materialschrank", isStudent, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const tiles = schoolId ? await listMaterialTiles(schoolId) : [];
+    res.json({ tiles });
+  } catch (err) {
+    console.error("❌ GET /api/student/materialschrank:", err);
+    res.status(500).json({ error: "Materialschrank konnte nicht geladen werden." });
+  }
+});
+
+app.get("/api/admin/materialschrank", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: "Keine Schule in der Sitzung." });
+    }
+    const tiles = await listMaterialTiles(schoolId);
+    res.json({ success: true, tiles });
+  } catch (err) {
+    console.error("❌ GET /api/admin/materialschrank:", err);
+    res.status(500).json({ success: false, message: "Materialschrank konnte nicht geladen werden." });
+  }
+});
+
+app.post("/api/admin/materialschrank", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: "Keine Schule in der Sitzung." });
+    }
+    const title = String(req.body?.title || "").trim().slice(0, 60);
+    const note = String(req.body?.note || "").trim().slice(0, 120);
+    const url = normalizeHttpUrl(req.body?.url);
+    if (!title) {
+      return res.json({ success: false, message: "Bitte einen Titel für die Kachel angeben." });
+    }
+    if (!url) {
+      return res.json({
+        success: false,
+        message: "Bitte einen gültigen http- oder https-Link eintragen."
+      });
+    }
+    const countRes = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM school_material_tiles WHERE school_id = $1",
+      [schoolId]
+    );
+    if ((countRes.rows[0]?.n || 0) >= MATERIAL_TILE_MAX) {
+      return res.json({
+        success: false,
+        message: `Maximal ${MATERIAL_TILE_MAX} Kacheln pro Schule.`
+      });
+    }
+    const orderRes = await pool.query(
+      "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM school_material_tiles WHERE school_id = $1",
+      [schoolId]
+    );
+    const inserted = await pool.query(
+      `
+      INSERT INTO school_material_tiles (school_id, title, note, url, sort_order)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, title, note, url, sort_order
+    `,
+      [schoolId, title, note || null, url, orderRes.rows[0].next]
+    );
+    res.json({ success: true, tile: mapMaterialTile(inserted.rows[0]), tiles: await listMaterialTiles(schoolId) });
+  } catch (err) {
+    console.error("❌ POST /api/admin/materialschrank:", err);
+    res.status(500).json({ success: false, message: "Kachel konnte nicht gespeichert werden." });
+  }
+});
+
+app.patch("/api/admin/materialschrank/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const id = Number(req.params.id);
+    if (!schoolId || !id) {
+      return res.status(400).json({ success: false, message: "Ungültige Anfrage." });
+    }
+    const existing = await pool.query(
+      "SELECT id FROM school_material_tiles WHERE id = $1 AND school_id = $2",
+      [id, schoolId]
+    );
+    if (!existing.rows.length) {
+      return res.json({ success: false, message: "Kachel nicht gefunden." });
+    }
+
+    const updates = [];
+    const params = [];
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "title")) {
+      const title = String(req.body.title || "").trim().slice(0, 60);
+      if (!title) return res.json({ success: false, message: "Titel darf nicht leer sein." });
+      params.push(title);
+      updates.push(`title = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "note")) {
+      const note = String(req.body.note || "").trim().slice(0, 120);
+      params.push(note || null);
+      updates.push(`note = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "url")) {
+      const url = normalizeHttpUrl(req.body.url);
+      if (!url) {
+        return res.json({
+          success: false,
+          message: "Bitte einen gültigen http- oder https-Link eintragen."
+        });
+      }
+      params.push(url);
+      updates.push(`url = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "sortOrder")) {
+      const sortOrder = Number(req.body.sortOrder);
+      if (!Number.isInteger(sortOrder)) {
+        return res.json({ success: false, message: "Ungültige Reihenfolge." });
+      }
+      params.push(sortOrder);
+      updates.push(`sort_order = $${params.length}`);
+    }
+    if (!updates.length) {
+      return res.json({ success: false, message: "Keine Änderungen." });
+    }
+    params.push(id, schoolId);
+    await pool.query(
+      `UPDATE school_material_tiles SET ${updates.join(", ")} WHERE id = $${params.length - 1} AND school_id = $${params.length}`,
+      params
+    );
+    res.json({ success: true, tiles: await listMaterialTiles(schoolId) });
+  } catch (err) {
+    console.error("❌ PATCH /api/admin/materialschrank:", err);
+    res.status(500).json({ success: false, message: "Kachel konnte nicht aktualisiert werden." });
+  }
+});
+
+app.delete("/api/admin/materialschrank/:id", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const id = Number(req.params.id);
+    if (!schoolId || !id) {
+      return res.status(400).json({ success: false, message: "Ungültige Anfrage." });
+    }
+    const del = await pool.query(
+      "DELETE FROM school_material_tiles WHERE id = $1 AND school_id = $2 RETURNING id",
+      [id, schoolId]
+    );
+    if (!del.rows.length) {
+      return res.json({ success: false, message: "Kachel nicht gefunden." });
+    }
+    res.json({ success: true, tiles: await listMaterialTiles(schoolId) });
+  } catch (err) {
+    console.error("❌ DELETE /api/admin/materialschrank:", err);
+    res.status(500).json({ success: false, message: "Kachel konnte nicht gelöscht werden." });
   }
 });
 
@@ -12884,6 +13080,7 @@ const teacherSpaPaths = [
   "/teacher/levelcheck-planen",
   "/teacher/termine",
   "/teacher/gruppenmodus",
+  "/teacher/materialschrank",
   "/teacher/lesson-goals",
   "/teacher/was-goals",
   "/teacher/levelplan-import"
@@ -12913,6 +13110,7 @@ const studentSpaPaths = [
   "/student/zielsetzung",
   "/student/checkpoint-plan",
   "/student/gruppenmodus",
+  "/student/materialschrank",
   "/student/levelcheck",
   "/student/competencies",
   "/student/status",

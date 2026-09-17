@@ -1188,10 +1188,85 @@ body.student-app .notif-panel {
   color: #a5f3fc;
 }
 
-.hub-hero-btn--shelf:hover {
-  background: rgba(34, 211, 238, 0.18);
-  border-color: rgba(34, 211, 238, 0.5);
-  transform: translateY(-1px);
+.ms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.ms-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 150px;
+  padding: 18px 18px 16px;
+  border-radius: 20px;
+  text-decoration: none;
+  color: #e2e8f0;
+  border: 1px solid color-mix(in srgb, var(--accent, #22d3ee) 40%, transparent);
+  background:
+    radial-gradient(circle at 90% 10%, var(--accent-soft, rgba(34, 211, 238, 0.18)), transparent 45%),
+    linear-gradient(160deg, #0a1228 0%, #071126 100%);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ms-tile:hover,
+.ms-tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent, #22d3ee) 70%, transparent);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.38);
+}
+
+.ms-tile:focus-visible {
+  outline: 2px solid var(--accent, #22d3ee);
+  outline-offset: 3px;
+}
+
+.ms-tile__glyph {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  color: var(--accent, #67e8f9);
+}
+
+.ms-tile__glyph svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ms-tile__title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f8fafc;
+}
+
+.ms-tile__note {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+.ms-tile__cta {
+  margin-top: auto;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent, #67e8f9);
+}
+
+.ms-empty {
+  margin: 8px 0 0;
+  color: #94a3b8;
+  line-height: 1.5;
 }
 
 @media (min-width: 640px) {
@@ -11188,6 +11263,21 @@ h2 {
     <div id="checkpoint-plan-screen-root" class="logbuch-root"></div>
   </div>
 
+  <!-- MATERIALSCHRANK -->
+  <div id="materialschrank-section" class="card section logbuch-screen student-screen student-screen--cyan" style="display:none;">
+    <header class="page-hero sol-hero sol-hero--page">
+      <div class="page-hero__content">
+        <div class="student-section-icon">
+          <img src="/icons/student/svg/materialschrank.svg" alt="" aria-hidden="true" onerror="this.style.display='none'">
+        </div>
+        <p class="page-eyebrow">Materialschrank</p>
+        <h2 class="page-hero__title">Materialschrank</h2>
+        <p class="page-hero__sub">Übungen, Tools und Arbeitsblätter – antippen und in einem neuen Fenster öffnen.</p>
+      </div>
+    </header>
+    <div id="materialschrank-screen-root" class="logbuch-root"></div>
+  </div>
+
   <!-- GRUPPENMODUS -->
   <div id="gruppenmodus-section" class="card section logbuch-screen student-screen student-screen--green" style="display:none;overflow:visible;">
     <header class="page-hero sol-hero sol-hero--page">
@@ -11364,6 +11454,7 @@ h2 {
       <button type="button" class="student-more-link" data-section="hub">Kontrollzentrum <span>›</span></button>
       <button type="button" class="student-more-link" data-section="levelplan">Mein Lernstand <span>›</span></button>
       <button type="button" class="student-more-link" data-section="checkpoint-plan">Meine Checks <span>›</span></button>
+      <button type="button" class="student-more-link" data-section="materialschrank">Materialschrank <span>›</span></button>
       <button type="button" class="student-more-link" data-section="missionen">Missionen <span>›</span></button>
       <button type="button" class="student-more-link" data-section="belohnungen">Belohnungen <span>›</span></button>
       <button type="button" class="student-more-link" data-section="charakter">Charakter <span>›</span></button>
@@ -11387,11 +11478,11 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=31"></script>
+<script src="/js/logbuch-hub.js?v=32"></script>
 <script src="/js/logbuch-visuals.js?v=11"></script>
 <script src="/js/logbuch-reminders.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/student-router.js?v=8"></script>
+<script src="/js/student-router.js?v=9"></script>
 <script src="/js/logbuch-plan.js?v=25"></script>
 <script src="/js/logbuch-check.js?v=11"></script>
 <script src="/js/logbuch-reflect.js?v=6"></script>
@@ -11402,8 +11493,9 @@ h2 {
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=27"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=10"></script>
+<script src="/js/logbuch-materialschrank.js?v=1"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=21"></script>
-<script src="/js/logbuch-screens.js?v=6"></script>
+<script src="/js/logbuch-screens.js?v=7"></script>
 
 <script>
 /* ============================================

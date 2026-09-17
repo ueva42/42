@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <title>Materialschrank</title>
+  <defs>
+    <linearGradient id="ms-g" x1="48" y1="32" x2="210" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22D3EE"/><stop offset="1" stop-color="#38BDF8"/>
+    </linearGradient>
+    <radialGradient id="ms-r" cx="50%" cy="42%" r="62%">
+      <stop offset="0" stop-color="#22D3EE" stop-opacity=".36"/>
+      <stop offset=".55" stop-color="#38BDF8" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="ms-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#ms-r)" opacity=".75"/>
+  <rect x="31" y="31" width="194" height="194" rx="42" stroke="url(#ms-g)" stroke-width="4" opacity=".55"/>
+  <g filter="url(#ms-glow)" stroke="url(#ms-g)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="72" y="68" width="112" height="128" rx="14"/>
+    <path d="M72 112h112M72 152h112"/>
+    <circle cx="156" cy="96" r="5" fill="url(#ms-g)" stroke-width="3"/>
+    <circle cx="156" cy="132" r="5" fill="url(#ms-g)" stroke-width="3"/>
+    <circle cx="156" cy="172" r="5" fill="url(#ms-g)" stroke-width="3"/>
+  </g>
+</svg>
