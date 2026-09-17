@@ -2303,6 +2303,30 @@ function publicImageUrl(url) {
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
+function normalizeHttpUrl(raw) {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return "";
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return parsed.toString();
+  } catch (_err) {
+    return null;
+  }
+}
+
+async function getSchoolRegelregal(schoolId) {
+  if (!schoolId) return { url: "", label: "Regelregal" };
+  const r = await pool.query(
+    "SELECT regelregal_url, regelregal_label FROM schools WHERE id = $1 LIMIT 1",
+    [schoolId]
+  );
+  const row = r.rows[0] || {};
+  const url = normalizeHttpUrl(row.regelregal_url) || "";
+  const label = String(row.regelregal_label || "").trim() || "Regelregal";
+  return { url, label };
+}
+
 // -------------------------------------------------------
 // Grundpfade
 // -------------------------------------------------------
@@ -2649,6 +2673,9 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+
+  await ensureColumn("schools", "regelregal_url", "TEXT");
+  await ensureColumn("schools", "regelregal_label", "TEXT");
 
   // USERS
   await pool.query(`
@@ -4065,6 +4092,66 @@ app.get("/api/auth/session", async (req, res) => {
     res.status(500).json({ authenticated: false });
   }
 });
+
+// -------------------------------------------------------
+// ADMIN – Profil & Schul-Links
+// -------------------------------------------------------
+app.get("/api/admin/me", isAdmin, async (req, res) => {
+  try {
+    const adminId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const r = await pool.query(
+      `
+      SELECT u.name, s.name AS school
+      FROM users u
+      LEFT JOIN schools s ON s.id = u.school_id
+      WHERE u.id = $1 AND u.role = 'admin'
+      LIMIT 1
+    `,
+      [adminId]
+    );
+    const row = r.rows[0] || {};
+    const regelregal = await getSchoolRegelregal(schoolId);
+    res.json({
+      name: row.name || "",
+      school: row.school || "",
+      regelregalUrl: regelregal.url,
+      regelregalLabel: regelregal.label
+    });
+  } catch (err) {
+    console.error("❌ /api/admin/me:", err);
+    res.status(500).json({ success: false, message: "Profil konnte nicht geladen werden." });
+  }
+});
+
+app.put("/api/admin/regelregal", isAdmin, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: "Keine Schule in der Sitzung." });
+    }
+    const url = normalizeHttpUrl(req.body?.url);
+    if (url == null) {
+      return res.json({
+        success: false,
+        message: "Bitte einen gültigen http- oder https-Link eintragen."
+      });
+    }
+    const label = String(req.body?.label || "").trim().slice(0, 40) || "Regelregal";
+    await pool.query(
+      `
+      UPDATE schools
+      SET regelregal_url = $1, regelregal_label = $2
+      WHERE id = $3
+    `,
+      [url || null, label, schoolId]
+    );
+    res.json({ success: true, regelregalUrl: url, regelregalLabel: label });
+  } catch (err) {
+    console.error("❌ PUT /api/admin/regelregal:", err);
+    res.status(500).json({ success: false, message: "Link konnte nicht gespeichert werden." });
+  }
+});
 // -------------------------------------------------------
 // ADMIN – eigenes Passwort ändern
 // -------------------------------------------------------
@@ -4385,6 +4472,13 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     [user.school_id]
   );
 
+  let regelregal = { url: "", label: "Regelregal" };
+  try {
+    regelregal = await getSchoolRegelregal(user.school_id);
+  } catch (err) {
+    console.error("❌ regelregal for student/me:", err);
+  }
+
   res.json({
     user,
     character,
@@ -4396,7 +4490,9 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     xp_per_mission: xpByMission,
     freedomRanks: FREEDOM_RANKS.map(serializeFreedomRank),
     freedomRank,
-    hasSeenStartBriefing: !!user.has_seen_start_briefing
+    hasSeenStartBriefing: !!user.has_seen_start_briefing,
+    regelregalUrl: regelregal.url,
+    regelregalLabel: regelregal.label
   });
 });
 

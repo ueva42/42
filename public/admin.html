@@ -839,6 +839,19 @@
       margin-top: 4px;
     }
 
+    #profileTab .lpi-label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 12px 0;
+    }
+
+    #profileTab .lpi-label input {
+      width: 100%;
+      min-width: 0;
+      max-width: 520px;
+    }
+
     .class-xp-banner {
       display: flex;
       flex-wrap: wrap;
@@ -1773,7 +1786,8 @@
       <div class="panel">
         <h2>Profil & Zugang</h2>
         <p class="hint">
-          Hier siehst du deine Admin-Daten und kannst dein eigenes Passwort ändern.
+          Hier siehst du deine Admin-Daten, hinterlegst den Regelregal-/TaskCards-Link
+          für den Schüler-Hub und kannst dein Passwort ändern.
         </p>
       </div>
 
@@ -1783,6 +1797,22 @@
           <b>Name:</b> <span id="profileName">–</span><br>
           <b>Schule:</b> <span id="profileSchool">–</span>
         </p>
+      </div>
+
+      <div class="panel">
+        <h3>Regelregal / TaskCards</h3>
+        <p class="hint">
+          Dieser Link erscheint auf dem Schüler-Hub neben „Tagesziel setzen“
+          und öffnet sich in einem neuen Fenster. Leer lassen, um den Button auszublenden.
+        </p>
+        <label class="lpi-label" for="regelregalLabel">Button-Text
+          <input id="regelregalLabel" type="text" maxlength="40" placeholder="Regelregal" />
+        </label>
+        <label class="lpi-label" for="regelregalUrl">Link
+          <input id="regelregalUrl" type="url" placeholder="https://…" />
+        </label>
+        <button class="action" type="button" onclick="saveRegelregalLink()">Link speichern</button>
+        <div id="regelregalMsg" class="hint"></div>
       </div>
 
       <div class="panel">
@@ -2670,11 +2700,51 @@ async function loadAdminProfile() {
 
     const nameEl = document.getElementById("profileName");
     const schoolEl = document.getElementById("profileSchool");
+    const urlEl = document.getElementById("regelregalUrl");
+    const labelEl = document.getElementById("regelregalLabel");
 
     if (nameEl) nameEl.textContent = data.name || "–";
     if (schoolEl) schoolEl.textContent = data.school || "–";
+    if (urlEl) urlEl.value = data.regelregalUrl || "";
+    if (labelEl) labelEl.value = data.regelregalLabel || "Regelregal";
   } catch (err) {
     console.error("Fehler beim Laden des Admin-Profils", err);
+  }
+}
+
+async function saveRegelregalLink() {
+  const msgEl = document.getElementById("regelregalMsg");
+  const urlEl = document.getElementById("regelregalUrl");
+  const labelEl = document.getElementById("regelregalLabel");
+  if (!msgEl || !urlEl) return;
+  msgEl.className = "hint";
+  msgEl.textContent = "";
+
+  try {
+    const r = await fetch("/api/admin/regelregal", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: urlEl.value.trim(),
+        label: (labelEl?.value || "").trim()
+      })
+    });
+    const data = await r.json();
+    if (data.success) {
+      urlEl.value = data.regelregalUrl || "";
+      if (labelEl) labelEl.value = data.regelregalLabel || "Regelregal";
+      msgEl.className = "msg-ok";
+      msgEl.textContent = data.regelregalUrl
+        ? "Link gespeichert. Schüler:innen sehen den Button auf dem Hub."
+        : "Button auf dem Hub ist ausgeblendet (kein Link).";
+    } else {
+      msgEl.className = "msg-error";
+      msgEl.textContent = data.message || "Speichern fehlgeschlagen.";
+    }
+  } catch (err) {
+    console.error(err);
+    msgEl.className = "msg-error";
+    msgEl.textContent = "Netzwerkfehler beim Speichern.";
   }
 }
 

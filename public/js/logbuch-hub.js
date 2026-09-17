@@ -233,6 +233,42 @@
     return (p?.name || "").split(/\s+/)[0] || "du";
   }
 
+  function regelregalFromProfile() {
+    const p = window.__studentProfile || {};
+    const url = String(p.regelregalUrl || "").trim();
+    if (!url) return null;
+    const label = String(p.regelregalLabel || "").trim() || "Regelregal";
+    return { url, label };
+  }
+
+  function shelfIcon() {
+    return `<span class="hub-hero-btn__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v2H4V4zm0 4h6v10H4V8zm8 0h8v3h-8V8zm0 5h8v3h-8v-3zm-8 7h16v2H4v-2z"/></svg></span>`;
+  }
+
+  function renderRegelregalBtn(ui) {
+    const link = regelregalFromProfile();
+    if (!link) return "";
+    return `<a class="hub-hero-btn hub-hero-btn--shelf" id="hubRegelregalBtn" href="${ui.escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" title="Material und Regeln – öffnet in einem neuen Fenster">${shelfIcon()}${ui.escapeHtml(link.label)}</a>`;
+  }
+
+  function syncRegelregalBtn() {
+    const actions = document.querySelector(".hub-hero-actions");
+    if (!actions) return;
+    const ui = UI();
+    if (!ui?.escapeHtml) return;
+    const existing = document.getElementById("hubRegelregalBtn");
+    const html = renderRegelregalBtn(ui);
+    if (!html) {
+      existing?.remove();
+      return;
+    }
+    if (existing) {
+      existing.outerHTML = html;
+    } else {
+      actions.insertAdjacentHTML("beforeend", html);
+    }
+  }
+
   function navigate(section, query) {
     if (query) {
       window.StudentRouter?.navigateToSection(section, { query });
@@ -385,6 +421,7 @@
                 <button type="button" class="hub-hero-btn hub-hero-btn--secondary" id="hubBriefingBtn">
                   Start-Briefing ansehen
                 </button>
+                ${renderRegelregalBtn(ui)}
               </div>
               <p class="hub-hero-hint" id="hubNextHint">${ui.escapeHtml(step.hint)}</p>
             </div>
@@ -501,6 +538,8 @@
 
     const nameEl = document.getElementById("topbarName");
     if (nameEl) nameEl.textContent = (p.name || "").split(/\s+/)[0] || "";
+
+    syncRegelregalBtn();
   }
 
   async function init() {

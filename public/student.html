@@ -1142,7 +1142,20 @@ body.student-app .notif-panel {
   font-weight: 700;
   letter-spacing: 0.04em;
   cursor: pointer;
+  text-decoration: none;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.hub-hero-btn__icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+}
+
+.hub-hero-btn__icon svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
 }
 
 .hub-hero-btn--primary {
@@ -1167,6 +1180,18 @@ body.student-app .notif-panel {
 .hub-hero-btn--secondary:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.18);
+}
+
+.hub-hero-btn--shelf {
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(34, 211, 238, 0.1);
+  color: #a5f3fc;
+}
+
+.hub-hero-btn--shelf:hover {
+  background: rgba(34, 211, 238, 0.18);
+  border-color: rgba(34, 211, 238, 0.5);
+  transform: translateY(-1px);
 }
 
 @media (min-width: 640px) {
@@ -11362,7 +11387,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=30"></script>
+<script src="/js/logbuch-hub.js?v=31"></script>
 <script src="/js/logbuch-visuals.js?v=11"></script>
 <script src="/js/logbuch-reminders.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
@@ -11645,6 +11670,8 @@ function updateStudentProfile(u, levels, character, traits) {
     characterImage: character?.image_url || null,
     characterName: character?.name || null,
     traits: traitList,
+    regelregalUrl: String(u.regelregalUrl || "").trim(),
+    regelregalLabel: String(u.regelregalLabel || "").trim() || "Regelregal",
     todayXp: (__latestXpLog || [])
       .filter((e) => String(e.created_at).slice(0, 10) === new Date().toISOString().slice(0, 10))
       .reduce((sum, e) => sum + Number(e.amount || 0), 0)
@@ -11697,6 +11724,8 @@ window.loadMe = async function loadMe() {
     return;
   }
   window.__hasSeenStartBriefing = !!data.hasSeenStartBriefing;
+  u.regelregalUrl = data.regelregalUrl;
+  u.regelregalLabel = data.regelregalLabel;
 
   document.getElementById("userCard").innerHTML = `
     <div class="stat-row">
