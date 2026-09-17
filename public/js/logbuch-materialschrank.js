@@ -28,7 +28,6 @@
         ${cabinetIcon()}
         <span class="ms-tile__title">${ui.escapeHtml(tile.title)}</span>
         ${note}
-        <span class="ms-tile__cta">Öffnen <span aria-hidden="true">→</span></span>
       </a>`;
   }
 
