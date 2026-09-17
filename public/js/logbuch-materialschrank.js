@@ -15,7 +15,7 @@
   let initGeneration = 0;
 
   function cabinetIcon() {
-    return `<span class="ms-tile__glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 6h14M5 15h14M16 7.5h.01M16 12h.01M16 18h.01"/></svg></span>`;
+    return `<span class="ms-tile__glyph" aria-hidden="true"><img src="/icons/student/png/materialschrank.png" alt=""></span>`;
   }
 
   function renderTile(ui, tile, index) {

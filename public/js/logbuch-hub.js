@@ -4,14 +4,8 @@
 (function () {
   const UI = () => window.LogbuchUI;
 
-  const icon = (slug) =>
-    slug === "materialschrank"
-      ? "/icons/student/svg/materialschrank.svg"
-      : `/icons/student/png/${slug}.png`;
-  const hero = (slug) =>
-    slug === "materialschrank"
-      ? "/icons/student/svg/materialschrank.svg"
-      : `/icons/student/hero/${slug}-hero.png?v=6`;
+  const icon = (slug) => `/icons/student/png/${slug}.png`;
+  const hero = (slug) => `/icons/student/hero/${slug}-hero.png?v=6`;
 
   /** Central artwork mapping for hub tiles (fit/position only — assets stay fixed). */
   const TILE_ARTWORK = {
@@ -25,7 +19,7 @@
     belohnungen: { fit: "cover", position: "center right" },
     charakter: { fit: "cover", position: "center right" },
     "xp-historie": { fit: "cover", position: "center right" },
-    materialschrank: { fit: "contain", position: "center right" }
+    materialschrank: { fit: "cover", position: "center right" }
   };
 
   const DASHBOARD_HERO = {

@@ -1191,17 +1191,18 @@ body.student-app .notif-panel {
 .ms-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
+  gap: 12px;
+  align-items: stretch;
 }
 
 .ms-tile {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  min-height: 150px;
-  padding: 18px 18px 16px;
-  border-radius: 20px;
+  gap: 6px;
+  min-height: 0;
+  padding: 14px 16px 12px;
+  border-radius: 18px;
   text-decoration: none;
   color: #e2e8f0;
   border: 1px solid color-mix(in srgb, var(--accent, #22d3ee) 40%, transparent);
@@ -1226,9 +1227,17 @@ body.student-app .notif-panel {
 
 .ms-tile__glyph {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   color: var(--accent, #67e8f9);
+}
+
+.ms-tile__glyph img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 0 10px var(--accent-glow, rgba(34, 211, 238, 0.35)));
 }
 
 .ms-tile__glyph svg {
@@ -1255,7 +1264,7 @@ body.student-app .notif-panel {
 }
 
 .ms-tile__cta {
-  margin-top: auto;
+  margin-top: 4px;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -1264,9 +1273,17 @@ body.student-app .notif-panel {
 }
 
 .ms-empty {
-  margin: 8px 0 0;
+  margin: 0;
   color: #94a3b8;
   line-height: 1.5;
+}
+
+#materialschrank-section > .page-hero {
+  margin-bottom: 12px;
+}
+
+#materialschrank-screen-root {
+  margin-top: 0;
 }
 
 @media (min-width: 640px) {
@@ -11268,11 +11285,14 @@ h2 {
     <header class="page-hero sol-hero sol-hero--page">
       <div class="page-hero__content">
         <div class="student-section-icon">
-          <img src="/icons/student/svg/materialschrank.svg" alt="" aria-hidden="true" onerror="this.style.display='none'">
+          <img src="/icons/student/png/materialschrank.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
         <p class="page-eyebrow">Materialschrank</p>
         <h2 class="page-hero__title">Materialschrank</h2>
         <p class="page-hero__sub">Übungen, Tools und Arbeitsblätter – antippen und in einem neuen Fenster öffnen.</p>
+      </div>
+      <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/materialschrank-hero.png?v=7" alt="" aria-hidden="true" onerror="this.style.display='none'">
       </div>
     </header>
     <div id="materialschrank-screen-root" class="logbuch-root"></div>
@@ -11478,7 +11498,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=32"></script>
+<script src="/js/logbuch-hub.js?v=33"></script>
 <script src="/js/logbuch-visuals.js?v=11"></script>
 <script src="/js/logbuch-reminders.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
@@ -11493,7 +11513,7 @@ h2 {
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=27"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=10"></script>
-<script src="/js/logbuch-materialschrank.js?v=2"></script>
+<script src="/js/logbuch-materialschrank.js?v=3"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=21"></script>
 <script src="/js/logbuch-screens.js?v=7"></script>
 
