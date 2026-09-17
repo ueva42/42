@@ -11357,7 +11357,7 @@ h2 {
 </div>
 
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=8"></script>
+<script src="/js/auth-fetch.js?v=9"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
@@ -11686,8 +11686,16 @@ window.loadMe = async function loadMe() {
     window.location.href = "/login";
     return;
   }
+  if (!r.ok) {
+    console.error("loadMe failed", r.status);
+    return;
+  }
   const data = await r.json();
   const u = data.user;
+  if (!u) {
+    console.error("loadMe: no user payload");
+    return;
+  }
   window.__hasSeenStartBriefing = !!data.hasSeenStartBriefing;
 
   document.getElementById("userCard").innerHTML = `
@@ -12331,7 +12339,20 @@ async function bootStudentApp() {
     loadClassProgress();
   } catch (err) {
     console.error(err);
-    window.location.href = "/login";
+    try {
+      const sessionRes = await fetch("/api/auth/session", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      if (sessionRes.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      const data = sessionRes.ok ? await sessionRes.json().catch(() => null) : null;
+      if (data && data.authenticated === false) {
+        window.location.href = "/login";
+      }
+    } catch (_) {}
   } finally {
     window.__authBootstrap = false;
   }

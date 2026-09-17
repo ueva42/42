@@ -4022,11 +4022,25 @@ app.get("/api/auth/session", async (req, res) => {
       return res.status(401).json({ authenticated: false });
     }
 
-    await refreshSessionUserFromDb(req);
-    await saveSession(req);
+    try {
+      await refreshSessionUserFromDb(req);
+      await saveSession(req);
+    } catch (err) {
+      console.error("❌ /api/auth/session refresh:", err);
+    }
 
     const current = req.session.user;
-    const isDemo = await isDemoSchoolId(pool, current.school_id);
+    if (!current?.id) {
+      return res.status(401).json({ authenticated: false });
+    }
+
+    let isDemo = false;
+    try {
+      isDemo = await isDemoSchoolId(pool, current.school_id);
+    } catch (err) {
+      console.error("❌ /api/auth/session isDemo:", err);
+    }
+
     res.json({
       authenticated: true,
       role: current.role,
@@ -4037,6 +4051,17 @@ app.get("/api/auth/session", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ /api/auth/session:", err);
+    const fallback = req.session?.user;
+    if (fallback?.id) {
+      return res.json({
+        authenticated: true,
+        role: fallback.role,
+        id: fallback.id,
+        schoolId: fallback.school_id ?? null,
+        ready: fallback.role === "admin" ? fallback.school_id != null : true,
+        isDemo: false
+      });
+    }
     res.status(500).json({ authenticated: false });
   }
 });
@@ -4136,11 +4161,18 @@ function denyAccess(req, res) {
 function isAdmin(req, res, next) {
   (async () => {
     try {
-      if (!req.session?.user?.id) return denyAccess(req, res);
-      // Session aus DB nachziehen (PG-Store / Rolling kann kurz hinterherhinken)
-      const refreshed = await refreshSessionUserFromDb(req);
-      if (!refreshed || refreshed.role !== "admin") {
-        return denyAccess(req, res);
+      const sessionUser = req.session?.user;
+      if (!sessionUser?.id) return denyAccess(req, res);
+      try {
+        const refreshed = await refreshSessionUserFromDb(req);
+        if (refreshed) {
+          if (refreshed.role !== "admin") return denyAccess(req, res);
+        } else if (sessionUser.role !== "admin") {
+          return denyAccess(req, res);
+        }
+      } catch (err) {
+        console.error("❌ isAdmin refresh:", err);
+        if (sessionUser.role !== "admin") return denyAccess(req, res);
       }
       next();
     } catch (err) {
@@ -4241,6 +4273,9 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   );
 
   const user = userData.rows[0];
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
   const freedomRank = serializeFreedomRank(user.freedom_rank);
   user.freedom_rank = freedomRank.id;
   user.freedom_rank_label = freedomRank.label;

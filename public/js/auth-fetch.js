@@ -1,7 +1,7 @@
 /**
  * Session-aware fetch: cookies + kurze Retries bei 401/403 (PG-Session-Lag).
  * Nach bestätigter Session noch einmal versuchen — sonst bleibt „Forbidden“ trotz Login.
- * Logout nur wenn Session wirklich tot ist — nicht während App-Bootstrap.
+ * Logout nur wenn die Session nachweislich tot ist (401 / authenticated:false).
  */
 (function () {
   if (window.__authFetchInstalled) return;
@@ -50,11 +50,7 @@
       return nativeFetch(input, init);
     }
 
-    const mergedInit = {
-      credentials: "same-origin",
-      cache: "no-store",
-      ...init
-    };
+    const mergedInit = mergedInitIfNeeded(init);
 
     for (let attempt = 0; attempt <= RETRY_MS.length; attempt++) {
       const res = await nativeFetch(input, mergedInit);
@@ -65,15 +61,17 @@
         continue;
       }
 
-      // Letzter Versuch: Session frisch vom Server laden, dann Request wiederholen
       if (shouldCheckSession(path)) {
         try {
           const sessionRes = await nativeFetch("/api/auth/session", {
             credentials: "same-origin",
             cache: "no-store"
           });
-          if (!sessionRes.ok) {
+          if (sessionRes.status === 401) {
             goLogin();
+            return res;
+          }
+          if (!sessionRes.ok) {
             return res;
           }
           const sessionData = await sessionRes.json().catch(() => null);
@@ -83,7 +81,6 @@
           }
           const retryRes = await nativeFetch(input, mergedInit);
           if (retryRes.status === 401 || retryRes.status === 403) {
-            // Session da, aber Rolle passt nicht → Login
             const role = sessionData?.role;
             const onTeacher =
               (window.location.pathname || "").startsWith("/teacher") ||
@@ -94,11 +91,18 @@
           }
           return retryRes;
         } catch (_err) {
-          goLogin();
           return res;
         }
       }
       return res;
     }
   };
+
+  function mergedInitIfNeeded(init) {
+    return {
+      credentials: "same-origin",
+      cache: "no-store",
+      ...init
+    };
+  }
 })();
