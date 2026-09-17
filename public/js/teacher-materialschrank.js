@@ -1,8 +1,10 @@
 /**
- * Lehrkraft – Materialschrank (Kacheln mit Material-Links).
+ * Lehrkraft – Materialschrank (Kacheln mit Material-Links, pro Klasse).
  */
 (function () {
   const state = {
+    classes: [],
+    classId: null,
     tiles: [],
     loading: false,
     saving: false,
@@ -20,6 +22,15 @@
       .replace(/"/g, "&quot;");
   }
 
+  function sameId(a, b) {
+    return String(a) === String(b);
+  }
+
+  function selectedClassName() {
+    const match = state.classes.find((c) => sameId(c.id, state.classId));
+    return match?.name || "";
+  }
+
   function editingTile() {
     return state.tiles.find((t) => String(t.id) === String(state.editingId)) || null;
   }
@@ -27,10 +38,28 @@
   function render() {
     const root = document.getElementById("materialschrankTabRoot");
     if (!root) return;
+
+    if (!state.classes.length && !state.loading) {
+      root.innerHTML = `
+        <div class="panel">
+          <h2>Materialschrank</h2>
+          <p class="hint">Bitte zuerst eine Klasse anlegen (Menü „Klassen &amp; Schüler“).</p>
+          ${state.error ? `<p class="msg-error">${escapeHtml(state.error)}</p>` : ""}
+        </div>`;
+      return;
+    }
+
     const edit = editingTile();
     const titleVal = state.draft?.title ?? (edit ? edit.title : "");
     const noteVal = state.draft?.note ?? (edit ? edit.note : "");
     const urlVal = state.draft?.url ?? (edit ? edit.url : "");
+    const className = selectedClassName();
+    const classOptions = state.classes
+      .map(
+        (c) =>
+          `<option value="${c.id}" ${sameId(c.id, state.classId) ? "selected" : ""}>${escapeHtml(c.name)}</option>`
+      )
+      .join("");
 
     const rows = state.tiles
       .map(
@@ -51,40 +80,45 @@
       )
       .join("");
 
+    const canEdit = Boolean(state.classId) && !state.loading;
+
     root.innerHTML = `
       <div class="panel">
         <h2>Materialschrank</h2>
         <p class="hint">
-          Diese Kacheln sehen Schüler:innen unter „Materialschrank“.
+          Jede Klasse hat einen eigenen Schrank. Die gewählte Klasse sieht genau diese Kacheln.
           Ein Klick öffnet den Link in einem neuen Fenster.
         </p>
+        <label class="lpi-label" for="msAdminClass">Klasse
+          <select id="msAdminClass">${classOptions}</select>
+        </label>
         ${state.error ? `<p class="msg-error">${escapeHtml(state.error)}</p>` : ""}
         ${state.message ? `<p class="msg-ok">${escapeHtml(state.message)}</p>` : ""}
       </div>
       <div class="panel">
-        <h3>${edit ? "Kachel bearbeiten" : "Neue Kachel"}</h3>
+        <h3>${edit ? "Kachel bearbeiten" : "Neue Kachel"}${className ? ` · ${escapeHtml(className)}` : ""}</h3>
         <label class="lpi-label" for="msAdminTitle">Titel
-          <input id="msAdminTitle" type="text" maxlength="60" placeholder="z. B. GeoGebra" value="${escapeHtml(titleVal)}" />
+          <input id="msAdminTitle" type="text" maxlength="60" placeholder="z. B. GeoGebra" value="${escapeHtml(titleVal)}" ${canEdit ? "" : "disabled"} />
         </label>
         <label class="lpi-label" for="msAdminNote">Kurztext (optional)
-          <input id="msAdminNote" type="text" maxlength="120" placeholder="z. B. Interaktive Übungen" value="${escapeHtml(noteVal)}" />
+          <input id="msAdminNote" type="text" maxlength="120" placeholder="z. B. Interaktive Übungen" value="${escapeHtml(noteVal)}" ${canEdit ? "" : "disabled"} />
         </label>
         <label class="lpi-label" for="msAdminUrl">Link
-          <input id="msAdminUrl" type="url" placeholder="https://…" value="${escapeHtml(urlVal)}" />
+          <input id="msAdminUrl" type="url" placeholder="https://…" value="${escapeHtml(urlVal)}" ${canEdit ? "" : "disabled"} />
         </label>
-        <button type="button" class="action" id="msAdminSave" ${state.saving ? "disabled" : ""}>
+        <button type="button" class="action" id="msAdminSave" ${canEdit && !state.saving ? "" : "disabled"}>
           ${state.saving ? "Speichern…" : edit ? "Änderungen speichern" : "Kachel anlegen"}
         </button>
         ${edit ? `<button type="button" class="action" id="msAdminCancel">Abbrechen</button>` : ""}
       </div>
       <div class="panel">
-        <h3>Kacheln (${state.tiles.length})</h3>
+        <h3>Kacheln${className ? ` in ${escapeHtml(className)}` : ""} (${state.tiles.length})</h3>
         ${
-          state.loading && !state.tiles.length
+          state.loading
             ? `<p class="hint">Laden…</p>`
             : rows
               ? `<ul class="ms-admin-list">${rows}</ul>`
-              : `<p class="hint">Noch keine Kacheln. Lege oben die erste an.</p>`
+              : `<p class="hint">Noch keine Kacheln für diese Klasse. Lege oben die erste an.</p>`
         }
       </div>`;
 
@@ -102,6 +136,15 @@
   function bind() {
     const root = document.getElementById("materialschrankTabRoot");
     if (!root) return;
+
+    root.querySelector("#msAdminClass")?.addEventListener("change", (e) => {
+      state.classId = Number(e.target.value);
+      state.editingId = null;
+      state.draft = null;
+      state.message = "";
+      state.error = "";
+      loadTiles();
+    });
 
     root.querySelector("#msAdminSave")?.addEventListener("click", saveTile);
     root.querySelector("#msAdminCancel")?.addEventListener("click", () => {
@@ -132,12 +175,31 @@
     });
   }
 
+  async function loadClasses() {
+    const res = await fetch("/api/class");
+    const payload = await res.json();
+    if (!res.ok || !Array.isArray(payload)) {
+      throw new Error(payload?.error || payload?.message || "Klassen konnten nicht geladen werden.");
+    }
+    state.classes = payload;
+    if (!state.classId || !state.classes.some((c) => sameId(c.id, state.classId))) {
+      state.classId = state.classes.length ? Number(state.classes[0].id) : null;
+    }
+  }
+
   async function loadTiles() {
+    if (!state.classId) {
+      state.tiles = [];
+      state.loading = false;
+      render();
+      return;
+    }
     state.loading = true;
     state.error = "";
     render();
     try {
-      const res = await fetch("/api/admin/materialschrank");
+      const params = new URLSearchParams({ classId: String(state.classId) });
+      const res = await fetch(`/api/admin/materialschrank?${params}`);
       const data = await res.json();
       if (!res.ok || data.success === false) {
         throw new Error(data.message || "Laden fehlgeschlagen.");
@@ -146,6 +208,7 @@
     } catch (err) {
       console.error(err);
       state.error = err.message || "Materialschrank konnte nicht geladen werden.";
+      state.tiles = [];
     } finally {
       state.loading = false;
       render();
@@ -153,8 +216,9 @@
   }
 
   async function saveTile() {
-    const body = formValues();
-    state.draft = body;
+    if (!state.classId) return;
+    const body = { ...formValues(), classId: state.classId };
+    state.draft = formValues();
     state.saving = true;
     state.error = "";
     state.message = "";
@@ -236,10 +300,22 @@
     render();
   }
 
-  function init() {
+  async function init() {
     state.message = "";
     state.error = "";
-    loadTiles();
+    const root = document.getElementById("materialschrankTabRoot");
+    if (root && !state.classes.length) {
+      root.innerHTML = `<div class="panel"><p class="hint">Lade Materialschrank…</p></div>`;
+    }
+    try {
+      await loadClasses();
+      await loadTiles();
+    } catch (err) {
+      console.error(err);
+      state.loading = false;
+      state.error = err.message || "Materialschrank konnte nicht geladen werden.";
+      render();
+    }
   }
 
   window.TeacherMaterialschrank = { init };

@@ -49,7 +49,7 @@
     }
 
     if (!state.tiles.length) {
-      root.innerHTML = `<p class="ms-empty">Noch keine Materialien hinterlegt. Deine Lehrkraft legt die Kacheln im Admin-Bereich an.</p>`;
+      root.innerHTML = `<p class="ms-empty">Für deine Klasse sind noch keine Materialien hinterlegt. Deine Lehrkraft legt die Kacheln im Admin-Bereich an.</p>`;
       return;
     }
 

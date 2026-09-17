@@ -2800,6 +2800,49 @@ async function migrate() {
     `JSONB DEFAULT '["rookie","operator","street_legend"]'::jsonb`
   );
 
+  await ensureColumn("school_material_tiles", "class_id", "INTEGER");
+  await pool.query(`
+    INSERT INTO school_material_tiles (school_id, class_id, title, note, url, sort_order)
+    SELECT t.school_id, c.id, t.title, t.note, t.url, t.sort_order
+    FROM school_material_tiles t
+    JOIN classes c ON c.school_id = t.school_id
+    WHERE t.class_id IS NULL
+  `);
+  await pool.query(`DELETE FROM school_material_tiles WHERE class_id IS NULL`);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'school_material_tiles'
+          AND constraint_name = 'school_material_tiles_class_id_fkey'
+      ) THEN
+        ALTER TABLE school_material_tiles
+          ADD CONSTRAINT school_material_tiles_class_id_fkey
+          FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE;
+      END IF;
+    END$$;
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'school_material_tiles'
+          AND column_name = 'class_id'
+          AND is_nullable = 'YES'
+      ) THEN
+        ALTER TABLE school_material_tiles ALTER COLUMN class_id SET NOT NULL;
+      END IF;
+    END$$;
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_school_material_tiles_class
+    ON school_material_tiles (class_id, sort_order ASC, id ASC)
+  `);
+
   // MISSIONEN
   await pool.query(`
     CREATE TABLE IF NOT EXISTS missions (
@@ -4145,6 +4188,7 @@ const MATERIAL_TILE_MAX = 40;
 function mapMaterialTile(row) {
   return {
     id: row.id,
+    classId: row.class_id,
     title: row.title,
     note: row.note || "",
     url: row.url,
@@ -4152,15 +4196,25 @@ function mapMaterialTile(row) {
   };
 }
 
-async function listMaterialTiles(schoolId) {
+async function resolveSchoolClass(schoolId, rawClassId) {
+  const classId = Number(rawClassId);
+  if (!schoolId || !Number.isInteger(classId) || classId <= 0) return null;
+  const r = await pool.query(
+    "SELECT id FROM classes WHERE id = $1 AND school_id = $2 LIMIT 1",
+    [classId, schoolId]
+  );
+  return r.rows[0]?.id || null;
+}
+
+async function listMaterialTiles(schoolId, classId) {
   const r = await pool.query(
     `
-    SELECT id, title, note, url, sort_order
+    SELECT id, class_id, title, note, url, sort_order
     FROM school_material_tiles
-    WHERE school_id = $1
+    WHERE school_id = $1 AND class_id = $2
     ORDER BY sort_order ASC, id ASC
   `,
-    [schoolId]
+    [schoolId, classId]
   );
   return r.rows.map(mapMaterialTile);
 }
@@ -4168,7 +4222,11 @@ async function listMaterialTiles(schoolId) {
 app.get("/api/student/materialschrank", isStudent, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const tiles = schoolId ? await listMaterialTiles(schoolId) : [];
+    const classId = Number(req.session.user.class_id);
+    const tiles =
+      schoolId && Number.isInteger(classId) && classId > 0
+        ? await listMaterialTiles(schoolId, classId)
+        : [];
     res.json({ tiles });
   } catch (err) {
     console.error("❌ GET /api/student/materialschrank:", err);
@@ -4182,8 +4240,12 @@ app.get("/api/admin/materialschrank", isAdmin, async (req, res) => {
     if (!schoolId) {
       return res.status(400).json({ success: false, message: "Keine Schule in der Sitzung." });
     }
-    const tiles = await listMaterialTiles(schoolId);
-    res.json({ success: true, tiles });
+    const classId = await resolveSchoolClass(schoolId, req.query.classId);
+    if (!classId) {
+      return res.json({ success: false, message: "Bitte eine Klasse wählen." });
+    }
+    const tiles = await listMaterialTiles(schoolId, classId);
+    res.json({ success: true, classId, tiles });
   } catch (err) {
     console.error("❌ GET /api/admin/materialschrank:", err);
     res.status(500).json({ success: false, message: "Materialschrank konnte nicht geladen werden." });
@@ -4195,6 +4257,10 @@ app.post("/api/admin/materialschrank", isAdmin, async (req, res) => {
     const schoolId = req.session.user.school_id;
     if (!schoolId) {
       return res.status(400).json({ success: false, message: "Keine Schule in der Sitzung." });
+    }
+    const classId = await resolveSchoolClass(schoolId, req.body?.classId);
+    if (!classId) {
+      return res.json({ success: false, message: "Bitte eine Klasse wählen." });
     }
     const title = String(req.body?.title || "").trim().slice(0, 60);
     const note = String(req.body?.note || "").trim().slice(0, 120);
@@ -4209,28 +4275,32 @@ app.post("/api/admin/materialschrank", isAdmin, async (req, res) => {
       });
     }
     const countRes = await pool.query(
-      "SELECT COUNT(*)::int AS n FROM school_material_tiles WHERE school_id = $1",
-      [schoolId]
+      "SELECT COUNT(*)::int AS n FROM school_material_tiles WHERE school_id = $1 AND class_id = $2",
+      [schoolId, classId]
     );
     if ((countRes.rows[0]?.n || 0) >= MATERIAL_TILE_MAX) {
       return res.json({
         success: false,
-        message: `Maximal ${MATERIAL_TILE_MAX} Kacheln pro Schule.`
+        message: `Maximal ${MATERIAL_TILE_MAX} Kacheln pro Klasse.`
       });
     }
     const orderRes = await pool.query(
-      "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM school_material_tiles WHERE school_id = $1",
-      [schoolId]
+      "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM school_material_tiles WHERE school_id = $1 AND class_id = $2",
+      [schoolId, classId]
     );
     const inserted = await pool.query(
       `
-      INSERT INTO school_material_tiles (school_id, title, note, url, sort_order)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, title, note, url, sort_order
+      INSERT INTO school_material_tiles (school_id, class_id, title, note, url, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, class_id, title, note, url, sort_order
     `,
-      [schoolId, title, note || null, url, orderRes.rows[0].next]
+      [schoolId, classId, title, note || null, url, orderRes.rows[0].next]
     );
-    res.json({ success: true, tile: mapMaterialTile(inserted.rows[0]), tiles: await listMaterialTiles(schoolId) });
+    res.json({
+      success: true,
+      tile: mapMaterialTile(inserted.rows[0]),
+      tiles: await listMaterialTiles(schoolId, classId)
+    });
   } catch (err) {
     console.error("❌ POST /api/admin/materialschrank:", err);
     res.status(500).json({ success: false, message: "Kachel konnte nicht gespeichert werden." });
@@ -4245,12 +4315,13 @@ app.patch("/api/admin/materialschrank/:id", isAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: "Ungültige Anfrage." });
     }
     const existing = await pool.query(
-      "SELECT id FROM school_material_tiles WHERE id = $1 AND school_id = $2",
+      "SELECT id, class_id FROM school_material_tiles WHERE id = $1 AND school_id = $2",
       [id, schoolId]
     );
     if (!existing.rows.length) {
       return res.json({ success: false, message: "Kachel nicht gefunden." });
     }
+    const classId = existing.rows[0].class_id;
 
     const updates = [];
     const params = [];
@@ -4292,7 +4363,7 @@ app.patch("/api/admin/materialschrank/:id", isAdmin, async (req, res) => {
       `UPDATE school_material_tiles SET ${updates.join(", ")} WHERE id = $${params.length - 1} AND school_id = $${params.length}`,
       params
     );
-    res.json({ success: true, tiles: await listMaterialTiles(schoolId) });
+    res.json({ success: true, tiles: await listMaterialTiles(schoolId, classId) });
   } catch (err) {
     console.error("❌ PATCH /api/admin/materialschrank:", err);
     res.status(500).json({ success: false, message: "Kachel konnte nicht aktualisiert werden." });
@@ -4307,13 +4378,16 @@ app.delete("/api/admin/materialschrank/:id", isAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: "Ungültige Anfrage." });
     }
     const del = await pool.query(
-      "DELETE FROM school_material_tiles WHERE id = $1 AND school_id = $2 RETURNING id",
+      "DELETE FROM school_material_tiles WHERE id = $1 AND school_id = $2 RETURNING id, class_id",
       [id, schoolId]
     );
     if (!del.rows.length) {
       return res.json({ success: false, message: "Kachel nicht gefunden." });
     }
-    res.json({ success: true, tiles: await listMaterialTiles(schoolId) });
+    res.json({
+      success: true,
+      tiles: await listMaterialTiles(schoolId, del.rows[0].class_id)
+    });
   } catch (err) {
     console.error("❌ DELETE /api/admin/materialschrank:", err);
     res.status(500).json({ success: false, message: "Kachel konnte nicht gelöscht werden." });
