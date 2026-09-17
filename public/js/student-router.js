@@ -62,13 +62,14 @@
     "xp"
   ]);
 
-  const TOP_NAV_SECTIONS = new Set(["today", "week", "zielsetzung", "taktik-deck"]);
+  const TOP_NAV_SECTIONS = new Set(["today", "levelplan", "zielsetzung", "materialschrank"]);
+  const BOTTOM_NAV_SECTIONS = new Set(["today", "week", "zielsetzung", "taktik-deck"]);
 
   const MORE_SECTIONS = new Set([
     "hub",
-    "levelplan",
+    "week",
+    "taktik-deck",
     "checkpoint-plan",
-    "materialschrank",
     "gruppenmodus",
     "missionen",
     "belohnungen",
@@ -113,17 +114,16 @@
   function setNavActive(section) {
     section = normalizeSection(section);
     const navSection = section === "levelcheck" ? "zielsetzung" : section;
-    const mehrActive =
-      MORE_SECTIONS.has(navSection) &&
-      !TOP_NAV_SECTIONS.has(navSection) &&
-      navSection !== "hub";
+    const mehrInMore = MORE_SECTIONS.has(navSection) && navSection !== "hub";
 
     document.querySelectorAll(".student-bottomnav-item[data-section], .student-topnav-item[data-section]").forEach((item) => {
       item.classList.toggle("active", item.dataset.section === navSection);
     });
-
-    document.querySelectorAll(".student-bottomnav-mehr, .student-topnav-mehr").forEach((btn) => {
-      btn.classList.toggle("active", mehrActive);
+    document.querySelectorAll(".student-topnav-mehr").forEach((btn) => {
+      btn.classList.toggle("active", mehrInMore && !TOP_NAV_SECTIONS.has(navSection));
+    });
+    document.querySelectorAll(".student-bottomnav-mehr").forEach((btn) => {
+      btn.classList.toggle("active", mehrInMore && !BOTTOM_NAV_SECTIONS.has(navSection));
     });
   }
 
