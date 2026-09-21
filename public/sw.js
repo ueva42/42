@@ -1,4 +1,4 @@
-const CACHE_VERSION = "sol-logbuch-v25";
+const CACHE_VERSION = "sol-logbuch-v26";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -6,7 +6,6 @@ const FONT_CACHE = `${CACHE_VERSION}-fonts`;
 const OFFLINE_URL = "/offline.html";
 
 const CORE_ASSETS = [
-  "/login",
   "/manifest.json",
   "/pwa-init.js",
   "/icons/icon-192.png",
@@ -99,7 +98,10 @@ function isPrivateAppPath(pathname) {
     pathname.startsWith("/teacher/") ||
     pathname.startsWith("/student/") ||
     pathname.startsWith("/admin") ||
-    pathname.startsWith("/superadmin")
+    pathname.startsWith("/superadmin") ||
+    pathname === "/login" ||
+    pathname === "/login.html" ||
+    pathname === "/"
   );
 }
 

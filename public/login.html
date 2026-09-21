@@ -548,6 +548,38 @@
     const demoAdminBtn = document.getElementById("demoAdminBtn");
     const demoStudentBtn = document.getElementById("demoStudentBtn");
 
+    function markAuthed(role) {
+      try {
+        if (role === "admin" || role === "student") {
+          sessionStorage.setItem("sol.authed", role);
+        }
+      } catch (_err) {}
+    }
+
+    (async function resumeExistingSession() {
+      try {
+        const sessionRes = await fetch("/api/auth/session", {
+          credentials: "same-origin",
+          cache: "no-store"
+        });
+        if (!sessionRes.ok) return;
+        const data = await sessionRes.json();
+        if (!data.authenticated || !data.role) return;
+        markAuthed(data.role);
+        if (data.role === "superadmin") {
+          window.location.replace("/superadmin");
+          return;
+        }
+        if (data.role === "admin") {
+          window.location.replace("/teacher/dashboard");
+          return;
+        }
+        if (data.role === "student") {
+          window.location.replace("/student/hub");
+        }
+      } catch (_err) {}
+    })();
+
     async function waitForSession(role) {
       for (let i = 0; i < 8; i++) {
         try {
@@ -573,6 +605,8 @@
         showError("Session noch nicht bereit – bitte erneut versuchen.");
         return;
       }
+
+      markAuthed(role);
 
       if (role === "superadmin") {
         if (window.__purgeTeacherClientCaches) {

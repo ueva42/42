@@ -569,6 +569,53 @@ function buildTopicTargetProgress(check, targetsRow = null) {
   };
 }
 
+function firstOpenWorkItem(target) {
+  const items = Array.isArray(target?.workItems) ? target.workItems : [];
+  return (
+    items.find((item) => item.status !== "sicher" && item.status !== "geschafft") || null
+  );
+}
+
+function compactTargetHint(check) {
+  const t = check?.target;
+  if (!t?.targetGrade || t.requiresTargetGrade === false || t.isPastArbeit) return null;
+  const next = firstOpenWorkItem(t);
+  return {
+    themaId: check.id,
+    themaName: check.name,
+    targetGrade: t.targetGrade,
+    targetGradeLabel: t.targetGradeLabel,
+    summary: t.summary,
+    onTrack: t.onTrack,
+    checkpointDate: t.checkpointDate,
+    checkpointDateLabel: t.checkpointDateLabel,
+    done: !next && t.onTrack === true,
+    next: next
+      ? {
+          tier: next.tier,
+          tierLabel: next.tierLabel,
+          goalText: next.goalText,
+          taskText: next.taskText,
+          goalId: next.goalId
+        }
+      : null
+  };
+}
+
+function buildSubjectTargetHints(checksWithTargets) {
+  const bySubject = {};
+  for (const check of checksWithTargets || []) {
+    const hint = compactTargetHint(check);
+    if (!hint) continue;
+    const subject = check.subject;
+    const prev = bySubject[subject];
+    const hintDate = hint.checkpointDate || "9999-12-31";
+    const prevDate = prev?.checkpointDate || "9999-12-31";
+    if (!prev || hintDate < prevDate) bySubject[subject] = hint;
+  }
+  return bySubject;
+}
+
 function buildTargetProgressSummary(tiers, targetGradeKey) {
   if (!targetGradeKey) return null;
   const parts = tiers
@@ -2386,12 +2433,17 @@ app.use(
       httpOnly: true,
       maxAge: SESSION_MAX_AGE_MS
     },
-    rolling: true
+    rolling: false
   })
 );
+function sameSessionValue(a, b) {
+  if (a == null && b == null) return true;
+  return String(a) === String(b);
+}
+
 async function refreshSessionUserFromDb(req) {
   const user = req.session?.user;
-  if (!user?.id) return null;
+  if (!user?.id) return { user: null, changed: false };
 
   const r = await pool.query(
     `
@@ -2402,16 +2454,25 @@ async function refreshSessionUserFromDb(req) {
   `,
     [user.id]
   );
-  if (!r.rows.length) return null;
+  if (!r.rows.length) return { user: null, changed: false };
 
   const row = r.rows[0];
-  req.session.user = {
+  const next = {
     id: row.id,
     role: row.role,
     class_id: row.class_id,
     school_id: row.school_id
   };
-  return req.session.user;
+  if (
+    sameSessionValue(user.id, next.id) &&
+    sameSessionValue(user.role, next.role) &&
+    sameSessionValue(user.class_id, next.class_id) &&
+    sameSessionValue(user.school_id, next.school_id)
+  ) {
+    return { user, changed: false };
+  }
+  req.session.user = next;
+  return { user: next, changed: true };
 }
 
 function saveSession(req) {
@@ -2420,23 +2481,34 @@ function saveSession(req) {
   });
 }
 
-// Session bei jedem Request „anfassen“, damit rolling + Store-TTL greifen
+// Session nicht bei jedem Request anfassen: rolling/touch schreibt die
+// PG-Zeile und das Cookie und wirft parallele Tabs raus.
 app.use((req, res, next) => {
-  if (req.session?.user?.id) {
-    req.session.touch();
-    if (String(req.path || "").startsWith("/api/")) {
-      res.setHeader("Cache-Control", "private, no-cache");
-    }
+  if (req.session?.user?.id && String(req.path || "").startsWith("/api/")) {
+    res.setHeader("Cache-Control", "private, no-cache");
   }
   next();
 });
+
+function sendToAppOrLogin(req, res) {
+  const role = req.session?.user?.role;
+  if (role === "admin") return res.redirect(302, "/teacher/dashboard");
+  if (role === "student") return res.redirect(302, "/student/hub");
+  if (role === "superadmin") return res.redirect(302, "/superadmin");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  return res.sendFile(path.join(__dirname, "public", "login.html"));
+}
+
+app.get("/", sendToAppOrLogin);
+app.get("/login", sendToAppOrLogin);
+app.get("/login.html", sendToAppOrLogin);
 
 app.use(async (req, _res, next) => {
   try {
     const user = req.session?.user;
     if (user?.id && (user.school_id == null || !user.role)) {
-      await refreshSessionUserFromDb(req);
-      await saveSession(req);
+      const refreshed = await refreshSessionUserFromDb(req);
+      if (refreshed.changed) await saveSession(req);
     }
   } catch (err) {
     console.error("❌ refreshSessionUser middleware:", err);
@@ -2455,10 +2527,7 @@ app.use(
   })
 );
 
-// Login-Root
-app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "login.html"));
-});
+// Login-Root liegt vor express.static (sendToAppOrLogin)
 
 // -------------------------------------------------------
 // DB + R2 Storage
@@ -4126,8 +4195,8 @@ app.get("/api/auth/session", async (req, res) => {
     }
 
     try {
-      await refreshSessionUserFromDb(req);
-      await saveSession(req);
+      const refreshed = await refreshSessionUserFromDb(req);
+      if (refreshed.changed) await saveSession(req);
     } catch (err) {
       console.error("❌ /api/auth/session refresh:", err);
     }
@@ -4539,8 +4608,9 @@ function isAdmin(req, res, next) {
       if (!sessionUser?.id) return denyAccess(req, res);
       try {
         const refreshed = await refreshSessionUserFromDb(req);
-        if (refreshed) {
-          if (refreshed.role !== "admin") return denyAccess(req, res);
+        const liveUser = refreshed.user;
+        if (liveUser) {
+          if (liveUser.role !== "admin") return denyAccess(req, res);
         } else if (sessionUser.role !== "admin") {
           return denyAccess(req, res);
         }
@@ -5862,6 +5932,20 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     const timetableSubjects = timetableSubjectsFromRows(timetable);
     const homework = await fetchHomeworkForDate(studentId, date);
 
+    let targetHintsBySubject = {};
+    if (classId) {
+      try {
+        const checks = await getLevelChecksForClass(classId, schoolId, studentId);
+        const checkIds = checks.map((c) => c.id);
+        const targetsByCheck = await fetchTargetGradesByCheck(studentId, checkIds);
+        targetHintsBySubject = buildSubjectTargetHints(
+          attachTargetProgressToChecks(checks, targetsByCheck)
+        );
+      } catch (hintErr) {
+        console.error("⚠️ target hints in /today:", hintErr);
+      }
+    }
+
     const groupModeBySubject = {};
     if (classId) {
       try {
@@ -5951,7 +6035,8 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       phases,
       homework,
       nextSchoolDay: nextSchoolDayIso(date),
-      groupModeBySubject
+      groupModeBySubject,
+      targetHintsBySubject
     });
   } catch (err) {
     console.error("❌ /api/student/log/today:", err);
@@ -13148,15 +13233,13 @@ app.delete("/api/admin/student-uploads/:id", isAdmin, async (req, res) => {
 // -------------------------------------------------------
 // STATIC FRONTEND ROUTES
 // -------------------------------------------------------
-app.get("/login", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "login.html"));
-});
+app.get("/login", sendToAppOrLogin);
 
 app.get("/first-login", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "first-login.html"));
 });
 
-app.get("/admin", isAdmin, (_req, res) => {
+app.get("/admin", (_req, res) => {
   res.redirect(302, "/teacher/dashboard");
 });
 
@@ -13181,14 +13264,14 @@ const teacherSpaPaths = [
 ];
 
 for (const route of teacherSpaPaths) {
-  app.get(route, isAdmin, (_req, res) => {
+  app.get(route, (_req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.sendFile(path.join(__dirname, "public", "admin.html"));
   });
 }
 
-app.get("/student", isStudent, (_req, res) => {
+app.get("/student", (_req, res) => {
   res.redirect(302, "/student/hub");
 });
 
@@ -13216,7 +13299,9 @@ const studentSpaPaths = [
 ];
 
 for (const route of studentSpaPaths) {
-  app.get(route, isStudent, (_req, res) => {
+  app.get(route, (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.sendFile(path.join(__dirname, "public", "student.html"));
   });
 }

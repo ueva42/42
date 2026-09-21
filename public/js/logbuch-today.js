@@ -282,6 +282,23 @@
     );
   }
 
+  function targetHintForSubject(subject) {
+    const map = state.data?.targetHintsBySubject || {};
+    if (map[subject]) return map[subject];
+    const key = Object.keys(map).find(
+      (s) => String(s).trim().toLowerCase() === String(subject || "").trim().toLowerCase()
+    );
+    return key ? map[key] : null;
+  }
+
+  function targetNoteLine(hint) {
+    if (!hint) return "";
+    if (hint.done) return `Zielnote ${hint.targetGradeLabel} · Mindestweg geschafft`;
+    if (hint.next?.tierLabel) return `Zielnote ${hint.targetGradeLabel} · übe ${hint.next.tierLabel}`;
+    if (hint.summary) return `Zielnote ${hint.targetGradeLabel} · ${hint.summary}`;
+    return hint.targetGradeLabel ? `Zielnote ${hint.targetGradeLabel}` : "";
+  }
+
   function renderSubjectTile({ subject, time, hint, cta, nav, query, done, group }) {
     const ui = UI();
     const visual = subjectVisual(subject);
@@ -297,6 +314,10 @@
     const hintHtml = hint
       ? `<span class="today-subject-tile__text">${ui.escapeHtml(hint)}</span>`
       : "";
+    const note = targetNoteLine(targetHintForSubject(subject));
+    const noteHtml = note
+      ? `<span class="today-subject-tile__goalnote">${ui.escapeHtml(note)}</span>`
+      : "";
     const ctaHtml = cta
       ? `<span class="today-subject-tile__cta">${ui.escapeHtml(cta)} <span class="hub-tile-arrow" aria-hidden="true">→</span></span>`
       : "";
@@ -307,6 +328,7 @@
         ${timeHtml}
         <span class="today-subject-tile__title">${title}</span>
         ${hintHtml}
+        ${noteHtml}
         ${ctaHtml}
       </span>`;
 

@@ -654,6 +654,34 @@
           ? "Levelcheck ohne Zielnote – geprüfte Ziele siehe unten."
           : `Zielnote für KA/Test legst du unter <span class="lp-dash__link">Ziele</span> fest.`;
 
+    const nextItem = (thema.target?.workItems || []).find(
+      (item) => item.status !== "sicher" && item.status !== "geschafft"
+    );
+    const pathLine = (thema.target?.tiers || [])
+      .map((tier) => {
+        if (tier.recommended == null || tier.recommended === 0) return `${tier.label}: frei`;
+        if ((tier.remaining || 0) <= 0) return `${tier.label} ${tier.current}/${tier.recommended} ✓`;
+        return `${tier.label} ${tier.current}/${tier.recommended} · noch ${tier.remaining}`;
+      })
+      .join(" · ");
+    const practiceCard = p.hasTarget
+      ? `
+        <article class="lp-practice-hint">
+          <p class="lp-practice-hint__kicker">Dein Übungsvorschlag</p>
+          <h3 class="lp-practice-hint__title">Zielnote ${escapeHtml(p.targetGradeLabel)}</h3>
+          ${
+            pathLine
+              ? `<p class="lp-practice-hint__path">${escapeHtml(pathLine)}</p>`
+              : ""
+          }
+          ${
+            nextItem
+              ? `<p class="lp-practice-hint__next"><strong>Als Nächstes:</strong> ${escapeHtml(nextItem.tierLabel)} · ${escapeHtml(nextItem.taskText || nextItem.goalText)}</p>`
+              : `<p class="lp-practice-hint__next">Mindestweg für diese Zielnote ist geschafft.</p>`
+          }
+        </article>`
+      : "";
+
     const splitCards = requiresTarget
       ? `
         <div class="lp-dash__split">
@@ -682,6 +710,7 @@
           </div>
           <div class="lp-dash__ring">${ring}</div>
         </article>
+        ${practiceCard}
         ${splitCards}
         <div class="lp-dash__row">
           <article class="lp-dash__metric lp-dash__metric--green">

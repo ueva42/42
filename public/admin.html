@@ -1908,7 +1908,7 @@
 
 <script src="/js/client-cache-reset.js?v=2"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=10"></script>
+<script src="/js/auth-fetch.js?v=11"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=4"></script>
@@ -2116,6 +2116,9 @@ window.addEventListener("popstate", (e) => {
 
 /* ---------------------------- LOGOUT ---------------------------- */
 async function logout() {
+  try {
+    sessionStorage.removeItem("sol.authed");
+  } catch (_err) {}
   await fetch("/api/logout", { method: "POST" });
   if (window.__purgeTeacherClientCaches) {
     await window.__purgeTeacherClientCaches();
@@ -3473,69 +3476,86 @@ async function fixClassRewardOption(optionId) {
   await loadAdminClassProgress();
 }
 
+function rememberedAdmin() {
+  try {
+    return sessionStorage.getItem("sol.authed") === "admin";
+  } catch (_err) {
+    return false;
+  }
+}
+
 async function ensureAdminSessionReady() {
-  for (let attempt = 0; attempt < 10; attempt++) {
+  const attempts = rememberedAdmin() ? 16 : 10;
+  let sawAdmin = false;
+  for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       const sessionRes = await fetch("/api/auth/session", {
         credentials: "same-origin",
         cache: "no-store"
       });
-      if (sessionRes.status === 401) {
+      if (sessionRes.status === 401 || !sessionRes.ok) {
+        if (rememberedAdmin() || sessionRes.status !== 401) {
+          await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+          continue;
+        }
         return false;
-      }
-      if (!sessionRes.ok) {
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
-        continue;
       }
 
       const data = await sessionRes.json();
-      if (data.authenticated === false) return false;
-      if (data.role !== "admin") return false;
+      if (data.authenticated === false) {
+        if (rememberedAdmin()) {
+          await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+          continue;
+        }
+        return false;
+      }
+      if (data.role && data.role !== "admin") return false;
+      if (data.role === "admin") sawAdmin = true;
       if (data.ready === false) {
         await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
         continue;
       }
 
-      const warm = await fetch("/api/class", {
-        credentials: "same-origin",
-        cache: "no-store"
-      });
-      if (warm.status === 401) {
-        return false;
+      if (data.role === "admin") {
+        try {
+          const warm = await fetch("/api/class", {
+            credentials: "same-origin",
+            cache: "no-store"
+          });
+          if (warm.ok) {
+            const classes = await warm.json();
+            if (Array.isArray(classes)) return true;
+          }
+        } catch (_err) {}
+        return true;
       }
-      if (!warm.ok) {
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
-        continue;
-      }
-      const classes = await warm.json();
-      if (Array.isArray(classes)) return true;
     } catch (err) {
       console.error("ensureAdminSessionReady", err);
     }
     await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
   }
-  try {
-    const sessionRes = await fetch("/api/auth/session", {
-      credentials: "same-origin",
-      cache: "no-store"
-    });
-    if (sessionRes.ok) {
-      const data = await sessionRes.json();
-      if (data.role === "admin" && data.authenticated !== false) return true;
-    }
-  } catch (_) {}
-  return false;
+  return sawAdmin || rememberedAdmin();
 }
 
 async function bootAdminApp() {
-  if (window.__adminBooted) return;
+  if (window.__adminBooted || window.__adminBooting) return;
+  window.__adminBooting = true;
   window.__authBootstrap = true;
   try {
     const ready = await ensureAdminSessionReady();
     if (!ready) {
+      if (rememberedAdmin()) {
+        window.__adminBooted = true;
+        initNavSections();
+        initAdminRoute();
+        return;
+      }
       window.location.href = "/login";
       return;
     }
+    try {
+      sessionStorage.setItem("sol.authed", "admin");
+    } catch (_err) {}
     window.__adminBooted = true;
     initNavSections();
     initAdminRoute();
@@ -3547,6 +3567,12 @@ async function bootAdminApp() {
         cache: "no-store"
       });
       if (!sessionRes.ok) {
+        if (rememberedAdmin()) {
+          window.__adminBooted = true;
+          initNavSections();
+          initAdminRoute();
+          return;
+        }
         window.location.href = "/login";
         return;
       }
@@ -3555,20 +3581,30 @@ async function bootAdminApp() {
         window.location.href = "/login";
         return;
       }
+      try {
+        sessionStorage.setItem("sol.authed", "admin");
+      } catch (_err) {}
       window.__adminBooted = true;
       initNavSections();
       initAdminRoute();
     } catch (_) {
+      if (rememberedAdmin()) {
+        window.__adminBooted = true;
+        initNavSections();
+        initAdminRoute();
+        return;
+      }
       window.location.href = "/login";
     }
   } finally {
     window.__authBootstrap = false;
+    window.__adminBooting = false;
   }
 }
 
-window.addEventListener("pageshow", (event) => {
-  if (event.persisted && window.__adminBooted) return;
-  if (!window.__adminBooted) bootAdminApp();
+window.addEventListener("pageshow", () => {
+  if (window.__adminBooted || window.__adminBooting) return;
+  bootAdminApp();
 });
 </script>
 

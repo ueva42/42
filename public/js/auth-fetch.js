@@ -37,9 +37,19 @@
     );
   }
 
+  function remembered() {
+    try {
+      const flag = sessionStorage.getItem("sol.authed");
+      return flag === "admin" || flag === "student";
+    } catch (_err) {
+      return false;
+    }
+  }
+
   function goLogin() {
     if (window.__authBootstrap) return;
     if (window.__authFetchRedirecting) return;
+    if (remembered()) return;
     window.__authFetchRedirecting = true;
     window.location.href = "/login";
   }
