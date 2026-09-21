@@ -1501,6 +1501,46 @@ body.student-app .notif-panel {
   }
 }
 
+#charakter-section > .page-hero {
+  margin-bottom: 12px;
+}
+
+#charakter-section .sol-hero__art {
+  inset: 0;
+  width: auto;
+  background: none;
+  justify-content: flex-end;
+}
+
+#charakter-section .sol-hero--page::after {
+  background: none;
+}
+
+#charakter-section .sol-hero__art img,
+#charakter-section .sol-hero__img {
+  position: absolute !important;
+  inset: auto 0 0 auto !important;
+  right: 0 !important;
+  top: 0 !important;
+  width: 46% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: cover !important;
+  object-position: center right !important;
+  opacity: 0.55 !important;
+  filter: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 48%) !important;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 48%) !important;
+}
+
+@media (max-width: 720px) {
+  #charakter-section .sol-hero__art img,
+  #charakter-section .sol-hero__img {
+    width: 58% !important;
+    opacity: 0.38 !important;
+  }
+}
+
 #materialschrank-screen-root {
   margin-top: 0;
 }
