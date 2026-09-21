@@ -287,10 +287,11 @@
     const visual = subjectVisual(subject);
     const accent = group ? "green" : visual.accent;
     const artSrc = !group ? window.LogbuchVisuals?.subjectIconSrc(subject) : "";
-    const glyph = artSrc
-      ? `<img src="${ui.escapeHtml(artSrc)}" alt="" loading="lazy" decoding="async">`
-      : subjectGlyph(group ? "group" : visual.icon);
-    const glyphClass = artSrc ? " today-subject-tile__glyph--art" : "";
+    const art = artSrc
+      ? `<div class="dashboard-card__artwork hub-tile-art" data-fit="cover" aria-hidden="true">
+          <img class="dashboard-card__hero" src="${ui.escapeHtml(artSrc)}" alt="" loading="lazy" decoding="async" style="--art-position: center right">
+        </div>`
+      : `<span class="today-subject-tile__glyph" aria-hidden="true">${subjectGlyph(group ? "group" : visual.icon)}</span>`;
     const title = ui.escapeHtml(subject || "Lernzeit");
     const timeHtml = time ? `<span class="today-subject-tile__time">${ui.escapeHtml(time)}</span>` : "";
     const hintHtml = hint
@@ -299,9 +300,10 @@
     const ctaHtml = cta
       ? `<span class="today-subject-tile__cta">${ui.escapeHtml(cta)} <span class="hub-tile-arrow" aria-hidden="true">→</span></span>`
       : "";
+    const tileClass = `today-subject-tile hub-tile hub-tile-sm dashboard-card app-card hub-accent-${accent}${done ? " is-done" : ""}${artSrc ? " today-subject-tile--has-art" : ""}`;
     const inner = `
-      <span class="today-subject-tile__glyph${glyphClass}" aria-hidden="true">${glyph}</span>
-      <span class="today-subject-tile__copy">
+      ${art}
+      <span class="today-subject-tile__copy hub-tile-content">
         ${timeHtml}
         <span class="today-subject-tile__title">${title}</span>
         ${hintHtml}
@@ -309,11 +311,11 @@
       </span>`;
 
     if (!nav) {
-      return `<article class="today-subject-tile hub-accent-${accent}${done ? " is-done" : ""}">${inner}</article>`;
+      return `<article class="${tileClass}">${inner}</article>`;
     }
     return `
       <button type="button"
-        class="today-subject-tile hub-accent-${accent}${done ? " is-done" : ""}"
+        class="${tileClass}"
         data-nav="${ui.escapeHtml(nav)}"
         data-query="${ui.escapeHtml(query || "")}">
         ${inner}

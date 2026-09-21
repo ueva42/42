@@ -2,7 +2,7 @@
  * Streets of Logic – wiederverwendbare Charts & Fortschritts-UI (SVG/CSS, keine Library).
  */
 window.LogbuchVisuals = {
-  SUBJECT_ICON_V: 1,
+  SUBJECT_ICON_V: 2,
 
   SUBJECT_ICON_FILES: {
     mathe: "mathematik",
@@ -41,7 +41,7 @@ window.LogbuchVisuals = {
   subjectIconSrc(name) {
     const file = this.subjectIconFile(name);
     if (!file) return "";
-    return `/icons/student/subjects/${file}-gross-ohne-fachname.png?v=${this.SUBJECT_ICON_V}`;
+    return `/icons/student/subjects/${file}-hero.png?v=${this.SUBJECT_ICON_V}`;
   },
 
   inferSubjectIconFile(text) {
@@ -66,7 +66,7 @@ window.LogbuchVisuals = {
   subjectIconSrcFromText(text) {
     const file = this.inferSubjectIconFile(text);
     if (!file) return "";
-    return `/icons/student/subjects/${file}-gross-ohne-fachname.png?v=${this.SUBJECT_ICON_V}`;
+    return `/icons/student/subjects/${file}-hero.png?v=${this.SUBJECT_ICON_V}`;
   },
 
   clamp(n, min, max) {

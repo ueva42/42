@@ -1497,28 +1497,57 @@ body.student-app .notif-panel {
 .ms-tile--has-art {
   position: relative;
   overflow: hidden;
-  min-height: 108px;
-  padding-right: 42%;
+  min-height: 132px;
+  padding-right: 46%;
 }
 
 .ms-tile__art {
   position: absolute;
-  right: 0;
   top: 0;
+  right: 0;
   bottom: 0;
-  width: 48%;
+  width: 54%;
   pointer-events: none;
 }
 
 .ms-tile__art img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  object-position: center right;
-  opacity: 0.92;
-  filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent, #22d3ee) 28%, transparent));
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 34%);
-  mask-image: linear-gradient(90deg, transparent 0%, #000 34%);
+  object-fit: cover;
+  object-position: center;
+  filter: brightness(0.92) contrast(1.08) saturate(1.06);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 8%, black 24%, black 100%),
+    linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 8%, black 24%, black 100%),
+    linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+  mask-composite: intersect;
+}
+
+.ms-tile--has-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    rgba(5, 10, 28, 0.92) 0%,
+    rgba(5, 10, 28, 0.72) 42%,
+    rgba(5, 10, 28, 0.18) 68%,
+    transparent 86%
+  );
+}
+
+.ms-tile--has-art .ms-tile__title,
+.ms-tile--has-art .ms-tile__note {
+  position: relative;
+  z-index: 2;
 }
 
 .ms-tile__title {
@@ -8919,20 +8948,19 @@ article.today-subject-tile:hover {
   mask-image: linear-gradient(90deg, transparent 0%, #000 28%);
 }
 
-.today-subject-tile__glyph svg,
-.today-subject-tile__glyph img {
+.today-subject-tile__glyph svg {
   width: 100%;
   height: 100%;
 }
 
-.today-subject-tile__glyph--art {
-  opacity: 0.96;
-  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--accent, #22d3ee) 28%, transparent));
+.today-subject-tile.hub-tile {
+  display: flex;
+  align-items: stretch;
 }
 
-.today-subject-tile__glyph--art img {
-  object-fit: contain;
-  object-position: center right;
+.today-subject-tile.hub-tile .today-subject-tile__copy {
+  max-width: 56%;
+  z-index: 4;
 }
 
 .today-lesson-steps {
@@ -12336,21 +12364,21 @@ h2 {
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=38"></script>
-<script src="/js/logbuch-visuals.js?v=13"></script>
+<script src="/js/logbuch-visuals.js?v=14"></script>
 <script src="/js/logbuch-reminders.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=12"></script>
 <script src="/js/logbuch-plan.js?v=28"></script>
 <script src="/js/logbuch-check.js?v=13"></script>
 <script src="/js/logbuch-reflect.js?v=7"></script>
-<script src="/js/logbuch-today.js?v=39"></script>
+<script src="/js/logbuch-today.js?v=41"></script>
 <script src="/js/logbuch-week.js?v=9"></script>
 <script src="/js/logbuch-levelplan.js?v=24"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=28"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=11"></script>
-<script src="/js/logbuch-materialschrank.js?v=5"></script>
+<script src="/js/logbuch-materialschrank.js?v=7"></script>
 <script src="/js/logbuch-homework.js?v=1"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=21"></script>
 <script src="/js/logbuch-screens.js?v=9"></script>
