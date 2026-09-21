@@ -962,6 +962,198 @@ body.student-app .notif-panel {
   color: color-mix(in srgb, #fb923c 75%, #e2e8f0);
 }
 
+.hub-identity-card {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  min-height: 280px;
+  margin: 0;
+  padding: 22px 22px 18px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  border-radius: 28px;
+  border: 1px solid rgba(34, 211, 238, 0.32);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.22), transparent 38%),
+    radial-gradient(circle at 100% 8%, rgba(168, 85, 247, 0.22), transparent 42%),
+    linear-gradient(160deg, #0a1228 0%, #071126 55%, #05091a 100%);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.4),
+    0 0 34px rgba(34, 211, 238, 0.12);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.hub-identity-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(34, 211, 238, 0.55);
+  box-shadow:
+    0 26px 64px rgba(0, 0, 0, 0.48),
+    0 0 42px rgba(168, 85, 247, 0.2);
+}
+
+.hub-identity-kicker {
+  margin: 0 0 14px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.hub-identity-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.hub-identity-portrait {
+  width: 76px;
+  height: 76px;
+  flex-shrink: 0;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 2px solid rgba(34, 211, 238, 0.65);
+  background: rgba(6, 11, 29, 0.9);
+  box-shadow:
+    0 0 22px rgba(34, 211, 238, 0.35),
+    inset 0 0 18px rgba(168, 85, 247, 0.18);
+}
+
+.hub-identity-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+
+.hub-identity-initial {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-family: "Orbitron", system-ui;
+  font-size: 28px;
+  font-weight: 800;
+  color: #e0f2fe;
+}
+
+.hub-identity-copy {
+  min-width: 0;
+}
+
+.hub-identity-name {
+  margin: 0;
+  font-family: "Orbitron", system-ui;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #f8fafc;
+}
+
+.hub-identity-level {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #c4b5fd;
+}
+
+.hub-identity-rank {
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.45));
+}
+
+.hub-identity-label {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.hub-identity-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.hub-identity-traits li {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(168, 85, 247, 0.42);
+  background: rgba(168, 85, 247, 0.14);
+  color: #f3e8ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.18);
+}
+
+.hub-identity-empty {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.hub-identity-xp {
+  margin-top: auto;
+}
+
+.hub-identity-xp__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.hub-identity-card .hub-xp-track {
+  margin-top: 8px;
+  max-width: none;
+}
+
+.hub-identity-cta {
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.hub-identity-card:hover .hub-identity-cta {
+  color: #a5f3fc;
+}
+
+@media (max-width: 720px) {
+  .hub-identity-card {
+    min-height: 0;
+  }
+
+  .hub-identity-portrait {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+  }
+}
+
 .hub-xp-panel__content {
   padding: 22px 24px;
   display: flex;
@@ -11640,7 +11832,7 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=33"></script>
+<script src="/js/logbuch-hub.js?v=34"></script>
 <script src="/js/logbuch-visuals.js?v=11"></script>
 <script src="/js/logbuch-reminders.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>

@@ -111,41 +111,6 @@
     }
   ];
 
-  const SECONDARY_TILES = [
-    {
-      section: "missionen",
-      slug: "missionen",
-      title: "Missionen",
-      text: "Nimm Herausforderungen an und sammle XP.",
-      cta: "Ansehen",
-      accent: "violet"
-    },
-    {
-      section: "belohnungen",
-      slug: "belohnungen",
-      title: "Belohnungen",
-      text: "Schalte Extras frei und feiere Erfolge.",
-      cta: "Ansehen",
-      accent: "gold"
-    },
-    {
-      section: "charakter",
-      slug: "charakter",
-      title: "Charakter",
-      text: "Passe deinen Charakter an und zeig deinen Style.",
-      cta: "Anpassen",
-      accent: "blue"
-    },
-    {
-      section: "xp",
-      slug: "xp-historie",
-      title: "XP-Historie",
-      text: "Verfolge deine XP und Lernstatistiken.",
-      cta: "Ansehen",
-      accent: "magenta"
-    }
-  ];
-
   window.StudentAssets = { icon, hero };
 
   const state = {
@@ -381,23 +346,57 @@
       </section>`;
   }
 
-  function renderXpPanel(ui, p) {
+  function traitListFromProfile(p) {
+    return (Array.isArray(p?.traits) ? p.traits : []).map((t) => String(t || "").trim()).filter(Boolean);
+  }
+
+  function renderTraitChips(ui, traits) {
+    if (!traits.length) {
+      return `<p class="hub-identity-empty" id="hubIdentityTraits">Eigenschaften erscheinen, sobald dein Charakter steht.</p>`;
+    }
+    return `<ul class="hub-identity-traits" id="hubIdentityTraits">${traits
+      .map((t) => `<li>${ui.escapeHtml(t)}</li>`)
+      .join("")}</ul>`;
+  }
+
+  function renderIdentityCard(ui, p) {
     const xpPct = Math.max(0, Math.min(100, Number(p.xpPct) || 0));
-    const levelName = p.levelName && p.levelName !== "—" ? p.levelName : "Level";
+    const levelName = p.freedomRankLabel || p.levelName || "Starter";
+    const charName = p.characterName || "Dein Charakter";
+    const hasCharacter = !!p.characterImage || !!p.characterName;
+    const traits = traitListFromProfile(p);
+    const initial = (charName || p.name || "?").charAt(0).toUpperCase();
+    const portrait = p.characterImage
+      ? `<img src="${ui.escapeHtml(p.characterImage)}" alt="" id="hubIdentityImg">`
+      : `<span class="hub-identity-initial" id="hubIdentityInitial">${ui.escapeHtml(initial)}</span>`;
+    const rankIcon = p.freedomRankIcon
+      ? `<img class="hub-identity-rank" src="${ui.escapeHtml(p.freedomRankIcon)}" alt="" width="18" height="18">`
+      : "";
 
     return `
-      <aside class="dashboard-feature-card dashboard-feature-card--xp hub-accent-violet">
-        <div class="dashboard-feature-card__content hub-xp-panel__content">
-          <p class="hub-xp-panel-label">XP-Fortschritt</p>
-          <p class="hub-xp-level" id="hubXpLevel">${ui.escapeHtml(levelName)}</p>
-          <p class="hub-xp-meta" id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</p>
+      <button type="button" class="hub-identity-card" id="hubIdentityCard" data-hub-identity="charakter">
+        <p class="hub-identity-kicker">Dein Charakter</p>
+        <div class="hub-identity-head">
+          <div class="hub-identity-portrait" aria-hidden="true">${portrait}</div>
+          <div class="hub-identity-copy">
+            <h3 class="hub-identity-name" id="hubIdentityName">${ui.escapeHtml(charName)}</h3>
+            <p class="hub-identity-level" id="hubXpLevel">${rankIcon}<span>Level ${ui.escapeHtml(levelName)}</span></p>
+          </div>
+        </div>
+        <p class="hub-identity-label">Eigenschaften</p>
+        ${renderTraitChips(ui, traits)}
+        <div class="hub-identity-xp">
+          <div class="hub-identity-xp__row">
+            <span id="hubXpMeta">${ui.escapeHtml(p.xpProgressLabel || "–")}</span>
+            <span id="hubIdentityXpPct">${xpPct}%</span>
+          </div>
           <div class="hub-progress-track hub-progress-track-lg hub-xp-track" aria-hidden="true">
             <div class="hub-progress-fill hub-progress-fill-xp" id="hubXpFill" style="width:${xpPct}%"></div>
           </div>
           <p class="hub-xp-next" id="hubHeroNext">${ui.escapeHtml(p.nextLevelLabel || "–")}</p>
         </div>
-        ${featureVisual(DASHBOARD_HERO.xp)}
-      </aside>`;
+        <span class="hub-identity-cta">${hasCharacter ? "Charakter ansehen" : "Charakter wählen"} <span aria-hidden="true">→</span></span>
+      </button>`;
   }
 
   function render() {
@@ -437,7 +436,7 @@
             ${featureVisual(DASHBOARD_HERO.hub)}
           </div>
 
-          ${renderXpPanel(ui, p)}
+          ${renderIdentityCard(ui, p)}
         </section>
 
         ${renderStatusPanel(ui, stats, step)}
@@ -449,13 +448,6 @@
           </div>
         </section>
 
-        <section class="hub-block">
-          <h2 class="hub-block-label">Weitere Bereiche</h2>
-          <div class="hub-grid-secondary">
-            ${SECONDARY_TILES.map((t) => renderTile(ui, t, "small")).join("")}
-          </div>
-        </section>
-
         <footer class="hub-quote">
           „Logik bringt dich von Punkt A zu Punkt B. Strategie entscheidet, welchen Weg du nimmst.“
         </footer>
@@ -463,6 +455,15 @@
 
     root.querySelectorAll("[data-hub-section]").forEach((btn) => {
       btn.addEventListener("click", () => navigate(btn.dataset.hubSection));
+    });
+
+    root.querySelector("[data-hub-identity]")?.addEventListener("click", () => {
+      const p = window.__studentProfile || {};
+      if (!p.characterImage && !p.characterName && typeof window.openCharacterOverlay === "function") {
+        window.openCharacterOverlay();
+        return;
+      }
+      navigate("charakter");
     });
 
     root.querySelector("#hubBriefingBtn")?.addEventListener("click", () => {
@@ -509,10 +510,45 @@
     }
     set("hubHeroNext", p.nextLevelLabel || "–");
     set("hubXpMeta", p.xpProgressLabel || "–");
-    set("hubXpLevel", p.freedomRankLabel || p.levelName || "–");
+    const xpPct = Math.max(0, Math.min(100, Number(p.xpPct) || 0));
+    const xpPctEl = document.getElementById("hubIdentityXpPct");
+    if (xpPctEl) xpPctEl.textContent = `${xpPct}%`;
     const xpFill = document.getElementById("hubXpFill");
     if (xpFill) {
-      xpFill.style.width = `${Math.max(0, Math.min(100, Number(p.xpPct) || 0))}%`;
+      xpFill.style.width = `${xpPct}%`;
+    }
+    const levelEl = document.getElementById("hubXpLevel");
+    if (levelEl) {
+      const icon = p.freedomRankIcon
+        ? `<img class="hub-identity-rank" src="${p.freedomRankIcon}" alt="" width="18" height="18">`
+        : "";
+      levelEl.innerHTML = `${icon}<span>Level ${p.freedomRankLabel || p.levelName || "–"}</span>`;
+    }
+    const identityName = document.getElementById("hubIdentityName");
+    if (identityName) identityName.textContent = p.characterName || "Dein Charakter";
+    const portrait = document.querySelector(".hub-identity-portrait");
+    if (portrait) {
+      const ui = UI();
+      if (p.characterImage) {
+        let img = document.getElementById("hubIdentityImg");
+        const src = ui.escapeHtml(p.characterImage);
+        if (!img) {
+          portrait.innerHTML = `<img src="${src}" alt="" id="hubIdentityImg">`;
+        } else if (img.getAttribute("src") !== p.characterImage) {
+          img.src = p.characterImage;
+        }
+      } else {
+        const initial = (p.characterName || p.name || "?").charAt(0).toUpperCase();
+        portrait.innerHTML = `<span class="hub-identity-initial" id="hubIdentityInitial">${ui.escapeHtml(initial)}</span>`;
+      }
+    }
+    const traitsEl = document.getElementById("hubIdentityTraits");
+    if (traitsEl) {
+      const ui = UI();
+      const wrap = document.createElement("div");
+      wrap.innerHTML = renderTraitChips(ui, traitListFromProfile(p));
+      const next = wrap.firstElementChild;
+      if (next) traitsEl.replaceWith(next);
     }
 
     const stats = todayStats(state.blocks);
@@ -568,7 +604,7 @@
     refresh,
     refreshStats,
     scrollToSecondary: () => {
-      document.querySelector(".hub-grid-secondary")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.querySelector(".hub-identity-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 })();
