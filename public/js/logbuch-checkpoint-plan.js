@@ -216,19 +216,6 @@
       </article>`;
   }
 
-  function renderTodayWork() {
-    const today = todayIso();
-    const work = dayWorkFor(today);
-    if (!work.length) return "";
-    return `
-      <section class="mcp-next">
-        <p class="mcp-kicker">Heute gearbeitet</p>
-        <div class="mcp-work-list">
-          ${work.map(renderDayWorkCard).join("")}
-        </div>
-      </section>`;
-  }
-
   function renderHero() {
     return `
       <header class="mcp-hero">
@@ -277,36 +264,6 @@
                   `<button type="button" class="mcp-chip ${state.selectedType === t.value ? "is-on" : ""}" data-mcp-type="${escapeHtml(t.value)}">${escapeHtml(t.label)}</button>`
               )
               .join("")}
-          </div>
-        </div>
-      </section>`;
-  }
-
-  function renderNextCard() {
-    const next = upcomingEvents()[0];
-    if (!next) {
-      return `
-        <section class="mcp-next mcp-next--empty">
-          <p class="mcp-kicker">Als Nächstes</p>
-          <p class="mcp-muted" style="margin-top:10px">Aktuell steht kein Leistungsnachweis an.</p>
-        </section>`;
-    }
-    const color = typeColor(next.type);
-    return `
-      <section class="mcp-next">
-        <p class="mcp-kicker">Als Nächstes</p>
-        <div class="mcp-next__row">
-          <div class="mcp-next__main">
-            <div class="mcp-next__badges">
-              <span class="mcp-pill" style="--mcp-c:${color}">${escapeHtml(next.typeLabel || next.type)}</span>
-            </div>
-            <p class="mcp-next__subject">${escapeHtml(next.subject)}</p>
-            <h3 class="mcp-next__title">${escapeHtml(next.title)}</h3>
-            <p class="mcp-next__meta">${escapeHtml(formatDate(next.date))}</p>
-          </div>
-          <div class="mcp-next__countdown" aria-label="${escapeHtml(countdownLabel(next.date))}">
-            <span class="mcp-next__countdown-label">Countdown</span>
-            <span class="mcp-next__countdown-value">${escapeHtml(countdownLabel(next.date))}</span>
           </div>
         </div>
       </section>`;
@@ -392,6 +349,29 @@
       opts.past || event.evaluationStatus
         ? `<p class="mcp-card__eval">${escapeHtml(evalLabel || "Noch nicht bewertet")}${escapeHtml(evalPct)}</p>`
         : "";
+    const main = `
+        <div class="mcp-card__main">
+          <p class="mcp-card__subject">${escapeHtml(event.subject)}</p>
+          <h4 class="mcp-card__title">${escapeHtml(event.title)}</h4>
+          <p class="mcp-card__date">
+            <span class="mcp-pill" style="--mcp-c:${color}">${escapeHtml(event.typeLabel || event.type)}</span>
+            · ${escapeHtml(formatDateShort(event.date))}
+          </p>
+          ${evalLine}
+        </div>`;
+
+    if (opts.isNext && !opts.past) {
+      return `
+      <article class="${classes.join(" ")}" style="--mcp-c:${color}">
+        <div class="mcp-card__row">
+          ${main}
+          <div class="mcp-next__countdown" aria-label="${escapeHtml(countdownLabel(event.date))}">
+            <span class="mcp-next__countdown-label">Countdown</span>
+            <span class="mcp-next__countdown-value">${escapeHtml(countdownLabel(event.date))}</span>
+          </div>
+        </div>
+      </article>`;
+    }
 
     return `
       <article class="${classes.join(" ")}" style="--mcp-c:${color}">
@@ -511,8 +491,6 @@
       <div class="mcp-app">
         ${renderHero()}
         ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
-        ${renderTodayWork()}
-        ${renderNextCard()}
         ${renderFilters()}
         <div class="mcp-dash">
           ${renderCalendar()}

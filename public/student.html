@@ -10781,6 +10781,31 @@ article.today-subject-tile:hover {
   box-shadow: 0 0 18px rgba(34, 211, 238, 0.12);
 }
 
+#checkpoint-plan-screen-root .mcp-card__row {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#checkpoint-plan-screen-root .mcp-card__main {
+  min-width: 0;
+  flex: 1;
+}
+
+#checkpoint-plan-screen-root .mcp-card__main .mcp-card__title {
+  margin-top: 6px;
+}
+
+#checkpoint-plan-screen-root .mcp-card.is-next .mcp-next__countdown {
+  min-width: 104px;
+  padding: 10px 12px;
+}
+
+#checkpoint-plan-screen-root .mcp-card.is-next .mcp-next__countdown-value {
+  font-size: 0.92rem;
+}
+
 #checkpoint-plan-screen-root .mcp-card.is-past {
   opacity: 0.78;
   border-color: rgba(148, 163, 184, 0.18);
@@ -11002,7 +11027,7 @@ article.today-subject-tile:hover {
     opacity: 0.85;
   }
 
-  #checkpoint-plan-screen-root .mcp-next__row {
+  #checkpoint-plan-screen-root .mcp-card__row {
     flex-direction: column;
   }
 
@@ -12173,7 +12198,7 @@ h2 {
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=28"></script>
-<script src="/js/logbuch-checkpoint-plan.js?v=10"></script>
+<script src="/js/logbuch-checkpoint-plan.js?v=11"></script>
 <script src="/js/logbuch-materialschrank.js?v=4"></script>
 <script src="/js/logbuch-homework.js?v=1"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=21"></script>
