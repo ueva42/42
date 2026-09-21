@@ -286,7 +286,11 @@
     const ui = UI();
     const visual = subjectVisual(subject);
     const accent = group ? "green" : visual.accent;
-    const glyph = subjectGlyph(group ? "group" : visual.icon);
+    const artSrc = !group ? window.LogbuchVisuals?.subjectIconSrc(subject) : "";
+    const glyph = artSrc
+      ? `<img src="${ui.escapeHtml(artSrc)}" alt="" loading="lazy" decoding="async">`
+      : subjectGlyph(group ? "group" : visual.icon);
+    const glyphClass = artSrc ? " today-subject-tile__glyph--art" : "";
     const title = ui.escapeHtml(subject || "Lernzeit");
     const timeHtml = time ? `<span class="today-subject-tile__time">${ui.escapeHtml(time)}</span>` : "";
     const hintHtml = hint
@@ -296,7 +300,7 @@
       ? `<span class="today-subject-tile__cta">${ui.escapeHtml(cta)} <span class="hub-tile-arrow" aria-hidden="true">→</span></span>`
       : "";
     const inner = `
-      <span class="today-subject-tile__glyph" aria-hidden="true">${glyph}</span>
+      <span class="today-subject-tile__glyph${glyphClass}" aria-hidden="true">${glyph}</span>
       <span class="today-subject-tile__copy">
         ${timeHtml}
         <span class="today-subject-tile__title">${title}</span>

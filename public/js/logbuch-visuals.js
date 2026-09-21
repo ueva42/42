@@ -2,6 +2,73 @@
  * Streets of Logic – wiederverwendbare Charts & Fortschritts-UI (SVG/CSS, keine Library).
  */
 window.LogbuchVisuals = {
+  SUBJECT_ICON_V: 1,
+
+  SUBJECT_ICON_FILES: {
+    mathe: "mathematik",
+    mathematik: "mathematik",
+    deutsch: "deutsch",
+    englisch: "englisch",
+    geo: "geographie",
+    geographie: "geographie",
+    erdkunde: "geographie",
+    geschichte: "geschichte",
+    physik: "physik",
+    chemie: "chemie",
+    biologie: "biologie",
+    musik: "musik",
+    bk: "bk",
+    gk: "gemeinschaftskunde",
+    gemeinschaftskunde: "gemeinschaftskunde",
+    sport: "sport"
+  },
+
+  subjectSlug(name) {
+    return String(name || "")
+      .toLowerCase()
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, "");
+  },
+
+  subjectIconFile(name) {
+    const slug = this.subjectSlug(name);
+    return this.SUBJECT_ICON_FILES[slug] || null;
+  },
+
+  subjectIconSrc(name) {
+    const file = this.subjectIconFile(name);
+    if (!file) return "";
+    return `/icons/student/subjects/${file}-gross-ohne-fachname.png?v=${this.SUBJECT_ICON_V}`;
+  },
+
+  inferSubjectIconFile(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return null;
+    const exact = this.subjectIconFile(raw);
+    if (exact) return exact;
+    const slug = this.subjectSlug(raw);
+    const keys = Object.keys(this.SUBJECT_ICON_FILES).sort((a, b) => b.length - a.length);
+    for (const key of keys) {
+      if (key.length <= 2) {
+        if (new RegExp(`(?:^|[^a-z0-9])${key}(?:$|[^a-z0-9])`).test(slug)) {
+          return this.SUBJECT_ICON_FILES[key];
+        }
+        continue;
+      }
+      if (slug.includes(key)) return this.SUBJECT_ICON_FILES[key];
+    }
+    return null;
+  },
+
+  subjectIconSrcFromText(text) {
+    const file = this.inferSubjectIconFile(text);
+    if (!file) return "";
+    return `/icons/student/subjects/${file}-gross-ohne-fachname.png?v=${this.SUBJECT_ICON_V}`;
+  },
+
   clamp(n, min, max) {
     return Math.min(max, Math.max(min, Number(n) || 0));
   },

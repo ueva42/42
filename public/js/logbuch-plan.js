@@ -1055,32 +1055,133 @@
     );
   }
 
-  function dailyGoalBlockHtml(ui, entry) {
-    const levelGoal = entry?.level_goal_text || state.levelGoalText;
-    const howGoal =
-      entry?.how_goal_text || entry?.goal || state.howGoalText || joinMulti(state.startGoals);
-    const details = entry?.details_text || state.detailsText;
-    const planB =
-      entry?.plan_b_strategy_text || joinMulti(state.planBStrategies);
-    if (!levelGoal || !howGoal) return "";
+  function overviewTitles(raw, allowed, tileFn) {
+    const parts = parseMulti(raw, allowed);
+    if (parts.length) return parts.map((p) => tileFn(p).title);
+    const text = String(raw || "").trim();
+    return text ? [text] : [];
+  }
+
+  function overviewTileHtml(ui, { label, value, chips, accent, wide }) {
+    const hasChips = Array.isArray(chips) && chips.length;
+    const text = String(value || "").trim();
+    if (!hasChips && !text) return "";
+    return `
+      <article class="plan-overview-tile${wide ? " plan-overview-tile--wide" : ""}" style="--accent:${accent || "#22d3ee"}">
+        <p class="plan-overview-tile__label">${ui.escapeHtml(label)}</p>
+        ${
+          hasChips
+            ? `<div class="plan-overview-tile__chips">${chips
+                .map((c) => `<span class="plan-overview-chip">${ui.escapeHtml(c)}</span>`)
+                .join("")}</div>`
+            : `<p class="plan-overview-tile__value">${ui.escapeHtml(text)}</p>`
+        }
+      </article>`;
+  }
+
+  function renderReadonlyHero(ui, dateLabel, entry) {
+    const chips = [dateLabel, entry.timeslot, entry.subject].filter(Boolean);
+    return `
+      <article class="plan-app-hero plan-app-hero--compact plan-app-hero--plan">
+        <div class="plan-app-hero__content">
+          <div class="plan-app-hero__icon" aria-hidden="true">
+            <img src="/icons/student/png/zielsetzung.png" alt="" aria-hidden="true">
+          </div>
+          <div class="plan-app-hero__copy">
+            <p class="plan-app-hero__eyebrow">Abgeschlossen · nur Ansicht</p>
+            <h2 class="plan-app-hero__title">Dein Tagesziel</h2>
+            <p class="plan-app-hero__meta">Nach dem Tagesabschluss festgehalten – nicht mehr änderbar.</p>
+            ${
+              chips.length
+                ? `<div class="plan-app-hero__chips">${chips
+                    .map((c) => `<span class="plan-app-hero__chip">${ui.escapeHtml(c)}</span>`)
+                    .join("")}</div>`
+                : ""
+            }
+          </div>
+        </div>
+        <div class="plan-app-hero__visual" aria-hidden="true">
+          <img src="/icons/student/hero/zielsetzung-hero.png?v=6" alt="" aria-hidden="true" loading="lazy">
+        </div>
+      </article>`;
+  }
+
+  function renderExistingEntry(ui, dateLabel) {
+    const e = state.existingEntry;
+    const workGoals = Array.isArray(e.work_goals) ? e.work_goals : [];
+    const startTitles = overviewTitles(e.how_goal_text || e.goal, HOW_GOAL_OPTIONS, howGoalTile);
+    const workTitles = workGoals.map((g) => arbeitTile(g).title);
+    const planBTitles = overviewTitles(e.plan_b_strategy_text, PLAN_B(), planBTile);
+    const controlAllowed = CONTROL_STRATEGY_TILES.map((t) => t.value);
+    const controlTitles = overviewTitles(e.strategy, controlAllowed, (value) => {
+      const tile = CONTROL_STRATEGY_TILES.find((t) => t.value === value);
+      return tile || { title: controlLabel(value) };
+    });
+    const details = String(e.details_text || e.freitext || "").trim();
+    const mission = e.level_goal_text || "";
+
+    const factTiles = [
+      overviewTileHtml(ui, { label: "Fach", value: e.subject, accent: "#22d3ee" }),
+      overviewTileHtml(ui, {
+        label: "Level",
+        value: e.selected_level ? levelLabel(e.selected_level) : "",
+        accent: "#a855f7"
+      }),
+      overviewTileHtml(ui, { label: "Unterthema", value: e.what_goal_text, accent: "#38bdf8" }),
+      overviewTileHtml(ui, {
+        label: "Nachweis",
+        value: e.checkpoint_title || "Kein kommender Nachweis",
+        accent: "#f59e0b"
+      })
+    ]
+      .filter(Boolean)
+      .join("");
+
+    const pathTiles = [
+      overviewTileHtml(ui, { label: "Start", chips: startTitles, accent: "#22d3ee" }),
+      overviewTileHtml(ui, { label: "Arbeit", chips: workTitles, accent: "#a855f7" }),
+      overviewTileHtml(ui, { label: "Kontrolle", chips: controlTitles, accent: "#38bdf8" }),
+      overviewTileHtml(ui, { label: "Plan B", chips: planBTitles, accent: "#f59e0b" }),
+      overviewTileHtml(ui, {
+        label: "Sozialform",
+        value: e.social_form ? labelForSocialForm(e.social_form) : "",
+        accent: "#c084fc"
+      }),
+      overviewTileHtml(ui, {
+        label: "Sicherheit vorher",
+        value: e.confidence_before != null ? `${e.confidence_before} / 5` : "",
+        accent: "#34d399"
+      })
+    ]
+      .filter(Boolean)
+      .join("");
 
     return `
-      <div class="plan-daily-goal">
-        <p class="plan-daily-goal-title">Dein Tagesziel heute</p>
-        <div class="plan-daily-goal-card">
-          <p><strong>Ich arbeite an diesem Ziel:</strong><br>${ui.escapeHtml(levelGoal)}</p>
-          <p><strong>Mein Weg zum Ziel:</strong><br>${ui.escapeHtml(howGoal)}</p>
-          ${
-            details && String(details).trim()
-              ? `<p><strong>Konkret:</strong><br>${ui.escapeHtml(String(details).trim())}</p>`
-              : ""
-          }
-          ${
-            planB
-              ? `<p><strong>Plan B, wenn ich hänge:</strong><br>${ui.escapeHtml(planB)}</p>`
-              : ""
-          }
-        </div>
+      <div class="plan-overview">
+        ${renderReadonlyHero(ui, dateLabel, e)}
+        ${
+          mission
+            ? `<article class="plan-overview-mission">
+                <p class="plan-overview-mission__kicker">Ich arbeite an diesem Ziel</p>
+                <h3 class="plan-overview-mission__title">${ui.escapeHtml(mission)}</h3>
+                ${
+                  details
+                    ? `<p class="plan-overview-mission__detail">${ui.escapeHtml(details)}</p>`
+                    : ""
+                }
+              </article>`
+            : ""
+        }
+        ${factTiles ? `<div class="plan-overview-grid">${factTiles}</div>` : ""}
+        ${
+          pathTiles
+            ? `<section class="plan-overview-path">
+                <p class="plan-overview-path__title">Dein Weg</p>
+                <div class="plan-overview-grid plan-overview-grid--path">${pathTiles}</div>
+              </section>`
+            : ""
+        }
+        ${ui.btnGhost("Zurück zu Mein Tag", "planBackBtn", "today-app-btn today-app-btn--ghost")}
       </div>`;
   }
 
@@ -1309,49 +1410,6 @@
     state.selectedCheckpointId = entry.checkpoint_id || null;
     state.existingEntry = null;
     refreshHowGoals();
-  }
-
-  function renderExistingEntry(ui, dateLabel) {
-    const e = state.existingEntry;
-    const workGoals = Array.isArray(e.work_goals) ? e.work_goals : [];
-
-    const rows = [
-      ["Fach", e.subject],
-      ["Nächster Nachweis", e.checkpoint_title || "Kein kommender Nachweis gefunden."],
-      ["Was-Ziel", e.what_goal_text || "–"],
-      ["Level", e.selected_level ? levelLabel(e.selected_level) : "–"],
-      ["Fachliches Ziel", e.level_goal_text || "–"],
-      ["Mein Weg zum Ziel", e.how_goal_text || e.goal || "–"],
-      ["Arbeitsziele", workGoals.length ? workGoals.join(", ") : "–"],
-      ["Sozialform", e.social_form ? labelForSocialForm(e.social_form) : "–"],
-      [
-        "Wie sicher fühlst du dich vorher?",
-        e.confidence_before != null ? String(e.confidence_before) : "–"
-      ],
-      ["Was genau?", e.details_text || e.freitext || "–"]
-    ];
-    if (e.plan_b_strategy_text) {
-      rows.push(["Plan B, wenn ich hänge", e.plan_b_strategy_text]);
-    }
-
-    return `
-      <div class="logbuch-form logbuch-form-readonly">
-        <p class="logbuch-meta">${ui.escapeHtml(dateLabel)}${e.timeslot ? ` · ${ui.escapeHtml(e.timeslot)}` : ""}</p>
-        <div class="logbuch-msg logbuch-msg-info">Dein Tagesziel (nur Ansicht – nach dem Tagesabschluss nicht mehr änderbar)</div>
-        ${dailyGoalBlockHtml(ui, e)}
-        <dl class="plan-readonly-list">
-          ${rows
-            .map(
-              ([label, value]) => `
-            <div class="plan-readonly-row">
-              <dt>${ui.escapeHtml(label)}</dt>
-              <dd>${ui.escapeHtml(value)}</dd>
-            </div>`
-            )
-            .join("")}
-        </dl>
-        ${ui.btnGhost("Zurück zu Mein Tag", "planBackBtn")}
-      </div>`;
   }
 
   function render() {

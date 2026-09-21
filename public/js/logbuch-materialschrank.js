@@ -18,14 +18,21 @@
     return `<span class="ms-tile__glyph" aria-hidden="true"><img src="/icons/student/png/materialschrank.png" alt=""></span>`;
   }
 
+  function subjectArt(ui, tile) {
+    const src = window.LogbuchVisuals?.subjectIconSrcFromText(`${tile.title || ""} ${tile.note || ""}`);
+    if (!src) return "";
+    return `<span class="ms-tile__art" aria-hidden="true"><img src="${ui.escapeHtml(src)}" alt="" loading="lazy" decoding="async"></span>`;
+  }
+
   function renderTile(ui, tile, index) {
     const accent = ACCENTS[index % ACCENTS.length];
+    const art = subjectArt(ui, tile);
     const note = tile.note
       ? `<span class="ms-tile__note">${ui.escapeHtml(tile.note)}</span>`
       : "";
     return `
-      <a class="ms-tile hub-accent-${accent}" href="${ui.escapeHtml(tile.url)}" target="_blank" rel="noopener noreferrer">
-        ${cabinetIcon()}
+      <a class="ms-tile hub-accent-${accent}${art ? " ms-tile--has-art" : ""}" href="${ui.escapeHtml(tile.url)}" target="_blank" rel="noopener noreferrer">
+        ${art || cabinetIcon()}
         <span class="ms-tile__title">${ui.escapeHtml(tile.title)}</span>
         ${note}
       </a>`;
