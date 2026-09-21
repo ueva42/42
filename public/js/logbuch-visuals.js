@@ -488,8 +488,7 @@ window.LogbuchVisuals = {
       <div class="character-app-grid">
         <div class="student-card character-profile-card">
           <div class="card-content">
-            ${char?.image_url ? `<img class="char-img" src="${V.escape(char.image_url)}" alt="">` : ""}
-            <div class="char-name">${V.escape(char?.name || u.name || "Charakter")}</div>
+            ${char?.image_url ? `<img class="char-img" src="${V.escape(char.image_url)}" alt="${V.escape(char?.name || "")}">` : ""}
           </div>
         </div>
         <div class="student-card">
