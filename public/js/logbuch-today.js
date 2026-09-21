@@ -41,7 +41,7 @@
   function blockNeedsMidCheck(block, entry) {
     if (block && typeof block.needsMidCheck === "boolean") return block.needsMidCheck;
     if (entry && typeof entry.needsMidCheck === "boolean") return entry.needsMidCheck;
-    return true;
+    return false;
   }
 
   function blockPhases(entry, needsMidCheck = true) {

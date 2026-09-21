@@ -170,7 +170,11 @@
         };
       }
 
-      if (!entry.hasCheck) {
+      const needsMidCheck =
+        (typeof block.needsMidCheck === "boolean" ? block.needsMidCheck : null) ??
+        (typeof entry.needsMidCheck === "boolean" ? entry.needsMidCheck : false);
+
+      if (needsMidCheck && !entry.hasCheck) {
         return {
           label: "Zwischen-Check starten",
           hint: `${subject} – wie läuft's gerade?`,

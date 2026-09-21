@@ -1906,9 +1906,9 @@
   </div>
 </div>
 
-<script src="/js/client-cache-reset.js?v=1"></script>
+<script src="/js/client-cache-reset.js?v=2"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=9"></script>
+<script src="/js/auth-fetch.js?v=10"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=4"></script>
@@ -3489,6 +3489,7 @@ async function ensureAdminSessionReady() {
       }
 
       const data = await sessionRes.json();
+      if (data.authenticated === false) return false;
       if (data.role !== "admin") return false;
       if (data.ready === false) {
         await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
@@ -3499,7 +3500,7 @@ async function ensureAdminSessionReady() {
         credentials: "same-origin",
         cache: "no-store"
       });
-      if (warm.status === 401 || warm.status === 403) {
+      if (warm.status === 401) {
         return false;
       }
       if (!warm.ok) {
@@ -3513,7 +3514,6 @@ async function ensureAdminSessionReady() {
     }
     await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
   }
-  // Bei vorübergehenden Serverfehlern nicht hart ausloggen – App trotzdem starten
   try {
     const sessionRes = await fetch("/api/auth/session", {
       credentials: "same-origin",
@@ -3528,21 +3528,19 @@ async function ensureAdminSessionReady() {
 }
 
 async function bootAdminApp() {
+  if (window.__adminBooted) return;
   window.__authBootstrap = true;
   try {
-    if (window.__purgeTeacherClientCaches) {
-      await window.__purgeTeacherClientCaches();
-    }
     const ready = await ensureAdminSessionReady();
     if (!ready) {
       window.location.href = "/login";
       return;
     }
+    window.__adminBooted = true;
     initNavSections();
     initAdminRoute();
   } catch (err) {
     console.error(err);
-    // Nur bei klarem Auth-Verlust umleiten, nicht bei jedem Renderfehler
     try {
       const sessionRes = await fetch("/api/auth/session", {
         credentials: "same-origin",
@@ -3557,6 +3555,7 @@ async function bootAdminApp() {
         window.location.href = "/login";
         return;
       }
+      window.__adminBooted = true;
       initNavSections();
       initAdminRoute();
     } catch (_) {
@@ -3567,7 +3566,10 @@ async function bootAdminApp() {
   }
 }
 
-bootAdminApp();
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted && window.__adminBooted) return;
+  if (!window.__adminBooted) bootAdminApp();
+});
 </script>
 
 </body>

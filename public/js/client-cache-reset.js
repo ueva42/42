@@ -1,5 +1,6 @@
 /**
  * Lehrer-Admin: Service Worker + Cache leeren (verhindert stale JS/403 aus altem SW).
+ * Nicht bei jedem Tab-Reload – sonst fliegt man nach einem Tab-Wechsel raus.
  */
 (function () {
   async function purgeTeacherClientCaches() {
@@ -20,11 +21,8 @@
   window.__purgeTeacherClientCaches = purgeTeacherClientCaches;
 
   const path = window.location.pathname || "";
-  if (
-    path.startsWith("/teacher") ||
-    path === "/admin" ||
-    path.startsWith("/superadmin")
-  ) {
+  const onLogin = path === "/login" || path === "/login.html";
+  if (onLogin) {
     purgeTeacherClientCaches();
   }
 })();

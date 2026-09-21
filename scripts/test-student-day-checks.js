@@ -1,11 +1,12 @@
 /**
- * Tests für Zwischencheck-Regel (2+ Stunden) und Lerncheck-Prozent.
+ * Tests für Zwischencheck-Regel (Einzel-/Doppelstunde vs. getrennte Blöcke).
  * Ausführen: node scripts/test-student-day-checks.js
  */
 import {
   TIMETABLE_FREE_SUBJECT,
   isTimetableFreeSubject,
   countTimetableSlotsBySubject,
+  countLessonGroupsBySubject,
   subjectNeedsMidCheck,
   plannedWorkIsEmpty
 } from "../lib/logbuch-day.js";
@@ -36,11 +37,32 @@ function testSlotCounts() {
   assert(counts.Deutsch === 1, `Deutsch=${counts.Deutsch}`);
   assert(counts.Englisch === 1, `Englisch=${counts.Englisch}`);
   assert(counts.Frei == null, "Frei ignored");
-  assert(subjectNeedsMidCheck(counts.Mathe), "Mathe keeps Zwischencheck");
-  assert(!subjectNeedsMidCheck(counts.Deutsch), "Deutsch skips Zwischencheck");
+}
+
+function testLessonGroups() {
+  const doppel = [
+    { subject: "Mathe", timeslot: "7.50-8.35" },
+    { subject: "Mathe", timeslot: "8.40-9.25" },
+    { subject: "Deutsch", timeslot: "9.30-10.15" }
+  ];
+  const doppelGroups = countLessonGroupsBySubject(doppel);
+  assert(doppelGroups.Mathe === 1, `Doppelstunde Mathe groups=${doppelGroups.Mathe}`);
+  assert(doppelGroups.Deutsch === 1, "Deutsch single group");
+  assert(!subjectNeedsMidCheck(doppelGroups.Mathe), "Doppelstunde skips Zwischencheck");
+  assert(!subjectNeedsMidCheck(doppelGroups.Deutsch), "Einzelstunde skips Zwischencheck");
+
+  const split = [
+    { subject: "Mathe", timeslot: "7.50-8.35" },
+    { subject: "Deutsch", timeslot: "8.40-9.25" },
+    { subject: "Mathe", timeslot: "11.25-12.10" }
+  ];
+  const splitGroups = countLessonGroupsBySubject(split);
+  assert(splitGroups.Mathe === 2, `split Mathe groups=${splitGroups.Mathe}`);
+  assert(subjectNeedsMidCheck(splitGroups.Mathe), "two separate Mathe lessons keep Zwischencheck");
+
   assert(!subjectNeedsMidCheck(0), "zero skips");
   assert(!subjectNeedsMidCheck(1), "one skips");
-  assert(subjectNeedsMidCheck(2), "two keeps");
+  assert(subjectNeedsMidCheck(2), "two groups keep");
 }
 
 function testPracticePercentReuse() {
@@ -58,6 +80,7 @@ function testPlannedWorkEmpty() {
 
 testFreeSlotsIgnored();
 testSlotCounts();
+testLessonGroups();
 testPracticePercentReuse();
 testPlannedWorkEmpty();
 console.log("OK – student day / check helper tests passed");

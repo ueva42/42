@@ -1,7 +1,7 @@
 /**
  * Session-aware fetch: cookies + kurze Retries bei 401/403 (PG-Session-Lag).
- * Nach bestätigter Session noch einmal versuchen — sonst bleibt „Forbidden“ trotz Login.
  * Logout nur wenn die Session nachweislich tot ist (401 / authenticated:false).
+ * Ein 403 bei gültiger Session darf die Lehrkraft nicht aus dem Tab werfen.
  */
 (function () {
   if (window.__authFetchInstalled) return;
@@ -80,15 +80,6 @@
             return res;
           }
           const retryRes = await nativeFetch(input, mergedInit);
-          if (retryRes.status === 401 || retryRes.status === 403) {
-            const role = sessionData?.role;
-            const onTeacher =
-              (window.location.pathname || "").startsWith("/teacher") ||
-              (window.location.pathname || "").startsWith("/admin");
-            if (onTeacher && role && role !== "admin") {
-              goLogin();
-            }
-          }
           return retryRes;
         } catch (_err) {
           return res;

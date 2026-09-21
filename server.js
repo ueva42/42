@@ -59,6 +59,7 @@ import {
   TIMETABLE_FREE_SUBJECT,
   isTimetableFreeSubject,
   countTimetableSlotsBySubject,
+  countLessonGroupsBySubject,
   subjectNeedsMidCheck
 } from "./lib/logbuch-day.js";
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
@@ -1740,10 +1741,13 @@ async function midCheckInfoForStudent(studentId, date, subject) {
     timetable = await fetchTimetableForClassDay(classId, weekday);
   }
   const counts = countTimetableSlotsBySubject(timetable);
+  const groups = countLessonGroupsBySubject(timetable);
   const slotCount = subject ? counts[subject] || 0 : 0;
+  const groupCount = subject ? groups[subject] || 0 : 0;
   return {
     subjectSlotCount: slotCount,
-    needsMidCheck: subjectNeedsMidCheck(slotCount),
+    subjectLessonGroups: groupCount,
+    needsMidCheck: subjectNeedsMidCheck(groupCount),
     subjectSlotCounts: counts
   };
 }
@@ -2420,8 +2424,9 @@ function saveSession(req) {
 app.use((req, res, next) => {
   if (req.session?.user?.id) {
     req.session.touch();
-    // rolling Cookie erneuern, ohne die Session unnötig als dirty zu markieren
-    res.setHeader("Cache-Control", "private, no-cache");
+    if (String(req.path || "").startsWith("/api/")) {
+      res.setHeader("Cache-Control", "private, no-cache");
+    }
   }
   next();
 });
@@ -5807,6 +5812,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       (slot) => slot.subject && !isTimetableFreeSubject(slot.subject)
     );
     const subjectSlotCounts = countTimetableSlotsBySubject(activeTimetable);
+    const subjectLessonGroups = countLessonGroupsBySubject(activeTimetable);
 
     const seenSubjects = new Set();
     const uniqueTimetableSlots = [];
@@ -5822,24 +5828,26 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     for (const slot of uniqueTimetableSlots) {
       const entry = findEntryForSlot(slot);
       if (entry) usedEntryIds.add(entry.id);
-      const needsMidCheck = subjectNeedsMidCheck(subjectSlotCounts[slot.subject] || 0);
+      const needsMidCheck = subjectNeedsMidCheck(subjectLessonGroups[slot.subject] || 0);
       if (entry) entry.needsMidCheck = needsMidCheck;
       blocks.push({
         slot,
         entry,
         subjectSlotCount: subjectSlotCounts[slot.subject] || 0,
+        subjectLessonGroups: subjectLessonGroups[slot.subject] || 0,
         needsMidCheck
       });
     }
 
     for (const entry of entries) {
       if (!usedEntryIds.has(entry.id)) {
-        const needsMidCheck = subjectNeedsMidCheck(subjectSlotCounts[entry.subject] || 0);
+        const needsMidCheck = subjectNeedsMidCheck(subjectLessonGroups[entry.subject] || 0);
         entry.needsMidCheck = needsMidCheck;
         blocks.push({
           slot: { subject: entry.subject, timeslot: entry.timeslot, room: null },
           entry,
           subjectSlotCount: subjectSlotCounts[entry.subject] || 0,
+          subjectLessonGroups: subjectLessonGroups[entry.subject] || 0,
           needsMidCheck
         });
       }
@@ -6185,7 +6193,7 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
       return res.json({
         success: false,
         message:
-          "Zwischen-Check gibt es nur, wenn das Fach heute mindestens zweimal im Stundenplan steht.",
+          "Zwischen-Check gibt es nur, wenn das Fach heute in getrennten Stunden steht – nicht bei einer Einzel- oder Doppelstunde.",
         needsMidCheck: false
       });
     }
