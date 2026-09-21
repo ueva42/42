@@ -536,10 +536,12 @@
 
   function portalPlanNextModal(root) {
     teardownPlanNextModal();
-    const modal = root?.querySelector(".plan-next-modal-backdrop");
-    if (!modal) return;
-    document.body.appendChild(modal);
-    modal.querySelectorAll("[data-plan-next]").forEach((btn) => {
+    root?.querySelectorAll(".plan-next-modal-backdrop").forEach((modal) => {
+      document.body.appendChild(modal);
+    });
+    const after = document.querySelector("[data-plan-after-save]");
+    if (!after) return;
+    after.querySelectorAll("[data-plan-next]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const action = btn.dataset.planNext;
         const goal = pickedWhatGoal();
@@ -557,7 +559,7 @@
         goToTodayFromPlan();
       });
     });
-    modal.querySelector("[data-plan-next]")?.focus();
+    after.querySelector("[data-plan-next]")?.focus();
   }
 
   function renderAfterSaveModal() {
@@ -588,7 +590,7 @@
       : "";
 
     return `
-      <div class="plan-next-modal-backdrop" role="dialog" aria-modal="true" aria-label="${ui.escapeHtml(title)}">
+      <div class="plan-next-modal-backdrop" data-plan-after-save role="dialog" aria-modal="true" aria-label="${ui.escapeHtml(title)}">
         <div class="plan-next-modal">
           <p class="plan-next-modal__kicker">Tagesziel gespeichert</p>
           <h3 class="plan-next-modal__title">${ui.escapeHtml(title)}</h3>
@@ -788,6 +790,66 @@
     return `<div class="plan-acc__continue">
       <button type="button" class="today-app-btn" id="${id}" ${enabled ? "" : "disabled"}>${label}</button>
     </div>`;
+  }
+
+  function renderAskProgress(step, total = 7) {
+    const current = Math.min(step, total);
+    return `<div class="plan-ask__progress" role="navigation" aria-label="Schritte">
+      ${Array.from({ length: total }, (_, i) => {
+        const n = i + 1;
+        const done = n < current || step > total;
+        const isCurrent = n === current && step <= total;
+        const locked = n > current;
+        return `<button type="button" class="plan-ask__dot${done ? " is-done" : ""}${isCurrent ? " is-current" : ""}" data-plan-open="${n}" ${locked ? "disabled" : ""} aria-label="Schritt ${n}"></button>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderStepPopup({ step, title, hint, body, showBack = true }) {
+    return `
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="${title}">
+        <div class="plan-next-modal plan-next-modal--ask">
+          ${renderAskProgress(step)}
+          <p class="plan-next-modal__kicker">Schritt ${step} von 7</p>
+          <h3 class="plan-next-modal__title">${title}</h3>
+          ${hint ? `<p class="plan-next-modal__text">${hint}</p>` : ""}
+          ${state.errorMsg ? `<p class="plan-next-modal__text" style="color:#fca5a5">${UI().escapeHtml(state.errorMsg)}</p>` : ""}
+          <div class="plan-ask__body">${body}</div>
+          <div class="plan-next-modal__actions">
+            ${
+              showBack
+                ? `<button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="planAskBack">Zurück</button>`
+                : `<button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="planBackBtn">Abbrechen</button>`
+            }
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderMissionPopup(ui, missionReady) {
+    return `
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Meine Mission heute">
+        <div class="plan-next-modal plan-next-modal--ask">
+          ${renderAskProgress(8)}
+          <p class="plan-next-modal__kicker">Bereit</p>
+          <h3 class="plan-next-modal__title">Meine Mission heute</h3>
+          <p class="plan-next-modal__text">Prüfe kurz, dann speichern – danach geht’s weiter zum Üben.</p>
+          <div id="planSummaryCard">${renderPlanSummaryContent(ui)}</div>
+          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
+          <div class="plan-next-modal__actions">
+            <button type="button" class="btn-primary logbuch-submit today-app-btn" id="planSubmitBtn" ${
+              state.submitting || !missionReady ? "disabled" : ""
+            }>${
+              state.submitting
+                ? "Speichern…"
+                : state.editingEntryId
+                  ? "Änderungen speichern"
+                  : "Tagesziel speichern (+2 XP)"
+            }</button>
+            <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="planAskBack">Zurück</button>
+          </div>
+        </div>
+      </div>`;
   }
 
   function renderAccordionStep(step, title, summary, bodyHtml, opts = {}) {
@@ -1389,134 +1451,96 @@
         )}
       </div>`;
 
-    root.innerHTML = `
-      <div class="plan-app plan-app--accordion">
-        ${renderPlanHero(ui, dateLabel)}
+    const startBody = `<div class="goal-step-card__stack">${renderStartSection(ui)}${continueRow(
+      "planStartContinue",
+      "Weiter",
+      sStart
+    )}</div>`;
+    const workBody = `<div class="goal-step-card__stack">${renderWorkSection(ui)}${continueRow(
+      "planWorkContinue",
+      "Weiter",
+      sWork
+    )}</div>`;
+    const controlBody = `<div class="goal-step-card__stack">${renderControlSection(ui)}${continueRow(
+      "planControlContinue",
+      "Weiter",
+      sControl
+    )}</div>`;
+    const planBBody = `<div class="goal-step-card__stack">${renderPlanBSection(ui)}${continueRow(
+      "planPlanBContinue",
+      state.planBStrategies.length ? "Weiter" : "Ohne Plan B weiter",
+      true
+    )}</div>`;
 
+    const stepPopup = state.afterSaveOpen
+      ? ""
+      : state.activeStep >= 8
+        ? renderMissionPopup(ui, missionReady)
+        : state.activeStep === 1
+          ? renderStepPopup({
+              step: 1,
+              title: "Was will ich heute können?",
+              hint: "Wähle Fach und Unterthema.",
+              body: whatBody,
+              showBack: false
+            })
+          : state.activeStep === 2
+            ? renderStepPopup({
+                step: 2,
+                title: "Mein Level",
+                hint: "Rookie, Operator oder Street Legend.",
+                body: levelBody
+              })
+            : state.activeStep === 3
+              ? renderStepPopup({
+                  step: 3,
+                  title: "Ich starte so",
+                  hint: "1 bis 3 Karten – so beginnst du.",
+                  body: startBody
+                })
+              : state.activeStep === 4
+                ? renderStepPopup({
+                    step: 4,
+                    title: "Ich arbeite so",
+                    hint: "1 bis 3 Karten – so bleibst du dran.",
+                    body: workBody
+                  })
+                : state.activeStep === 5
+                  ? renderStepPopup({
+                      step: 5,
+                      title: "Ich kontrolliere so",
+                      hint: "1 bis 3 Karten – so merkst du, ob du’s kannst.",
+                      body: controlBody
+                    })
+                  : state.activeStep === 6
+                    ? renderStepPopup({
+                        step: 6,
+                        title: "Plan B, wenn ich hänge",
+                        hint: "Optional – falls du feststeckst.",
+                        body: planBBody
+                      })
+                    : renderStepPopup({
+                        step: 7,
+                        title: "Selbstcheck",
+                        hint: "Optional – wie sicher fühlst du dich?",
+                        body: confidenceBody
+                      });
+
+    root.innerHTML = `
+      <div class="plan-app plan-app--ask">
+        ${renderPlanHero(ui, dateLabel)}
         ${
           state.editingEntryId
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest dein Tagesziel – beim Speichern gibt es kein zusätzliches XP.</div>`
             : ""
         }
-
         ${renderSuggestionBanner(ui)}
-
-        <div class="plan-acc-stack">
-          ${renderAccordionStep(1, "Was will ich heute können?", ui.escapeHtml(whatStepSummary()), whatBody, {
-            done: sWhat,
-            canOpen: true,
-            hint: "Fach und Unterthema"
-          })}
-          ${renderAccordionStep(2, "Mein Level", ui.escapeHtml(levelStepSummary()), levelBody, {
-            done: sLevel,
-            canOpen: sWhat || state.activeStep === 2,
-            hint: "Rookie, Operator oder Street Legend"
-          })}
-          ${renderAccordionStep(
-            3,
-            "Ich starte so",
-            ui.escapeHtml(startStepSummary()),
-            `<div class="goal-step-card__stack">${renderStartSection(ui)}${continueRow(
-              "planStartContinue",
-              "Weiter",
-              sStart
-            )}</div>`,
-            {
-              done: sStart,
-              canOpen: sLevel || state.activeStep === 3,
-              hint: "1–3 Karten"
-            }
-          )}
-          ${renderAccordionStep(
-            4,
-            "Ich arbeite so",
-            ui.escapeHtml(workStepSummary()),
-            `<div class="goal-step-card__stack">${renderWorkSection(ui)}${continueRow(
-              "planWorkContinue",
-              "Weiter",
-              sWork
-            )}</div>`,
-            {
-              done: sWork,
-              canOpen: sStart || state.activeStep === 4,
-              hint: "1–3 Karten"
-            }
-          )}
-          ${renderAccordionStep(
-            5,
-            "Ich kontrolliere so",
-            ui.escapeHtml(controlStepSummary()),
-            `<div class="goal-step-card__stack">${renderControlSection(ui)}${continueRow(
-              "planControlContinue",
-              "Weiter",
-              sControl
-            )}</div>`,
-            {
-              done: sControl,
-              canOpen: sWork || state.activeStep === 5,
-              hint: "1–3 Karten"
-            }
-          )}
-          ${renderAccordionStep(
-            6,
-            "Plan B, wenn ich hänge",
-            ui.escapeHtml(planBStepSummary()),
-            `<div class="goal-step-card__stack">${renderPlanBSection(ui)}${continueRow(
-              "planPlanBContinue",
-              state.planBStrategies.length ? "Weiter" : "Ohne Plan B weiter",
-              true
-            )}</div>`,
-            {
-              done: sPlanB,
-              canOpen: sControl || state.activeStep === 6,
-              hint: "Optional"
-            }
-          )}
-          ${renderAccordionStep(7, "Selbstcheck", ui.escapeHtml(step3Summary()), confidenceBody, {
-            done: sConf,
-            canOpen: sPlanB || state.activeStep === 7,
-            hint: "Optional – eigener Moment"
-          })}
-        </div>
-
-        ${
-          missionReady || state.activeStep >= 7
-            ? `<article class="goal-step-card goal-step-card--wide plan-mission-live ${
-                missionReady ? "is-ready" : ""
-              }">
-          <header class="goal-step-card__head">
-            <span class="goal-step-card__step">★</span>
-            <h3 class="goal-step-card__title">Meine Mission heute</h3>
-          </header>
-          <div id="planSummaryCard">${renderPlanSummaryContent(ui)}</div>
-          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
-          <div class="plan-app-footer">
-            ${ui.btnPrimary(
-              state.submitting
-                ? "Speichern…"
-                : state.editingEntryId
-                  ? "Änderungen speichern"
-                  : "Tagesziel speichern (+2 XP)",
-              "planSubmitBtn",
-              state.submitting || !missionReady,
-              "logbuch-submit-full today-app-btn"
-            )}
-            ${ui.btnGhost("Abbrechen", "planBackBtn", "today-app-btn today-app-btn--ghost")}
-          </div>
-        </article>`
-            : `<div class="plan-acc-progress-hint">
-          <p class="plan-summary-empty">Deine Mission erscheint hier, sobald die Schritte ausgefüllt sind.</p>
-          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
-          <div class="plan-app-footer">
-            ${ui.btnGhost("Abbrechen", "planBackBtn", "today-app-btn today-app-btn--ghost")}
-          </div>
-        </div>`
-        }
       </div>
+      ${stepPopup}
       ${renderAfterSaveModal()}`;
 
-    bindHandlers(root);
     portalPlanNextModal(root);
+    bindHandlers(root);
   }
 
   function bindStaticHandlers(root) {
@@ -1639,8 +1663,13 @@
     });
   }
 
+  function planModalScope(root) {
+    return document.querySelector("body > .plan-next-modal-backdrop") || root;
+  }
+
   function bindHandlers(root) {
-    UI().bindSelects(root, state, async (field) => {
+    const scope = planModalScope(root);
+    UI().bindSelects(scope, state, async (field) => {
       if (field === "subject") {
         state.whatGoalId = null;
         state.whatGoalText = "";
@@ -1700,10 +1729,10 @@
       }
     });
 
-    bindWorkGoalChips(root);
-    bindChipGroups(root);
+    bindWorkGoalChips(scope);
+    bindChipGroups(scope);
 
-    root.querySelectorAll("[data-plan-open]").forEach((btn) => {
+    scope.querySelectorAll("[data-plan-open]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const step = Number(btn.dataset.planOpen);
         if (!step) return;
@@ -1717,28 +1746,33 @@
       });
     });
 
-    root.querySelector("#planStartContinue")?.addEventListener("click", () => {
+    scope.querySelector("#planAskBack")?.addEventListener("click", () => {
+      state.activeStep = Math.max(1, Number(state.activeStep) - 1);
+      render();
+    });
+
+    scope.querySelector("#planStartContinue")?.addEventListener("click", () => {
       if (!startStepComplete()) return;
       state.activeStep = 4;
       render();
     });
-    root.querySelector("#planWorkContinue")?.addEventListener("click", () => {
+    scope.querySelector("#planWorkContinue")?.addEventListener("click", () => {
       if (!workStepComplete()) return;
       state.activeStep = 5;
       render();
     });
-    root.querySelector("#planControlContinue")?.addEventListener("click", () => {
+    scope.querySelector("#planControlContinue")?.addEventListener("click", () => {
       if (!controlStepComplete()) return;
       state.activeStep = 6;
       render();
     });
-    root.querySelector("#planPlanBContinue")?.addEventListener("click", () => {
+    scope.querySelector("#planPlanBContinue")?.addEventListener("click", () => {
       state.planBAcknowledged = true;
       state.activeStep = 7;
       render();
     });
 
-    root.querySelector("#planStep3Continue")?.addEventListener("click", () => {
+    scope.querySelector("#planStep3Continue")?.addEventListener("click", () => {
       if (state.confidenceBefore == null) state.step3Skipped = true;
       syncActiveStep();
       render();
@@ -1751,16 +1785,16 @@
       render();
     });
 
-    const details = root.querySelector("#planDetailsText");
+    const details = scope.querySelector("#planDetailsText");
     details?.addEventListener("input", () => {
       state.detailsText = details.value.slice(0, 100);
-      const count = root.querySelector("#planDetailsCount");
+      const count = scope.querySelector("#planDetailsCount");
       if (count) count.textContent = String(state.detailsText.length);
-      updatePlanningPreview(root);
+      updatePlanningPreview(scope);
     });
 
-    root.querySelector("#planSubmitBtn")?.addEventListener("click", submitPlan);
-    root.querySelector("#planBackBtn")?.addEventListener("click", () => {
+    scope.querySelector("#planSubmitBtn")?.addEventListener("click", submitPlan);
+    scope.querySelector("#planBackBtn")?.addEventListener("click", () => {
       goToTodayFromPlan();
     });
   }

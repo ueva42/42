@@ -212,14 +212,108 @@
     return { key: "active", label: "Begonnen" };
   }
 
-  function lessonStepCount(phases) {
-    const parts = [phases.plan, phases.reflect];
-    if (phases.checkRequired !== false) parts.splice(1, 0, phases.check);
-    return parts.filter(Boolean).length;
+  function subjectSlug(name) {
+    return String(name || "")
+      .toLowerCase()
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, "");
   }
 
-  function lessonStepTotal(phases) {
-    return phases.checkRequired === false ? 2 : 3;
+  function subjectGlyph(kind) {
+    const icons = {
+      calc: '<path d="M16 8h16v32H16z"/><path d="M20 14h8"/><path d="M20 22h3M25 22h3M20 27h3M25 27h3M20 32h3M25 32h3"/>',
+      book: '<path d="M12 10h11v28H14a2 2 0 0 1-2-2z"/><path d="M36 10H25v28h10a2 2 0 0 0 2-2z"/><path d="M24 10v28"/>',
+      flask: '<path d="M20 8h8v10l8 16a6 6 0 0 1-5 8H17a6 6 0 0 1-5-8l8-16z"/><path d="M18 28h12"/>',
+      chat: '<path d="M12 14h24v16H20l-8 8z"/>',
+      globe: '<circle cx="24" cy="24" r="14"/><path d="M10 24h28M24 10c4 4 6 9 6 14s-2 10-6 14c-4-4-6-9-6-14s2-10 6-14z"/>',
+      column: '<path d="M12 38h24M16 14h16M18 14v24M30 14v24M14 10h20"/>',
+      puzzle: '<path d="M12 12h10v6a4 4 0 1 0 4 0v-6h10v10h-6a4 4 0 1 0 0 4h6v10H26v-6a4 4 0 1 0-4 0v6H12V26h6a4 4 0 1 0 0-4h-6z"/>',
+      atom: '<circle cx="24" cy="24" r="3"/><ellipse cx="24" cy="24" rx="16" ry="7"/><ellipse cx="24" cy="24" rx="16" ry="7" transform="rotate(60 24 24)"/><ellipse cx="24" cy="24" rx="16" ry="7" transform="rotate(-60 24 24)"/>',
+      leaf: '<path d="M24 38c12-4 16-16 16-26-12 0-24 8-26 22 6-2 10-2 10-2"/><path d="M24 38V18"/>',
+      home: '<path d="M8 22l16-12 16 12v16H8z"/><path d="M20 38V26h8v12"/>',
+      cog: '<circle cx="24" cy="24" r="6"/><path d="M24 8v5M24 35v5M8 24h5M35 24h5M12 12l4 4M32 32l4 4M36 12l-4 4M16 32l-4 4"/>',
+      people: '<circle cx="18" cy="16" r="5"/><circle cx="30" cy="16" r="5"/><path d="M8 36c1-6 5-10 10-10s9 4 10 10"/><path d="M20 36c1-6 5-10 10-10s9 4 10 10"/>',
+      note: '<path d="M16 12h16v24H16z"/><path d="M20 18h8M20 24h8M20 30h5"/><circle cx="32" cy="32" r="5"/><path d="M37 32V18l5-2"/>',
+      palette: '<circle cx="24" cy="24" r="14"/><circle cx="18" cy="18" r="2"/><circle cx="28" cy="16" r="2"/><circle cx="32" cy="24" r="2"/><circle cx="18" cy="28" r="3"/>',
+      bag: '<path d="M12 18h24l-2 18H14z"/><path d="M18 18V14a6 6 0 0 1 12 0v4"/>',
+      scale: '<path d="M24 8v28M12 38h24"/><path d="M24 14l-12 8h24z"/><path d="M14 22v6a4 4 0 0 0 8 0v-6M26 22v6a4 4 0 0 0 8 0v-6"/>',
+      bolt: '<path d="M26 6L12 26h10l-2 16 16-22H26z"/>',
+      group: '<circle cx="24" cy="14" r="5"/><circle cx="12" cy="18" r="4"/><circle cx="36" cy="18" r="4"/><path d="M8 36c1-6 6-10 16-10s15 4 16 10"/>'
+    };
+    const body = icons[kind] || icons.book;
+    return `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  }
+
+  function subjectVisual(name) {
+    const map = {
+      mathe: { accent: "orange", icon: "calc" },
+      deutsch: { accent: "cyan", icon: "book" },
+      bnt: { accent: "green", icon: "flask" },
+      englisch: { accent: "blue", icon: "chat" },
+      geo: { accent: "teal", icon: "globe" },
+      geschichte: { accent: "gold", icon: "column" },
+      projekt: { accent: "pink", icon: "puzzle" },
+      physik: { accent: "violet", icon: "atom" },
+      chemie: { accent: "magenta", icon: "flask" },
+      biologie: { accent: "green", icon: "leaf" },
+      aes: { accent: "pink", icon: "home" },
+      technik: { accent: "gold", icon: "cog" },
+      franzoesisch: { accent: "blue", icon: "chat" },
+      gk: { accent: "purple", icon: "people" },
+      musik: { accent: "violet", icon: "note" },
+      bk: { accent: "pink", icon: "palette" },
+      wbs: { accent: "gold", icon: "bag" },
+      religionethik: { accent: "teal", icon: "scale" }
+    };
+    return map[subjectSlug(name)] || { accent: "cyan", icon: "bolt" };
+  }
+
+  function goalHint(entry) {
+    if (!entry) return "Noch kein Tagesziel.";
+    return (
+      entry.level_goal_text ||
+      entry.what_goal_text ||
+      entry.plan_sentence ||
+      entry.goal ||
+      "Tagesziel gesetzt."
+    );
+  }
+
+  function renderSubjectTile({ subject, time, hint, cta, nav, query, done, group }) {
+    const ui = UI();
+    const visual = subjectVisual(subject);
+    const accent = group ? "green" : visual.accent;
+    const glyph = subjectGlyph(group ? "group" : visual.icon);
+    const title = ui.escapeHtml(subject || "Lernzeit");
+    const timeHtml = time ? `<span class="today-subject-tile__time">${ui.escapeHtml(time)}</span>` : "";
+    const hintHtml = hint
+      ? `<span class="today-subject-tile__text">${ui.escapeHtml(hint)}</span>`
+      : "";
+    const ctaHtml = cta
+      ? `<span class="today-subject-tile__cta">${ui.escapeHtml(cta)} <span class="hub-tile-arrow" aria-hidden="true">→</span></span>`
+      : "";
+    const inner = `
+      <span class="today-subject-tile__glyph" aria-hidden="true">${glyph}</span>
+      <span class="today-subject-tile__copy">
+        ${timeHtml}
+        <span class="today-subject-tile__title">${title}</span>
+        ${hintHtml}
+        ${ctaHtml}
+      </span>`;
+
+    if (!nav) {
+      return `<article class="today-subject-tile hub-accent-${accent}${done ? " is-done" : ""}">${inner}</article>`;
+    }
+    return `
+      <button type="button"
+        class="today-subject-tile hub-accent-${accent}${done ? " is-done" : ""}"
+        data-nav="${ui.escapeHtml(nav)}"
+        data-query="${ui.escapeHtml(query || "")}">
+        ${inner}
+      </button>`;
   }
 
   function mergeGroupModeFromBootstrap(todayData, bootstrap) {
@@ -285,7 +379,6 @@
   }
 
   function renderGroupModeBlock(block, editable) {
-    const ui = UI();
     const slot = block.slot;
     const subject = slot?.subject || "";
     const gm = groupModeForSubject(subject);
@@ -293,182 +386,116 @@
     if (state.date) params.set("date", state.date);
     if (gm?.activeSessionId) params.set("sessionId", gm.activeSessionId);
 
-    const statusLabel = gm?.activeSessionId
+    const hint = gm?.activeSessionId
       ? gm.status === "setup"
-        ? "Einrichtung offen"
-        : "Gruppe aktiv"
-      : "Gruppenarbeit";
+        ? "Gruppe einrichten"
+        : "Gruppe läuft – gemeinsam weiterarbeiten."
+      : "Gemeinsam in der Gruppe arbeiten.";
 
-    const cta = !editable
-      ? ""
-      : gm?.activeSessionId
-        ? appPrimaryButton("Gruppenarbeit fortsetzen", "gruppenmodus", params.toString())
-        : appPrimaryButton("Gruppenarbeit starten", "gruppenmodus", params.toString());
-
-    return `
-      <article class="subject-lesson-card subject-lesson-card--active">
-        <div class="subject-lesson-card__top">
-          <div class="subject-lesson-card__icon" aria-hidden="true">
-            <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
-          </div>
-          <div class="subject-lesson-card__meta">
-            <div class="subject-lesson-card__head">
-              <h3 class="subject-lesson-card__subject">${ui.escapeHtml(subject || "Lernzeit")}</h3>
-              <span class="status-badge status-badge--active">${ui.escapeHtml(statusLabel)}</span>
-            </div>
-            ${slot?.timeslot ? `<span class="subject-lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
-          </div>
-        </div>
-        <p class="subject-lesson-card__hint">
-          In diesem Fach arbeitet ihr gemeinsam in der Gruppe – nicht mit einem einzelnen Tagesziel.
-        </p>
-        ${cta}
-      </article>`;
+    return renderSubjectTile({
+      subject,
+      time: slot?.timeslot,
+      hint,
+      cta: editable ? (gm?.activeSessionId ? "Weiter" : "Starten") : "",
+      nav: editable ? "gruppenmodus" : "",
+      query: params.toString(),
+      group: true
+    });
   }
 
   function renderBlock(block, editable) {
-    const ui = UI();
     const slot = block.slot;
     const entry = block.entry;
-    const gm = groupModeForSubject(slot?.subject || entry?.subject);
-    if (gm) {
-      return renderGroupModeBlock(block, editable);
-    }
+    const subject = entry?.subject || slot?.subject || "Lernzeit";
+    const time = entry?.timeslot || slot?.timeslot || "";
+    const gm = groupModeForSubject(subject);
+    if (gm) return renderGroupModeBlock(block, editable);
 
     const needsMidCheck = blockNeedsMidCheck(block, entry);
     const status = lessonStatus(block);
-    const phases = entry
-      ? blockPhases(entry, needsMidCheck)
-      : { plan: false, check: false, reflect: false, checkRequired: needsMidCheck };
-    const stepsDone = lessonStepCount(phases);
-    const stepsTotal = lessonStepTotal(phases);
-    const V = window.LogbuchVisuals;
-    const miniRing = V
-      ? V.circularProgress({
-          completed: stepsDone,
-          total: stepsTotal,
-          size: 56,
-          accent: status.key === "done" ? "#22c55e" : status.key === "active" ? "#38bdf8" : "#a855f7"
-        })
-      : "";
 
     if (!entry) {
       if (!editable) {
-        return `
-          <article class="subject-lesson-card subject-lesson-card--${status.key}">
-            <div class="subject-lesson-card__top">
-              <div class="subject-lesson-card__icon" aria-hidden="true">
-                <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
-              </div>
-              <div class="subject-lesson-card__meta">
-                <div class="subject-lesson-card__head">
-                  <h3 class="subject-lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
-                  <span class="status-badge status-badge--${status.key}">${status.label}</span>
-                </div>
-                ${slot?.timeslot ? `<span class="subject-lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
-              </div>
-              <div class="subject-lesson-card__ring">${miniRing}</div>
-            </div>
-            <p class="subject-lesson-card__empty">Kein Eintrag</p>
-          </article>`;
+        return renderSubjectTile({
+          subject,
+          time,
+          hint: "Kein Eintrag",
+          done: false
+        });
       }
-
       const params = new URLSearchParams({ date: state.date });
       if (slot?.subject) params.set("subject", slot.subject);
       if (slot?.timeslot) params.set("timeslot", slot.timeslot);
-
-      return `
-        <article class="subject-lesson-card subject-lesson-card--${status.key}">
-          <div class="subject-lesson-card__top">
-            <div class="subject-lesson-card__icon" aria-hidden="true">
-              <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
-            </div>
-            <div class="subject-lesson-card__meta">
-              <div class="subject-lesson-card__head">
-                <h3 class="subject-lesson-card__subject">${slot ? ui.escapeHtml(slot.subject) : "Lernzeit"}</h3>
-                <span class="status-badge status-badge--${status.key}">${status.label}</span>
-              </div>
-              ${slot?.timeslot ? `<span class="subject-lesson-card__time">${ui.escapeHtml(slot.timeslot)}</span>` : ""}
-            </div>
-            <div class="subject-lesson-card__ring">${miniRing}</div>
-          </div>
-          ${renderPhaseStepper(phases)}
-          <p class="subject-lesson-card__hint">Noch kein Tagesziel gesetzt.</p>
-          ${appPrimaryButton("Tagesziel setzen", "plan", params.toString())}
-        </article>`;
+      return renderSubjectTile({
+        subject,
+        time,
+        hint: "Tagesziel setzen und loslegen.",
+        cta: "Tagesziel setzen",
+        nav: "plan",
+        query: params.toString()
+      });
     }
 
-    const readOnly = !editable;
     const params = new URLSearchParams({ date: state.date });
     if (entry.id) params.set("entryId", entry.id);
     if (entry.subject) params.set("subject", entry.subject);
     if (entry.timeslot) params.set("timeslot", entry.timeslot);
 
-    const checkParams = new URLSearchParams({ entryId: entry.id });
-    const reflectParams = new URLSearchParams({ entryId: entry.id });
+    const allDone = (needsMidCheck ? entry.hasCheck : true) && entry.hasReflection;
+    if (allDone) {
+      return renderSubjectTile({
+        subject,
+        time,
+        hint: goalHint(entry),
+        cta: "Ansehen",
+        nav: "plan",
+        query: params.toString(),
+        done: true
+      });
+    }
 
-    const viewPlanBtn = navButton(
-      editable && !entry.hasReflection ? "Ziel bearbeiten" : "Ziel ansehen",
-      "plan",
-      params.toString()
-    );
-    const viewCheckBtn = entry.hasCheck
-      ? navButton(
-          editable && !entry.hasReflection ? "Check bearbeiten" : "Check ansehen",
-          "check",
-          checkParams.toString()
-        )
-      : "";
-    const viewReflectBtn = entry.hasReflection
-      ? navButton(editable ? "Reflexion bearbeiten" : "Reflexion ansehen", "reflect", reflectParams.toString())
-      : "";
+    if (!editable) {
+      return renderSubjectTile({
+        subject,
+        time,
+        hint: goalHint(entry),
+        cta: "Ansehen",
+        nav: "plan",
+        query: params.toString()
+      });
+    }
 
-    const primary = primaryAction(entry, editable, needsMidCheck);
-    const secondary = [viewPlanBtn, viewCheckBtn, viewReflectBtn].filter(Boolean);
-    const checkRequired = needsMidCheck;
-    const allDone = (checkRequired ? entry.hasCheck : true) && entry.hasReflection;
-    const nextSelect =
-      !readOnly && !allDone ? renderActionSelect(entry, needsMidCheck) : "";
+    if (needsMidCheck && !entry.hasCheck) {
+      return renderSubjectTile({
+        subject,
+        time,
+        hint: goalHint(entry),
+        cta: "Zwischen-Check",
+        nav: "check",
+        query: new URLSearchParams({ entryId: entry.id }).toString()
+      });
+    }
 
-    const checkpointHint = entry.checkpoint_title
-      ? `<p class="subject-lesson-card__meta">${ui.escapeHtml(entry.checkpoint_title)}</p>`
-      : "";
+    if (!entry.hasReflection) {
+      return renderSubjectTile({
+        subject,
+        time,
+        hint: goalHint(entry),
+        cta: "Tagesabschluss",
+        nav: "reflect",
+        query: new URLSearchParams({ entryId: entry.id }).toString()
+      });
+    }
 
-    return `
-      <article class="subject-lesson-card subject-lesson-card--${status.key}">
-        <div class="subject-lesson-card__top">
-          <div class="subject-lesson-card__icon" aria-hidden="true">
-            <img src="/icons/student/png/mein-tag.png" alt="" aria-hidden="true">
-          </div>
-          <div class="subject-lesson-card__meta">
-            <div class="subject-lesson-card__head">
-              <h3 class="subject-lesson-card__subject">${ui.escapeHtml(entry.subject)}</h3>
-              <span class="status-badge status-badge--${status.key}">${status.label}</span>
-            </div>
-            ${entry.timeslot ? `<span class="subject-lesson-card__time">${ui.escapeHtml(entry.timeslot)}</span>` : ""}
-          </div>
-          <div class="subject-lesson-card__ring">${miniRing}</div>
-        </div>
-        ${checkpointHint}
-        ${renderPhaseStepper(phases)}
-        <div class="subject-lesson-card__body">
-          ${renderDailyGoalBody(ui, entry)}
-          ${entry.hasCheck ? renderCheckSummary(ui, entry) : ""}
-          ${entry.hasReflection ? renderReflectionSummary(ui, entry) : ""}
-        </div>
-        <div class="subject-lesson-card__actions">
-          ${
-            primary ||
-            (allDone ? `<p class="subject-lesson-card__done">Alle Schritte erledigt ✓</p>` : "")
-          }
-          ${
-            secondary.length
-              ? `<div class="subject-lesson-card__secondary">${secondary.join("")}</div>`
-              : ""
-          }
-          ${nextSelect ? `<div class="subject-lesson-card__select">${nextSelect}</div>` : ""}
-        </div>
-      </article>`;
+    return renderSubjectTile({
+      subject,
+      time,
+      hint: goalHint(entry),
+      cta: "Ansehen",
+      nav: "plan",
+      query: params.toString(),
+      done: status.key === "done"
+    });
   }
 
   function renderPhaseStepper(phases) {
@@ -571,7 +598,7 @@
             <div class="today-lesson-list">
               ${
                 blockList.length
-                  ? `<h3 class="today-lesson-list__title">Deine Stunden</h3>${lessonsHtml}`
+                  ? `<h3 class="today-lesson-list__title">Deine Stunden</h3><div class="today-subject-grid">${lessonsHtml}</div>`
                   : lessonsHtml
               }
             </div>

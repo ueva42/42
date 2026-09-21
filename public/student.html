@@ -8366,6 +8366,51 @@ body.student-app .card.section > h2 {
   padding: 18px 16px 16px;
 }
 
+.plan-next-modal--ask {
+  width: min(540px, 100%);
+  max-height: min(88vh, 780px);
+  overflow: auto;
+}
+
+.plan-ask__progress {
+  display: flex;
+  gap: 7px;
+  margin: 0 0 14px;
+}
+
+.plan-ask__dot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.38);
+  cursor: pointer;
+}
+
+.plan-ask__dot.is-current {
+  background: #22d3ee;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.55);
+  transform: scale(1.25);
+}
+
+.plan-ask__dot.is-done {
+  background: #4ade80;
+}
+
+.plan-ask__dot:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.plan-ask__body {
+  margin: 4px 0 8px;
+}
+
+.plan-ask__body .plan-acc__continue {
+  margin-top: 12px;
+}
+
 .plan-next-modal__kicker {
   margin: 0;
   font-size: 11px;
@@ -8535,6 +8580,151 @@ body.student-app .card.section > h2 {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #94a3b8;
+}
+
+.today-subject-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 720px) {
+  .today-subject-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .today-subject-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.today-subject-tile {
+  --accent: #22d3ee;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-height: 168px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 22px;
+  text-align: left;
+  color: #f1f5ff;
+  cursor: pointer;
+  font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid color-mix(in srgb, var(--accent, #fff) 45%, transparent);
+  background:
+    radial-gradient(circle at 85% 35%, var(--accent-soft, rgba(255, 255, 255, 0.08)), transparent 35%),
+    linear-gradient(135deg, #0a1228 0%, #071126 55%, #05091a 100%);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.35),
+    0 0 35px color-mix(in srgb, var(--accent, #fff) 18%, transparent);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  isolation: isolate;
+}
+
+article.today-subject-tile {
+  cursor: default;
+}
+
+.today-subject-tile:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent, #fff) 75%, transparent);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.45),
+    0 0 48px color-mix(in srgb, var(--accent, #fff) 28%, transparent);
+}
+
+article.today-subject-tile:hover {
+  transform: none;
+}
+
+.today-subject-tile.is-done {
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.today-subject-tile__copy {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 62%;
+  min-width: 0;
+}
+
+.today-subject-tile__time {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent, #67e8f9) 80%, #fff);
+}
+
+.today-subject-tile__title {
+  font-family: "Orbitron", system-ui;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f1f5ff;
+}
+
+.today-subject-tile__text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #aebbd4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.today-subject-tile__cta {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid color-mix(in srgb, var(--accent, #fff) 35%, transparent);
+  background: rgba(255, 255, 255, 0.06);
+  color: #eef4ff;
+}
+
+.today-subject-tile:hover .today-subject-tile__cta {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.today-subject-tile:hover .hub-tile-arrow {
+  transform: translateX(3px);
+}
+
+.today-subject-tile__glyph {
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(46%, 150px);
+  height: 78%;
+  color: var(--accent, #22d3ee);
+  opacity: 0.88;
+  pointer-events: none;
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--accent, #22d3ee) 45%, transparent));
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 28%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 28%);
+}
+
+.today-subject-tile__glyph svg {
+  width: 100%;
+  height: 100%;
 }
 
 .today-lesson-steps {
@@ -11916,10 +12106,10 @@ h2 {
 <script src="/js/logbuch-reminders.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=12"></script>
-<script src="/js/logbuch-plan.js?v=26"></script>
+<script src="/js/logbuch-plan.js?v=27"></script>
 <script src="/js/logbuch-check.js?v=11"></script>
 <script src="/js/logbuch-reflect.js?v=6"></script>
-<script src="/js/logbuch-today.js?v=36"></script>
+<script src="/js/logbuch-today.js?v=37"></script>
 <script src="/js/logbuch-week.js?v=9"></script>
 <script src="/js/logbuch-levelplan.js?v=24"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
