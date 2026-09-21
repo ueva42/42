@@ -54,12 +54,44 @@
       accent: "orange"
     },
     {
+      section: "levelplan",
+      slug: "lernstand",
+      title: "Mein Lernstand",
+      text: "Sieh deine Entwicklung und was du schon sicher kannst.",
+      cta: "Fortschritt ansehen",
+      accent: "green"
+    },
+    {
+      section: "zielsetzung",
+      slug: "zielsetzung",
+      title: "Zielsetzung",
+      text: "Setze Ziele und verfolge deinen Fortschritt.",
+      cta: "Ziele ansehen",
+      accent: "cyan"
+    },
+    {
       section: "hausaufgaben",
       slug: "hausaufgaben",
       title: "Hausaufgaben",
       text: "Was heute fällig ist – und was du für morgen mitnimmst.",
       cta: "Öffnen",
       accent: "gold"
+    },
+    {
+      section: "checkpoint-plan",
+      slug: "meine-checks",
+      title: "Meine Checks",
+      text: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
+      cta: "Plan öffnen",
+      accent: "teal"
+    },
+    {
+      section: "materialschrank",
+      slug: "materialschrank",
+      title: "Materialschrank",
+      text: "Links zu Übungen, Tools und Arbeitsblättern.",
+      cta: "Öffnen",
+      accent: "cyan"
     },
     {
       section: "gruppenmodus",
@@ -78,30 +110,6 @@
       accent: "purple"
     },
     {
-      section: "zielsetzung",
-      slug: "zielsetzung",
-      title: "Zielsetzung",
-      text: "Setze Ziele und verfolge deinen Fortschritt.",
-      cta: "Ziele ansehen",
-      accent: "cyan"
-    },
-    {
-      section: "levelplan",
-      slug: "lernstand",
-      title: "Mein Lernstand",
-      text: "Sieh deine Entwicklung und was du schon sicher kannst.",
-      cta: "Fortschritt ansehen",
-      accent: "green"
-    },
-    {
-      section: "materialschrank",
-      slug: "materialschrank",
-      title: "Materialschrank",
-      text: "Links zu Übungen, Tools und Arbeitsblättern.",
-      cta: "Öffnen",
-      accent: "cyan"
-    },
-    {
       section: "taktik-deck",
       slug: "taktik-deck",
       title: "Taktik-Deck",
@@ -109,14 +117,6 @@
       cta: "Deck öffnen",
       accent: "pink",
       featured: true
-    },
-    {
-      section: "checkpoint-plan",
-      slug: "meine-checks",
-      title: "Meine Checks",
-      text: "Tests, Klassenarbeiten und wichtige Termine im Blick.",
-      cta: "Plan öffnen",
-      accent: "teal"
     }
   ];
 
