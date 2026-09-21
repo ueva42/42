@@ -302,8 +302,8 @@
   function renderSubjectTile({ subject, time, hint, cta, nav, query, done, group }) {
     const ui = UI();
     const visual = subjectVisual(subject);
-    const accent = group ? "green" : visual.accent;
-    const artSrc = !group ? window.LogbuchVisuals?.subjectIconSrc(subject) : "";
+    const accent = visual.accent;
+    const artSrc = window.LogbuchVisuals?.subjectIconSrc(subject) || "";
     const art = artSrc
       ? `<div class="dashboard-card__artwork hub-tile-art" data-fit="cover" aria-hidden="true">
           <img class="dashboard-card__hero" src="${ui.escapeHtml(artSrc)}" alt="" loading="lazy" decoding="async" style="--art-position: center right">

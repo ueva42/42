@@ -2,7 +2,7 @@
  * Streets of Logic – wiederverwendbare Charts & Fortschritts-UI (SVG/CSS, keine Library).
  */
 window.LogbuchVisuals = {
-  SUBJECT_ICON_V: 2,
+  SUBJECT_ICON_V: 3,
 
   SUBJECT_ICON_FILES: {
     mathe: "mathematik",

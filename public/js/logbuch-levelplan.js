@@ -102,15 +102,38 @@
       : DEFAULT_STATUS_OPTIONS;
   }
 
+  function isUpcomingGradedThema(thema) {
+    const t = thema?.target;
+    if (!t) return false;
+    if (t.isPastArbeit) return false;
+    if (t.hasGradedCheckpoint === true) return true;
+    if (t.requiresTargetGrade === true) return true;
+    const type = String(t.checkpointType || "").toLowerCase();
+    return type === "klassenarbeit" || type === "test";
+  }
+
+  function isDeepLinkedThema(thema) {
+    const id = String(thema?.id || "");
+    if (state.pendingThemaId && String(state.pendingThemaId) === id) return true;
+    if (
+      state.pendingGoalId &&
+      (thema?.goals || []).some((g) => String(g.id) === String(state.pendingGoalId))
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   function subjectsWithData() {
-    return (state.data?.grouped || []).filter((g) =>
-      (g.levelChecks || []).some((lc) => (lc.goals || []).length)
-    );
+    return (state.data?.grouped || []).filter((g) => levelChecksForSubject(g.subject).length);
   }
 
   function levelChecksForSubject(subject) {
     const group = (state.data?.grouped || []).find((g) => g.subject === subject);
-    return (group?.levelChecks || []).filter((lc) => (lc.goals || []).length);
+    return (group?.levelChecks || []).filter((lc) => {
+      if (!(lc.goals || []).length) return false;
+      return isUpcomingGradedThema(lc) || isDeepLinkedThema(lc);
+    });
   }
 
   function selectedThema() {
@@ -627,110 +650,90 @@
       </section>`;
   }
 
+  function renderTargetRings(thema, p) {
+    if (!p.hasTarget) {
+      return `
+        <p class="lp-dash__featured-meta">
+          Zielnote noch nicht gesetzt – unter <span class="lp-dash__link">Ziele</span> festlegen.
+          Danach siehst du hier, wie viel Prozent Rookie, Operator und Street Legend du für die Arbeit brauchst.
+        </p>`;
+    }
+
+    const rules = window.LOGBUCH?.getGradeRequirements?.(p.targetGrade);
+    const accents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f472b6" };
+    const serverTiers = thema.target?.tiers || [];
+
+    const cards = TIER_META.map((meta) => {
+      const pctRequired = rules ? Math.round((Number(rules[meta.id]) || 0) * 100) : 0;
+      const server = serverTiers.find((t) => t.id === meta.id) || {};
+      const recommended = Number(server.recommended ?? p.recommended?.[meta.id]) || 0;
+      const current = Number(server.current) || 0;
+      const isFree = pctRequired <= 0 || recommended <= 0;
+      const stand = isFree
+        ? current > 0
+          ? `Stand: ${current} (Vertiefung)`
+          : "nicht nötig für diese Zielnote"
+        : `Stand: ${current}/${recommended} sicher`;
+
+      return `
+        <article class="zielpfad-ring-card ${isFree ? "is-voluntary" : ""}" style="--grade-accent:${accents[meta.id]}">
+          <div class="grade-goal-ring" style="--progress:${isFree ? 0 : pctRequired}; --accent:${accents[meta.id]}">
+            <div class="grade-goal-ring__inside">
+              <span class="grade-goal-ring__grade">${escapeHtml(meta.label)}</span>
+              <strong>${isFree ? "frei" : `${pctRequired} %`}</strong>
+            </div>
+          </div>
+          <div class="zielpfad-ring-card__text">
+            <strong>${escapeHtml(meta.label)}</strong>
+            <span>${
+              isFree
+                ? "Freiwillige Vertiefung"
+                : `${pctRequired} % für Zielnote ${escapeHtml(p.targetGradeLabel)}`
+            }</span>
+            <div class="zielpfad-ring-card__stand">
+              <span>Dein Stand</span>
+              <strong>${escapeHtml(stand)}</strong>
+            </div>
+          </div>
+        </article>`;
+    }).join("");
+
+    return `<div class="zielpfad-ring-grid lp-dash__rings">${cards}</div>`;
+  }
+
   function renderOverview() {
-    const visuals = V();
     const thema = selectedThema();
     if (!thema) return "";
 
     const p = computeTopicProgress(thema);
-    const ringBucket = p.hasTarget ? p.required : p.all;
-    const ring = visuals
-      ? visuals.circularProgress({
-          completed: ringBucket.sicher,
-          total: ringBucket.total || 1,
-          label: p.hasTarget ? "Mindestweg" : "Themenfortschritt",
-          sublabel: `${ringBucket.sicher} von ${ringBucket.total}`,
-          size: 96,
-          accent: "#22c55e"
-        })
-      : "";
-
-    const requiresTarget = thema.target?.requiresTargetGrade !== false && p.hasTarget;
-    const targetLine = requiresTarget
-      ? `Zielnote ${escapeHtml(p.targetGradeLabel)} (Klassenarbeit / Test)`
-      : p.hasTarget
-        ? `Zielnote ${escapeHtml(p.targetGradeLabel)}`
-        : thema.target?.hasLevelcheckCheckpoint || levelchecksForThema(thema.id).length
-          ? "Levelcheck ohne Zielnote – geprüfte Ziele siehe unten."
-          : `Zielnote für KA/Test legst du unter <span class="lp-dash__link">Ziele</span> fest.`;
+    const when = thema.target?.checkpointDateLabel || "";
+    const kind = thema.target?.checkpointTypeLabel || "Klassenarbeit / Test";
+    const targetLine = p.hasTarget
+      ? `Zielnote ${escapeHtml(p.targetGradeLabel)} · ${escapeHtml(kind)}${when ? ` · ${escapeHtml(when)}` : ""}`
+      : `${escapeHtml(kind)}${when ? ` · ${escapeHtml(when)}` : ""} – Zielnote unter Ziele festlegen.`;
 
     const nextItem = (thema.target?.workItems || []).find(
       (item) => item.status !== "sicher" && item.status !== "geschafft"
     );
-    const pathLine = (thema.target?.tiers || [])
-      .map((tier) => {
-        if (tier.recommended == null || tier.recommended === 0) return `${tier.label}: frei`;
-        if ((tier.remaining || 0) <= 0) return `${tier.label} ${tier.current}/${tier.recommended} ✓`;
-        return `${tier.label} ${tier.current}/${tier.recommended} · noch ${tier.remaining}`;
-      })
-      .join(" · ");
-    const practiceCard = p.hasTarget
-      ? `
-        <article class="lp-practice-hint">
-          <p class="lp-practice-hint__kicker">Dein Übungsvorschlag</p>
-          <h3 class="lp-practice-hint__title">Zielnote ${escapeHtml(p.targetGradeLabel)}</h3>
-          ${
-            pathLine
-              ? `<p class="lp-practice-hint__path">${escapeHtml(pathLine)}</p>`
-              : ""
-          }
-          ${
-            nextItem
-              ? `<p class="lp-practice-hint__next"><strong>Als Nächstes:</strong> ${escapeHtml(nextItem.tierLabel)} · ${escapeHtml(nextItem.taskText || nextItem.goalText)}</p>`
-              : `<p class="lp-practice-hint__next">Mindestweg für diese Zielnote ist geschafft.</p>`
-          }
-        </article>`
-      : "";
-
-    const splitCards = requiresTarget
-      ? `
-        <div class="lp-dash__split">
-          <article class="lp-dash__metric lp-dash__metric--cyan">
-            <p class="lp-dash__metric-label">Mindestweg</p>
-            <p class="lp-dash__metric-value">${p.required.sicher}/${p.required.total || 0}</p>
-            <p class="lp-dash__metric-sub">sicher für deine Zielnote</p>
-          </article>
-          <article class="lp-dash__metric lp-dash__metric--violet">
-            <p class="lp-dash__metric-label">Herausforderung</p>
-            <p class="lp-dash__metric-value">${p.challenge.sicher}/${p.challenge.total || 0}</p>
-            <p class="lp-dash__metric-sub">freiwillige Vertiefung</p>
-          </article>
-        </div>`
-      : "";
+    const nextLine = nextItem
+      ? `Als Nächstes: ${escapeHtml(nextItem.tierLabel)} · ${escapeHtml(nextItem.taskText || nextItem.goalText)}`
+      : p.hasTarget
+        ? "Mindestweg für diese Zielnote ist geschafft."
+        : "";
 
     return `
       ${renderLevelcheckBanner(thema)}
       <section class="lp-dash" aria-label="Lernstand Überblick">
         <article class="lp-dash__featured">
           <div class="lp-dash__featured-copy">
-            <p class="lp-dash__featured-eyebrow">${escapeHtml(state.selectedSubject || "")} · Thema</p>
+            <p class="lp-dash__featured-eyebrow">${escapeHtml(state.selectedSubject || "")} · geplante Arbeit</p>
             <h3 class="lp-dash__featured-title">${escapeHtml(thema.name)}</h3>
             <p class="lp-dash__featured-sub">${p.goalCount} Unterthemen in diesem Thema</p>
             <p class="lp-dash__featured-meta">${targetLine}</p>
+            ${nextLine ? `<p class="lp-dash__featured-meta">${nextLine}</p>` : ""}
           </div>
-          <div class="lp-dash__ring">${ring}</div>
         </article>
-        ${practiceCard}
-        ${splitCards}
-        <div class="lp-dash__row">
-          <article class="lp-dash__metric lp-dash__metric--green">
-            <p class="lp-dash__metric-label">Sicher</p>
-            <p class="lp-dash__metric-value">${ringBucket.sicher}</p>
-          </article>
-          <article class="lp-dash__metric lp-dash__metric--cyan">
-            <p class="lp-dash__metric-label">In Arbeit</p>
-            <p class="lp-dash__metric-value">${ringBucket.inArbeit}</p>
-          </article>
-          <article class="lp-dash__metric lp-dash__metric--muted">
-            <p class="lp-dash__metric-label">Offen</p>
-            <p class="lp-dash__metric-value">${ringBucket.offen}</p>
-          </article>
-          <article class="lp-dash__metric lp-dash__metric--violet">
-            <p class="lp-dash__metric-label">Unterthemen</p>
-            <p class="lp-dash__metric-value">${p.goalCount}</p>
-            <p class="lp-dash__metric-sub">nur dieses Thema</p>
-          </article>
-        </div>
+        ${renderTargetRings(thema, p)}
       </section>`;
   }
 
@@ -749,7 +752,9 @@
       ? visuals.chipBar(
           themen.map((t) => ({
             value: String(t.id),
-            label: `${t.name} (${(t.goals || []).length})`
+            label: t.target?.checkpointDateLabel
+              ? `${t.name} · ${t.target.checkpointDateLabel}`
+              : `${t.name} (${(t.goals || []).length})`
           })),
           String(state.selectedThemaId),
           "data-lp-thema"
@@ -786,9 +791,8 @@
     if (!subjects.length) {
       return (
         visuals?.emptyState({
-          title: "Noch kein Levelplan importiert.",
-          text: "Deine Lehrkraft legt den Plan im Admin-Bereich an.",
-          heroSrc: "/icons/student/hero/lernstand-hero.png?v=6"
+          title: "Noch keine Klassenarbeit geplant.",
+          text: "Hier erscheinen nur Themen mit Klassenarbeit, Test oder ähnlichem Termin. Deine Lehrkraft legt die Termine im Checkpoint-Plan an."
         }) || ""
       );
     }
