@@ -106,10 +106,10 @@
     const t = thema?.target;
     if (!t) return false;
     if (t.isPastArbeit) return false;
-    if (t.hasGradedCheckpoint === true) return true;
-    if (t.requiresTargetGrade === true) return true;
+    if (!t.checkpointDate) return false;
+    if (t.hasGradedCheckpoint !== true && t.requiresTargetGrade !== true) return false;
     const type = String(t.checkpointType || "").toLowerCase();
-    return type === "klassenarbeit" || type === "test";
+    return !type || type === "klassenarbeit" || type === "test";
   }
 
   function isDeepLinkedThema(thema) {
