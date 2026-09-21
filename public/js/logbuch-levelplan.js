@@ -38,6 +38,11 @@
     selectedThemaId: null,
     statusFilter: "all",
     expandedGoalId: null,
+    focusGoalId: null,
+    fromPlan: false,
+    pendingSubject: null,
+    pendingThemaId: null,
+    pendingGoalId: null,
     popover: null,
     loading: false,
     saving: null,
@@ -132,22 +137,44 @@
     return activeTiers().some((tier) => tierStatus(goal, tier.id) === state.statusFilter);
   }
 
+  function applyArrivalQuery(query) {
+    const raw = query instanceof URLSearchParams ? query : new URLSearchParams(location.search || "");
+    state.pendingSubject = raw.get("subject") || null;
+    state.pendingThemaId = raw.get("thema") || raw.get("levelCheckId") || null;
+    state.pendingGoalId = raw.get("goal") || raw.get("goalId") || null;
+    state.fromPlan = raw.get("from") === "plan";
+    if (!state.pendingGoalId) state.focusGoalId = null;
+  }
+
   function ensureSelection() {
     const subjects = subjectsWithData();
     if (!subjects.length) {
       state.selectedSubject = null;
       state.selectedThemaId = null;
+      state.pendingSubject = null;
+      state.pendingThemaId = null;
+      state.pendingGoalId = null;
       return;
     }
-    if (!state.selectedSubject || !subjects.some((g) => g.subject === state.selectedSubject)) {
+    if (state.pendingSubject && subjects.some((g) => g.subject === state.pendingSubject)) {
+      state.selectedSubject = state.pendingSubject;
+    } else if (!state.selectedSubject || !subjects.some((g) => g.subject === state.selectedSubject)) {
       state.selectedSubject = subjects[0].subject;
     }
     const themen = levelChecksForSubject(state.selectedSubject);
     if (!themen.length) {
       state.selectedThemaId = null;
+      state.pendingSubject = null;
+      state.pendingThemaId = null;
+      state.pendingGoalId = null;
       return;
     }
-    if (!state.selectedThemaId || !themen.some((t) => String(t.id) === String(state.selectedThemaId))) {
+    if (state.pendingThemaId && themen.some((t) => String(t.id) === String(state.pendingThemaId))) {
+      state.selectedThemaId = state.pendingThemaId;
+    } else if (
+      !state.selectedThemaId ||
+      !themen.some((t) => String(t.id) === String(state.selectedThemaId))
+    ) {
       // Prefer theme with an upcoming/past scheduled levelcheck
       const lc = levelchecksForSubject(state.selectedSubject)[0];
       const match = lc
@@ -155,6 +182,27 @@
         : null;
       state.selectedThemaId = match?.id || themen[0].id;
     }
+    if (state.pendingGoalId) {
+      let found = (selectedThema()?.goals || []).some(
+        (g) => String(g.id) === String(state.pendingGoalId)
+      );
+      if (!found) {
+        const matchThema = themen.find((t) =>
+          (t.goals || []).some((g) => String(g.id) === String(state.pendingGoalId))
+        );
+        if (matchThema) {
+          state.selectedThemaId = matchThema.id;
+          found = true;
+        }
+      }
+      if (found) {
+        state.expandedGoalId = state.pendingGoalId;
+        state.focusGoalId = state.pendingGoalId;
+      }
+    }
+    state.pendingSubject = null;
+    state.pendingThemaId = null;
+    state.pendingGoalId = null;
   }
 
   function passPercent() {
@@ -448,8 +496,9 @@
       .map((goal) => {
         const expanded = String(state.expandedGoalId) === String(goal.id);
         const isChecked = linked.has(String(goal.id));
+        const isFocus = String(state.focusGoalId) === String(goal.id);
         const main = `
-          <tr class="lp-table__row ${expanded ? "is-expanded" : ""} ${isChecked ? "is-levelcheck-goal" : ""}">
+          <tr class="lp-table__row ${expanded ? "is-expanded" : ""} ${isChecked ? "is-levelcheck-goal" : ""} ${isFocus ? "is-plan-focus" : ""}">
             <th scope="row" class="lp-table__topic">
               <button type="button" class="lp-topic-btn" data-lp-expand="${escapeHtml(goal.id)}" aria-expanded="${expanded ? "true" : "false"}">
                 <span class="lp-topic-btn__title">${escapeHtml(goal.text)}</span>
@@ -490,8 +539,9 @@
           .map((goal) => {
             const expanded = String(state.expandedGoalId) === String(goal.id);
             const isChecked = linked.has(String(goal.id));
+            const isFocus = String(state.focusGoalId) === String(goal.id);
             return `
-            <article class="lp-mobile-card ${isChecked ? "is-levelcheck-goal" : ""}">
+            <article class="lp-mobile-card ${isChecked ? "is-levelcheck-goal" : ""} ${isFocus ? "is-plan-focus" : ""}">
               <button type="button" class="lp-mobile-card__head" data-lp-expand="${escapeHtml(goal.id)}" aria-expanded="${expanded ? "true" : "false"}">
                 <h4>${escapeHtml(goal.text)}${isChecked ? ` <span class="lp-lc-tag">im Levelcheck</span>` : ""}</h4>
               </button>
@@ -745,12 +795,16 @@
       );
     }
 
+    const planHint = state.fromPlan
+      ? `<p class="lp-table-hint lp-table-hint--plan">Nach deinem Tagesziel: trage hier ein, was <strong>in Arbeit</strong> ist und was schon <strong>sicher</strong> läuft.</p>`
+      : "";
     const lcHint = linked.size
       ? `<p class="lp-table-hint lp-table-hint--lc">Gelb markiert: Ziele, die im Levelcheck geprüft werden (${linked.size}).</p>`
       : "";
 
     return `
       <div class="lp-content">
+        ${planHint}
         <p class="lp-table-hint">Tippe auf eine Zelle unter Rookie, Operator oder Street Legend – dann wählst du <strong>Offen</strong>, <strong>In Arbeit</strong> oder <strong>Sicher</strong>.</p>
         ${lcHint}
         <div class="lp-content__desktop">${renderDesktopTable(goals)}</div>
@@ -782,6 +836,17 @@
     `) || "";
 
     bindHandlers(root);
+    scrollFocusGoalIntoView();
+  }
+
+  function scrollFocusGoalIntoView() {
+    if (!state.focusGoalId) return;
+    const id = String(state.focusGoalId);
+    const escaped = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(id) : id.replace(/"/g, "");
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-lp-expand="${escaped}"]`);
+      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
   }
 
   function closePopover() {
@@ -794,6 +859,7 @@
         state.selectedSubject = btn.dataset.lpSubject;
         state.selectedThemaId = null;
         state.expandedGoalId = null;
+        state.focusGoalId = null;
         closePopover();
         state.message = "";
         state.error = "";
@@ -806,6 +872,7 @@
       btn.addEventListener("click", () => {
         state.selectedThemaId = btn.dataset.lpThema;
         state.expandedGoalId = null;
+        state.focusGoalId = null;
         closePopover();
         state.message = "";
         state.error = "";
@@ -1086,7 +1153,8 @@
     await loadData(generation);
   }
 
-  function init() {
+  function init(query) {
+    applyArrivalQuery(query);
     if (initPromise) return initPromise;
     initPromise = initInternal().finally(() => {
       initPromise = null;

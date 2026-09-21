@@ -83,7 +83,8 @@
     step3Skipped: false,
     planBAcknowledged: false,
     suggestion: null,
-    suggestionApplied: false
+    suggestionApplied: false,
+    afterSaveOpen: false
   };
 
   const ARBEIT_TILE_META = {
@@ -446,6 +447,168 @@
 
   function pickedWhatGoal() {
     return state.whatGoalOptions.find((g) => String(g.id) === String(state.whatGoalId)) || null;
+  }
+
+  function normalizePracticeUrl(raw) {
+    return String(raw ?? "").trim();
+  }
+
+  function isValidPracticeUrl(url) {
+    const value = normalizePracticeUrl(url);
+    if (!value) return false;
+    try {
+      const parsed = new URL(value);
+      return (parsed.protocol === "http:" || parsed.protocol === "https:") && Boolean(parsed.hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  function goalPracticeMaterial(goal) {
+    const material = goal?.material || null;
+    const type = material?.type || goal?.materialType || (goal?.practiceUrl ? "url" : "none");
+    const url = type === "url" ? material?.url || goal?.practiceUrl || "" : "";
+    const label = String(material?.label || goal?.materialLabel || "").trim();
+    const note = String(material?.note || goal?.materialNote || "").trim();
+    const hasUrl = type === "url" && isValidPracticeUrl(url);
+    const hasHint = (type === "reference" || type === "note") && !!(label || note);
+    return {
+      type: hasUrl ? "url" : hasHint ? type : "none",
+      url: hasUrl ? url : "",
+      label,
+      note,
+      hasUrl,
+      hasHint,
+      hasMaterial: hasUrl || hasHint
+    };
+  }
+
+  function followPracticeUrl(practiceUrl) {
+    const value = normalizePracticeUrl(practiceUrl);
+    if (!isValidPracticeUrl(value)) return false;
+    try {
+      const parsed = value.startsWith("/") ? new URL(value, window.location.origin) : new URL(value);
+      if (parsed.origin === window.location.origin) {
+        const match = String(parsed.pathname + parsed.search + parsed.hash).match(
+          /^\/student\/([a-z0-9-]+)/i
+        );
+        if (match && window.StudentRouter?.navigateToSection) {
+          teardownPlanNextModal();
+          state.afterSaveOpen = false;
+          const sectionQuery = parsed.search ? new URLSearchParams(parsed.search) : null;
+          window.StudentRouter.navigateToSection(match[1], { query: sectionQuery });
+          return true;
+        }
+        window.location.assign(parsed.href);
+        return true;
+      }
+      window.open(parsed.href, "_blank", "noopener,noreferrer");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function lernstandQueryForGoal(goal) {
+    const q = new URLSearchParams();
+    if (state.subject) q.set("subject", state.subject);
+    if (goal?.levelCheckId) q.set("thema", String(goal.levelCheckId));
+    if (goal?.id) q.set("goal", String(goal.id));
+    q.set("from", "plan");
+    return q;
+  }
+
+  function goToLernstandFromPlan(goal) {
+    teardownPlanNextModal();
+    state.afterSaveOpen = false;
+    window.StudentRouter?.navigateToSection("levelplan", { query: lernstandQueryForGoal(goal) });
+  }
+
+  function goToTodayFromPlan() {
+    teardownPlanNextModal();
+    state.afterSaveOpen = false;
+    window.StudentRouter?.navigateToSection("today");
+  }
+
+  function teardownPlanNextModal() {
+    document.querySelectorAll("body > .plan-next-modal-backdrop").forEach((el) => el.remove());
+  }
+
+  function portalPlanNextModal(root) {
+    teardownPlanNextModal();
+    const modal = root?.querySelector(".plan-next-modal-backdrop");
+    if (!modal) return;
+    document.body.appendChild(modal);
+    modal.querySelectorAll("[data-plan-next]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const action = btn.dataset.planNext;
+        const goal = pickedWhatGoal();
+        if (action === "practice") {
+          const material = goalPracticeMaterial(goal);
+          if (!followPracticeUrl(material.url)) {
+            goToLernstandFromPlan(goal);
+          }
+          return;
+        }
+        if (action === "levelplan") {
+          goToLernstandFromPlan(goal);
+          return;
+        }
+        goToTodayFromPlan();
+      });
+    });
+    modal.querySelector("[data-plan-next]")?.focus();
+  }
+
+  function renderAfterSaveModal() {
+    if (!state.afterSaveOpen) return "";
+    const ui = UI();
+    const goal = pickedWhatGoal();
+    const material = goalPracticeMaterial(goal);
+    const goalText = goal?.text || state.whatGoalText || "dein Unterpunkt";
+    const materialBits = [material.label, material.note].filter(Boolean);
+
+    let title = "Jetzt üben?";
+    let text = "Öffne das hinterlegte Material und starte direkt mit deinem Tagesziel.";
+    if (!material.hasMaterial) {
+      title = "Weiter zum Lernstand";
+      text =
+        "Für diesen Unterpunkt ist noch kein Übungsmaterial hinterlegt. Trage im Lernstand ein, was in Arbeit ist und was schon sicher läuft.";
+    } else if (!material.hasUrl) {
+      title = "Dein Material";
+      text =
+        "So findest du die Aufgabe. Trage danach im Lernstand ein, was in Arbeit ist und was schon sicher läuft.";
+    }
+
+    const primary = material.hasUrl
+      ? `<button type="button" class="btn-primary logbuch-submit today-app-btn" data-plan-next="practice">Jetzt üben</button>`
+      : `<button type="button" class="btn-primary logbuch-submit today-app-btn" data-plan-next="levelplan">Zum Lernstand</button>`;
+    const secondary = material.hasUrl
+      ? `<button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" data-plan-next="levelplan">Zum Lernstand</button>`
+      : "";
+
+    return `
+      <div class="plan-next-modal-backdrop" role="dialog" aria-modal="true" aria-label="${ui.escapeHtml(title)}">
+        <div class="plan-next-modal">
+          <p class="plan-next-modal__kicker">Tagesziel gespeichert</p>
+          <h3 class="plan-next-modal__title">${ui.escapeHtml(title)}</h3>
+          <p class="plan-next-modal__goal">Unterpunkt: <strong>${ui.escapeHtml(goalText)}</strong></p>
+          ${
+            materialBits.length
+              ? `<div class="plan-next-modal__material">
+                  <span class="plan-next-modal__material-label">Material</span>
+                  <p>${ui.escapeHtml(materialBits.join(" · "))}</p>
+                </div>`
+              : ""
+          }
+          <p class="plan-next-modal__text">${ui.escapeHtml(text)}</p>
+          <div class="plan-next-modal__actions">
+            ${primary}
+            ${secondary}
+            <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" data-plan-next="today">Zurück zu Mein Tag</button>
+          </div>
+        </div>
+      </div>`;
   }
 
   function levelGoalTextFor(goal, level) {
@@ -1349,9 +1512,11 @@
           </div>
         </div>`
         }
-      </div>`;
+      </div>
+      ${renderAfterSaveModal()}`;
 
     bindHandlers(root);
+    portalPlanNextModal(root);
   }
 
   function bindStaticHandlers(root) {
@@ -1596,7 +1761,7 @@
 
     root.querySelector("#planSubmitBtn")?.addEventListener("click", submitPlan);
     root.querySelector("#planBackBtn")?.addEventListener("click", () => {
-      window.StudentRouter?.navigateToSection("today");
+      goToTodayFromPlan();
     });
   }
 
@@ -1713,7 +1878,9 @@
         await window.loadMe();
       }
 
-      window.StudentRouter?.navigateToSection("today");
+      state.submitting = false;
+      state.afterSaveOpen = true;
+      render();
     } catch (err) {
       console.error(err);
       state.submitting = false;
@@ -1826,6 +1993,8 @@
     state.planBAcknowledged = false;
     state.suggestion = null;
     state.suggestionApplied = false;
+    state.afterSaveOpen = false;
+    teardownPlanNextModal();
 
     const root = document.getElementById("plan-screen-root");
     if (root) {

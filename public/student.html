@@ -6569,6 +6569,18 @@ body.student-app .card.section > h2 {
   font-weight: 800;
 }
 
+.lp-table-hint--plan {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.1);
+  color: #fde68a;
+}
+
+.lp-table__row.is-plan-focus,
+.lp-mobile-card.is-plan-focus {
+  outline: 2px solid rgba(34, 211, 238, 0.7);
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.22);
+}
+
 .lp-table {
   width: 100%;
   border-collapse: collapse;
@@ -8079,6 +8091,109 @@ body.student-app .card.section > h2 {
   flex-direction: column;
   gap: 8px;
   margin-top: 14px;
+}
+
+.plan-next-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.plan-next-modal {
+  width: min(440px, 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(168, 85, 247, 0.18), transparent 42%),
+    rgba(8, 14, 35, 0.98);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.6),
+    0 0 28px rgba(34, 211, 238, 0.12);
+  color: #f8fafc;
+  padding: 18px 16px 16px;
+}
+
+.plan-next-modal__kicker {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.plan-next-modal__title {
+  margin: 8px 0 6px;
+  font-size: 22px;
+  line-height: 1.2;
+  color: #f8fafc;
+}
+
+.plan-next-modal__goal {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.plan-next-modal__goal strong {
+  color: #f8fafc;
+}
+
+.plan-next-modal__text {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.plan-next-modal__material {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  background: rgba(6, 11, 29, 0.72);
+}
+
+.plan-next-modal__material-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #67e8f9;
+  margin-bottom: 6px;
+}
+
+.plan-next-modal__material p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #e2e8f0;
+}
+
+.plan-next-modal__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 560px) {
+  .plan-next-modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .plan-next-modal {
+    width: 100%;
+    border-radius: 22px 22px 0 0;
+    padding: 18px 16px calc(16px + env(safe-area-inset-bottom));
+  }
 }
 
 #plan-section .logbuch-select,
@@ -11529,20 +11644,20 @@ h2 {
 <script src="/js/logbuch-visuals.js?v=11"></script>
 <script src="/js/logbuch-reminders.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/student-router.js?v=10"></script>
-<script src="/js/logbuch-plan.js?v=25"></script>
+<script src="/js/student-router.js?v=11"></script>
+<script src="/js/logbuch-plan.js?v=26"></script>
 <script src="/js/logbuch-check.js?v=11"></script>
 <script src="/js/logbuch-reflect.js?v=6"></script>
 <script src="/js/logbuch-today.js?v=34"></script>
 <script src="/js/logbuch-week.js?v=9"></script>
-<script src="/js/logbuch-levelplan.js?v=23"></script>
+<script src="/js/logbuch-levelplan.js?v=24"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=27"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=10"></script>
 <script src="/js/logbuch-materialschrank.js?v=4"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=21"></script>
-<script src="/js/logbuch-screens.js?v=7"></script>
+<script src="/js/logbuch-screens.js?v=8"></script>
 
 <script>
 /* ============================================

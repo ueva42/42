@@ -1471,6 +1471,13 @@ function collectSubjectSubtopics(levelChecks, subject) {
 }
 
 function mapPlanGoalOption(goal, check) {
+  const practiceUrl =
+    (goal.material?.type === "url" && goal.material?.url) || goal.practiceUrl || null;
+  const materialType = normalizeMaterialType(
+    goal.material?.type || goal.materialType || (practiceUrl ? "url" : "none")
+  );
+  const materialLabel = goal.materialLabel || goal.material?.label || null;
+  const materialNote = goal.materialNote || goal.material?.note || null;
   return {
     id: String(goal.id),
     text: goal.text,
@@ -1478,7 +1485,12 @@ function mapPlanGoalOption(goal, check) {
     levelCheckName: check.name,
     rookieGoalText: goal.rookieGoalText || null,
     operatorGoalText: goal.operatorGoalText || null,
-    streetLegendGoalText: goal.streetLegendGoalText || null
+    streetLegendGoalText: goal.streetLegendGoalText || null,
+    practiceUrl: practiceUrl || null,
+    materialType,
+    materialLabel,
+    materialNote,
+    material: buildGoalMaterialPayload(materialType, materialLabel, materialNote, practiceUrl)
   };
 }
 

@@ -109,7 +109,7 @@
     }
 
     if (section === "levelplan" && window.LogbuchLevelplan) {
-      window.LogbuchLevelplan.init();
+      window.LogbuchLevelplan.init(query);
       return;
     }
 

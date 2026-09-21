@@ -157,6 +157,8 @@
 
   function showSectionOnly(section) {
     section = normalizeSection(section);
+    document.querySelectorAll("body > .plan-next-modal-backdrop").forEach((el) => el.remove());
+
     document.querySelectorAll(".section").forEach((s) => {
       s.style.display = "none";
     });
