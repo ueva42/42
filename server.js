@@ -13197,6 +13197,7 @@ const studentSpaPaths = [
   "/student/checkpoint-plan",
   "/student/gruppenmodus",
   "/student/materialschrank",
+  "/student/hausaufgaben",
   "/student/levelcheck",
   "/student/competencies",
   "/student/status",

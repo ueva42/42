@@ -19,7 +19,8 @@
     belohnungen: { fit: "cover", position: "center right" },
     charakter: { fit: "cover", position: "center right" },
     "xp-historie": { fit: "cover", position: "center right" },
-    materialschrank: { fit: "cover", position: "center right" }
+    materialschrank: { fit: "cover", position: "center right" },
+    hausaufgaben: { fit: "cover", position: "center right" }
   };
 
   const DASHBOARD_HERO = {
@@ -51,6 +52,14 @@
       text: "Deine heutigen Aufgaben auf einen Blick.",
       cta: "Los geht's",
       accent: "orange"
+    },
+    {
+      section: "hausaufgaben",
+      slug: "hausaufgaben",
+      title: "Hausaufgaben",
+      text: "Was heute fällig ist – und was du für morgen mitnimmst.",
+      cta: "Öffnen",
+      accent: "gold"
     },
     {
       section: "gruppenmodus",

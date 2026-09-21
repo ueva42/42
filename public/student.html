@@ -1545,6 +1545,18 @@ body.student-app .notif-panel {
   margin-top: 0;
 }
 
+#hausaufgaben-section > .page-hero {
+  margin-bottom: 12px;
+}
+
+#hausaufgaben-screen-root {
+  margin-top: 0;
+}
+
+.hw-page .hw-panel {
+  margin-top: 0;
+}
+
 @media (min-width: 640px) {
   .hub-hero-actions {
     flex-direction: row;
@@ -11445,6 +11457,10 @@ h2 {
     <div class="menu-icon">T</div><span class="menu-label">Mein Tag</span>
   </div>
 
+  <div class="menu-item" data-section="hausaufgaben" onclick="showSection(event,'hausaufgaben')">
+    <div class="menu-icon">H</div><span class="menu-label">Hausaufgaben</span>
+  </div>
+
   <div class="menu-item" data-section="week" onclick="showSection(event,'week')">
     <div class="menu-icon">W</div><span class="menu-label">Woche</span>
   </div>
@@ -11566,6 +11582,24 @@ h2 {
       </div>
     </div>
     <div id="today-screen-root" class="logbuch-root"></div>
+  </div>
+
+  <!-- HAUSAUFGABEN -->
+  <div id="hausaufgaben-section" class="card section logbuch-screen student-screen student-screen--gold" style="display:none;">
+    <header class="page-hero sol-hero sol-hero--page">
+      <div class="page-hero__content">
+        <div class="student-section-icon">
+          <img src="/icons/student/png/hausaufgaben.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+        </div>
+        <p class="page-eyebrow">Hausaufgaben</p>
+        <h2 class="page-hero__title">Hausaufgaben</h2>
+        <p class="page-hero__sub">Was heute fällig ist – und was du für morgen mitnimmst.</p>
+      </div>
+      <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/hausaufgaben-hero.png?v=1" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
+    </header>
+    <div id="hausaufgaben-screen-root" class="logbuch-root"></div>
   </div>
 
   <!-- WOCHE -->
@@ -11850,6 +11884,7 @@ h2 {
     </div>
     <div class="student-more-links">
       <button type="button" class="student-more-link" data-section="hub">Kontrollzentrum <span>›</span></button>
+      <button type="button" class="student-more-link" data-section="hausaufgaben">Hausaufgaben <span>›</span></button>
       <button type="button" class="student-more-link" data-section="week">Meine Woche <span>›</span></button>
       <button type="button" class="student-more-link" data-section="taktik-deck">Taktik-Deck <span>›</span></button>
       <button type="button" class="student-more-link" data-section="checkpoint-plan">Meine Checks <span>›</span></button>
@@ -11876,15 +11911,15 @@ h2 {
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=34"></script>
+<script src="/js/logbuch-hub.js?v=35"></script>
 <script src="/js/logbuch-visuals.js?v=12"></script>
 <script src="/js/logbuch-reminders.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/student-router.js?v=11"></script>
+<script src="/js/student-router.js?v=12"></script>
 <script src="/js/logbuch-plan.js?v=26"></script>
 <script src="/js/logbuch-check.js?v=11"></script>
 <script src="/js/logbuch-reflect.js?v=6"></script>
-<script src="/js/logbuch-today.js?v=34"></script>
+<script src="/js/logbuch-today.js?v=35"></script>
 <script src="/js/logbuch-week.js?v=9"></script>
 <script src="/js/logbuch-levelplan.js?v=24"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
@@ -11892,8 +11927,9 @@ h2 {
 <script src="/js/logbuch-zielsetzung.js?v=27"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=10"></script>
 <script src="/js/logbuch-materialschrank.js?v=4"></script>
+<script src="/js/logbuch-homework.js?v=1"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=21"></script>
-<script src="/js/logbuch-screens.js?v=8"></script>
+<script src="/js/logbuch-screens.js?v=9"></script>
 
 <script>
 /* ============================================

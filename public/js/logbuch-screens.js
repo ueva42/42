@@ -38,6 +38,11 @@
       subtitle: "Übungen, Tools und Arbeitsblätter – einfach antippen und öffnen.",
       phase: null
     },
+    hausaufgaben: {
+      title: "Hausaufgaben",
+      subtitle: "Was heute fällig ist – und was du für morgen mitnimmst.",
+      phase: null
+    },
     gruppenmodus: {
       title: "Gruppenarbeit",
       subtitle: "Laborarbeit mit eurer Gruppe an einem iPad.",
@@ -130,6 +135,11 @@
 
     if (section === "materialschrank" && window.LogbuchMaterialschrank) {
       window.LogbuchMaterialschrank.init();
+      return;
+    }
+
+    if (section === "hausaufgaben" && window.LogbuchHomework) {
+      window.LogbuchHomework.init();
       return;
     }
 
