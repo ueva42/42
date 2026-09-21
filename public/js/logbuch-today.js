@@ -247,42 +247,11 @@
     return todayData;
   }
 
-  function individualBlocks(blockList) {
-    return (blockList || []).filter((b) => {
-      const subject = b.entry?.subject || b.slot?.subject;
-      return !groupModeForSubject(subject);
-    });
-  }
-
   function renderTodayOverview(d, blockList, editable) {
     const ui = UI();
-    const solo = individualBlocks(blockList);
-    const total = blockList.length;
-    const planned = solo.filter((b) => b.entry).length;
-    const reflected = solo.filter((b) => b.entry?.hasReflection).length;
-    const soloTotal = solo.length;
-    const profile = window.__studentProfile || {};
-    const todayXp = Number(profile.todayXp || 0);
-    const xpTarget = Math.max(50, todayXp || 50);
-    const pct = (n, den) => (den > 0 ? Math.min(100, Math.round((n / den) * 100)) : 0);
-    const dayPct = pct(reflected, soloTotal);
-    const goalsPct = pct(planned, soloTotal);
-    const xpPct = pct(todayXp, xpTarget);
-
-    const metric = ({ accent, label, value, sub, fill }) => `
-      <article class="today-dash__metric today-dash__metric--${accent}">
-        <div class="today-dash__metric-head">
-          <p class="today-dash__metric-label">${ui.escapeHtml(label)}</p>
-          <p class="today-dash__metric-value">${ui.escapeHtml(value)}</p>
-          <p class="today-dash__metric-sub">${ui.escapeHtml(sub)}</p>
-        </div>
-        <div class="today-dash__track" aria-hidden="true">
-          <div class="today-dash__fill" style="width:${fill}%"></div>
-        </div>
-      </article>`;
 
     return `
-      <section class="today-overview" aria-label="Heute im Überblick">
+      <section class="today-overview" aria-label="Mein Tag">
         <article class="today-overview-hero">
           <div class="today-overview-hero__content">
             <div class="today-overview-hero__icon" aria-hidden="true">
@@ -302,39 +271,6 @@
             <img src="/icons/student/hero/mein-tag-hero.png?v=6" alt="" aria-hidden="true" loading="lazy">
           </div>
         </article>
-
-        <div class="today-dash" aria-label="Heute im Überblick">
-          <article class="today-dash__featured">
-            <div class="today-dash__featured-copy">
-              <p class="today-dash__featured-eyebrow">Heute im Überblick</p>
-              <h3 class="today-dash__featured-title">Tagesfortschritt</h3>
-              <p class="today-dash__featured-sub">${reflected} von ${soloTotal || 0} Einzelstunden reflektiert</p>
-            </div>
-            <div class="today-dash__featured-pct" aria-hidden="true">
-              <span>${dayPct}</span><small>%</small>
-            </div>
-            <div class="today-dash__track today-dash__track--xl" aria-hidden="true">
-              <div class="today-dash__fill today-dash__fill--cyan" style="width:${dayPct}%"></div>
-            </div>
-          </article>
-
-          <div class="today-dash__row">
-            ${metric({
-              accent: "violet",
-              label: "Ziele gesetzt",
-              value: `${planned}/${soloTotal || 0}`,
-              sub: `${goalsPct} % der Einzelstunden`,
-              fill: goalsPct
-            })}
-            ${metric({
-              accent: "green",
-              label: "XP heute",
-              value: String(todayXp),
-              sub: `Zielmarke ${xpTarget} XP`,
-              fill: xpPct
-            })}
-          </div>
-        </div>
       </section>`;
   }
 
