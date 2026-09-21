@@ -146,15 +146,98 @@
       state.activeStep = 4;
       return;
     }
-    if (state.activeStep === 1 && step1Complete()) state.activeStep = 2;
-    else if (state.activeStep === 2 && step2Complete()) state.activeStep = 3;
-    else if (state.activeStep === 3 && step3Complete()) state.activeStep = 4;
-    else if (state.activeStep === 4 && step4Complete()) state.activeStep = 5;
+    if (state.activeStep >= 6 && !step5Complete()) {
+      state.activeStep = 5;
+      return;
+    }
+    if (state.activeStep === 2 && step2Complete()) state.activeStep = 3;
   }
 
   function openStep(step) {
     state.activeStep = Number(step);
     render();
+  }
+
+  function continueRow(id, label, enabled = true) {
+    return `<div class="plan-acc__continue">
+      <button type="button" class="today-app-btn" id="${id}" ${enabled ? "" : "disabled"}>${label}</button>
+    </div>`;
+  }
+
+  function teardownAskModal() {
+    document.querySelectorAll("body > .plan-next-modal-backdrop").forEach((el) => el.remove());
+  }
+
+  function portalAskModal(root) {
+    teardownAskModal();
+    root?.querySelectorAll(".plan-next-modal-backdrop").forEach((modal) => {
+      document.body.appendChild(modal);
+    });
+  }
+
+  function askModalScope(root) {
+    return document.querySelector("body > .plan-next-modal-backdrop") || root;
+  }
+
+  function renderAskProgress(step, total = 5) {
+    const current = Math.min(step, total);
+    return `<div class="plan-ask__progress" role="navigation" aria-label="Schritte">
+      ${Array.from({ length: total }, (_, i) => {
+        const n = i + 1;
+        const done = n < current || step > total;
+        const isCurrent = n === current && step <= total;
+        const locked = n > current;
+        return `<button type="button" class="plan-ask__dot${done ? " is-done" : ""}${isCurrent ? " is-current" : ""}" data-plan-open="${n}" ${locked ? "disabled" : ""} aria-label="Schritt ${n}"></button>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderStepPopup({ step, title, hint, body, showBack = true, total = 5 }) {
+    const ui = UI();
+    return `
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="${ui.escapeHtml(title)}">
+        <div class="plan-next-modal plan-next-modal--ask">
+          ${renderAskProgress(step, total)}
+          <p class="plan-next-modal__kicker">Schritt ${step} von ${total}</p>
+          <h3 class="plan-next-modal__title">${ui.escapeHtml(title)}</h3>
+          ${hint ? `<p class="plan-next-modal__text">${hint}</p>` : ""}
+          ${state.errorMsg ? `<p class="plan-next-modal__text" style="color:#fca5a5">${ui.escapeHtml(state.errorMsg)}</p>` : ""}
+          <div class="plan-ask__body">${body}</div>
+          <div class="plan-next-modal__actions">
+            ${
+              showBack
+                ? `<button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="reflectAskBack">Zurück</button>`
+                : `<button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="reflectBackBtn">Abbrechen</button>`
+            }
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderSavePopup(ui) {
+    return `
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Das nehme ich mit">
+        <div class="plan-next-modal plan-next-modal--ask">
+          ${renderAskProgress(6, 5)}
+          <p class="plan-next-modal__kicker">Bereit</p>
+          <h3 class="plan-next-modal__title">Das nehme ich mit</h3>
+          <p class="plan-next-modal__text">Prüfe kurz, dann speichern – danach geht’s zurück zu Mein Tag.</p>
+          <div id="reflectSummaryCard">${renderReflectSummary(ui)}</div>
+          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
+          <div class="plan-next-modal__actions">
+            <button type="button" class="btn-primary logbuch-submit today-app-btn" id="reflectSubmitBtn" ${
+              state.submitting || !requiredComplete() ? "disabled" : ""
+            }>${
+              state.submitting
+                ? "Speichern…"
+                : state.existingReflection?.canEdit
+                  ? "Tagesabschluss speichern"
+                  : "Tagesabschluss speichern · +3 XP"
+            }</button>
+            <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="reflectAskBack">Zurück</button>
+          </div>
+        </div>
+      </div>`;
   }
 
   function renderAccordionStep(step, title, summary, bodyHtml, opts = {}) {
@@ -348,7 +431,7 @@
       reflection.used_strategy_name || state.usedStrategyName || null;
     state.missionSeen = true;
     state.disturbDone = true;
-    if (requiredComplete()) state.activeStep = 5;
+    if (requiredComplete()) state.activeStep = 6;
     else syncActiveStep();
     return true;
   }
@@ -532,6 +615,7 @@
   }
 
   function renderReadOnly() {
+    teardownAskModal();
     const root = document.getElementById("reflect-screen-root");
     if (!root) return;
     const ui = UI();
@@ -551,6 +635,7 @@
   }
 
   function renderMissing() {
+    teardownAskModal();
     const root = document.getElementById("reflect-screen-root");
     if (!root) return;
     const ui = UI();
@@ -569,7 +654,11 @@
     const box = root.querySelector("#reflectSummaryCard");
     if (box) box.innerHTML = renderReflectSummary(UI());
     const submitBtn = root.querySelector("#reflectSubmitBtn");
-    if (submitBtn) submitBtn.disabled = state.submitting;
+    if (submitBtn) submitBtn.disabled = state.submitting || !requiredComplete();
+    const helpedBtn = root.querySelector("#reflectHelpedContinue");
+    if (helpedBtn) helpedBtn.disabled = !step3Complete();
+    const nextBtn = root.querySelector("#reflectNextContinue");
+    if (nextBtn) nextBtn.disabled = !step5Complete();
   }
 
   function render() {
@@ -600,40 +689,23 @@
       { value: 5, label: "Sehr sicher", icon: "5", accent: "#22c55e" }
     ];
 
-    const s1 = step1Complete();
-    const s2 = step2Complete();
-    const s3 = step3Complete();
-    const s4 = step4Complete();
-    const s5 = step5Complete();
-
-    const helpedSummary =
-      state.helpedItems
-        .map((id) => (C().REFLECT_HELPED || []).find((h) => h.id === id)?.label)
-        .filter(Boolean)
-        .slice(0, 2)
-        .join(" · ") || "Noch offen";
-
-    const disturbSummary = Object.keys(state.disturbItems).length
-      ? Object.keys(state.disturbItems).slice(0, 2).join(" · ")
-      : state.disturbDone
-        ? "Nichts ausgewählt"
-        : "Noch offen";
-
     const missionBody = `
       ${renderMissionCard(ui, e)}
-      <div class="plan-acc__continue">
-        <button type="button" class="today-app-btn" id="reflectMissionContinue">Weiter zum Abschluss</button>
-      </div>`;
+      ${continueRow("reflectMissionContinue", "Weiter zum Abschluss")}`;
+
+    const helpedBody = `
+      <p class="way-to-goal__intro">Mehrfachauswahl – inkl. <strong>Mein Weg zum Ziel</strong>.</p>
+      ${tile(helpedTiles(), state.helpedItems, "data-helped", true)}
+      ${continueRow("reflectHelpedContinue", "Weiter", step3Complete())}`;
 
     const disturbBody = `
       <p class="way-to-goal__intro">Optional · Mehrfachauswahl</p>
       ${tile(disturbTiles(), Object.keys(state.disturbItems), "data-disturb", true)}
       ${renderDisturbLevels(ui)}
-      <div class="plan-acc__continue">
-        <button type="button" class="today-app-btn" id="reflectDisturbContinue">
-          ${Object.keys(state.disturbItems).length ? "Weiter" : "Ohne Angabe weiter"}
-        </button>
-      </div>`;
+      ${continueRow(
+        "reflectDisturbContinue",
+        Object.keys(state.disturbItems).length ? "Weiter" : "Ohne Angabe weiter"
+      )}`;
 
     const nextBody = `
       <div class="goal-step-card__stack">
@@ -648,148 +720,132 @@
           "",
           { wide: true }
         )}
+        ${continueRow("reflectNextContinue", "Weiter", step5Complete())}
       </div>`;
 
+    const stepPopup = state.activeStep >= 6
+      ? renderSavePopup(ui)
+      : state.activeStep === 1
+        ? renderStepPopup({
+            step: 1,
+            title: "Meine Mission",
+            hint: "Kurz ansehen, dann weiter.",
+            body: missionBody,
+            showBack: false
+          })
+        : state.activeStep === 2
+          ? renderStepPopup({
+              step: 2,
+              title: "Ziel erreicht?",
+              hint: "Eine Karte wählen.",
+              body: tile(goalTiles(), state.goalReachedAnswer, "data-goal")
+            })
+          : state.activeStep === 3
+            ? renderStepPopup({
+                step: 3,
+                title: "Was hat geholfen?",
+                hint: "Mindestens eine Auswahl.",
+                body: helpedBody
+              })
+            : state.activeStep === 4
+              ? renderStepPopup({
+                  step: 4,
+                  title: "Was hat mich gestört?",
+                  hint: "Optional – auch ohne Angabe weiter.",
+                  body: disturbBody
+                })
+              : renderStepPopup({
+                  step: 5,
+                  title: "Meine nächste Mission",
+                  hint: "Nächster Schritt und Sicherheit.",
+                  body: nextBody
+                });
+
     root.innerHTML = `
-      <div class="plan-app reflect-app plan-app--accordion">
+      <div class="plan-app reflect-app plan-app--ask">
         ${renderHero(ui, e)}
         ${
           state.existingReflection?.canEdit
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest deine Reflexion – beim Speichern gibt es kein zusätzliches XP.</div>`
             : ""
         }
-        <div class="plan-acc-stack">
-          ${renderAccordionStep(1, "Meine Mission", ui.escapeHtml(missionSummaryLine(e)), missionBody, {
-            done: s1,
-            canOpen: true,
-            hint: "Kurz ansehen, dann weiter"
-          })}
-          ${renderAccordionStep(
-            2,
-            "Ziel erreicht?",
-            ui.escapeHtml(labelForOption(C().GOAL_ACHIEVED, state.goalReachedAnswer)),
-            tile(goalTiles(), state.goalReachedAnswer, "data-goal"),
-            {
-              done: s2,
-              canOpen: s1 || state.activeStep === 2,
-              hint: "Eine Karte wählen"
-            }
-          )}
-          ${renderAccordionStep(
-            3,
-            "Was hat geholfen?",
-            ui.escapeHtml(helpedSummary),
-            `
-            <p class="way-to-goal__intro">Mehrfachauswahl – inkl. <strong>Mein Weg zum Ziel</strong>.</p>
-            ${tile(helpedTiles(), state.helpedItems, "data-helped", true)}`,
-            {
-              done: s3,
-              canOpen: s2 || state.activeStep === 3,
-              hint: "Mindestens eine Auswahl"
-            }
-          )}
-          ${renderAccordionStep(4, "Was hat mich gestört?", ui.escapeHtml(disturbSummary), disturbBody, {
-            done: s4,
-            canOpen: s3 || state.activeStep === 4,
-            hint: "Optional"
-          })}
-          ${renderAccordionStep(
-            5,
-            "Meine nächste Mission",
-            ui.escapeHtml(
-              state.nextStepAnswer
-                ? `${labelForNextStep(state.nextStepAnswer)}${
-                    state.confidenceAfter != null ? ` · ${state.confidenceAfter}/5` : ""
-                  }`
-                : "Noch offen"
-            ),
-            nextBody,
-            {
-              done: s5,
-              canOpen: s4 || state.activeStep === 5,
-              hint: "Nächster Schritt und Sicherheit"
-            }
-          )}
-        </div>
+      </div>
+      ${stepPopup}`;
 
-        <article class="goal-step-card goal-step-card--wide plan-mission-live ${
-          s2 || s3 || s5 ? "is-ready" : ""
-        }">
-          <header class="goal-step-card__head">
-            <span class="goal-step-card__step">★</span>
-            <h3 class="goal-step-card__title">Das nehme ich mit</h3>
-          </header>
-          <div id="reflectSummaryCard">${renderReflectSummary(ui)}</div>
-          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
-          <div class="plan-app-footer">
-            ${ui.btnPrimary(
-              state.submitting
-                ? "Speichern…"
-                : state.existingReflection?.canEdit
-                  ? "Tagesabschluss speichern"
-                  : "Tagesabschluss speichern · +3 XP",
-              "reflectSubmitBtn",
-              state.submitting,
-              "logbuch-submit-full today-app-btn"
-            )}
-            ${ui.btnGhost("Abbrechen", "reflectBackBtn", "today-app-btn today-app-btn--ghost")}
-          </div>
-        </article>
-      </div>`;
-
+    portalAskModal(root);
     bindHandlers(root);
   }
 
   function bindHandlers(root) {
-    root.querySelectorAll("[data-plan-open]").forEach((btn) => {
+    const scope = askModalScope(root);
+
+    scope.querySelectorAll("[data-plan-open]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const step = Number(btn.dataset.planOpen);
         if (!step) return;
-        if (step === 2 && !step1Complete() && state.activeStep !== 2) return;
-        if (step === 3 && !step2Complete() && state.activeStep !== 3) return;
-        if (step === 4 && !step3Complete() && state.activeStep !== 4) return;
-        if (step === 5 && !step4Complete() && state.activeStep !== 5) return;
+        if (step >= 2 && !step1Complete() && state.activeStep !== step) return;
+        if (step >= 3 && !step2Complete() && state.activeStep !== step) return;
+        if (step >= 4 && !step3Complete() && state.activeStep !== step) return;
+        if (step >= 5 && !step4Complete() && state.activeStep !== step) return;
+        if (step >= 6 && !step5Complete() && state.activeStep !== step) return;
         openStep(step);
       });
     });
 
-    root.querySelector("#reflectMissionContinue")?.addEventListener("click", () => {
+    scope.querySelector("#reflectAskBack")?.addEventListener("click", () => {
+      state.activeStep = Math.max(1, Number(state.activeStep) - 1);
+      render();
+    });
+
+    scope.querySelector("#reflectMissionContinue")?.addEventListener("click", () => {
       state.missionSeen = true;
-      syncActiveStep();
+      state.activeStep = 2;
       render();
     });
 
-    root.querySelector("#reflectDisturbContinue")?.addEventListener("click", () => {
+    scope.querySelector("#reflectHelpedContinue")?.addEventListener("click", () => {
+      if (!step3Complete()) return;
+      state.activeStep = 4;
+      render();
+    });
+
+    scope.querySelector("#reflectDisturbContinue")?.addEventListener("click", () => {
       state.disturbDone = true;
-      syncActiveStep();
+      state.activeStep = 5;
       render();
     });
 
-    root.querySelectorAll("[data-goal]").forEach((btn) => {
+    scope.querySelector("#reflectNextContinue")?.addEventListener("click", () => {
+      if (!step5Complete()) return;
+      state.activeStep = 6;
+      render();
+    });
+
+    scope.querySelectorAll("[data-goal]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.goalReachedAnswer = btn.dataset.goal;
-        root.querySelectorAll("[data-goal]").forEach((c) => {
+        scope.querySelectorAll("[data-goal]").forEach((c) => {
           c.classList.toggle("is-active", c.dataset.goal === state.goalReachedAnswer);
         });
-        afterChoiceChange(root);
+        afterChoiceChange(scope);
       });
     });
 
-    root.querySelectorAll("[data-helped]").forEach((btn) => {
+    scope.querySelectorAll("[data-helped]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = btn.dataset.helped;
         const idx = state.helpedItems.indexOf(id);
         if (idx >= 0) state.helpedItems.splice(idx, 1);
         else state.helpedItems.push(id);
         syncDerivedAnswers();
-        root.querySelectorAll("[data-helped]").forEach((c) => {
+        scope.querySelectorAll("[data-helped]").forEach((c) => {
           c.classList.toggle("is-active", state.helpedItems.includes(c.dataset.helped));
         });
-        afterChoiceChange(root);
+        afterChoiceChange(scope);
       });
     });
 
-    root.querySelectorAll("[data-disturb]").forEach((btn) => {
+    scope.querySelectorAll("[data-disturb]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const name = btn.dataset.disturb;
         if (state.disturbItems[name]) delete state.disturbItems[name];
@@ -798,49 +854,50 @@
       });
     });
 
-    root.querySelectorAll("[data-disturb-level]").forEach((btn) => {
+    scope.querySelectorAll("[data-disturb-level]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const name = btn.dataset.disturbName;
         state.disturbItems[name] = btn.dataset.disturbLevel;
-        root.querySelectorAll(`[data-disturb-name="${name}"]`).forEach((c) => {
+        scope.querySelectorAll(`[data-disturb-name="${name}"]`).forEach((c) => {
           c.classList.toggle("is-active", c.dataset.disturbLevel === state.disturbItems[name]);
         });
-        updatePreview(root);
+        updatePreview(scope);
       });
     });
 
-    root.querySelectorAll("[data-next]").forEach((btn) => {
+    scope.querySelectorAll("[data-next]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.nextStepAnswer = btn.dataset.next;
-        root.querySelectorAll("[data-next]").forEach((c) => {
+        scope.querySelectorAll("[data-next]").forEach((c) => {
           c.classList.toggle("is-active", c.dataset.next === state.nextStepAnswer);
         });
-        afterChoiceChange(root);
+        afterChoiceChange(scope);
       });
     });
 
-    root.querySelectorAll("[data-confidence]").forEach((btn) => {
+    scope.querySelectorAll("[data-confidence]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.confidenceAfter = Number(btn.dataset.confidence);
-        root.querySelectorAll("[data-confidence]").forEach((c) => {
+        scope.querySelectorAll("[data-confidence]").forEach((c) => {
           c.classList.toggle(
             "is-active",
             Number(c.dataset.confidence) === state.confidenceAfter
           );
         });
-        afterChoiceChange(root);
+        afterChoiceChange(scope);
       });
     });
 
-    const learned = root.querySelector("#reflectLearned");
+    const learned = scope.querySelector("#reflectLearned");
     learned?.addEventListener("input", () => {
       state.learnedToday = learned.value.slice(0, 200);
-      const count = root.querySelector("#reflectLearnedCount");
+      const count = scope.querySelector("#reflectLearnedCount");
       if (count) count.textContent = String(state.learnedToday.length);
     });
 
-    root.querySelector("#reflectSubmitBtn")?.addEventListener("click", submitReflect);
-    root.querySelector("#reflectBackBtn")?.addEventListener("click", () => {
+    scope.querySelector("#reflectSubmitBtn")?.addEventListener("click", submitReflect);
+    scope.querySelector("#reflectBackBtn")?.addEventListener("click", () => {
+      teardownAskModal();
       window.StudentRouter?.navigateToSection("today");
     });
   }
@@ -917,6 +974,7 @@
         return;
       }
       window.LogbuchReminders?.clearForEntry?.(state.entryId, "reflect");
+      teardownAskModal();
       if (typeof window.loadMe === "function") await window.loadMe();
       window.StudentRouter?.navigateToSection("today");
     } catch (err) {
@@ -947,6 +1005,7 @@
     state.activeStep = 1;
     state.missionSeen = false;
     state.disturbDone = false;
+    teardownAskModal();
 
     const root = document.getElementById("reflect-screen-root");
     if (root) root.innerHTML = `<div class="logbuch-loading">Lade Tagesabschluss…</div>`;

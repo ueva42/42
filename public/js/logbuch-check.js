@@ -242,14 +242,99 @@
       state.activeStep = 3;
       return;
     }
-    if (state.activeStep === 1 && step1Complete()) state.activeStep = 2;
-    else if (state.activeStep === 2 && step2Complete()) state.activeStep = 3;
+    if (state.activeStep >= 5 && !step4Complete()) {
+      state.activeStep = 4;
+      return;
+    }
+    if (state.activeStep === 2 && step2Complete()) state.activeStep = 3;
     else if (state.activeStep === 3 && step3Complete()) state.activeStep = 4;
   }
 
   function openStep(step) {
     state.activeStep = Number(step);
     render();
+  }
+
+  function continueRow(id, label, enabled = true) {
+    return `<div class="plan-acc__continue">
+      <button type="button" class="today-app-btn" id="${id}" ${enabled ? "" : "disabled"}>${label}</button>
+    </div>`;
+  }
+
+  function teardownAskModal() {
+    document.querySelectorAll("body > .plan-next-modal-backdrop").forEach((el) => el.remove());
+  }
+
+  function portalAskModal(root) {
+    teardownAskModal();
+    root?.querySelectorAll(".plan-next-modal-backdrop").forEach((modal) => {
+      document.body.appendChild(modal);
+    });
+  }
+
+  function askModalScope(root) {
+    return document.querySelector("body > .plan-next-modal-backdrop") || root;
+  }
+
+  function renderAskProgress(step, total = 4) {
+    const current = Math.min(step, total);
+    return `<div class="plan-ask__progress" role="navigation" aria-label="Schritte">
+      ${Array.from({ length: total }, (_, i) => {
+        const n = i + 1;
+        const done = n < current || step > total;
+        const isCurrent = n === current && step <= total;
+        const locked = n > current;
+        return `<button type="button" class="plan-ask__dot${done ? " is-done" : ""}${isCurrent ? " is-current" : ""}" data-plan-open="${n}" ${locked ? "disabled" : ""} aria-label="Schritt ${n}"></button>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderStepPopup({ step, title, hint, body, showBack = true, total = 4 }) {
+    const ui = UI();
+    return `
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="${ui.escapeHtml(title)}">
+        <div class="plan-next-modal plan-next-modal--ask">
+          ${renderAskProgress(step, total)}
+          <p class="plan-next-modal__kicker">Schritt ${step} von ${total}</p>
+          <h3 class="plan-next-modal__title">${ui.escapeHtml(title)}</h3>
+          ${hint ? `<p class="plan-next-modal__text">${hint}</p>` : ""}
+          ${state.errorMsg ? `<p class="plan-next-modal__text" style="color:#fca5a5">${ui.escapeHtml(state.errorMsg)}</p>` : ""}
+          <div class="plan-ask__body">${body}</div>
+          <div class="plan-next-modal__actions">
+            ${
+              showBack
+                ? `<button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="checkAskBack">Zurück</button>`
+                : `<button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="checkBackBtn">Abbrechen</button>`
+            }
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderSavePopup(ui) {
+    return `
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Mein Check">
+        <div class="plan-next-modal plan-next-modal--ask">
+          ${renderAskProgress(5, 4)}
+          <p class="plan-next-modal__kicker">Bereit</p>
+          <h3 class="plan-next-modal__title">Mein Check</h3>
+          <p class="plan-next-modal__text">Prüfe kurz, dann speichern – danach geht’s zurück zu Mein Tag.</p>
+          <div id="checkSummaryCard">${renderCheckSummary(ui)}</div>
+          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
+          <div class="plan-next-modal__actions">
+            <button type="button" class="btn-primary logbuch-submit today-app-btn" id="checkSubmitBtn" ${
+              state.submitting || !allQuestionsAnswered() ? "disabled" : ""
+            }>${
+              state.submitting
+                ? "Speichern…"
+                : state.existingCheck?.canEdit
+                  ? "Zwischen-Check speichern"
+                  : "Zwischen-Check speichern · +3 XP"
+            }</button>
+            <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="checkAskBack">Zurück</button>
+          </div>
+        </div>
+      </div>`;
   }
 
   function renderAccordionStep(step, title, summary, bodyHtml, opts = {}) {
@@ -593,7 +678,7 @@
     state.selectedStrategyProblem = check.selected_strategy_problem || null;
     state.selectedStrategyNextStep = check.selected_strategy_next_step || null;
     state.missionSeen = true;
-    if (allQuestionsAnswered()) state.activeStep = 4;
+    if (allQuestionsAnswered()) state.activeStep = 5;
     else syncActiveStep();
     return true;
   }
@@ -638,6 +723,7 @@
   }
 
   function renderReadOnly() {
+    teardownAskModal();
     const root = document.getElementById("check-screen-root");
     if (!root) return;
     const ui = UI();
@@ -657,6 +743,7 @@
   }
 
   function renderMissing() {
+    teardownAskModal();
     const root = document.getElementById("check-screen-root");
     if (!root) return;
     const ui = UI();
@@ -684,7 +771,9 @@
     const box = root.querySelector("#checkSummaryCard");
     if (box) box.innerHTML = renderCheckSummary(UI());
     const submitBtn = root.querySelector("#checkSubmitBtn");
-    if (submitBtn) submitBtn.disabled = state.submitting;
+    if (submitBtn) submitBtn.disabled = state.submitting || !allQuestionsAnswered();
+    const nextBtn = root.querySelector("#checkNextContinue");
+    if (nextBtn) nextBtn.disabled = !step4Complete();
     const tactic = root.querySelector(".check-strategy-block");
     if (tactic) tactic.classList.toggle("check-strategy-block--urgent", needsTaktikHighlight());
   }
@@ -727,6 +816,7 @@
     }
 
     if (state.needsMidCheck === false && !state.existingCheck) {
+      teardownAskModal();
       const rootSkip = document.getElementById("check-screen-root");
       if (!rootSkip) return;
       const uiSkip = UI();
@@ -765,18 +855,11 @@
             )
             .join("");
 
-    const s1 = step1Complete();
-    const s2 = step2Complete();
-    const s3 = step3Complete();
-    const s4 = step4Complete();
-
     const missionBody = `
       ${renderMissionCard(ui, e)}
       ${
         missionFactsComplete(e)
-          ? `<div class="plan-acc__continue">
-        <button type="button" class="today-app-btn" id="checkMissionContinue">Weiter zum Check</button>
-      </div>`
+          ? continueRow("checkMissionContinue", "Weiter zum Check")
           : ""
       }`;
 
@@ -793,110 +876,78 @@
         <p class="way-to-goal__intro">Was mache ich jetzt?</p>
         ${tileGrid(NEXT_TILES, state.nextStepAnswer, "data-next-step")}
         ${renderStrategyBlock(ui)}
+        ${continueRow("checkNextContinue", "Weiter", step4Complete())}
       </div>`;
 
+    const stepPopup = state.activeStep >= 5
+      ? renderSavePopup(ui)
+      : state.activeStep === 1
+        ? renderStepPopup({
+            step: 1,
+            title: "Heute geplant",
+            hint: "Kurz ansehen, dann weiter.",
+            body: missionBody,
+            showBack: false
+          })
+        : state.activeStep === 2
+          ? renderStepPopup({
+              step: 2,
+              title: "Bin ich auf dem richtigen Weg?",
+              hint: "Eine Karte wählen.",
+              body: tileGrid(ON_TRACK_TILES, state.onTrack, "data-on-track")
+            })
+          : state.activeStep === 3
+            ? renderStepPopup({
+                step: 3,
+                title: "Kurzer Lern-Check",
+                hint: "Verständnis und Vorankommen.",
+                body: learnBody
+              })
+            : renderStepPopup({
+                step: 4,
+                title: "Mein nächster Schritt",
+                hint: "Was machst du jetzt?",
+                body: nextBody
+              });
+
     root.innerHTML = `
-      <div class="plan-app check-app plan-app--accordion">
+      <div class="plan-app check-app plan-app--ask">
         ${renderHero(ui, e, dateIso)}
-        ${renderDailyGoalCard(ui, e)}
         ${
           state.existingCheck?.canEdit
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest deinen Zwischen-Check – beim Speichern gibt es kein zusätzliches XP.</div>`
             : ""
         }
-        <div class="plan-acc-stack">
-          ${renderAccordionStep(1, "Heute geplant", ui.escapeHtml(missionSummaryLine(e)), missionBody, {
-            done: s1,
-            canOpen: true,
-            hint: "Kurz ansehen, dann weiter"
-          })}
-          ${renderAccordionStep(
-            2,
-            "Bin ich auf dem richtigen Weg?",
-            ui.escapeHtml(shortLabel(ON_TRACK_TILES, state.onTrack)),
-            tileGrid(ON_TRACK_TILES, state.onTrack, "data-on-track"),
-            {
-              done: s2,
-              canOpen: s1 || state.activeStep === 2,
-              hint: "Eine Karte wählen"
-            }
-          )}
-          ${renderAccordionStep(
-            3,
-            "Kurzer Lern-Check",
-            ui.escapeHtml(
-              [shortLabel(UNDERSTAND_TILES, state.understands), shortLabel(PROGRESS_TILES, state.progress)]
-                .filter((x) => x && x !== "–")
-                .join(" · ") || "Noch offen"
-            ),
-            learnBody,
-            {
-              done: s3,
-              canOpen: s2 || state.activeStep === 3,
-              hint: "Verständnis und Vorankommen"
-            }
-          )}
-          ${renderAccordionStep(
-            4,
-            "Mein nächster Schritt",
-            ui.escapeHtml(
-              shortLabel(NEXT_TILES, state.nextStepAnswer) !== "–"
-                ? shortLabel(NEXT_TILES, state.nextStepAnswer)
-                : "Noch offen"
-            ),
-            nextBody,
-            {
-              done: s4,
-              canOpen: s3 || state.activeStep === 4,
-              hint: "Was machst du jetzt?"
-            }
-          )}
-        </div>
+      </div>
+      ${stepPopup}`;
 
-        <article class="goal-step-card goal-step-card--wide plan-mission-live ${
-          s2 || s3 || s4 ? "is-ready" : ""
-        }">
-          <header class="goal-step-card__head">
-            <span class="goal-step-card__step">★</span>
-            <h3 class="goal-step-card__title">Mein Check</h3>
-          </header>
-          <div id="checkSummaryCard">${renderCheckSummary(ui)}</div>
-          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
-          <div class="plan-app-footer">
-            ${ui.btnPrimary(
-              state.submitting
-                ? "Speichern…"
-                : state.existingCheck?.canEdit
-                  ? "Zwischen-Check speichern"
-                  : "Zwischen-Check speichern · +3 XP",
-              "checkSubmitBtn",
-              state.submitting,
-              "logbuch-submit-full today-app-btn"
-            )}
-            ${ui.btnGhost("Abbrechen", "checkBackBtn", "today-app-btn today-app-btn--ghost")}
-          </div>
-        </article>
-      </div>`;
-
+    portalAskModal(root);
     bindHandlers(root);
     renderStrategyModal();
   }
 
   function bindHandlers(root) {
-    bindTiles(root);
+    const scope = askModalScope(root);
+    bindTiles(scope);
 
-    root.querySelectorAll("[data-plan-open]").forEach((btn) => {
+    scope.querySelectorAll("[data-plan-open]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const step = Number(btn.dataset.planOpen);
         if (!step) return;
-        if (step === 2 && !step1Complete() && state.activeStep !== 2) return;
-        if (step === 3 && !step2Complete() && state.activeStep !== 3) return;
-        if (step === 4 && !step3Complete() && state.activeStep !== 4) return;
+        if (step >= 2 && !step1Complete() && state.activeStep !== step) return;
+        if (step >= 3 && !step2Complete() && state.activeStep !== step) return;
+        if (step >= 4 && !step3Complete() && state.activeStep !== step) return;
+        if (step >= 5 && !step4Complete() && state.activeStep !== step) return;
         openStep(step);
       });
     });
 
-    root.querySelector("#checkMissionFactNext")?.addEventListener("click", () => {
+    scope.querySelector("#checkAskBack")?.addEventListener("click", () => {
+      state.activeStep = Math.max(1, Number(state.activeStep) - 1);
+      render();
+    });
+
+    scope.querySelector("#checkMissionFactNext")?.addEventListener("click", () => {
       const facts = missionFacts(state.entry || {});
       state.missionFactIndex = Math.min(
         (Number(state.missionFactIndex) || 0) + 1,
@@ -905,16 +956,23 @@
       render();
     });
 
-    root.querySelector("#checkMissionContinue")?.addEventListener("click", () => {
+    scope.querySelector("#checkMissionContinue")?.addEventListener("click", () => {
       state.missionSeen = true;
-      syncActiveStep();
+      state.activeStep = 2;
       render();
     });
 
-    root.querySelector("#strategyOpenBtn")?.addEventListener("click", openStrategyModal);
-    root.querySelector("#checkSubmitBtn")?.addEventListener("click", submitCheck);
-    root.querySelector("#checkBackBtn")?.addEventListener("click", () => {
+    scope.querySelector("#checkNextContinue")?.addEventListener("click", () => {
+      if (!step4Complete()) return;
+      state.activeStep = 5;
+      render();
+    });
+
+    scope.querySelector("#strategyOpenBtn")?.addEventListener("click", openStrategyModal);
+    scope.querySelector("#checkSubmitBtn")?.addEventListener("click", submitCheck);
+    scope.querySelector("#checkBackBtn")?.addEventListener("click", () => {
       closeStrategyModal();
+      teardownAskModal();
       window.StudentRouter?.navigateToSection("today");
     });
   }
@@ -984,6 +1042,7 @@
         return;
       }
       closeStrategyModal();
+      teardownAskModal();
       window.LogbuchReminders?.clearForEntry?.(state.entryId, "check");
       if (typeof window.loadMe === "function") await window.loadMe();
       window.StudentRouter?.navigateToSection("today");
@@ -1018,6 +1077,7 @@
     state.missionSeen = false;
     state.missionFactIndex = 0;
     closeStrategyModal();
+    teardownAskModal();
 
     const root = document.getElementById("check-screen-root");
     if (root) root.innerHTML = `<div class="logbuch-loading">Lade Zwischen-Check…</div>`;

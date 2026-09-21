@@ -1806,6 +1806,9 @@
           ? ` · ${data.levelcheckPercent} % gespeichert`
           : "";
       state.message = `${label} gespeichert${unlockMsg}${buildXpMessage(data.xpDetails)}`;
+      if (Number(data.xpAwarded) > 0 && typeof window.loadMe === "function") {
+        await window.loadMe();
+      }
       // Unlock-Status für alle Themen neu laden
       await loadData(initGeneration);
     } catch (err) {
