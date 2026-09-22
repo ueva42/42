@@ -417,8 +417,7 @@
   }
 
   function renderPracticeDial(goal) {
-    if (isLevelcheckLinkedGoal(goal.id)) return "";
-    if (!hasQuizMaterial(goal)) return "";
+    if (!isLevelcheckLinkedGoal(goal.id)) return "";
     const pct = practicePercentOf(goal);
     const shown = pct == null ? 0 : pct;
     const passed = pct != null && pct >= passPercent();
@@ -432,11 +431,11 @@
             max="100"
             step="1"
             value="${shown}"
-            aria-label="Lernnachweis in Prozent"
+            aria-label="Ergebnis Levelcheck in Prozent"
           />
           <strong class="lp-practice-slider__value" data-lp-practice-value>${pct == null ? "–" : `${pct} %`}</strong>
         </div>
-        <p class="lp-practice-caption">Lernnachweis</p>
+        <p class="lp-practice-caption">Ergebnis Levelcheck</p>
       </div>`;
   }
 
@@ -818,13 +817,12 @@
       ? `<p class="lp-table-hint lp-table-hint--plan">Nach deinem Tagesziel: trage hier ein, was <strong>in Arbeit</strong> ist und was schon <strong>sicher</strong> läuft.</p>`
       : "";
     const lcHint = linked.size
-      ? `<p class="lp-table-hint lp-table-hint--lc">Gelb markiert: Ziele im Levelcheck (${linked.size}). Ergebnis trägst du am Regler darüber ein.</p>`
+      ? `<p class="lp-table-hint lp-table-hint--lc">Gelb markiert: Ziele im Levelcheck (${linked.size}). Der Ergebnis-Regler erscheint nur bei diesen Zielen.</p>`
       : "";
 
     return `
       <div class="lp-content">
         ${planHint}
-        ${renderLevelcheckResult(thema)}
         ${lcHint}
         <p class="lp-table-hint">Tippe auf eine Zelle unter Rookie, Operator oder Street Legend – dann wählst du <strong>Offen</strong>, <strong>In Arbeit</strong> oder <strong>Sicher</strong>.</p>
         <div class="lp-content__desktop">${renderDesktopTable(goals)}</div>
