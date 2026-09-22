@@ -247,10 +247,37 @@
 
   function linkedGoalIdsForThema(themaId) {
     const ids = new Set();
-    for (const lc of levelchecksForThema(themaId)) {
+    for (const lc of levelcheckRecordsForThema(themaId)) {
       for (const id of lc.linkedGoalIds || []) ids.add(String(id));
     }
     return ids;
+  }
+
+  function levelcheckRecordsForThema(themaId) {
+    const scheduled = levelchecksForThema(themaId);
+    if (scheduled.length) return scheduled;
+    const thema = selectedThema();
+    if (!thema || String(thema.id) !== String(themaId)) return [];
+    const cp = thema.target?.levelcheckCheckpoint;
+    if (!cp) return [];
+    const pct = thema.target?.levelcheckPercent;
+    const linked = Array.isArray(cp.linkedGoalIds) ? cp.linkedGoalIds.map(String) : [];
+    return [
+      {
+        id: cp.id || thema.id,
+        levelCheckId: thema.id,
+        topicName: thema.name,
+        date: cp.date || "",
+        dateLabel: cp.dateLabel || "",
+        linkedGoalIds: linked,
+        linkedGoalLabels: [],
+        isPast: false,
+        isUpcoming: true,
+        levelcheckPercent: Number.isInteger(Number(pct)) ? Number(pct) : null,
+        levelcheckPassed: !!thema.target?.levelcheckPassed,
+        unlockThreshold: passPercent()
+      }
+    ];
   }
 
   function isLevelcheckLinkedGoal(goalId) {
@@ -427,10 +454,7 @@
         body = `<span class="lp-material-hint">${escapeHtml(parts.join(" · "))}</span>`;
       }
     }
-    const lcNote = isLevelcheckLinkedGoal(goal.id)
-      ? `<p class="lp-practice-caption">Levelcheck – Ergebnis nur am Regler oben</p>`
-      : "";
-    return `<div class="lp-material-cell">${body}${renderPracticeDial(goal)}${lcNote}</div>`;
+    return `<div class="lp-material-cell">${body}${renderPracticeDial(goal)}</div>`;
   }
 
   function renderStatusButton(goal, tier) {
@@ -597,61 +621,50 @@
       </div>`;
   }
 
-  function renderLevelcheckBanner(thema) {
-    const checks = levelchecksForThema(thema?.id);
+  function renderLevelcheckResult(thema) {
+    const checks = levelcheckRecordsForThema(thema?.id);
     if (!checks.length) return "";
 
     const cards = checks
       .map((lc) => {
         const threshold = lc.unlockThreshold || passPercent();
         const pct = lc.levelcheckPercent;
-        const linkedCount = (lc.linkedGoalIds || []).length;
-        const goalsText = (lc.linkedGoalLabels || []).slice(0, 3).join(" · ");
-        const status =
-          pct == null
-            ? lc.isPast
-              ? "Ergebnis eintragen"
-              : "Vorbereiten"
-            : lc.levelcheckPassed
-              ? `Bestanden (${pct} %)`
-              : `${pct} % · unter ${threshold} %`;
-
+        const shown = pct == null ? 0 : pct;
+        const passed = pct != null && pct >= threshold;
+        const names = (lc.linkedGoalLabels || []).filter(Boolean);
+        const count = (lc.linkedGoalIds || []).length;
+        const meta = names.length
+          ? names.slice(0, 3).join(" · ") + (names.length > 3 ? " …" : "")
+          : count
+            ? `${count} geprüfte Ziele`
+            : "ohne Note";
         return `
-        <article class="lp-lc-card ${lc.isPast ? "is-past" : "is-upcoming"} ${lc.levelcheckPassed ? "is-pass" : ""}" data-lp-lc-id="${escapeHtml(lc.id)}">
-          <div class="lp-lc-card__top">
-            <span class="lp-lc-card__badge">Levelcheck</span>
-            <span class="lp-lc-card__date">${escapeHtml(lc.dateLabel || lc.date)}</span>
+        <article class="lp-lc-result ${passed ? "is-pass" : ""}" data-lp-lc-result data-topic-id="${escapeHtml(lc.levelCheckId)}" data-threshold="${threshold}">
+          <div class="lp-lc-result__copy">
+            <p class="lp-lc-result__kicker">Levelcheck${lc.dateLabel ? ` · ${escapeHtml(lc.dateLabel)}` : ""}</p>
+            <h3 class="lp-lc-result__title">Ergebnis Levelcheck</h3>
+            <p class="lp-lc-result__meta">${escapeHtml(meta)}</p>
           </div>
-          <p class="lp-lc-card__title">${escapeHtml(lc.topicName)}</p>
-          <p class="lp-lc-card__meta">${linkedCount} geprüfte Ziel(e)${goalsText ? ` · ${escapeHtml(goalsText)}${(lc.linkedGoalLabels || []).length > 3 ? " …" : ""}` : ""}</p>
-          <p class="lp-lc-card__status">${escapeHtml(status)}</p>
-          <div class="lp-lc-dial-wrap" data-lp-lc-dial data-topic-id="${escapeHtml(lc.levelCheckId)}" data-threshold="${threshold}" data-pct="${pct == null ? 70 : pct}">
-            <div class="lc-dial ${pct != null && pct >= threshold ? "is-pass" : ""} is-editable" data-lc-dial data-topic-id="${escapeHtml(lc.levelCheckId)}" data-threshold="${threshold}" style="--pct:${pct == null ? 70 : pct}; --threshold:${threshold}; --accent:${pct != null && pct >= threshold ? "#22c55e" : "#22d3ee"}" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct == null ? 70 : pct}" tabindex="0">
-              <div class="lc-dial__ring" aria-hidden="true"></div>
-              <div class="lc-dial__threshold" aria-hidden="true"></div>
-              <div class="lc-dial__knob" aria-hidden="true"></div>
-              <div class="lc-dial__center"><strong data-lc-dial-value>${pct == null ? 70 : pct} %</strong><span>richtig</span></div>
+          <div class="lp-practice-slider ${passed ? "is-pass" : ""}">
+            <div class="lp-practice-slider__row">
+              <input
+                type="range"
+                class="lp-practice-range lp-lc-result__range"
+                min="0"
+                max="100"
+                step="1"
+                value="${shown}"
+                aria-label="Ergebnis Levelcheck in Prozent"
+              />
+              <strong class="lp-practice-slider__value" data-lp-lc-result-value>${pct == null ? "–" : `${pct} %`}</strong>
             </div>
-            <input type="range" class="lc-dial__range" min="0" max="100" step="1" value="${pct == null ? 70 : pct}" aria-label="Levelcheck Prozent" />
-            <button type="button" class="zielpfad-btn" data-lp-save-lc-percent data-topic-id="${escapeHtml(lc.levelCheckId)}">${pct == null ? "Ergebnis speichern" : "Ergebnis aktualisieren"}</button>
-            ${
-              lc.isUpcoming && pct == null
-                ? `<p class="lp-lc-card__hint">Ein Regler für alle geprüften Ziele. Nach dem Termin hier die % eintragen.</p>`
-                : ""
-            }
+            <p class="lp-practice-caption">richtig</p>
           </div>
         </article>`;
       })
       .join("");
 
-    return `
-      <section class="lp-lc-banner" aria-label="Levelchecks">
-        <div class="lp-lc-banner__head">
-          <h3>Levelcheck</h3>
-          <p>Für die gelb markierten Ziele gilt nur dieser eine Regler – kein eigener Lernnachweis.</p>
-        </div>
-        <div class="lp-lc-grid">${cards}</div>
-      </section>`;
+    return `<section class="lp-lc-result-list" aria-label="Ergebnis Levelcheck">${cards}</section>`;
   }
 
   function renderTargetRings(thema, p) {
@@ -708,37 +721,7 @@
   function renderOverview() {
     const thema = selectedThema();
     if (!thema) return "";
-
-    const p = computeTopicProgress(thema);
-    const when = thema.target?.checkpointDateLabel || "";
-    const kind = thema.target?.checkpointTypeLabel || "Klassenarbeit / Test";
-    const targetLine = p.hasTarget
-      ? `Zielnote ${escapeHtml(p.targetGradeLabel)} · ${escapeHtml(kind)}${when ? ` · ${escapeHtml(when)}` : ""}`
-      : `${escapeHtml(kind)}${when ? ` · ${escapeHtml(when)}` : ""} – Zielnote unter Ziele festlegen.`;
-
-    const nextItem = (thema.target?.workItems || []).find(
-      (item) => item.status !== "sicher" && item.status !== "geschafft"
-    );
-    const nextLine = nextItem
-      ? `Als Nächstes: ${escapeHtml(nextItem.tierLabel)} · ${escapeHtml(nextItem.taskText || nextItem.goalText)}`
-      : p.hasTarget
-        ? "Mindestweg für diese Zielnote ist geschafft."
-        : "";
-
-    return `
-      ${renderLevelcheckBanner(thema)}
-      <section class="lp-dash" aria-label="Lernstand Überblick">
-        <article class="lp-dash__featured">
-          <div class="lp-dash__featured-copy">
-            <p class="lp-dash__featured-eyebrow">${escapeHtml(state.selectedSubject || "")} · geplante Arbeit</p>
-            <h3 class="lp-dash__featured-title">${escapeHtml(thema.name)}</h3>
-            <p class="lp-dash__featured-sub">${p.goalCount} Unterthemen in diesem Thema</p>
-            <p class="lp-dash__featured-meta">${targetLine}</p>
-            ${nextLine ? `<p class="lp-dash__featured-meta">${nextLine}</p>` : ""}
-          </div>
-        </article>
-        ${renderTargetRings(thema, p)}
-      </section>`;
+    return renderTargetRings(thema, computeTopicProgress(thema));
   }
 
   function renderFilters() {
@@ -835,14 +818,15 @@
       ? `<p class="lp-table-hint lp-table-hint--plan">Nach deinem Tagesziel: trage hier ein, was <strong>in Arbeit</strong> ist und was schon <strong>sicher</strong> läuft.</p>`
       : "";
     const lcHint = linked.size
-      ? `<p class="lp-table-hint lp-table-hint--lc">Gelb markiert: Ziele im Levelcheck (${linked.size}) – dafür nur der eine Regler oben.</p>`
+      ? `<p class="lp-table-hint lp-table-hint--lc">Gelb markiert: Ziele im Levelcheck (${linked.size}). Ergebnis trägst du am Regler darüber ein.</p>`
       : "";
 
     return `
       <div class="lp-content">
         ${planHint}
-        <p class="lp-table-hint">Tippe auf eine Zelle unter Rookie, Operator oder Street Legend – dann wählst du <strong>Offen</strong>, <strong>In Arbeit</strong> oder <strong>Sicher</strong>.</p>
+        ${renderLevelcheckResult(thema)}
         ${lcHint}
+        <p class="lp-table-hint">Tippe auf eine Zelle unter Rookie, Operator oder Street Legend – dann wählst du <strong>Offen</strong>, <strong>In Arbeit</strong> oder <strong>Sicher</strong>.</p>
         <div class="lp-content__desktop">${renderDesktopTable(goals)}</div>
         <div class="lp-content__mobile">${renderMobileCards(goals)}</div>
       </div>`;
@@ -977,75 +961,55 @@
       setTimeout(() => document.addEventListener("click", onDocClick), 0);
     }
 
-    bindLevelcheckDials(root);
+    bindLevelcheckResultSliders(root);
     bindPracticeDials(root);
   }
 
-  function syncLcDial(dial, pct) {
-    const threshold = Number(dial.dataset.threshold) || passPercent();
-    const passed = pct >= threshold;
-    dial.style.setProperty("--pct", String(pct));
-    dial.style.setProperty("--accent", passed ? "#22c55e" : "#22d3ee");
-    dial.classList.toggle("is-pass", passed);
-    dial.setAttribute("aria-valuenow", String(pct));
-    const valueEl = dial.querySelector("[data-lc-dial-value]");
-    if (valueEl) valueEl.textContent = `${pct} %`;
-    const wrap = dial.closest(".lp-lc-dial-wrap");
-    const range = wrap?.querySelector(".lc-dial__range");
-    if (range) range.value = String(pct);
+  const lcResultSaveTimers = {};
+
+  function applyLevelcheckPercentLocally(topicId, percent, passed) {
+    const id = String(topicId);
+    for (const lc of state.data?.scheduledLevelchecks || []) {
+      if (String(lc.levelCheckId) === id) {
+        lc.levelcheckPercent = percent;
+        if (passed != null) lc.levelcheckPassed = !!passed;
+      }
+    }
+    const thema = selectedThema();
+    if (thema?.target && String(thema.id) === id) {
+      thema.target.levelcheckPercent = percent;
+      if (passed != null) thema.target.levelcheckPassed = !!passed;
+    }
   }
 
-  function percentFromPointer(dial, clientX, clientY) {
-    const rect = dial.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const angle = Math.atan2(clientY - cy, clientX - cx);
-    let deg = ((angle + Math.PI / 2) * 180) / Math.PI;
-    if (deg < 0) deg += 360;
-    return Math.max(0, Math.min(100, Math.round(deg / 3.6)));
-  }
-
-  function bindLevelcheckDials(root) {
-    root.querySelectorAll("[data-lc-dial].is-editable").forEach((dial) => {
-      let dragging = false;
-      const setFromEvent = (e) => {
-        const point = e.touches ? e.touches[0] : e;
-        if (!point) return;
-        syncLcDial(dial, percentFromPointer(dial, point.clientX, point.clientY));
+  function bindLevelcheckResultSliders(root) {
+    root.querySelectorAll("[data-lp-lc-result]").forEach((card) => {
+      const topicId = card.dataset.topicId;
+      const range = card.querySelector(".lp-lc-result__range");
+      const valueEl = card.querySelector("[data-lp-lc-result-value]");
+      if (!topicId || !range) return;
+      const threshold = Number(card.dataset.threshold) || passPercent();
+      const paint = (pct) => {
+        const passed = pct >= threshold;
+        card.classList.toggle("is-pass", passed);
+        range.closest(".lp-practice-slider")?.classList.toggle("is-pass", passed);
+        if (valueEl) valueEl.textContent = `${pct} %`;
       };
-      dial.addEventListener("pointerdown", (e) => {
-        dragging = true;
-        dial.setPointerCapture?.(e.pointerId);
-        setFromEvent(e);
-        e.preventDefault();
-      });
-      dial.addEventListener("pointermove", (e) => {
-        if (!dragging) return;
-        setFromEvent(e);
-      });
-      dial.addEventListener("pointerup", () => {
-        dragging = false;
-      });
-      dial.addEventListener("pointercancel", () => {
-        dragging = false;
-      });
-    });
-
-    root.querySelectorAll(".lc-dial__range").forEach((range) => {
-      range.addEventListener("input", () => {
-        const dial = range.closest(".lp-lc-dial-wrap")?.querySelector("[data-lc-dial]");
-        if (dial) syncLcDial(dial, Number(range.value) || 0);
-      });
-    });
-
-    root.querySelectorAll("[data-lp-save-lc-percent]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const topicId = btn.dataset.topicId;
-        const dial = btn
-          .closest(".lp-lc-dial-wrap")
-          ?.querySelector(`[data-lc-dial][data-topic-id="${topicId}"]`);
-        const pct = Number(dial?.getAttribute("aria-valuenow") ?? 0);
+      const commit = () => {
+        const pct = Number(range.value);
+        if (!Number.isInteger(pct) || pct < 0 || pct > 100) return;
+        paint(pct);
         saveLevelcheckPercent(topicId, pct);
+      };
+      range.addEventListener("input", () => {
+        const pct = Number(range.value) || 0;
+        paint(pct);
+        clearTimeout(lcResultSaveTimers[topicId]);
+        lcResultSaveTimers[topicId] = setTimeout(commit, 400);
+      });
+      range.addEventListener("change", () => {
+        clearTimeout(lcResultSaveTimers[topicId]);
+        commit();
       });
     });
   }
@@ -1099,10 +1063,7 @@
   }
 
   async function saveLevelcheckPercent(topicId, percent) {
-    state.saving = `lc_${topicId}`;
-    state.error = "";
-    state.message = "";
-    render();
+    applyLevelcheckPercentLocally(topicId, percent);
     try {
       const res = await fetch("/api/student/zielsetzung", {
         method: "POST",
@@ -1110,19 +1071,16 @@
         body: JSON.stringify({ levelCheckId: topicId, levelcheckPercent: percent })
       });
       const data = await res.json();
-      state.saving = null;
       if (!data.success) {
         state.error = data.message || "Speichern fehlgeschlagen.";
-        render();
         return;
       }
-      state.message = `Levelcheck ${percent} % gespeichert`;
-      await loadData(initGeneration);
+      const stored =
+        data.levelcheckPercent != null ? Number(data.levelcheckPercent) : percent;
+      applyLevelcheckPercentLocally(topicId, stored, data.levelcheckPassed);
     } catch (err) {
       console.error(err);
-      state.saving = null;
       state.error = "Netzwerkfehler beim Speichern.";
-      render();
     }
   }
 
