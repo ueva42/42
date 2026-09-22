@@ -6795,9 +6795,41 @@ body.student-app .card.section > h2 {
   font-size: 15px !important;
 }
 
+.hw-remind-banner {
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  background: rgba(250, 204, 21, 0.08);
+  color: #fde68a;
+  font-size: 13px;
+}
+
+.hw-remind-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 14px;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.hw-remind-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #22d3ee;
+}
+
+.hw-remind-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
 .hw-tile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 10px;
   margin-top: 12px;
 }
@@ -6805,15 +6837,16 @@ body.student-app .card.section > h2 {
 .hw-tile {
   position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 132px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 108px;
   border-radius: 18px;
   border: 1px solid rgba(86, 147, 255, 0.28);
   background:
     radial-gradient(ellipse 80% 70% at 100% 0%, rgba(34, 211, 238, 0.12), transparent 55%),
     rgba(8, 16, 36, 0.92);
-  padding: 14px;
+  padding: 12px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
 }
 
@@ -6822,9 +6855,45 @@ body.student-app .card.section > h2 {
   border-color: rgba(34, 197, 94, 0.28);
 }
 
+.hw-tile__check {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  margin-top: 2px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 2px solid rgba(148, 163, 184, 0.45);
+  background: rgba(148, 163, 184, 0.08);
+  color: #4ade80;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.hw-tile__check.is-done {
+  border-color: rgba(74, 222, 128, 0.7);
+  background: rgba(34, 197, 94, 0.22);
+}
+
+.hw-tile__check:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.hw-tile__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .hw-tile__subject {
   margin: 0;
-  padding-right: 28px;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -6840,10 +6909,23 @@ body.student-app .card.section > h2 {
   color: #f8fafc;
 }
 
+.hw-tile--done .hw-tile__title {
+  text-decoration: line-through;
+  color: #cbd5e1;
+}
+
 .hw-tile__due {
   margin-top: auto;
   font-size: 12px;
   color: #94a3b8;
+}
+
+.hw-tile__tools {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .hw-tile__actions {
@@ -6857,6 +6939,19 @@ body.student-app .card.section > h2 {
   position: absolute;
   top: 8px;
   right: 8px;
+}
+
+.hw-btn-icon--remind {
+  font-size: 15px;
+}
+
+.hw-btn-icon--remind:hover {
+  color: #67e8f9;
+  background: rgba(8, 47, 73, 0.55);
+}
+
+.hw-btn-icon--remind.is-on {
+  color: #facc15;
 }
 
 .hw-modal-backdrop {
@@ -8091,6 +8186,10 @@ body.student-app .card.section > h2 {
 
 .reminder-toast--reflect {
   border-color: rgba(251, 146, 60, 0.4);
+}
+
+.reminder-toast--homework {
+  border-color: rgba(250, 204, 21, 0.45);
 }
 
 .reminder-toast__title {
@@ -12628,7 +12727,7 @@ h2 {
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=38"></script>
 <script src="/js/logbuch-visuals.js?v=16"></script>
-<script src="/js/logbuch-reminders.js?v=2"></script>
+<script src="/js/logbuch-reminders.js?v=3"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=12"></script>
 <script src="/js/logbuch-plan.js?v=28"></script>
@@ -12642,7 +12741,7 @@ h2 {
 <script src="/js/logbuch-zielsetzung.js?v=29"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=12"></script>
 <script src="/js/logbuch-materialschrank.js?v=8"></script>
-<script src="/js/logbuch-homework.js?v=2"></script>
+<script src="/js/logbuch-homework.js?v=3"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=22"></script>
 <script src="/js/logbuch-screens.js?v=9"></script>
 

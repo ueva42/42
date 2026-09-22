@@ -2291,43 +2291,41 @@ function mapHomeworkRow(row) {
     done: !!row.done,
     doneNote: row.done_note || null,
     doneAt: row.done_at || null,
+    remind: row.remind !== false,
     createdAt: row.created_at
   };
 }
 
-async function fetchHomeworkForDate(studentId, date) {
-  const today = todayIsoDate();
-  const includeOverdue = date === today;
+async function purgeExpiredHomework(studentId, asOfDate = todayIsoDate()) {
+  await pool.query(
+    `DELETE FROM student_homework WHERE user_id = $1 AND due_date < $2`,
+    [studentId, asOfDate]
+  );
+}
+
+const HOMEWORK_SELECT_COLS =
+  "id, subject, title, class_done_note, assigned_date, due_date, done, done_note, done_at, remind, created_at";
+
+async function fetchHomeworkForDate(studentId, date, asOfDate = todayIsoDate()) {
+  if (date === asOfDate) {
+    await purgeExpiredHomework(studentId, asOfDate);
+  }
 
   const r = await pool.query(
     `
-    SELECT id, subject, title, class_done_note, assigned_date, due_date, done, done_note, done_at, created_at
+    SELECT ${HOMEWORK_SELECT_COLS}
     FROM student_homework
     WHERE user_id = $1
-      AND (
-        due_date = $2
-        OR assigned_date = $2
-        OR ($3::boolean AND due_date < $2 AND done = false)
-      )
-    ORDER BY done ASC, due_date ASC, subject ASC, created_at ASC
+      AND due_date >= $2
+    ORDER BY due_date ASC, done ASC, subject ASC, created_at ASC
   `,
-    [studentId, date, includeOverdue]
+    [studentId, asOfDate]
   );
-  const rows = r.rows.map(mapHomeworkRow);
-  const due = rows.filter(
-    (h) => h.dueDate === date || (includeOverdue && !h.done && h.dueDate < date)
-  );
-  // dedupe by id
-  const dueIds = new Set();
-  const dueUnique = [];
-  for (const h of due) {
-    if (dueIds.has(h.id)) continue;
-    dueIds.add(h.id);
-    dueUnique.push(h);
-  }
+  const items = r.rows.map(mapHomeworkRow);
   return {
-    due: dueUnique,
-    assigned: rows.filter((h) => h.assignedDate === date)
+    items,
+    due: items.filter((h) => h.dueDate === date),
+    assigned: items.filter((h) => h.assignedDate === date)
   };
 }
 
@@ -3766,6 +3764,7 @@ async function migrate() {
   `);
 
   await ensureColumn("student_homework", "class_done_note", "TEXT");
+  await ensureColumn("student_homework", "remind", "BOOLEAN NOT NULL DEFAULT TRUE");
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_student_homework_user_due
@@ -5683,6 +5682,8 @@ app.get("/api/student/log/week", isStudent, async (req, res) => {
       [studentId, weekStart]
     );
 
+    const asOf = await resolveSchoolDate(req, todayIsoDate());
+    await purgeExpiredHomework(studentId, asOf || todayIsoDate());
     const hwRes = await pool.query(
       `
       SELECT
@@ -5983,7 +5984,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     };
 
     const timetableSubjects = timetableSubjectsFromRows(timetable);
-    const homework = await fetchHomeworkForDate(studentId, date);
+    const homework = await fetchHomeworkForDate(studentId, date, demoToday);
 
     let targetHintsBySubject = {};
     if (classId) {
@@ -6112,6 +6113,7 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
     const dueDate =
       normalizeIsoDate(req.body.dueDate) || nextSchoolDayIso(assignedDate);
     const dueAllowed = allowedDueDates.includes(dueDate);
+    const remind = req.body.remind === false ? false : true;
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
       return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
@@ -6135,11 +6137,11 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
     const ins = await pool.query(
       `
       INSERT INTO student_homework
-        (school_id, user_id, subject, title, class_done_note, assigned_date, due_date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, subject, title, class_done_note, assigned_date, due_date, done, done_note, done_at, created_at
+        (school_id, user_id, subject, title, class_done_note, assigned_date, due_date, remind)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING ${HOMEWORK_SELECT_COLS}
     `,
-      [schoolId, studentId, subject, title.slice(0, 300), classDoneNote, assignedDate, dueDate]
+      [schoolId, studentId, subject, title.slice(0, 300), classDoneNote, assignedDate, dueDate, remind]
     );
 
     res.json({ success: true, homework: mapHomeworkRow(ins.rows[0]) });
@@ -6156,43 +6158,39 @@ app.patch("/api/student/homework/:id", isStudent, async (req, res) => {
     if (!id) return res.json({ success: false, message: "ID fehlt." });
 
     const existing = await pool.query(
-      `SELECT id, due_date, done FROM student_homework WHERE id = $1 AND user_id = $2`,
+      `SELECT id, due_date, done, remind, done_note FROM student_homework WHERE id = $1 AND user_id = $2`,
       [id, studentId]
     );
     if (!existing.rows.length) {
       return res.json({ success: false, message: "Hausaufgabe nicht gefunden." });
     }
 
-    const done = req.body.done === true || req.body.done === false ? !!req.body.done : null;
-    if (done === null) {
+    const hasDone = Object.prototype.hasOwnProperty.call(req.body, "done");
+    const hasRemind = Object.prototype.hasOwnProperty.call(req.body, "remind");
+    if (!hasDone && !hasRemind) {
       return res.json({ success: false, message: "Kein Update übergeben." });
     }
 
-    const dueDate = normalizeIsoDate(existing.rows[0].due_date);
-    if (done && dueDate && dueDate > todayIsoDate()) {
-      return res.json({
-        success: false,
-        message: "Erledigen geht ab dem Fälligkeitstag."
-      });
+    const row = existing.rows[0];
+    const done = hasDone ? !!req.body.done : !!row.done;
+    const remind = hasRemind ? !!req.body.remind : row.remind !== false;
+    let doneNote = row.done_note || null;
+    if (hasDone && done && req.body.doneNote != null) {
+      doneNote = String(req.body.doneNote).trim().slice(0, 400) || null;
     }
-
-    const doneNote =
-      done && req.body.doneNote != null
-        ? String(req.body.doneNote).trim().slice(0, 400) || null
-        : done
-          ? null
-          : null;
+    if (!done) doneNote = null;
 
     const upd = await pool.query(
       `
       UPDATE student_homework
       SET done = $1,
           done_note = CASE WHEN $1 THEN $2 ELSE NULL END,
-          done_at = CASE WHEN $1 THEN NOW() ELSE NULL END
-      WHERE id = $3 AND user_id = $4
-      RETURNING id, subject, title, class_done_note, assigned_date, due_date, done, done_note, done_at, created_at
+          done_at = CASE WHEN $1 THEN COALESCE(done_at, NOW()) ELSE NULL END,
+          remind = $3
+      WHERE id = $4 AND user_id = $5
+      RETURNING ${HOMEWORK_SELECT_COLS}
     `,
-      [done, doneNote, id, studentId]
+      [done, doneNote, remind, id, studentId]
     );
 
     res.json({ success: true, homework: mapHomeworkRow(upd.rows[0]) });

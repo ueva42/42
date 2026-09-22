@@ -18,8 +18,7 @@
     hwBusy: false,
     hwMessage: "",
     hwError: "",
-    hwCompletingId: null,
-    hwNoteDraft: ""
+    hwRemind: true
   };
 
   function todayIso() {
@@ -105,6 +104,7 @@
     state.hwDueDate = next;
     state.hwTitle = "";
     state.hwClassDone = "";
+    state.hwRemind = true;
     state.hwError = "";
     state.hwMessage = "";
     render();
@@ -117,66 +117,88 @@
     render();
   }
 
-  function renderDueTile(hw, editable) {
-    const ui = UI();
-    const isCompleting = state.hwCompletingId === String(hw.id);
-    const overdue = !hw.done && hw.dueDate && hw.dueDate < todayIso();
-    const overdueTag = overdue ? `<span class="hw-item__overdue">überfällig</span>` : "";
-
-    if (hw.done) {
-      return `
-        <article class="hw-tile hw-tile--done">
-          <p class="hw-tile__subject">${ui.escapeHtml(hw.subject)} ${overdueTag}</p>
-          <h4 class="hw-tile__title">${ui.escapeHtml(hw.title)}</h4>
-          ${homeworkClassNoteHtml(hw, ui)}
-          ${hw.doneNote ? `<p class="hw-item__note">${ui.escapeHtml(hw.doneNote)}</p>` : ""}
-          <p class="hw-tile__due">Erledigt</p>
-        </article>`;
-    }
-
-    return `
-      <article class="hw-tile ${isCompleting ? "is-editing" : ""}">
-        <p class="hw-tile__subject">${ui.escapeHtml(hw.subject)} ${overdueTag}</p>
-        <h4 class="hw-tile__title">${ui.escapeHtml(hw.title)}</h4>
-        ${homeworkClassNoteHtml(hw, ui)}
-        <p class="hw-tile__due">Fällig ${ui.escapeHtml(formatDueHint(hw.dueDate))}</p>
-        ${
-          editable
-            ? `<div class="hw-tile__actions">
-                <button type="button" class="today-app-btn today-app-btn--ghost hw-btn" data-hw-complete="${ui.escapeHtml(hw.id)}">Erledigt</button>
-                <button type="button" class="hw-btn-icon" data-hw-delete="${ui.escapeHtml(hw.id)}" aria-label="Löschen" title="Löschen">×</button>
-              </div>
-              ${
-                isCompleting
-                  ? `<div class="hw-complete-form">
-                      <label class="hw-label" for="hwNote_${ui.escapeHtml(hw.id)}">Kurz dokumentieren (optional)</label>
-                      <input id="hwNote_${ui.escapeHtml(hw.id)}" class="hw-input" type="text" maxlength="400" placeholder="z. B. Aufgaben 1–4 erledigt" value="${ui.escapeHtml(state.hwNoteDraft)}" data-hw-note-input>
-                      <div class="hw-complete-actions">
-                        <button type="button" class="today-app-btn" data-hw-confirm="${ui.escapeHtml(hw.id)}" ${state.hwBusy ? "disabled" : ""}>${state.hwBusy ? "Speichern…" : "Abhaken"}</button>
-                        <button type="button" class="today-app-btn today-app-btn--ghost" data-hw-cancel>Abbrechen</button>
-                      </div>
-                    </div>`
-                  : ""
-              }`
-            : ""
-        }
-      </article>`;
+  function allHomeworkItems() {
+    const hw = state.data?.homework;
+    const raw =
+      Array.isArray(hw?.items) && hw.items.length
+        ? hw.items
+        : [...(hw?.due || []), ...(hw?.assigned || [])];
+    const seen = new Set();
+    return raw
+      .filter((h) => {
+        const id = String(h?.id || "");
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      })
+      .sort((a, b) => {
+        const due = String(a.dueDate || "").localeCompare(String(b.dueDate || ""));
+        if (due) return due;
+        return Number(!!a.done) - Number(!!b.done);
+      });
   }
 
-  function renderAssignedTile(hw, editable) {
+  function groupedByDueDate(items) {
+    const groups = [];
+    const map = new Map();
+    for (const h of items) {
+      const key = h.dueDate || "";
+      if (!map.has(key)) {
+        const g = { dueDate: key, items: [] };
+        map.set(key, g);
+        groups.push(g);
+      }
+      map.get(key).items.push(h);
+    }
+    return groups;
+  }
+
+  function dueRowTitle(iso) {
+    if (!iso) return "Ohne Datum";
+    if (iso === todayIso()) return "Heute";
+    const next = state.data?.nextSchoolDay;
+    if (next && iso === next) return "Morgen";
+    const d = new Date(`${iso}T12:00:00`);
+    return d.toLocaleDateString("de-DE", {
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit"
+    });
+  }
+
+  function renderTile(hw, editable) {
     const ui = UI();
+    const id = ui.escapeHtml(hw.id);
+    const remindOn = hw.remind !== false && !hw.done;
     return `
       <article class="hw-tile ${hw.done ? "hw-tile--done" : ""}">
-        <p class="hw-tile__subject">${ui.escapeHtml(hw.subject)}</p>
-        <h4 class="hw-tile__title">${ui.escapeHtml(hw.title)}</h4>
-        ${homeworkClassNoteHtml(hw, ui)}
-        <p class="hw-tile__due">Bis ${ui.escapeHtml(formatDueHint(hw.dueDate))}</p>
         ${
-          !hw.done && editable
-            ? `<button type="button" class="hw-btn-icon hw-tile__delete" data-hw-delete="${ui.escapeHtml(hw.id)}" aria-label="Löschen" title="Löschen">×</button>`
-            : hw.done
-              ? `<span class="hw-item__done-tag">✓</span>`
-              : ""
+          editable
+            ? `<button type="button" class="hw-tile__check ${hw.done ? "is-done" : ""}" data-hw-toggle="${id}" data-done="${hw.done ? "1" : "0"}" aria-pressed="${hw.done ? "true" : "false"}" aria-label="${hw.done ? "Wieder öffnen" : "Als erledigt markieren"}" ${state.hwBusy ? "disabled" : ""}>${hw.done ? "✓" : ""}</button>`
+            : `<span class="hw-tile__check ${hw.done ? "is-done" : ""}" aria-hidden="true">${hw.done ? "✓" : ""}</span>`
+        }
+        <div class="hw-tile__body">
+          <p class="hw-tile__subject">${ui.escapeHtml(hw.subject)}</p>
+          <h4 class="hw-tile__title">${ui.escapeHtml(hw.title)}</h4>
+          ${homeworkClassNoteHtml(hw, ui)}
+          ${hw.done && hw.doneNote ? `<p class="hw-item__note">${ui.escapeHtml(hw.doneNote)}</p>` : ""}
+          <p class="hw-tile__due">${hw.done ? "Erledigt" : `Bis ${ui.escapeHtml(formatDueHint(hw.dueDate))}`}</p>
+        </div>
+        ${
+          editable
+            ? `<div class="hw-tile__tools">
+                ${
+                  hw.done
+                    ? ""
+                    : `<button type="button" class="hw-btn-icon hw-btn-icon--remind ${remindOn ? "is-on" : ""}" data-hw-remind="${id}" data-remind="${hw.remind !== false ? "1" : "0"}" aria-pressed="${hw.remind !== false ? "true" : "false"}" aria-label="${hw.remind !== false ? "Erinnerung aus" : "Erinnerung an"}" title="${hw.remind !== false ? "Erinnerung an" : "Erinnerung aus"}">🔔</button>`
+                }
+                ${
+                  hw.done
+                    ? ""
+                    : `<button type="button" class="hw-btn-icon" data-hw-delete="${id}" aria-label="Löschen" title="Löschen">×</button>`
+                }
+              </div>`
+            : ""
         }
       </article>`;
   }
@@ -227,6 +249,11 @@
             <label class="hw-label" for="hwClassDoneInput">Im Unterricht erledigt <span class="hw-optional">optional</span></label>
             <input id="hwClassDoneInput" class="hw-input" type="text" maxlength="300" placeholder="z. B. Nr. 1–2 schon gemacht" value="${ui.escapeHtml(state.hwClassDone)}" autocomplete="off">
           </div>
+          <label class="hw-remind-toggle">
+            <input id="hwRemindInput" type="checkbox" ${state.hwRemind ? "checked" : ""}>
+            Erinnern, wenn sie fällig ist
+          </label>
+          <p class="hw-remind-hint">Die Erinnerung erscheint in der App, solange sie geöffnet ist.</p>
         </div>`;
     }
 
@@ -263,38 +290,9 @@
 
   function renderHomeworkPanel(editable) {
     const ui = UI();
-    const hw = state.data?.homework || { due: [], assigned: [] };
-    const due = hw.due || [];
-    const dueIds = new Set(due.map((h) => String(h.id)));
-    const assigned = (hw.assigned || []).filter((h) => !dueIds.has(String(h.id)));
-    const openDue = due.filter((h) => !h.done);
-
-    const dueSection =
-      due.length > 0
-        ? `
-      <div class="hw-block">
-        <div class="hw-block__head">
-          <h3 class="hw-block__title">Heute fällig</h3>
-          <p class="hw-block__sub">${openDue.length ? `${openDue.length} offen` : "Alles erledigt ✓"}</p>
-        </div>
-        <div class="hw-tile-grid">${due.map((h) => renderDueTile(h, editable)).join("")}</div>
-      </div>`
-        : `
-      <div class="hw-block hw-block--empty">
-        <h3 class="hw-block__title">Heute fällig</h3>
-        <p class="hw-block__hint">${editable ? "Nichts fällig – wenn du etwas mitnimmst, setze es unten." : "Keine fälligen Hausaufgaben."}</p>
-      </div>`;
-
-    const plannedSection = assigned.length
-      ? `
-      <div class="hw-block">
-        <div class="hw-block__head">
-          <h3 class="hw-block__title">Gesetzt</h3>
-          <p class="hw-block__sub">${assigned.length} ${assigned.length === 1 ? "Kachel" : "Kacheln"}</p>
-        </div>
-        <div class="hw-tile-grid">${assigned.map((h) => renderAssignedTile(h, editable)).join("")}</div>
-      </div>`
-      : "";
+    const items = allHomeworkItems();
+    const groups = groupedByDueDate(items);
+    const openToday = items.filter((h) => !h.done && h.dueDate === todayIso());
 
     const addSection = editable
       ? `
@@ -305,11 +303,36 @@
       </div>`
       : "";
 
+    const banner =
+      openToday.length && editable
+        ? `<p class="hw-remind-banner">${openToday.length === 1 ? "1 Hausaufgabe ist heute fällig." : `${openToday.length} Hausaufgaben sind heute fällig.`} Tippe den Kreis an, wenn du fertig bist.</p>`
+        : "";
+
+    const rows = groups.length
+      ? groups
+          .map((g) => {
+            const open = g.items.filter((h) => !h.done).length;
+            return `
+        <div class="hw-block">
+          <div class="hw-block__head">
+            <h3 class="hw-block__title">${ui.escapeHtml(dueRowTitle(g.dueDate))}</h3>
+            <p class="hw-block__sub">${open ? `${open} offen` : "Alles erledigt ✓"}</p>
+          </div>
+          <div class="hw-tile-grid">${g.items.map((h) => renderTile(h, editable)).join("")}</div>
+        </div>`;
+          })
+          .join("")
+      : `
+      <div class="hw-block hw-block--empty">
+        <h3 class="hw-block__title">Keine Hausaufgaben</h3>
+        <p class="hw-block__hint">${editable ? "Wenn du etwas mitnimmst, setze es oben. Die Kacheln stehen dann nach Fälligkeit untereinander." : "Keine offenen Hausaufgaben."}</p>
+      </div>`;
+
     return `
       <section class="hw-panel" aria-label="Hausaufgaben">
-        ${dueSection}
         ${addSection}
-        ${plannedSection}
+        ${banner}
+        ${rows}
       </section>
       ${renderModal()}`;
   }
@@ -381,27 +404,22 @@
     root.querySelector("#hwClassDoneInput")?.addEventListener("input", (e) => {
       state.hwClassDone = e.target.value;
     });
+    root.querySelector("#hwRemindInput")?.addEventListener("change", (e) => {
+      state.hwRemind = !!e.target.checked;
+    });
     root.querySelector("#hwAddBtn")?.addEventListener("click", () => addHomework());
 
-    root.querySelectorAll("[data-hw-complete]").forEach((btn) => {
+    root.querySelectorAll("[data-hw-toggle]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        state.hwCompletingId = btn.dataset.hwComplete;
-        state.hwNoteDraft = "";
-        state.hwError = "";
-        state.hwMessage = "";
-        render();
+        const done = btn.dataset.done === "1";
+        toggleHomework(btn.dataset.hwToggle, !done);
       });
     });
-    root.querySelector("[data-hw-note-input]")?.addEventListener("input", (e) => {
-      state.hwNoteDraft = e.target.value;
-    });
-    root.querySelector("[data-hw-cancel]")?.addEventListener("click", () => {
-      state.hwCompletingId = null;
-      state.hwNoteDraft = "";
-      render();
-    });
-    root.querySelectorAll("[data-hw-confirm]").forEach((btn) => {
-      btn.addEventListener("click", () => completeHomework(btn.dataset.hwConfirm));
+    root.querySelectorAll("[data-hw-remind]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const on = btn.dataset.remind === "1";
+        toggleRemind(btn.dataset.hwRemind, !on);
+      });
     });
     root.querySelectorAll("[data-hw-delete]").forEach((btn) => {
       btn.addEventListener("click", () => deleteHomework(btn.dataset.hwDelete));
@@ -440,7 +458,8 @@
           title,
           classDoneNote: classDoneNote || null,
           assignedDate: state.date,
-          dueDate
+          dueDate,
+          remind: state.hwRemind !== false
         })
       });
       const data = await res.json();
@@ -454,6 +473,7 @@
       state.modalStep = 0;
       state.hwTitle = "";
       state.hwClassDone = "";
+      state.hwRemind = true;
       state.hwMessage = "Gesetzt – du siehst sie als Kachel.";
       await loadDay();
     } catch (err) {
@@ -464,7 +484,37 @@
     }
   }
 
-  async function completeHomework(id) {
+  async function toggleHomework(id, done) {
+    if (state.hwBusy || !id) return;
+    state.hwBusy = true;
+    state.hwError = "";
+    state.hwMessage = "";
+    render();
+    try {
+      const res = await fetch(`/api/student/homework/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ done: !!done })
+      });
+      const data = await res.json();
+      state.hwBusy = false;
+      if (!data.success) {
+        state.hwError = data.message || "Aktualisieren fehlgeschlagen.";
+        render();
+        return;
+      }
+      state.hwMessage = done ? "Erledigt." : "Wieder geöffnet.";
+      await loadDay();
+    } catch (err) {
+      console.error(err);
+      state.hwBusy = false;
+      state.hwError = "Netzwerkfehler.";
+      render();
+    }
+  }
+
+  async function toggleRemind(id, remind) {
+    if (state.hwBusy || !id) return;
     state.hwBusy = true;
     state.hwError = "";
     render();
@@ -472,21 +522,16 @@
       const res = await fetch(`/api/student/homework/${encodeURIComponent(id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          done: true,
-          doneNote: state.hwNoteDraft || null
-        })
+        body: JSON.stringify({ remind: !!remind })
       });
       const data = await res.json();
       state.hwBusy = false;
       if (!data.success) {
-        state.hwError = data.message || "Abhaken fehlgeschlagen.";
+        state.hwError = data.message || "Erinnerung konnte nicht geändert werden.";
         render();
         return;
       }
-      state.hwCompletingId = null;
-      state.hwNoteDraft = "";
-      state.hwMessage = "Erledigt – dokumentiert.";
+      state.hwMessage = remind ? "Erinnerung an." : "Erinnerung aus.";
       await loadDay();
     } catch (err) {
       console.error(err);
@@ -536,6 +581,7 @@
       state.data = await res.json();
       state.loading = false;
       render();
+      window.LogbuchReminders?.notifyHomework?.(allHomeworkItems());
     } catch (err) {
       console.error(err);
       state.loading = false;
@@ -548,8 +594,7 @@
     state.data = null;
     state.modalOpen = false;
     state.modalStep = 0;
-    state.hwCompletingId = null;
-    state.hwNoteDraft = "";
+    state.hwRemind = true;
     state.hwMessage = "";
     state.hwError = "";
     loadDay();

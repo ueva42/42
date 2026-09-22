@@ -147,7 +147,9 @@ window.LogbuchReminders = (function () {
         const href =
           r.type === "check"
             ? `/student/check?entryId=${encodeURIComponent(r.entryId)}`
-            : `/student/reflect?entryId=${encodeURIComponent(r.entryId)}`;
+            : r.type === "homework"
+              ? "/student/hausaufgaben"
+              : `/student/reflect?entryId=${encodeURIComponent(r.entryId)}`;
         return `
         <button type="button" class="notif-item notif-item--reminder" data-reminder-nav="${href}">
           <div class="notif-item__title">${escapeHtml(r.title)}</div>
@@ -167,10 +169,15 @@ window.LogbuchReminders = (function () {
     wrap.querySelectorAll("[data-reminder-nav]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const url = new URL(btn.dataset.reminderNav, location.origin);
-        const section = url.pathname.includes("/check") ? "check" : "reflect";
-        window.StudentRouter?.navigateToSection(section, {
-          query: new URLSearchParams({ entryId })
-        });
+        let section = "today";
+        if (url.pathname.includes("/hausaufgaben")) section = "hausaufgaben";
+        else if (url.pathname.includes("/check")) section = "check";
+        else if (url.pathname.includes("/reflect")) section = "reflect";
+        const query = url.searchParams;
+        window.StudentRouter?.navigateToSection(
+          section,
+          query.toString() ? { query } : {}
+        );
         document.getElementById("notifPanel")?.classList.remove("open");
       });
     });
@@ -202,30 +209,40 @@ window.LogbuchReminders = (function () {
     const el = document.createElement("article");
     el.id = id;
     el.className = `reminder-toast reminder-toast--${type}`;
+    const goLabel =
+      type === "check"
+        ? "Jetzt checken"
+        : type === "homework"
+          ? "Zu den Hausaufgaben"
+          : "Jetzt abschließen";
     el.innerHTML = `
       <div class="reminder-toast__copy">
         <p class="reminder-toast__title">${escapeHtml(title)}</p>
         <p class="reminder-toast__text">${escapeHtml(text)}</p>
       </div>
       <div class="reminder-toast__actions">
-        <button type="button" class="today-app-btn" data-action="go">Jetzt ${type === "check" ? "checken" : "abschließen"}</button>
+        <button type="button" class="today-app-btn" data-action="go">${escapeHtml(goLabel)}</button>
         <button type="button" class="today-app-btn today-app-btn--ghost" data-action="snooze">In 5 Minuten erinnern</button>
         <button type="button" class="reminder-toast__close" data-action="close" aria-label="Schließen">×</button>
       </div>`;
     root.appendChild(el);
 
     el.querySelector('[data-action="go"]')?.addEventListener("click", () => {
-      const section = type === "check" ? "check" : "reflect";
-      window.StudentRouter?.navigateToSection(section, {
-        query: new URLSearchParams({ entryId })
-      });
+      if (type === "homework") {
+        window.StudentRouter?.navigateToSection("hausaufgaben");
+      } else {
+        const section = type === "check" ? "check" : "reflect";
+        window.StudentRouter?.navigateToSection(section, {
+          query: new URLSearchParams({ entryId })
+        });
+      }
       hideToast(entryId, type);
     });
     el.querySelector('[data-action="snooze"]')?.addEventListener("click", () => {
       snooze(entryId, type, 5);
     });
     el.querySelector('[data-action="close"]')?.addEventListener("click", () => {
-      markFired(entryId, type, { dismissed: true });
+      markFired(entryId, type, { dismissed: true, firedDay: todayIso() });
       hideToast(entryId, type);
     });
 
@@ -237,6 +254,14 @@ window.LogbuchReminders = (function () {
       text: text || subject || "",
       time: new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
     });
+
+    if (type === "homework" && "Notification" in window && Notification.permission === "granted") {
+      try {
+        new Notification(title, { body: text, tag: `sol-${entryId}` });
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   function maybeShowOptIn() {
@@ -275,15 +300,86 @@ window.LogbuchReminders = (function () {
     });
   }
 
-  async function fetchTodayBlocks() {
+  async function fetchTodayPayload() {
     try {
       const res = await fetch(`/api/student/log/today?date=${encodeURIComponent(todayIso())}`);
-      if (!res.ok) return [];
+      if (!res.ok) return { blocks: [], homework: [] };
       const data = await res.json();
-      return Array.isArray(data.blocks) ? data.blocks : [];
+      const hw = data.homework;
+      const raw =
+        Array.isArray(hw?.items) && hw.items.length
+          ? hw.items
+          : [...(hw?.due || []), ...(hw?.assigned || [])];
+      const seen = new Set();
+      const homework = raw.filter((h) => {
+        const id = String(h?.id || "");
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+      return { blocks: Array.isArray(data.blocks) ? data.blocks : [], homework };
     } catch {
-      return [];
+      return { blocks: [], homework: [] };
     }
+  }
+
+  function nextWeekdayIso(fromIso) {
+    const d = new Date(`${fromIso}T12:00:00`);
+    for (let i = 0; i < 8; i++) {
+      d.setDate(d.getDate() + 1);
+      const day = d.getDay();
+      if (day >= 1 && day <= 5) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${dd}`;
+      }
+    }
+    return "";
+  }
+
+  function homeworkSummary(items) {
+    if (!items.length) return "";
+    if (items.length === 1) return `${items[0].subject}: ${items[0].title}`;
+    const names = items.slice(0, 3).map((h) => h.subject);
+    const extra = items.length > 3 ? ` +${items.length - 3}` : "";
+    return `${items.length} offen · ${names.join(", ")}${extra}`;
+  }
+
+  function maybeFireHomeworkGroup(kind, items, title) {
+    const entryId = `hw-${kind}`;
+    if (!items.length) {
+      clearForEntry(entryId, "homework");
+      return;
+    }
+    const store = loadStore();
+    const reminder = store[reminderKey(entryId, "homework")] || {};
+    if (reminder.snoozeUntil && Date.now() < reminder.snoozeUntil) return;
+    if (reminder.firedAt && reminder.firedDay === todayIso()) return;
+    markFired(entryId, "homework", { firedDay: todayIso() });
+    showToast({
+      entryId,
+      type: "homework",
+      title,
+      text: homeworkSummary(items)
+    });
+  }
+
+  function notifyHomework(items) {
+    const list = Array.isArray(items) ? items : [];
+    const today = todayIso();
+    const tomorrow = nextWeekdayIso(today);
+    const open = list.filter((h) => !h.done && h.remind !== false);
+    maybeFireHomeworkGroup(
+      "today",
+      open.filter((h) => h.dueDate === today),
+      "Hausaufgabe heute fällig"
+    );
+    maybeFireHomeworkGroup(
+      "tomorrow",
+      open.filter((h) => h.dueDate === tomorrow),
+      "Hausaufgabe morgen fällig"
+    );
   }
 
   function normalizeBlocks(raw) {
@@ -324,7 +420,8 @@ window.LogbuchReminders = (function () {
   }
 
   async function tick() {
-    const blocks = normalizeBlocks(await fetchTodayBlocks());
+    const payload = await fetchTodayPayload();
+    const blocks = normalizeBlocks(payload.blocks);
     const now = minutesNowBerlin();
     const store = loadStore();
 
@@ -390,6 +487,7 @@ window.LogbuchReminders = (function () {
       }
     });
 
+    notifyHomework(payload.homework);
     maybeShowOptIn();
     mergeBellIntoNotifPanel();
   }
@@ -421,6 +519,7 @@ window.LogbuchReminders = (function () {
     checkReminderOffset,
     reflectReminderOffset,
     mergeBellIntoNotifPanel,
+    notifyHomework,
     /** Web Push ist NICHT implementiert – nur In-App. */
     webPushReady: false
   };
