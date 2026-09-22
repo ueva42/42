@@ -15,7 +15,7 @@
   let initGeneration = 0;
   let loadRequestId = 0;
 
-  async function fetchJson(url, options = {}, retries = 3) {
+  async function fetchJson(url, options = {}, retries = 1) {
     let lastErr = null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -23,7 +23,7 @@
         const res = await fetch(url, { credentials: "same-origin", ...options });
         if (!res.ok) {
           const err = new Error(`HTTP ${res.status}`);
-          if (attempt < retries && (res.status === 403 || res.status >= 500)) {
+          if (attempt < retries && res.status >= 500) {
             await new Promise((r) => setTimeout(r, 350));
             continue;
           }

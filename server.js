@@ -2432,6 +2432,9 @@ app.use(bodyParser.urlencoded({ extended: true, limit: "2mb" }));
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: Number(process.env.PG_POOL_MAX) || 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 8000,
   ssl:
     process.env.DATABASE_URL &&
     !process.env.DATABASE_URL.includes("localhost")
@@ -4631,21 +4634,24 @@ function denyAccess(req, res) {
 }
 
 function isAdmin(req, res, next) {
+  const sessionUser = req.session?.user;
+  if (!sessionUser?.id || sessionUser.role !== "admin") {
+    return denyAccess(req, res);
+  }
+  if (sessionUser.school_id != null) {
+    return next();
+  }
   (async () => {
     try {
-      const sessionUser = req.session?.user;
-      if (!sessionUser?.id) return denyAccess(req, res);
-      try {
-        const refreshed = await refreshSessionUserFromDb(req);
-        const liveUser = refreshed.user;
-        if (liveUser) {
-          if (liveUser.role !== "admin") return denyAccess(req, res);
-        } else if (sessionUser.role !== "admin") {
-          return denyAccess(req, res);
+      const refreshed = await refreshSessionUserFromDb(req);
+      const liveUser = refreshed.user;
+      if (!liveUser || liveUser.role !== "admin") return denyAccess(req, res);
+      if (refreshed.changed) {
+        try {
+          await saveSession(req);
+        } catch (err) {
+          console.error("❌ isAdmin save:", err);
         }
-      } catch (err) {
-        console.error("❌ isAdmin refresh:", err);
-        if (sessionUser.role !== "admin") return denyAccess(req, res);
       }
       next();
     } catch (err) {

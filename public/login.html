@@ -11,6 +11,7 @@
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <script src="/js/client-cache-reset.js?v=2"></script>
+  <script src="/js/auth-fetch.js?v=12"></script>
   <title>Streets of Logic – Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -549,9 +550,14 @@
     const demoStudentBtn = document.getElementById("demoStudentBtn");
 
     function markAuthed(role) {
+      if (window.SolAuth) {
+        window.SolAuth.set(role);
+        return;
+      }
       try {
-        if (role === "admin" || role === "student") {
+        if (role === "admin" || role === "student" || role === "superadmin") {
           sessionStorage.setItem("sol.authed", role);
+          localStorage.setItem("sol.authed", role);
         }
       } catch (_err) {}
     }

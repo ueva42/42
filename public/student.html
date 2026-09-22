@@ -12439,7 +12439,7 @@ h2 {
 
 <script src="/js/xp-burst.js?v=1"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=11"></script>
+<script src="/js/auth-fetch.js?v=12"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
@@ -12502,9 +12502,7 @@ function showSection(ev, name, options = {}) {
    LOGOUT
 ============================================ */
 async function logout() {
-  try {
-    sessionStorage.removeItem("sol.authed");
-  } catch (_err) {}
+  window.SolAuth?.clear();
   await fetch("/api/logout", { method: "POST" });
   location.href = "/login.html";
 }
@@ -13396,11 +13394,7 @@ window.refreshStatusSection = () => {
 window.refreshTodayStatus = window.refreshStatusSection;
 
 function rememberedStudent() {
-  try {
-    return sessionStorage.getItem("sol.authed") === "student";
-  } catch (_err) {
-    return false;
-  }
+  return window.SolAuth?.is("student") === true;
 }
 
 async function bootStudentApp() {
@@ -13409,7 +13403,7 @@ async function bootStudentApp() {
   window.__authBootstrap = true;
   try {
     let ready = false;
-    const attempts = rememberedStudent() ? 16 : 8;
+    const attempts = 4;
     for (let attempt = 0; attempt < attempts; attempt++) {
       const sessionRes = await fetch("/api/auth/session", {
         credentials: "same-origin",
@@ -13422,13 +13416,11 @@ async function bootStudentApp() {
           break;
         }
         if (data.authenticated && data.role && data.role !== "student") {
-          try {
-            sessionStorage.removeItem("sol.authed");
-          } catch (_err) {}
           window.location.href = "/login";
           return;
         }
       }
+      if (sessionRes.status === 401 && !rememberedStudent()) break;
       await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
     }
     if (!ready) {
@@ -13440,9 +13432,7 @@ async function bootStudentApp() {
       }
     }
 
-    try {
-      sessionStorage.setItem("sol.authed", "student");
-    } catch (_err) {}
+    window.SolAuth?.set("student");
     window.__studentBooted = true;
 
     if (window.StudentRouter) {

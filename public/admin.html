@@ -1911,10 +1911,10 @@
 
 <script src="/js/client-cache-reset.js?v=2"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=11"></script>
+<script src="/js/auth-fetch.js?v=12"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/teacher-dashboard.js?v=4"></script>
+<script src="/js/teacher-dashboard.js?v=5"></script>
 <script src="/js/teacher-timetable.js?v=4"></script>
 <script src="/js/teacher-lesson-goals.js?v=2"></script>
 <script src="/js/teacher-week.js"></script>
@@ -2120,7 +2120,7 @@ window.addEventListener("popstate", (e) => {
 /* ---------------------------- LOGOUT ---------------------------- */
 async function logout() {
   try {
-    sessionStorage.removeItem("sol.authed");
+    window.SolAuth?.clear();
   } catch (_err) {}
   await fetch("/api/logout", { method: "POST" });
   if (window.__purgeTeacherClientCaches) {
@@ -3480,135 +3480,92 @@ async function fixClassRewardOption(optionId) {
 }
 
 function rememberedAdmin() {
-  try {
-    return sessionStorage.getItem("sol.authed") === "admin";
-  } catch (_err) {
-    return false;
-  }
+  return window.SolAuth?.is("admin") === true;
+}
+
+function markAdminAuthed() {
+  window.SolAuth?.set("admin");
 }
 
 async function ensureAdminSessionReady() {
-  const attempts = rememberedAdmin() ? 16 : 10;
-  let sawAdmin = false;
+  const attempts = 4;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       const sessionRes = await fetch("/api/auth/session", {
         credentials: "same-origin",
         cache: "no-store"
       });
-      if (sessionRes.status === 401 || !sessionRes.ok) {
-        if (rememberedAdmin() || sessionRes.status !== 401) {
-          await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+      if (sessionRes.status === 401) {
+        if (rememberedAdmin() && attempt < attempts - 1) {
+          await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
           continue;
         }
         return false;
       }
-
-      const data = await sessionRes.json();
-      if (data.authenticated === false) {
-        if (rememberedAdmin()) {
-          await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
-          continue;
-        }
-        return false;
-      }
-      if (data.role && data.role !== "admin") return false;
-      if (data.role === "admin") sawAdmin = true;
-      if (data.ready === false) {
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+      if (!sessionRes.ok) {
+        await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
         continue;
       }
 
-      if (data.role === "admin") {
-        try {
-          const warm = await fetch("/api/class", {
-            credentials: "same-origin",
-            cache: "no-store"
-          });
-          if (warm.ok) {
-            const classes = await warm.json();
-            if (Array.isArray(classes)) return true;
-          }
-        } catch (_err) {}
-        return true;
+      const data = await sessionRes.json();
+      if (data.role && data.role !== "admin") return false;
+      if (data.authenticated === false) {
+        if (rememberedAdmin() && attempt < attempts - 1) {
+          await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+          continue;
+        }
+        return false;
       }
+      if (data.role === "admin" && data.ready !== false) return true;
     } catch (err) {
       console.error("ensureAdminSessionReady", err);
     }
-    await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+    await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
   }
-  return sawAdmin || rememberedAdmin();
+  return rememberedAdmin();
+}
+
+function startAdminShell() {
+  if (window.__adminBooted) return;
+  window.__adminBooted = true;
+  initNavSections();
+  initAdminRoute();
 }
 
 async function bootAdminApp() {
   if (window.__adminBooted || window.__adminBooting) return;
   window.__adminBooting = true;
   window.__authBootstrap = true;
+  const remembered = rememberedAdmin();
+  if (remembered) startAdminShell();
   try {
     const ready = await ensureAdminSessionReady();
     if (!ready) {
-      if (rememberedAdmin()) {
-        window.__adminBooted = true;
-        initNavSections();
-        initAdminRoute();
-        return;
-      }
+      if (remembered) return;
       window.location.href = "/login";
       return;
     }
-    try {
-      sessionStorage.setItem("sol.authed", "admin");
-    } catch (_err) {}
-    window.__adminBooted = true;
-    initNavSections();
-    initAdminRoute();
+    markAdminAuthed();
+    startAdminShell();
   } catch (err) {
     console.error(err);
-    try {
-      const sessionRes = await fetch("/api/auth/session", {
-        credentials: "same-origin",
-        cache: "no-store"
-      });
-      if (!sessionRes.ok) {
-        if (rememberedAdmin()) {
-          window.__adminBooted = true;
-          initNavSections();
-          initAdminRoute();
-          return;
-        }
-        window.location.href = "/login";
-        return;
-      }
-      const data = await sessionRes.json();
-      if (data.role !== "admin") {
-        window.location.href = "/login";
-        return;
-      }
-      try {
-        sessionStorage.setItem("sol.authed", "admin");
-      } catch (_err) {}
-      window.__adminBooted = true;
-      initNavSections();
-      initAdminRoute();
-    } catch (_) {
-      if (rememberedAdmin()) {
-        window.__adminBooted = true;
-        initNavSections();
-        initAdminRoute();
-        return;
-      }
-      window.location.href = "/login";
+    if (remembered) {
+      startAdminShell();
+      return;
     }
+    window.location.href = "/login";
   } finally {
     window.__authBootstrap = false;
     window.__adminBooting = false;
   }
 }
 
-window.addEventListener("pageshow", () => {
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted && window.__adminBooted) return;
   if (window.__adminBooted || window.__adminBooting) return;
   bootAdminApp();
 });
+if (!window.__adminBooted) bootAdminApp();
 </script>
 
 </body>
