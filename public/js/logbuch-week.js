@@ -19,8 +19,11 @@
     submitting: false,
     slideDir: null,
     errorMsg: "",
-    selectedDay: "all"
+    selectedDay: "all",
+    activeStep: 0
   };
+
+  const WEEK_ASK_TOTAL = 7;
 
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
@@ -653,6 +656,307 @@
       </article>`;
   }
 
+  function teardownAskModal() {
+    document.querySelectorAll("body > .plan-next-modal-backdrop").forEach((el) => el.remove());
+  }
+
+  function portalAskModal(root) {
+    teardownAskModal();
+    root?.querySelectorAll(".plan-next-modal-backdrop").forEach((modal) => {
+      document.body.appendChild(modal);
+    });
+  }
+
+  function askModalScope(root) {
+    return document.querySelector("body > .plan-next-modal-backdrop") || root;
+  }
+
+  function continueRow(id, label, enabled = true) {
+    return `<div class="plan-acc__continue">
+      <button type="button" class="today-app-btn" id="${id}" ${enabled ? "" : "disabled"}>${label}</button>
+    </div>`;
+  }
+
+  function renderAskProgress(step) {
+    const total = WEEK_ASK_TOTAL;
+    const current = Math.min(step, total);
+    return `<div class="plan-ask__progress" role="navigation" aria-label="Schritte">
+      ${Array.from({ length: total }, (_, i) => {
+        const n = i + 1;
+        const done = n < current || step > total;
+        const isCurrent = n === current && step <= total;
+        const locked = n > current;
+        return `<button type="button" class="plan-ask__dot${done ? " is-done" : ""}${isCurrent ? " is-current" : ""}" data-week-open="${n}" ${locked ? "disabled" : ""} aria-label="Schritt ${n}"></button>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderStepPopup({ step, title, hint, body, showBack = true }) {
+    const ui = UI();
+    return `
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="${ui.escapeHtml(title)}">
+        <div class="plan-next-modal plan-next-modal--ask">
+          ${renderAskProgress(step)}
+          <p class="plan-next-modal__kicker">Schritt ${step} von ${WEEK_ASK_TOTAL}</p>
+          <h3 class="plan-next-modal__title">${ui.escapeHtml(title)}</h3>
+          ${hint ? `<p class="plan-next-modal__text">${hint}</p>` : ""}
+          ${state.errorMsg ? `<p class="plan-next-modal__text" style="color:#fca5a5">${ui.escapeHtml(state.errorMsg)}</p>` : ""}
+          <div class="plan-ask__body">${body}</div>
+          <div class="plan-next-modal__actions">
+            ${
+              showBack
+                ? `<button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="weekAskBack">Zurück</button>`
+                : `<button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="weekAskCancel">Abbrechen</button>`
+            }
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderWeekSummary(ui) {
+    const d = state.data || {};
+    const helped = strategyHelpedLabel(state.weeklyStrategyHelpedAnswer, d.weekStrategyHelped);
+    return `
+      <div class="goal-step-card__stack">
+        <p class="week-readonly-text"><strong>Gelernt:</strong> ${ui.escapeHtml(state.weeklyLearnedText.trim() || "–")}</p>
+        <p class="week-readonly-text"><strong>Nächste Woche:</strong> ${ui.escapeHtml(state.nextWeekGoalText || state.nextWeekFocusGoalText || "–")}</p>
+        <p class="week-readonly-text"><strong>Strategie:</strong> ${ui.escapeHtml(state.weeklyHelpfulStrategy || "–")}${helped ? ` · ${ui.escapeHtml(helped)}` : ""}</p>
+        <p class="week-readonly-text"><strong>Wie:</strong> ${ui.escapeHtml(state.nextWeekHowGoalText || "–")}</p>
+      </div>`;
+  }
+
+  function renderSavePopup(ui) {
+    return `
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Wochenreflexion">
+        <div class="plan-next-modal plan-next-modal--ask">
+          ${renderAskProgress(WEEK_ASK_TOTAL + 1)}
+          <p class="plan-next-modal__kicker">Bereit</p>
+          <h3 class="plan-next-modal__title">Meine Woche</h3>
+          <p class="plan-next-modal__text">Prüfe kurz, dann speichern – danach bleibt die Übersicht stehen.</p>
+          <div id="weekSummaryCard">${renderWeekSummary(ui)}</div>
+          ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
+          <div class="plan-next-modal__actions">
+            <button type="button" class="btn-primary logbuch-submit today-app-btn" id="weekSubmitBtn" ${
+              state.submitting ? "disabled" : ""
+            }>${state.submitting ? "Speichern…" : "Wochenreflexion abschließen (+10 XP)"}</button>
+            <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="weekAskBack">Zurück</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderLearnedAsk(ui) {
+    return `
+      <div class="goal-step-card__stack">
+        ${ui.fieldWrap(
+          ui.fieldLabel("Deine Erkenntnis", { optional: true }),
+          `<textarea class="logbuch-input logbuch-input-area" id="weekLearnedText" rows="4" maxlength="500"
+            placeholder="Diese Woche habe ich gelernt, dass …">${ui.escapeHtml(state.weeklyLearnedText)}</textarea>
+           <div class="logbuch-char-count"><span id="weekLearnedCount">${state.weeklyLearnedText.length}</span>/500</div>`,
+          "",
+          { wide: true }
+        )}
+        ${continueRow("weekAskContinue", "Weiter")}
+      </div>`;
+  }
+
+  function renderOpenAsk(ui, openGoals) {
+    const V = window.LogbuchVisuals;
+    const chips =
+      openGoals?.length > 0
+        ? `<div class="open-goal-chips">${openGoals
+            .map((g) => `<span class="open-goal-chip">${ui.escapeHtml(g.openGoalLabel)}</span>`)
+            .join("")}</div>`
+        : `<p class="week-open-empty">Diese Woche ist kein Ziel offen geblieben.</p>`;
+    const options = (openGoals || []).map((g) => ({
+      value: String(g.entryId),
+      label: g.openGoalLabel
+    }));
+    if (!options.length) {
+      options.push({
+        value: "__new__",
+        label: "Ich starte nächste Woche mit einem neuen Ziel."
+      });
+    }
+    const active = state.nextWeekGoalId || options[0]?.value || null;
+    return `
+      <div class="goal-step-card__stack">
+        ${chips}
+        ${ui.fieldWrap(
+          ui.fieldLabel("Woran arbeite ich nächste Woche weiter?"),
+          V
+            ? V.choiceChipGroup(options, {
+                activeValue: active,
+                attrName: "data-next-week-goal"
+              })
+            : ""
+        )}
+        ${continueRow("weekAskContinue", "Weiter")}
+      </div>`;
+  }
+
+  function renderDistractionAsk(ui, items, levels) {
+    const V = window.LogbuchVisuals;
+    const chips = items
+      .map((item) => {
+        const levelOpts = levels.map((level) => ({ value: level, label: level }));
+        return `
+          <div class="reflection-chip reflection-chip--app" data-time-waster-item="${ui.escapeHtml(item)}">
+            <p class="reflection-chip__label">${ui.escapeHtml(item)}</p>
+            ${
+              V
+                ? V.choiceChipGroup(levelOpts, {
+                    activeValue: state.timeWasters[item],
+                    attrName: "data-time-waster-level"
+                  })
+                : ""
+            }
+          </div>`;
+      })
+      .join("");
+    return `
+      <div class="goal-step-card__stack">
+        <div class="reflection-chip-grid">${chips}</div>
+        ${continueRow("weekAskContinue", "Weiter")}
+      </div>`;
+  }
+
+  function renderStrategyAsk(ui, d) {
+    const V = window.LogbuchVisuals;
+    const usedHint =
+      d.usedStrategies?.length > 0
+        ? `<p class="week-strategy-hint">Diese Woche genutzt: ${ui.escapeHtml(d.usedStrategies.join(", "))}</p>`
+        : "";
+    const strategyTiles = (d.weekStrategies || []).map(strategyTileFromLabel);
+    return `
+      <div class="goal-step-card__stack">
+        ${usedHint}
+        ${V ? V.strategyTileGrid(strategyTiles, state.weeklyHelpfulStrategy, "data-week-strategy") : ""}
+        ${continueRow("weekAskContinue", "Weiter", !!state.weeklyHelpfulStrategy)}
+      </div>`;
+  }
+
+  function renderHelpedAsk(d) {
+    const V = window.LogbuchVisuals;
+    const helpedOpts = mapOptions(d.weekStrategyHelped || []);
+    return `
+      <div class="goal-step-card__stack">
+        ${
+          V
+            ? V.choiceChipGroup(helpedOpts, {
+                activeValue: state.weeklyStrategyHelpedAnswer,
+                attrName: "data-week-helped"
+              })
+            : ""
+        }
+        ${continueRow("weekAskContinue", "Weiter", !!state.weeklyStrategyHelpedAnswer)}
+      </div>`;
+  }
+
+  function renderFocusAsk(ui, d) {
+    const V = window.LogbuchVisuals;
+    const hasOpen = (d.openGoals || []).length > 0;
+    const focusActive =
+      state.nextWeekFocusGoalText ||
+      (state.nextWeekGoalId
+        ? d.openGoals.find((g) => String(g.entryId) === String(state.nextWeekGoalId))
+            ?.openGoalLabel
+        : d.openGoals[0]?.openGoalLabel);
+    const focusControl = hasOpen
+      ? V
+        ? V.strategyTileGrid(
+            (d.openGoals || []).map((g) => focusGoalTile(g.openGoalLabel)),
+            focusActive,
+            "data-week-focus"
+          )
+        : ""
+      : `<input type="text" class="logbuch-input" id="weekFocusGoalFree" maxlength="300"
+          placeholder="Mein wichtigstes Ziel für nächste Woche …"
+          value="${ui.escapeHtml(state.nextWeekFocusGoalText)}">`;
+    return `
+      <div class="goal-step-card__stack">
+        ${focusControl}
+        ${continueRow("weekAskContinue", "Weiter", !!(focusActive || state.nextWeekFocusGoalText))}
+      </div>`;
+  }
+
+  function renderHowAsk(d) {
+    const V = window.LogbuchVisuals;
+    const howGoals = howGoalsForSelectedEntry();
+    return `
+      <div class="goal-step-card__stack">
+        ${
+          V
+            ? V.strategyTileGrid(
+                howGoals.map(howGoalTileFromLabel),
+                state.nextWeekHowGoalText,
+                "data-week-how"
+              )
+            : ""
+        }
+        ${continueRow("weekAskContinue", "Weiter", !!state.nextWeekHowGoalText)}
+      </div>`;
+  }
+
+  function renderAskFlow(ui, d) {
+    if (state.activeStep >= WEEK_ASK_TOTAL + 1) return renderSavePopup(ui);
+    if (state.activeStep === 1) {
+      return renderStepPopup({
+        step: 1,
+        title: "Was habe ich diese Woche gelernt?",
+        hint: "Kurz notieren – oder leer lassen und weiter.",
+        body: renderLearnedAsk(ui),
+        showBack: false
+      });
+    }
+    if (state.activeStep === 2) {
+      return renderStepPopup({
+        step: 2,
+        title: "Was ist noch offen?",
+        hint: "Wähle, woran du nächste Woche weiterarbeitest.",
+        body: renderOpenAsk(ui, d.openGoals)
+      });
+    }
+    if (state.activeStep === 3) {
+      return renderStepPopup({
+        step: 3,
+        title: "Was hat mich beim Lernen gestört?",
+        hint: "Tippe, wie oft das diese Woche vorkam.",
+        body: renderDistractionAsk(ui, d.timeWasterItems, d.timeWasterLevels)
+      });
+    }
+    if (state.activeStep === 4) {
+      return renderStepPopup({
+        step: 4,
+        title: "Strategie der Woche",
+        hint: "Welche Strategie hat dir geholfen?",
+        body: renderStrategyAsk(ui, d)
+      });
+    }
+    if (state.activeStep === 5) {
+      return renderStepPopup({
+        step: 5,
+        title: "Hat sie geholfen?",
+        hint: "Eine Auswahl reicht.",
+        body: renderHelpedAsk(d)
+      });
+    }
+    if (state.activeStep === 6) {
+      return renderStepPopup({
+        step: 6,
+        title: "Mein wichtigstes Ziel",
+        hint: "Worum geht es nächste Woche zuerst?",
+        body: renderFocusAsk(ui, d)
+      });
+    }
+    return renderStepPopup({
+      step: 7,
+      title: "Wie arbeite ich daran?",
+      hint: "Eine Karte wählen.",
+      body: renderHowAsk(d)
+    });
+  }
+
   function render() {
     const root = document.getElementById("week-screen-root");
     if (!root) return;
@@ -685,31 +989,34 @@
                 <h3 class="section-block__title">Ziele der Woche</h3>
                 ${renderGoalCards(d.rows)}
               </div>
-              ${renderLearnedSection(ui, submitted)}
-              ${renderOpenGoalsSection(ui, d.openGoals, submitted)}
-              ${renderDistractionsSection(ui, d.timeWasterItems, d.timeWasterLevels, submitted)}
-              <div class="week-app-grid">
-                ${renderStrategySection(ui, d, submitted)}
-                ${renderPlanSection(ui, d, submitted)}
-              </div>
-
               ${
                 submitted
-                  ? `<div class="logbuch-msg logbuch-msg-info">Wochenreflexion abgeschlossen ✓</div>`
+                  ? `${renderLearnedSection(ui, true)}
+              ${renderOpenGoalsSection(ui, d.openGoals, true)}
+              ${renderDistractionsSection(ui, d.timeWasterItems, d.timeWasterLevels, true)}
+              <div class="week-app-grid">
+                ${renderStrategySection(ui, d, true)}
+                ${renderPlanSection(ui, d, true)}
+              </div>
+              <div class="logbuch-msg logbuch-msg-info">Wochenreflexion abgeschlossen ✓</div>`
                   : `
+              ${state.activeStep < 1 ? `
                 ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
                 ${ui.btnPrimary(
-                  state.submitting ? "Speichern…" : "Wochenreflexion abschließen (+10 XP)",
-                  "weekSubmitBtn",
-                  state.submitting,
+                  "Wochenreflexion starten",
+                  "weekStartAsk",
+                  false,
                   "logbuch-submit-full"
-                )}`
+                )}` : ""}`
               }
             </section>
           </div>
         </div>
-      </div>`;
+      </div>
+      ${!submitted && state.activeStep >= 1 ? renderAskFlow(ui, d) : ""}`;
 
+    if (submitted || state.activeStep < 1) teardownAskModal();
+    if (!submitted && state.activeStep >= 1) portalAskModal(root);
     bindHandlers(root);
 
     if (state.slideDir) {
@@ -740,7 +1047,27 @@
     }
   }
 
+  function syncLearnedFromDom(scope) {
+    const learned = scope?.querySelector("#weekLearnedText");
+    if (learned) state.weeklyLearnedText = learned.value.slice(0, 500);
+    const focusFree = scope?.querySelector("#weekFocusGoalFree");
+    if (focusFree) {
+      state.nextWeekFocusGoalText = focusFree.value.slice(0, 300);
+      state.nextWeekGoalText = state.nextWeekFocusGoalText;
+    }
+  }
+
+  function goWeekStep(step) {
+    const scope = document.querySelector("body > .plan-next-modal-backdrop");
+    syncLearnedFromDom(scope);
+    state.errorMsg = "";
+    state.activeStep = step;
+    render();
+  }
+
   function bindHandlers(root) {
+    const scope = askModalScope(root);
+
     root.querySelector('[data-dir="prev"]')?.addEventListener("click", () => navigateWeek(-1));
     root.querySelector('[data-dir="next"]')?.addEventListener("click", () => navigateWeek(1));
 
@@ -751,7 +1078,7 @@
       });
     });
 
-    root.querySelectorAll("[data-next-week-goal]").forEach((btn) => {
+    scope.querySelectorAll("[data-next-week-goal]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.nextWeekGoalId = btn.dataset.nextWeekGoal;
         syncNextWeekFromSelection();
@@ -759,7 +1086,7 @@
       });
     });
 
-    root.querySelectorAll("[data-time-waster-level]").forEach((btn) => {
+    scope.querySelectorAll("[data-time-waster-level]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const wrap = btn.closest("[data-time-waster-item]");
         const item = wrap?.dataset.timeWasterItem;
@@ -774,56 +1101,36 @@
       });
     });
 
-    root.querySelectorAll("[data-week-strategy]").forEach((btn) => {
+    scope.querySelectorAll("[data-week-strategy]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.weeklyHelpfulStrategy = btn.dataset.weekStrategy;
-        root.querySelectorAll("[data-week-strategy]").forEach((chip) => {
-          chip.classList.toggle(
-            "is-active",
-            chip.dataset.weekStrategy === state.weeklyHelpfulStrategy
-          );
-        });
+        goWeekStep(5);
       });
     });
 
-    root.querySelectorAll("[data-week-helped]").forEach((btn) => {
+    scope.querySelectorAll("[data-week-helped]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.weeklyStrategyHelpedAnswer = btn.dataset.weekHelped;
-        root.querySelectorAll("[data-week-helped]").forEach((chip) => {
-          chip.classList.toggle(
-            "is-active",
-            chip.dataset.weekHelped === state.weeklyStrategyHelpedAnswer
-          );
-        });
+        goWeekStep(6);
       });
     });
 
-    root.querySelectorAll("[data-week-focus]").forEach((btn) => {
+    scope.querySelectorAll("[data-week-focus]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.nextWeekFocusGoalText = btn.dataset.weekFocus;
         state.nextWeekGoalText = state.nextWeekFocusGoalText;
-        root.querySelectorAll("[data-week-focus]").forEach((chip) => {
-          chip.classList.toggle(
-            "is-active",
-            chip.dataset.weekFocus === state.nextWeekFocusGoalText
-          );
-        });
+        goWeekStep(7);
       });
     });
 
-    root.querySelectorAll("[data-week-how]").forEach((btn) => {
+    scope.querySelectorAll("[data-week-how]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.nextWeekHowGoalText = btn.dataset.weekHow;
-        root.querySelectorAll("[data-week-how]").forEach((chip) => {
-          chip.classList.toggle(
-            "is-active",
-            chip.dataset.weekHow === state.nextWeekHowGoalText
-          );
-        });
+        goWeekStep(WEEK_ASK_TOTAL + 1);
       });
     });
 
-    UI().bindSelects(root, state, (field) => {
+    UI().bindSelects(scope, state, (field) => {
       if (field === "nextWeekGoalId") {
         syncNextWeekFromSelection();
         render();
@@ -833,29 +1140,51 @@
       }
     });
 
-    root.querySelectorAll('[data-field="timeWaster"]').forEach((el) => {
-      el.addEventListener("change", () => {
-        state.timeWasters[el.dataset.item] = el.value || null;
-      });
-    });
-
-    const learned = root.querySelector("#weekLearnedText");
+    const learned = scope.querySelector("#weekLearnedText");
     learned?.addEventListener("input", () => {
       state.weeklyLearnedText = learned.value.slice(0, 500);
-      const count = root.querySelector("#weekLearnedCount");
+      const count = scope.querySelector("#weekLearnedCount");
       if (count) count.textContent = String(state.weeklyLearnedText.length);
     });
 
-    const focusFree = root.querySelector("#weekFocusGoalFree");
+    const focusFree = scope.querySelector("#weekFocusGoalFree");
     focusFree?.addEventListener("input", () => {
       state.nextWeekFocusGoalText = focusFree.value.slice(0, 300);
       state.nextWeekGoalText = state.nextWeekFocusGoalText;
+      const cont = scope.querySelector("#weekAskContinue");
+      if (cont) cont.disabled = !state.nextWeekFocusGoalText.trim();
     });
 
-    root.querySelector("#weekSubmitBtn")?.addEventListener("click", submitWeek);
+    root.querySelector("#weekStartAsk")?.addEventListener("click", () => goWeekStep(1));
+    scope.querySelector("#weekAskContinue")?.addEventListener("click", () => {
+      syncLearnedFromDom(scope);
+      if (state.activeStep === 4 && !state.weeklyHelpfulStrategy) return;
+      if (state.activeStep === 5 && !state.weeklyStrategyHelpedAnswer) return;
+      if (state.activeStep === 6 && !state.nextWeekFocusGoalText.trim()) return;
+      if (state.activeStep === 7 && !state.nextWeekHowGoalText) return;
+      goWeekStep(Math.min(WEEK_ASK_TOTAL + 1, state.activeStep + 1));
+    });
+    scope.querySelector("#weekAskBack")?.addEventListener("click", () => {
+      goWeekStep(Math.max(1, state.activeStep - 1));
+    });
+    scope.querySelector("#weekAskCancel")?.addEventListener("click", () => {
+      state.activeStep = 0;
+      state.errorMsg = "";
+      teardownAskModal();
+      render();
+    });
+    scope.querySelectorAll("[data-week-open]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const step = Number(btn.dataset.weekOpen);
+        if (!step || step > state.activeStep) return;
+        goWeekStep(step);
+      });
+    });
+
+    scope.querySelector("#weekSubmitBtn")?.addEventListener("click", submitWeek);
 
     const swipeArea = root.querySelector("#weekSwipeArea");
-    if (swipeArea && window.LogbuchSwipe) {
+    if (swipeArea && window.LogbuchSwipe && state.activeStep < 1) {
       window.LogbuchSwipe.attach(swipeArea, {
         onSwipeLeft: () => navigateWeek(1),
         onSwipeRight: () => navigateWeek(-1)
@@ -864,6 +1193,7 @@
   }
 
   async function submitWeek() {
+    syncLearnedFromDom(document.querySelector("body > .plan-next-modal-backdrop"));
     syncNextWeekFromSelection();
 
     state.errorMsg = "";
@@ -903,6 +1233,8 @@
         await window.loadMe();
       }
 
+      state.activeStep = 0;
+      teardownAskModal();
       await loadWeek(state.weekStart);
       state.submitting = false;
     } catch (err) {
@@ -922,6 +1254,7 @@
     state.nextWeekFocusGoalText = "";
     state.nextWeekHowGoalText = "";
     state.selectedDay = "all";
+    state.activeStep = 0;
     state.timeWasters = data.weekReflection?.time_wasters
       ? { ...data.weekReflection.time_wasters }
       : emptyWasters(data.timeWasterItems);
@@ -965,6 +1298,7 @@
 
   function navigateWeek(delta) {
     if (state.loading) return;
+    if (state.activeStep >= 1) return;
     const next = addWeeks(state.weekStart || mondayOfWeek(todayIso()), delta);
     const dir = delta > 0 ? "from-right" : "from-left";
     loadWeek(next, dir);

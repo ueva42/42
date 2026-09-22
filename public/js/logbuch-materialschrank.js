@@ -18,28 +18,16 @@
     return `<span class="ms-tile__glyph" aria-hidden="true"><img src="/icons/student/png/materialschrank.png" alt=""></span>`;
   }
 
-  function subjectArt(ui, tile) {
-    const src = window.LogbuchVisuals?.subjectIconSrcFromText(`${tile.title || ""} ${tile.note || ""}`);
-    if (!src) return "";
-    return `<div class="dashboard-card__artwork hub-tile-art" data-fit="cover" aria-hidden="true">
-      <img class="dashboard-card__hero" src="${ui.escapeHtml(src)}" alt="" loading="lazy" decoding="async" style="--art-position: center right">
-    </div>`;
-  }
-
   function renderTile(ui, tile, index) {
     const accent = ACCENTS[index % ACCENTS.length];
-    const art = subjectArt(ui, tile);
     const note = tile.note
       ? `<span class="ms-tile__note">${ui.escapeHtml(tile.note)}</span>`
       : "";
-    const tileClass = art
-      ? `ms-tile ms-tile--has-art hub-tile hub-tile-sm dashboard-card app-card hub-accent-${accent}`
-      : `ms-tile hub-accent-${accent}`;
     return `
-      <a class="${tileClass}" href="${ui.escapeHtml(tile.url)}" target="_blank" rel="noopener noreferrer">
-        ${art || cabinetIcon()}
-        <span class="${art ? "hub-tile-content" : ""}">
-          <span class="ms-tile__title hub-tile-title">${ui.escapeHtml(tile.title)}</span>
+      <a class="ms-tile hub-accent-${accent}" href="${ui.escapeHtml(tile.url)}" target="_blank" rel="noopener noreferrer">
+        ${cabinetIcon()}
+        <span>
+          <span class="ms-tile__title">${ui.escapeHtml(tile.title)}</span>
           ${note}
         </span>
       </a>`;
