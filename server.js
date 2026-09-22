@@ -192,7 +192,8 @@ const PLAN_CHECKPOINT_TYPES = new Set(["klassenarbeit", "test", "levelcheck"]);
 
 const CHECKPOINT_TYPE_OPTIONS = Object.entries(CHECKPOINT_TYPES).map(([value, label]) => ({
   value,
-  label
+  label: value === "levelcheck" ? "Levelcheck (ohne Note)" : label,
+  graded: GRADED_CHECKPOINT_TYPES.has(value)
 }));
 
 function isGradedCheckpointType(raw) {
@@ -219,13 +220,49 @@ function resolveCheckpointTypeLabel(typeKey, customLabel) {
   return CHECKPOINT_TYPES[key];
 }
 
-function checkpointTypeShortLabel(typeLabel) {
-  const label = String(typeLabel || "").trim();
+function checkpointTypeShortLabel(typeKey, typeLabel) {
+  const key = normalizeCheckpointType(typeKey);
+  if (key === "klassenarbeit") return "KA";
+  if (key === "test") return "Test";
+  if (key === "levelcheck") return "LC";
+  if (key === "praesentation") return "Präs.";
+  const label = String(typeLabel || CHECKPOINT_TYPES[key] || "").trim();
   if (!label) return "CP";
   if (label.length <= 4) return label;
-  if (label.toLowerCase().startsWith("klassen")) return "KA";
-  if (label.toLowerCase().startsWith("präs") || label.toLowerCase().startsWith("praes")) return "Präs.";
   return label.slice(0, 4) + ".";
+}
+
+function linkedGoalsAcrossChecks(linkedIds, levelChecks) {
+  const ids = new Set((Array.isArray(linkedIds) ? linkedIds : []).map(String).filter(Boolean));
+  if (!ids.size) return [];
+  const out = [];
+  const seen = new Set();
+  for (const check of levelChecks || []) {
+    for (const goal of check.goals || []) {
+      const gid = String(goal.id);
+      if (!ids.has(gid) || seen.has(gid)) continue;
+      seen.add(gid);
+      out.push({
+        id: gid,
+        text: String(goal.text || goal.goalText || "Ziel").trim() || "Ziel",
+        topicName: check.name || ""
+      });
+    }
+  }
+  return out;
+}
+
+function formatLinkedGoalLabel(goal, hostTopicName) {
+  if (goal.topicName && hostTopicName && goal.topicName !== hostTopicName) {
+    return `${goal.topicName}: ${goal.text}`;
+  }
+  return goal.text;
+}
+
+function requireLinkedGoalsForLevelcheck(checkpointType, linkedIds) {
+  if (!isLevelcheckCheckpointType(checkpointType)) return null;
+  if (Array.isArray(linkedIds) && linkedIds.length) return null;
+  return "Bitte markiere die Was-Ziele, die im Levelcheck abgefragt werden.";
 }
 
 function normalizeFeedbackText(raw) {
@@ -1701,15 +1738,7 @@ function buildScheduledLevelchecksPayload(checks, targetsByCheck = {}) {
       const target = targetsByCheck[c.levelCheckId] || {};
       const percent =
         target.levelcheckPercent == null ? null : Number(target.levelcheckPercent);
-      const linkedGoalIds = Array.isArray(c.linkedSubtopicIds)
-        ? c.linkedSubtopicIds.map(String)
-        : [];
-      const goalLabels = [];
-      for (const goal of c.goals || []) {
-        if (linkedGoalIds.includes(String(goal.id))) {
-          goalLabels.push(goal.text || goal.goalText || "Ziel");
-        }
-      }
+      const linkedGoals = linkedGoalsAcrossChecks(c.linkedSubtopicIds, checks);
       return {
         id: c.id,
         levelCheckId: c.levelCheckId,
@@ -1719,8 +1748,8 @@ function buildScheduledLevelchecksPayload(checks, targetsByCheck = {}) {
         dateLabel: formatGermanDate(c.checkpointDate),
         type: "levelcheck",
         typeLabel: resolveCheckpointTypeLabel("levelcheck", c.checkpointTypeLabel),
-        linkedGoalIds,
-        linkedGoalLabels: goalLabels,
+        linkedGoalIds: linkedGoals.map((g) => g.id),
+        linkedGoalLabels: linkedGoals.map((g) => formatLinkedGoalLabel(g, c.name)),
         isPast: c.checkpointDate < today,
         isUpcoming: c.checkpointDate >= today,
         levelcheckPercent: Number.isInteger(percent) ? percent : null,
@@ -7198,7 +7227,8 @@ function buildCheckpointPlanEvents(levelChecks) {
               id: check.id,
               checkpointDate: check.checkpointDate,
               checkpointType: check.checkpointType,
-              checkpointTypeLabel: check.checkpointTypeLabel
+              checkpointTypeLabel: check.checkpointTypeLabel,
+              linkedSubtopicIds: check.linkedSubtopicIds || []
             }
           ]
         : [];
@@ -7208,16 +7238,20 @@ function buildCheckpointPlanEvents(levelChecks) {
       if (!date) continue;
       const typeKey = normalizeCheckpointType(cp.checkpointType);
       const typeLabel = resolveCheckpointTypeLabel(typeKey, cp.checkpointTypeLabel);
+      const linkedGoals = linkedGoalsAcrossChecks(cp.linkedSubtopicIds, levelChecks);
       events.push({
         id: cp.id,
         type: typeKey,
         typeLabel,
-        typeShort: checkpointTypeShortLabel(typeLabel),
+        typeShort: checkpointTypeShortLabel(typeKey, typeLabel),
         subject: check.subject,
         title: check.name,
         date,
         dateLabel: formatGermanDate(date),
         levelCheckId: check.id,
+        graded: isGradedCheckpointType(typeKey),
+        linkedGoalIds: linkedGoals.map((g) => g.id),
+        linkedGoalLabels: linkedGoals.map((g) => formatLinkedGoalLabel(g, check.name)),
         editable: false
       });
     }
@@ -7492,7 +7526,7 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
           checkpointType: chosen.checkpointType || gradedPick?.checkpointType || null,
           checkpointTypeLabel:
             chosen.checkpointTypeLabel || gradedPick?.checkpointTypeLabel || null,
-          requiresTargetGrade: chosen.requiresTargetGrade !== false,
+          requiresTargetGrade: !!chosen.requiresTargetGrade,
           locked: !!chosen.locked,
           levelcheckPercent: chosen.levelcheckPercent,
           levelcheckPassed: !!chosen.levelcheckPassed
@@ -8529,6 +8563,11 @@ app.post("/api/teacher/levelcheck-checkpoints", isAdmin, async (req, res) => {
       req.body.linkedSubtopicIds
     );
 
+    const levelcheckLinkError = requireLinkedGoalsForLevelcheck(checkpointType, linkedIds);
+    if (levelcheckLinkError) {
+      return res.json({ success: false, message: levelcheckLinkError });
+    }
+
     if (primaryLevelCheckId) {
       levelCheckId = primaryLevelCheckId;
     } else if (!levelCheckId) {
@@ -8647,6 +8686,14 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) =
       if (validated.primaryLevelCheckId) {
         levelCheckId = validated.primaryLevelCheckId;
       }
+    }
+
+    const levelcheckLinkError = requireLinkedGoalsForLevelcheck(
+      checkpointType,
+      linkedSubtopicIds
+    );
+    if (levelcheckLinkError) {
+      return res.json({ success: false, message: levelcheckLinkError });
     }
 
     const upd = await pool.query(

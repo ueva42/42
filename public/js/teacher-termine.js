@@ -163,8 +163,14 @@
       .map((cp) => {
         const goals = linkedGoalLabels(cp, levelChecks);
         const goalText = goals.length
-          ? goals.slice(0, 2).map(escapeHtml).join(", ") + (goals.length > 2 ? " …" : "")
-          : "Keine Was-Ziele markiert";
+          ? `<ul class="tc-checkpoint-item-goals">${goals
+              .map((g) => `<li>${escapeHtml(g)}</li>`)
+              .join("")}</ul>`
+          : `<span class="tc-checkpoint-item-goals">Keine Was-Ziele markiert</span>`;
+        const ungradedNote =
+          cp.typeKey === "levelcheck"
+            ? `<span class="tc-checkpoint-item-ungraded">ohne Note · keine Zielnote</span>`
+            : "";
         const themaText = linkedTopicNames(cp, levelChecks);
 
         return `
@@ -174,8 +180,9 @@
             <span class="tc-termine-subject">${escapeHtml(cp.subject)}</span>
             <span class="tc-termine-type">${escapeHtml(cp.typeLabel)}</span>
             <span class="tc-checkpoint-item-thema">${escapeHtml(themaText)}</span>
-            <span class="tc-checkpoint-item-goals">${goalText}</span>
             <span class="tc-when tc-when-upcoming">anstehend</span>
+            ${ungradedNote}
+            ${goalText}
           </div>
           <div class="tc-termine-btns">
             <button type="button" class="tc-edit-btn tc-termine-edit" data-checkpoint-id="${escapeHtml(cp.id)}">Bearbeiten</button>
@@ -209,6 +216,16 @@
     }
     const rows = items
       .map((cp) => {
+        const goals = linkedGoalLabels(cp, state.data?.levelChecks || []);
+        const goalText = goals.length
+          ? `<ul class="tc-checkpoint-item-goals">${goals
+              .map((g) => `<li>${escapeHtml(g)}</li>`)
+              .join("")}</ul>`
+          : `<span class="tc-checkpoint-item-goals">Keine Was-Ziele markiert</span>`;
+        const ungradedNote =
+          cp.typeKey === "levelcheck"
+            ? `<span class="tc-checkpoint-item-ungraded">ohne Note · keine Zielnote</span>`
+            : "";
         const evalBtn =
           cp.typeKey === "levelcheck"
             ? `<button type="button" class="action tc-termine-eval" data-checkpoint-id="${escapeHtml(cp.id)}">Bewerten</button>`
@@ -219,8 +236,10 @@
           <span class="tc-checkpoint-item-date">${escapeHtml(isoToGerman(cp.dateIso))}</span>
           <span class="tc-termine-subject">${escapeHtml(cp.subject)}</span>
           <span class="tc-termine-type">${escapeHtml(cp.typeLabel)}</span>
-          <span class="tc-checkpoint-item-thema">${escapeHtml(cp.topicName || "–")}</span>
+          <span class="tc-checkpoint-item-thema">${escapeHtml(linkedTopicNames(cp, state.data?.levelChecks || []))}</span>
           <span class="tc-when tc-when-past">vergangen</span>
+          ${ungradedNote}
+          ${goalText}
         </div>
         <div class="tc-termine-btns">
           ${evalBtn}
@@ -304,7 +323,7 @@
             </div>
             <button type="button" class="td-modal-close" id="tmEvalClose">✕</button>
           </div>
-          <p class="hint">Status wird bewusst gesetzt (nicht aus Prozent berechnet). Bestanden kann verknüpfte Themen freischalten – XP und Level bleiben unverändert.</p>
+          <p class="hint">Kein Schulnoten-Termin: Status bewusst setzen (nicht aus Prozent berechnet). Bestanden kann verknüpfte Themen freischalten – XP und Level bleiben unverändert.</p>
           <table class="td-detail-table tm-eval-table">
             <thead>
               <tr><th>Schüler:in</th><th>Status</th><th>Prozent (optional)</th><th></th></tr>
@@ -343,7 +362,7 @@
       <div class="panel">
         <h2>Termine</h2>
         <p class="hint">
-          Alle anstehenden Nachweise auf einen Blick. Mit „Bearbeiten“ springst du zu Levelcheck planen, mit „Löschen“ entfernst du den Termin.
+          Alle anstehenden Nachweise auf einen Blick. Levelchecks erscheinen ohne Note – die markierten Was-Ziele werden angezeigt. Mit „Bearbeiten“ springst du zu Levelcheck planen, mit „Löschen“ entfernst du den Termin.
         </p>
 
         <div class="tc-toolbar">

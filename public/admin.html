@@ -1286,7 +1286,9 @@
       gap:8px 12px; align-items:center; padding:10px 12px;
       background:transparent; border:none; color:inherit; text-align:left; cursor:pointer;
     }
-    .tc-checkpoint-item-goals { grid-column: 2 / 4; font-size:12px; opacity:0.8; }
+    .tc-checkpoint-item-goals { grid-column: 1 / -1; font-size:12px; opacity:0.88; margin:0; line-height:1.4; }
+    ul.tc-checkpoint-item-goals { padding-left:1.15em; }
+    .tc-checkpoint-item-ungraded { grid-column: 1 / -1; font-size:11px; color:#c4b5fd; font-weight:700; }
     .tc-checkpoint-item-date { font-weight:600; }
     .tc-edit-btn {
       align-self:center; margin-right:4px; padding:6px 10px; border-radius:8px;
@@ -1330,6 +1332,7 @@
       .tc-checkpoint-item-body { grid-template-columns: 1fr; }
       .tc-termine-item-body { grid-template-columns: 1fr !important; }
       .tc-checkpoint-item-goals { grid-column: 1; }
+      .tc-checkpoint-item-ungraded { grid-column: 1; }
     }
     .tc-checkpoint-date-wrap { display:flex; flex-direction:column; gap:4px; margin-top:8px; font-size:11px; opacity:0.85; }
     .tc-checkpoint-date { padding:6px 8px; border-radius:8px; border:1px solid rgba(148,163,184,0.35); background:#0f172a; color:#f9fafb; font-size:12px; max-width:180px; }
@@ -1919,8 +1922,8 @@
 <script src="/js/teacher-levelplan-import.js?v=10"></script>
 <script src="/js/teacher-levelplan.js?v=10"></script>
 <script src="/js/teacher-levelplan-zuordnung.js?v=5"></script>
-<script src="/js/teacher-competencies.js?v=23"></script>
-<script src="/js/teacher-termine.js?v=5"></script>
+<script src="/js/teacher-competencies.js?v=24"></script>
+<script src="/js/teacher-termine.js?v=6"></script>
 <script src="/js/teacher-gruppenmodus.js?v=10"></script>
 <script src="/js/teacher-materialschrank.js?v=2"></script>
 

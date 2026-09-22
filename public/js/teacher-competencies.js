@@ -26,6 +26,7 @@
   const DEFAULT_CHECKPOINT_TYPES = [
     { value: "klassenarbeit", label: "Klassenarbeit" },
     { value: "test", label: "Test" },
+    { value: "levelcheck", label: "Levelcheck (ohne Note)" },
     { value: "praesentation", label: "Präsentation" },
     { value: "custom", label: "Eigene Bezeichnung" }
   ];
@@ -141,6 +142,16 @@
     if (!state.themaId || !topics.some((t) => sameId(t.id, state.themaId))) {
       state.themaId = topics[0].id;
     }
+  }
+
+  function checkpointTypeHint(type) {
+    if (type === "levelcheck") {
+      return "Levelcheck ohne Note: genau die Was-Ziele anhaken, die abgefragt werden. Sie erscheinen im Kalender. Eine Zielnote kann dafür nicht festgelegt werden.";
+    }
+    if (type === "klassenarbeit" || type === "test") {
+      return "Klassenarbeit oder Test: Schüler:innen legen eine Zielnote fest. Markierte Was-Ziele erscheinen im Kalender.";
+    }
+    return "Themen und Unterthemen aus dem Levelplan markieren – auch über mehrere Themen hinweg.";
   }
 
   function typeLabelFor(type, customLabel) {
@@ -394,11 +405,7 @@
           <div class="tc-linked-block">
             <h4 class="tc-linked-title">Was-Ziele für diesen Nachweis</h4>
             <p class="tc-hint" id="tcLinkedHint">
-              ${
-                values.type === "levelcheck"
-                  ? "Levelcheck: genau die Ziele anhaken, die geprüft werden. Danach erscheinen sie im Schüler-Levelplan."
-                  : "Themen und Unterthemen aus dem Levelplan markieren – auch über mehrere Themen hinweg."
-              }
+              ${escapeHtml(checkpointTypeHint(values.type))}
             </p>
             <div class="tc-topic-goal-groups">${goalSections}</div>
           </div>
@@ -451,6 +458,7 @@
         <h2>Nachweise planen</h2>
         <p class="hint">
           Termin (tt.mm.jjjj) und Art wählen, Was-Ziele über mehrere Themen markieren – dann speichern.
+          Ein Levelcheck erscheint im Kalender ohne Note; dafür kann keine Zielnote festgelegt werden.
           <button type="button" class="tc-link-btn" id="tcOpenTermineBtn">Alle Termine ansehen</button>
         </p>
 
@@ -581,10 +589,7 @@
     );
     btn.textContent = `${label} speichern`;
     if (hint) {
-      hint.textContent =
-        type === "levelcheck"
-          ? "Levelcheck: genau die Ziele anhaken, die geprüft werden. Danach erscheinen sie im Schüler-Levelplan."
-          : "Themen und Unterthemen aus dem Levelplan markieren – auch über mehrere Themen hinweg.";
+      hint.textContent = checkpointTypeHint(type);
     }
   }
 
@@ -628,6 +633,11 @@
     }
     if (payload.checkpointType === "custom" && !payload.checkpointTypeLabel) {
       state.error = "Bitte eine eigene Bezeichnung eingeben.";
+      render();
+      return;
+    }
+    if (payload.checkpointType === "levelcheck" && !payload.linkedSubtopicIds.length) {
+      state.error = "Bitte markiere die Was-Ziele, die im Levelcheck abgefragt werden.";
       render();
       return;
     }

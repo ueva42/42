@@ -222,7 +222,7 @@
         <div class="mcp-hero__content">
           <p class="mcp-kicker">Leistungsnachweise</p>
           <h2 class="mcp-hero__title">Meine Checks</h2>
-          <p class="mcp-hero__sub">Behalte Tests, Klassenarbeiten und Präsentationen im Blick.</p>
+          <p class="mcp-hero__sub">Behalte Tests, Klassenarbeiten und Levelchecks im Blick. Levelchecks zählen ohne Note.</p>
         </div>
         <img
           class="mcp-hero__img"
@@ -337,18 +337,48 @@
       </section>`;
   }
 
+  function renderGoalList(event) {
+    const labels = Array.isArray(event.linkedGoalLabels)
+      ? event.linkedGoalLabels.map((g) => String(g || "").trim()).filter(Boolean)
+      : [];
+    if (!labels.length) {
+      return event.type === "levelcheck"
+        ? `<p class="mcp-card__goals-empty">Noch keine Was-Ziele markiert</p>`
+        : "";
+    }
+    return `<ul class="mcp-card__goals" aria-label="Abgefragte Was-Ziele">${labels
+      .map((label) => `<li>${escapeHtml(label)}</li>`)
+      .join("")}</ul>`;
+  }
+
+  function renderEventExtra(event, opts = {}) {
+    const ungraded =
+      event.type === "levelcheck"
+        ? `<p class="mcp-card__ungraded">ohne Note · keine Zielnote</p>`
+        : "";
+    const showEval =
+      event.type === "levelcheck" &&
+      (opts.past ||
+        (event.evaluationStatus && event.evaluationStatus !== "not_evaluated") ||
+        event.evaluationPercent != null);
+    const evalLine = showEval
+      ? `<p class="mcp-card__eval">${escapeHtml(
+          event.evaluationStatusLabel || "Noch nicht bewertet"
+        )}${
+          event.evaluationPercent != null
+            ? escapeHtml(` · ${event.evaluationPercent} %`)
+            : ""
+        }</p>`
+      : "";
+    return `${ungraded}${renderGoalList(event)}${evalLine}`;
+  }
+
   function renderEventCard(event, opts = {}) {
     const color = opts.past ? "#64748b" : typeColor(event.type);
     const classes = ["mcp-card"];
     if (opts.isNext) classes.push("is-next");
     if (opts.past) classes.push("is-past");
-    const evalLabel = event.evaluationStatusLabel || "";
-    const evalPct =
-      event.evaluationPercent != null ? ` · ${event.evaluationPercent} %` : "";
-    const evalLine =
-      opts.past || event.evaluationStatus
-        ? `<p class="mcp-card__eval">${escapeHtml(evalLabel || "Noch nicht bewertet")}${escapeHtml(evalPct)}</p>`
-        : "";
+    const extra = renderEventExtra(event, opts);
     const main = `
         <div class="mcp-card__main">
           <p class="mcp-card__subject">${escapeHtml(event.subject)}</p>
@@ -357,7 +387,7 @@
             <span class="mcp-pill" style="--mcp-c:${color}">${escapeHtml(event.typeLabel || event.type)}</span>
             · ${escapeHtml(formatDateShort(event.date))}
           </p>
-          ${evalLine}
+          ${extra}
         </div>`;
 
     if (opts.isNext && !opts.past) {
@@ -388,7 +418,7 @@
           <span class="mcp-pill" style="--mcp-c:${color}">${escapeHtml(event.typeLabel || event.type)}</span>
           · ${escapeHtml(formatDateShort(event.date))}
         </p>
-        ${evalLine}
+        ${extra}
       </article>`;
   }
 

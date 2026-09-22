@@ -792,7 +792,7 @@
       ? formatGradeLabel(topic.targetGradeLabel || topic.targetGrade)
       : "–";
     const locked = !!topic?.locked;
-    const showZielnote = topic?.requiresTargetGrade !== false;
+    const showZielnote = topic?.requiresTargetGrade === true;
 
     return `
       <article class="zielpfad-hero-panel">
@@ -832,6 +832,7 @@
 
   function renderLevelCards(topic) {
     if (!topic) return "";
+    if (topic.requiresTargetGrade === false) return "";
     if (!topic.targetGrade) {
       return `
         <section class="zielpfad-block">
@@ -887,7 +888,7 @@
   function renderTargetGradeModal() {
     if (!state.modal || state.modal.type !== "targetGrade") return "";
     const topic = findTopic(state.modal.topicId);
-    if (!topic) return "";
+    if (!topic || topic.requiresTargetGrade === false) return "";
 
     const options = gradeOptions();
     const selected = topic.targetGrade != null ? String(topic.targetGrade) : "";
@@ -1293,7 +1294,7 @@
       <div class="zielpfad-topic" data-topic-id="${escapeHtml(topic.id)}">
         ${renderLevelCards(topic)}
         ${
-          topic.targetGrade
+          topic.targetGrade && topic.requiresTargetGrade !== false
             ? `${renderNextStep(topic)}
                ${renderGoalTasks(topic)}
                ${renderResultSection(topic)}`
@@ -1445,6 +1446,7 @@
       btn.addEventListener("click", () => {
         const topicId = btn.dataset.topicId;
         if (!topicId) return;
+        if (findTopic(topicId)?.requiresTargetGrade === false) return;
         state.modal = { type: "targetGrade", topicId };
         state.message = "";
         render();
@@ -1463,6 +1465,7 @@
         const topicId = btn.dataset.topicId;
         const grade = btn.dataset.grade;
         if (!topicId || !grade) return;
+        if (findTopic(topicId)?.requiresTargetGrade === false) return;
         state.modal = null;
         saveField(topicId, "targetGradeKey", grade);
       });
