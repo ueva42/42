@@ -39,7 +39,8 @@
     modal: null,
     message: "",
     error: "",
-    showVoluntary: false
+    showVoluntary: false,
+    reflectionOpenId: null
   };
 
   let initPromise = null;
@@ -650,27 +651,15 @@
       </div>`;
   }
 
-  function renderFeedbackSection(topic) {
-    // Reflexion nach Zielnote-Pfad (KA/Test) – Levelcheck-Reflexion läuft über Levelplan-% 
+  function renderReflectionSheet(topic) {
     if (!topic?.targetGrade || topic.requiresTargetGrade === false) return "";
-    if (!hasLevelcheckResult(topic) && !topic.achievedGrade) {
-      // Optional: reflection still after target without % for KA - keep glow/grow available after target
-      // For now allow feedback once target is set
-    }
+    if (String(state.reflectionOpenId) !== String(topic.id)) return "";
     const V = window.LogbuchVisuals;
     if (!V) return "";
 
     const glowOptions = feedbackOptions("glow");
     const growOptions = feedbackOptions("grow");
     const nextOptions = feedbackOptions("nextGoal");
-
-    function labelFor(fieldKey, value) {
-      const options = fieldKey === "glow" ? glowOptions : fieldKey === "grow" ? growOptions : nextOptions;
-      const raw = String(value ?? "");
-      if (!raw) return "—";
-      const found = options.find((o) => String(o.value) === raw);
-      return found ? found.label : raw;
-    }
 
     function renderChoiceCard({ fieldKey, title, question, accent, options }) {
       const value = topic[fieldKey] || "";
@@ -699,9 +688,7 @@
         <article class="zielpfad-eval-card" style="--eval-accent:${accent}" data-zs-reflection-field="${escapeHtml(fieldKey)}" data-topic-id="${escapeHtml(topic.id)}">
           <h4 class="zielpfad-eval-card__title">${escapeHtml(title)}</h4>
           <p class="zielpfad-eval-card__question">${escapeHtml(question)}</p>
-
           ${V.strategyTileGrid(tiles, activeValue, "data-zs-select-reflection")}
-
           <input
             type="text"
             class="zs-feedback-custom ${isCustom ? "" : "zs-feedback-custom-hidden"}"
@@ -715,19 +702,18 @@
         </article>`;
     }
 
-    const targetLabel = formatGradeLabel(topic.targetGradeLabel || topic.targetGrade);
-    const resultLabel =
-      topic.levelcheckPercent != null ? `${Number(topic.levelcheckPercent)} %` : "–";
-
     return `
-      <section class="zielpfad-eval">
-        <h3 class="zielpfad-block__title">Deine Auswertung</h3>
-
-        <div class="zielpfad-eval-grid">
+      <section class="zs-reflect-sheet" aria-label="Auswertung">
+        <div class="zs-reflect-sheet__head">
+          <h3 class="zs-reflect-sheet__title">Nach der Arbeit</h3>
+          <button type="button" class="zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm" data-zs-toggle-reflect="${escapeHtml(topic.id)}">Schließen</button>
+        </div>
+        <p class="zs-reflect-sheet__sub">Glow, Grow und Next – tippe eine Antwort an.</p>
+        <div class="zielpfad-eval-grid zielpfad-eval-grid--sheet">
           ${renderChoiceCard({
             fieldKey: "glow",
             title: "GLOW",
-            question: "Was hat schon gut funktioniert und möchtest du beibehalten?",
+            question: "Was hat schon gut funktioniert?",
             accent: "#22c55e",
             options: glowOptions
           })}
@@ -741,148 +727,107 @@
           ${renderChoiceCard({
             fieldKey: "nextGoal",
             title: "NEXT",
-            question: "Was machst du bei der nächsten Arbeit besser oder anders?",
+            question: "Was machst du bei der nächsten Arbeit anders?",
             accent: "#a855f7",
             options: nextOptions
           })}
         </div>
-
-        <article class="zielpfad-take-summary">
-          <h4 class="zielpfad-take-summary__title">Das nehme ich mit</h4>
-          <div class="zielpfad-take-summary__grid">
-            <div class="zielpfad-take-item">
-              <span>Zielnote</span>
-              <strong>${escapeHtml(targetLabel)}</strong>
-            </div>
-            <div class="zielpfad-take-item">
-              <span>Levelcheck</span>
-              <strong>${escapeHtml(resultLabel)}</strong>
-            </div>
-            <div class="zielpfad-take-item">
-              <span>Glow</span>
-              <strong>${escapeHtml(labelFor("glow", topic.glow))}</strong>
-            </div>
-            <div class="zielpfad-take-item">
-              <span>Grow</span>
-              <strong>${escapeHtml(labelFor("grow", topic.grow))}</strong>
-            </div>
-            <div class="zielpfad-take-item">
-              <span>Next</span>
-              <strong>${escapeHtml(labelFor("nextGoal", topic.nextGoal))}</strong>
-            </div>
-          </div>
-          <div class="zielpfad-take-summary__actions">
-            <button type="button" class="zielpfad-btn" data-zs-noop-save-eval disabled>
-              Auswertung speichern
-            </button>
-          </div>
-        </article>
       </section>`;
   }
 
-  function renderZielpfadHero(topic) {
-    const subject = escapeHtml(state.selectedSubject || topic?.subject || "");
-    const name = topic ? escapeHtml(topic.name) : "–";
-    const typePart = topic?.checkpointTypeLabel ? escapeHtml(topic.checkpointTypeLabel) : "Check";
-    const datePart = topic?.checkpointDateLabel
-      ? escapeHtml(topic.checkpointDateLabel)
-      : "Termin folgt";
-    const hasTarget = !!topic?.targetGrade;
-    const goalPart = hasTarget
-      ? formatGradeLabel(topic.targetGradeLabel || topic.targetGrade)
-      : "–";
-    const locked = !!topic?.locked;
-    const showZielnote = topic?.requiresTargetGrade === true;
+  function renderProgressStrip(topic) {
+    if (!topic?.targetGrade || topic.requiresTargetGrade === false) return "";
+    const prog = topicTaskProgress(topic);
+    if (!prog.hasRecommended || !prog.total) {
+      return `<p class="zs-work-tile__hint">Markiere deinen Stand im Lernstand – Rookie, Operator, Street Legend.</p>`;
+    }
+    const pct = Math.round((prog.completed / prog.total) * 100);
+    return `
+      <div class="zs-progress" aria-label="Fortschritt zum Ziel">
+        <div class="zs-progress__meta">
+          <span>Weg zur Zielnote ${escapeHtml(formatGradeLabel(topic.targetGradeLabel || topic.targetGrade))}</span>
+          <strong>${prog.completed}/${prog.total} · ${pct} %</strong>
+        </div>
+        <div class="zs-progress__track" role="presentation">
+          <div class="zs-progress__fill" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+  }
+
+  function renderCompactNext(topic) {
+    if (!topic?.targetGrade) return "";
+    const next = pickMinimumNext(topic) || pickChallengeNext(topic);
+    if (!next) {
+      return `
+        <div class="zs-next">
+          <p class="zs-next__eyebrow">Nächster Schritt</p>
+          <p class="zs-next__text">${topic.onTrack ? "Zielanteil geschafft – stark!" : "Im Lernstand weitermarkieren."}</p>
+        </div>`;
+    }
+    return `
+      <div class="zs-next">
+        <p class="zs-next__eyebrow">Nächster Schritt</p>
+        <p class="zs-next__meta">${escapeHtml(next.tierLabel)} · ${escapeHtml(next.goalText)}</p>
+        <p class="zs-next__text">${escapeHtml(next.taskText)}</p>
+        <div class="zs-work-tile__actions">
+          ${actionButtonForItem(next, "Im Lernstand üben")}
+        </div>
+      </div>`;
+  }
+
+  function renderWorkTile(topic) {
+    if (!topic) return "";
+    const typePart = topic.checkpointTypeLabel || "Klassenarbeit / Test";
+    const datePart = topic.checkpointDateLabel || "Termin folgt";
+    const showZielnote = topic.requiresTargetGrade === true;
+    const hasTarget = !!topic.targetGrade;
+    const reflectionOpen = String(state.reflectionOpenId) === String(topic.id);
+    const reflectionDone = [topic.glow, topic.grow, topic.nextGoal].filter((v) =>
+      String(v ?? "").trim()
+    ).length;
+
+    if (!showZielnote) {
+      return `
+        <article class="zs-work-tile">
+          <p class="zs-work-tile__eyebrow">${escapeHtml(state.selectedSubject || topic.subject || "")}</p>
+          <h3 class="zs-work-tile__title">${escapeHtml(topic.name)}</h3>
+          <p class="zs-work-tile__sub">${escapeHtml(typePart)} · ${escapeHtml(datePart)}</p>
+          <p class="zs-work-tile__hint">Ohne Zielnote – Ergebnis und geprüfte Ziele findest du im Lernstand.</p>
+          <div class="zs-work-tile__actions">
+            <button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Zum Lernstand</button>
+          </div>
+        </article>`;
+    }
 
     return `
-      <article class="zielpfad-hero-panel">
-        <div class="zielpfad-hero-panel__meta">
-          <p class="zielpfad-hero-panel__eyebrow">Mein Zielpfad</p>
-          <h2 class="zielpfad-hero-panel__title">${subject} · ${name}</h2>
-          <p class="zielpfad-hero-panel__sub">${typePart} · ${datePart}</p>
+      <article class="zs-work-tile ${hasTarget ? "has-target" : ""}">
+        <p class="zs-work-tile__eyebrow">${escapeHtml(state.selectedSubject || topic.subject || "")} · ${escapeHtml(typePart)}</p>
+        <h3 class="zs-work-tile__title">${escapeHtml(topic.name)}</h3>
+        <p class="zs-work-tile__sub">${escapeHtml(datePart)}</p>
+        <div class="zs-work-tile__grade">
+          <span class="zs-work-tile__grade-label">Zielnote</span>
+          <strong class="zs-work-tile__grade-value">${hasTarget ? escapeHtml(formatGradeLabel(topic.targetGradeLabel || topic.targetGrade)) : "–"}</strong>
+          <button
+            type="button"
+            class="zielpfad-btn ${hasTarget ? "zielpfad-btn--ghost" : ""}"
+            data-zs-open-grade-modal="target"
+            data-topic-id="${escapeHtml(topic.id)}"
+          >${hasTarget ? "Ändern" : "Festlegen"}</button>
+        </div>
+        ${hasTarget ? renderProgressStrip(topic) : `<p class="zs-work-tile__hint">Zuerst Zielnote setzen – dann siehst du deinen nächsten Schritt.</p>`}
+        ${hasTarget ? renderCompactNext(topic) : ""}
+        <div class="zs-work-tile__actions zs-work-tile__actions--row">
+          <button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Im Lernstand üben</button>
           ${
-            !showZielnote
-              ? `<p class="zielpfad-hero-panel__lock">Levelchecks ohne Zielnote – Ergebnis und geprüfte Ziele findest du im <b>Levelplan</b>.</p>`
+            hasTarget
+              ? `<button type="button" class="zielpfad-btn zielpfad-btn--ghost" data-zs-toggle-reflect="${escapeHtml(topic.id)}">${
+                  reflectionOpen ? "Auswertung schließen" : reflectionDone ? `Auswertung (${reflectionDone}/3)` : "Auswertung"
+                }</button>`
               : ""
           }
         </div>
-        ${
-          topic && !locked && showZielnote
-            ? `<div class="zielpfad-hero-panel__grades">
-                <article class="zielpfad-grade-glow zielpfad-grade-glow--target">
-                  <span class="zielpfad-grade-glow__label">Meine Zielnote</span>
-                  <strong class="zielpfad-grade-glow__value">${escapeHtml(goalPart)}</strong>
-                  <p class="zielpfad-grade-glow__hint">${
-                    hasTarget
-                      ? "Für Klassenarbeit oder Test."
-                      : "Zielnote nur für Klassenarbeit / Test."
-                  }</p>
-                  <button
-                    type="button"
-                    class="zielpfad-btn"
-                    data-zs-open-grade-modal="target"
-                    data-topic-id="${escapeHtml(topic.id)}"
-                  >${hasTarget ? "Zielnote ändern" : "Zielnote festlegen"}</button>
-                </article>
-              </div>`
-              : ""
-        }
-      </article>`;
-  }
-
-  function renderLevelCards(topic) {
-    if (!topic) return "";
-    if (topic.requiresTargetGrade === false) return "";
-    if (!topic.targetGrade) {
-      return `
-        <section class="zielpfad-block">
-          <h3 class="zielpfad-block__title">Dein Zielprofil</h3>
-          <p class="zielpfad-block__sub">Lege zuerst oben eine Zielnote fest – dann siehst du hier die Kreise für Rookie, Operator und Street Legend.</p>
-        </section>`;
-    }
-    const profile = getGradeRequirements(topic.targetGrade);
-    if (!profile) {
-      return `
-        <section class="zielpfad-block">
-          <h3 class="zielpfad-block__title">Dein Zielprofil</h3>
-          <p class="zielpfad-block__sub">Für die Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))} sind noch keine Anforderungen hinterlegt.</p>
-        </section>`;
-    }
-
-    const tierAccents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f472b6" };
-    let anyBeyond = false;
-    const cards = LEVEL_CHECK_TIER_ORDER.map((tier) => {
-      const p = levelProgressForTarget(topic, tier);
-      if (p.goesBeyond) anyBeyond = true;
-      const label = LEVEL_CHECK_TIER_LABELS[tier] || tier;
-      const ringPct = p.isVoluntaryTier ? 0 : p.pctRequired || 0;
-      const centerValue = p.isVoluntaryTier ? "frei" : `${p.pctRequired} %`;
-      const goalLine = p.isVoluntaryTier
-        ? "Freiwillige Vertiefung"
-        : `${p.pctRequired} % für dein Ziel`;
-
-      return `
-        <article class="zielpfad-ring-card ${p.isVoluntaryTier ? "is-voluntary" : ""}" style="--grade-accent:${tierAccents[tier]}">
-          <div class="grade-goal-ring" style="--progress:${ringPct}; --accent:${tierAccents[tier]}">
-            <div class="grade-goal-ring__inside">
-              <span class="grade-goal-ring__grade">${escapeHtml(label)}</span>
-              <strong>${escapeHtml(centerValue)}</strong>
-            </div>
-          </div>
-          <div class="zielpfad-ring-card__text">
-            <strong>${escapeHtml(label)}</strong>
-            <span>${escapeHtml(goalLine)}</span>
-          </div>
-        </article>`;
-    }).join("");
-
-    return `
-      <section class="zielpfad-block">
-        <h3 class="zielpfad-block__title">Dein Zielprofil</h3>
-        <p class="zielpfad-block__sub">Die Kreise zeigen die Vorgabe für Zielnote ${escapeHtml(formatGradeLabel(topic.targetGrade))}.</p>
-        ${anyBeyond ? `<p class="zielpfad-beyond-hint">Stark – du gehst schon über dein Ziel hinaus!</p>` : ""}
-        <div class="zielpfad-ring-grid">${cards}</div>
-      </section>`;
+      </article>
+      ${renderReflectionSheet(topic)}`;
   }
 
   function renderTargetGradeModal() {
@@ -1190,19 +1135,7 @@
   }
 
   function renderResultSection(topic) {
-    // %-Ergebnis gehört zum Levelcheck-Flow im Levelplan, nicht zur Zielnote
-    if (!topic?.targetGrade || topic.requiresTargetGrade === false) return "";
-    return `
-      <section class="zielpfad-block zielpfad-result">
-        <h3 class="zielpfad-block__title">Nach der Klassenarbeit / dem Test</h3>
-        <article class="zielpfad-result-card">
-          <p class="zielpfad-result__pending">
-            Levelcheck-Ergebnisse trägst du im <b>Levelplan</b> ein (Kreisregler).
-            Hier geht es um deine Zielnote für Klassenarbeit oder Test.
-          </p>
-          ${renderFeedbackSection(topic)}
-        </article>
-      </section>`;
+    return "";
   }
 
   function renderArchivedFeedback(topic) {
@@ -1216,91 +1149,49 @@
       <div class="zielpfad-eval-grid zielpfad-eval-grid--archived">
         <article class="zielpfad-eval-card zielpfad-eval-card--glow" style="--eval-accent:#22c55e">
           <h4 class="zielpfad-eval-card__title">GLOW</h4>
-          <p class="zielpfad-eval-card__question">Was hat schon gut funktioniert?</p>
           <div class="zielpfad-eval-card__value">${glow ? escapeHtml(glow) : "—"}</div>
         </article>
         <article class="zielpfad-eval-card zielpfad-eval-card--grow" style="--eval-accent:#a855f7">
           <h4 class="zielpfad-eval-card__title">GROW</h4>
-          <p class="zielpfad-eval-card__question">Woran kannst du noch wachsen?</p>
           <div class="zielpfad-eval-card__value">${grow ? escapeHtml(grow) : "—"}</div>
         </article>
         <article class="zielpfad-eval-card zielpfad-eval-card--next" style="--eval-accent:#a855f7">
           <h4 class="zielpfad-eval-card__title">NEXT</h4>
-          <p class="zielpfad-eval-card__question">Was machst du bei der nächsten Arbeit anders?</p>
           <div class="zielpfad-eval-card__value">${nextGoal ? escapeHtml(nextGoal) : "—"}</div>
         </article>
       </div>`;
   }
 
   function renderArchivedTopicCard(topic) {
-    const V = window.LogbuchVisuals;
     const datePart = topic.checkpointDateLabel
       ? escapeHtml(topic.checkpointDateLabel)
       : "ohne Termin";
     const typePart = topic.checkpointTypeLabel
       ? `${escapeHtml(topic.checkpointTypeLabel)} · `
       : "";
-    const prog = topic.targetGrade ? topicTaskProgress(topic) : null;
-    const pct =
-      prog && prog.hasRecommended && prog.total > 0
-        ? Math.round((prog.completed / prog.total) * 100)
-        : null;
-    const reflectionDone = hasLevelcheckResult(topic)
-      ? [topic.grow, topic.glow, topic.nextGoal].filter((v) => String(v ?? "").trim()).length
-      : 0;
+    const reflectionDone = [topic.grow, topic.glow, topic.nextGoal].filter((v) =>
+      String(v ?? "").trim()
+    ).length;
+    const open = String(state.reflectionOpenId) === `past:${topic.id}`;
 
     return `
-      <article class="zielpfad-archived-card" data-topic-id="${escapeHtml(topic.id)}">
-        <div class="zielpfad-archived-card__main">
-          <div class="zielpfad-archived-card__copy">
-            <p class="zielpfad-archived-card__title">${escapeHtml(topic.name)}</p>
-            <p class="zielpfad-archived-card__meta">${typePart}${datePart}</p>
-            <div class="zielpfad-archived-card__grades">
-              <span>Ziel: ${escapeHtml(topic.targetGradeLabel || "–")}</span>
-              <span>Levelcheck: ${
-                hasLevelcheckResult(topic) ? `${Number(topic.levelcheckPercent)} %` : "–"
-              }</span>
-            </div>
-            ${renderGoalResultBadge(topic)}
-            <p class="zielpfad-archived-card__reflection">
-              Reflexion: ${reflectionDone}/3 ${reflectionDone === 3 ? "✓" : "offen"}
-            </p>
-          </div>
-          ${
-            V && pct != null
-              ? V.circularProgress({
-                  completed: prog.completed,
-                  total: prog.total,
-                  label: "Fortschritt",
-                  size: 88,
-                  accent: topic.onTrack ? "#22c55e" : "#a855f7"
-                })
-              : ""
-          }
+      <article class="zs-past-tile" data-topic-id="${escapeHtml(topic.id)}">
+        <div class="zs-past-tile__main">
+          <p class="zs-past-tile__title">${escapeHtml(topic.name)}</p>
+          <p class="zs-past-tile__meta">${typePart}${datePart}</p>
+          <p class="zs-past-tile__grades">Zielnote ${escapeHtml(topic.targetGradeLabel || "–")}${
+            reflectionDone ? ` · Auswertung ${reflectionDone}/3` : ""
+          }</p>
         </div>
-        <div class="zielpfad-archived-card__body" hidden>
-          ${renderArchivedFeedback(topic)}
-        </div>
-        <div class="zielpfad-actions">
-          <button type="button" class="zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm" data-zs-toggle-archived="${escapeHtml(topic.id)}">
-            Auswertung ansehen
-          </button>
-        </div>
+        <button type="button" class="zielpfad-btn zielpfad-btn--ghost zielpfad-btn--sm" data-zs-toggle-archived="${escapeHtml(topic.id)}">
+          ${open ? "Schließen" : "Ansehen"}
+        </button>
+        ${open ? `<div class="zs-past-tile__body">${renderArchivedFeedback(topic) || `<p class="zs-work-tile__hint">Noch keine Auswertung.</p>`}</div>` : ""}
       </article>`;
   }
 
   function renderTopicZielpfad(topic) {
-    return `
-      <div class="zielpfad-topic" data-topic-id="${escapeHtml(topic.id)}">
-        ${renderLevelCards(topic)}
-        ${
-          topic.targetGrade && topic.requiresTargetGrade !== false
-            ? `${renderNextStep(topic)}
-               ${renderGoalTasks(topic)}
-               ${renderResultSection(topic)}`
-            : ""
-        }
-      </div>`;
+    return `<div class="zielpfad-topic" data-topic-id="${escapeHtml(topic.id)}">${renderWorkTile(topic)}</div>`;
   }
 
   function renderSubjectToolbar() {
@@ -1381,13 +1272,13 @@
 
     const upcomingHtml = upcoming
       ? renderTopicZielpfad(upcoming)
-      : `<div class="student-card"><div class="card-content"><p class="goal-card__what">Für ${escapeHtml(state.selectedSubject)} ist noch keine anstehende Klassenarbeit hinterlegt.</p></div></div>`;
+      : `<article class="zs-work-tile zs-work-tile--empty"><p class="zs-work-tile__hint">Für ${escapeHtml(state.selectedSubject)} ist noch keine anstehende Klassenarbeit hinterlegt.</p></article>`;
 
     const pastHtml = past.length
-      ? V.sectionBlock(
-          "Vergangene Arbeiten",
-          `<div class="zielpfad-archived-grid">${past.map(renderArchivedTopicCard).join("")}</div>`
-        )
+      ? `<section class="zs-past-block" aria-label="Vergangene Arbeiten">
+          <h3 class="zs-past-block__title">Vergangene Arbeiten</h3>
+          <div class="zs-past-grid">${past.map(renderArchivedTopicCard).join("")}</div>
+        </section>`
       : "";
 
     return `${upcomingHtml}${pastHtml}`;
@@ -1412,21 +1303,14 @@
       return;
     }
 
-    const group = visibleGroups()[0];
-    const { upcoming } = group ? splitTopicsForSubject(group) : { upcoming: null };
-    const modalHtml = renderTargetGradeModal();
-    const achievedModalHtml = renderLevelcheckResultModal();
-
     root.innerHTML =
       V?.pageShell(`
         <div class="zielpfad-app">
-          ${renderZielpfadHero(upcoming)}
           ${renderSubjectToolbar()}
           ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
           ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
           ${renderGrouped()}
-          ${modalHtml}
-          ${achievedModalHtml}
+          ${renderTargetGradeModal()}
         </div>
       `) || "";
 
@@ -1473,41 +1357,28 @@
 
     root.querySelectorAll("[data-zs-open-levelcheck-result]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const topicId = btn.dataset.topicId;
-        if (!topicId) return;
-        const topic = findTopic(topicId);
-        state.modal = {
-          type: "levelcheckResult",
-          topicId,
-          draft: topic?.levelcheckPercent != null ? Number(topic.levelcheckPercent) : 70
-        };
-        state.message = "";
-        render();
+        window.StudentRouter?.navigateToSection("levelplan");
       });
     });
 
     root.querySelectorAll("[data-zs-open-achieved-grade-modal]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const topicId = btn.dataset.topicId;
-        if (!topicId) return;
-        const topic = findTopic(topicId);
-        state.modal = {
-          type: "levelcheckResult",
-          topicId,
-          draft: topic?.levelcheckPercent != null ? Number(topic.levelcheckPercent) : 70
-        };
-        state.message = "";
-        render();
+        window.StudentRouter?.navigateToSection("levelplan");
       });
     });
 
     root.querySelectorAll("[data-zs-select-achieved-grade]").forEach((btn) => {
+      btn.addEventListener("click", () => {});
+    });
+
+    root.querySelectorAll("[data-zs-toggle-reflect]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        /* Note-Eingabe entfernt – Levelcheck-% nutzen */
+        const id = btn.dataset.zsToggleReflect;
+        state.reflectionOpenId = String(state.reflectionOpenId) === String(id) ? null : id;
+        render();
       });
     });
 
-    bindLevelcheckDials(root);
     // Reflection tiles (GLOW / GROW / NEXT) – wir speichern beim Tippen (Ausnahme: Eigene Antwort => Input anzeigen)
     root
       .querySelectorAll(".strategy-tile[data-zs-select-reflection]")
@@ -1598,12 +1469,9 @@
 
     root.querySelectorAll("[data-zs-toggle-archived]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const card = btn.closest(".zielpfad-archived-card");
-        const body = card?.querySelector(".zielpfad-archived-card__body");
-        if (!body) return;
-        const open = body.hidden;
-        body.hidden = !open;
-        btn.textContent = open ? "Auswertung schließen" : "Auswertung ansehen";
+        const id = `past:${btn.dataset.zsToggleArchived}`;
+        state.reflectionOpenId = String(state.reflectionOpenId) === id ? null : id;
+        render();
       });
     });
   }
