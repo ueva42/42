@@ -453,7 +453,7 @@
         body = `<span class="lp-material-hint">${escapeHtml(parts.join(" · "))}</span>`;
       }
     }
-    return `<div class="lp-material-cell">${body}${renderPracticeDial(goal)}</div>`;
+    return `<div class="lp-material-cell">${body}</div>`;
   }
 
   function renderStatusButton(goal, tier) {
@@ -621,7 +621,9 @@
   }
 
   function renderLevelcheckResult(thema) {
-    const checks = levelcheckRecordsForThema(thema?.id);
+    const checks = levelcheckRecordsForThema(thema?.id).filter(
+      (lc) => (lc.linkedGoalIds || []).length > 0
+    );
     if (!checks.length) return "";
 
     const cards = checks
@@ -817,12 +819,13 @@
       ? `<p class="lp-table-hint lp-table-hint--plan">Nach deinem Tagesziel: trage hier ein, was <strong>in Arbeit</strong> ist und was schon <strong>sicher</strong> läuft.</p>`
       : "";
     const lcHint = linked.size
-      ? `<p class="lp-table-hint lp-table-hint--lc">Gelb markiert: Ziele im Levelcheck (${linked.size}). Der Ergebnis-Regler erscheint nur bei diesen Zielen.</p>`
+      ? `<p class="lp-table-hint lp-table-hint--lc">Gelb markiert: Ziele im Levelcheck (${linked.size}). Dafür gibt es einen gemeinsamen Ergebnis-Regler.</p>`
       : "";
 
     return `
       <div class="lp-content">
         ${planHint}
+        ${renderLevelcheckResult(thema)}
         ${lcHint}
         <p class="lp-table-hint">Tippe auf eine Zelle unter Rookie, Operator oder Street Legend – dann wählst du <strong>Offen</strong>, <strong>In Arbeit</strong> oder <strong>Sicher</strong>.</p>
         <div class="lp-content__desktop">${renderDesktopTable(goals)}</div>
