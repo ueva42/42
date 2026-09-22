@@ -6784,6 +6784,188 @@ body.student-app .card.section > h2 {
 .hw-msg--ok { color: #86efac; }
 .hw-msg--err { color: #fca5a5; }
 
+.hw-add-row {
+  display: grid;
+  gap: 8px;
+}
+
+.hw-add-btn {
+  width: 100%;
+  min-height: 52px !important;
+  font-size: 15px !important;
+}
+
+.hw-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.hw-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 132px;
+  border-radius: 18px;
+  border: 1px solid rgba(86, 147, 255, 0.28);
+  background:
+    radial-gradient(ellipse 80% 70% at 100% 0%, rgba(34, 211, 238, 0.12), transparent 55%),
+    rgba(8, 16, 36, 0.92);
+  padding: 14px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.hw-tile--done {
+  opacity: 0.78;
+  border-color: rgba(34, 197, 94, 0.28);
+}
+
+.hw-tile__subject {
+  margin: 0;
+  padding-right: 28px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.hw-tile__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #f8fafc;
+}
+
+.hw-tile__due {
+  margin-top: auto;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.hw-tile__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.hw-tile__delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.hw-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(2, 6, 23, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.hw-modal {
+  width: min(520px, 100%);
+  max-height: 85vh;
+  overflow: auto;
+  border-radius: 22px;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(168, 85, 247, 0.2), transparent 42%),
+    rgba(8, 14, 35, 0.98);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 28px rgba(34, 211, 238, 0.12);
+  padding: 16px;
+  color: #f8fafc;
+}
+
+.hw-modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.hw-modal__kicker {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+
+.hw-modal__title {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #f8fafc;
+}
+
+.hw-modal__sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.hw-modal__close {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(6, 11, 29, 0.9);
+  color: #f8fafc;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.hw-modal__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hw-modal__chips--dates .choice-chip {
+  min-width: 92px;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.hw-modal__picked {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: #67e8f9;
+}
+
+.hw-modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (max-width: 560px) {
+  .hw-modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .hw-modal {
+    width: 100%;
+    border-radius: 22px 22px 0 0;
+    max-height: 88vh;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+
 .week-hw-summary {
   margin: 10px 0 0;
   padding: 12px 14px;
@@ -12460,7 +12642,7 @@ h2 {
 <script src="/js/logbuch-zielsetzung.js?v=29"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=12"></script>
 <script src="/js/logbuch-materialschrank.js?v=8"></script>
-<script src="/js/logbuch-homework.js?v=1"></script>
+<script src="/js/logbuch-homework.js?v=2"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=22"></script>
 <script src="/js/logbuch-screens.js?v=9"></script>
 

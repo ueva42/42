@@ -2262,6 +2262,24 @@ function nextSchoolDayIso(dateStr) {
   return next;
 }
 
+function isWeekdayIso(dateStr) {
+  const iso = normalizeIsoDate(dateStr);
+  if (!iso) return false;
+  const day = new Date(`${iso}T12:00:00`).getDay();
+  return day >= 1 && day <= 5;
+}
+
+function listUpcomingSchoolDays(fromIso, count = 6) {
+  const start = normalizeIsoDate(fromIso) || todayIsoDate();
+  const out = [];
+  let cursor = start;
+  for (let i = 0; i < 28 && out.length < count; i++) {
+    if (isWeekdayIso(cursor)) out.push(cursor);
+    cursor = addDaysIso(cursor, 1);
+  }
+  return out;
+}
+
 function mapHomeworkRow(row) {
   return {
     id: row.id,
@@ -6090,8 +6108,10 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
     const title = String(req.body.title || "").trim();
     const classDoneNote = String(req.body.classDoneNote || "").trim().slice(0, 300) || null;
     const assignedDate = await resolveSchoolDate(req, req.body.assignedDate);
+    const allowedDueDates = listUpcomingSchoolDays(assignedDate || todayIsoDate(), 8);
     const dueDate =
       normalizeIsoDate(req.body.dueDate) || nextSchoolDayIso(assignedDate);
+    const dueAllowed = allowedDueDates.includes(dueDate);
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
       return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
@@ -6104,6 +6124,12 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
     }
     if (assignedDate !== todayIsoDate()) {
       return res.json({ success: false, message: "Hausaufgaben kannst du nur für heute setzen." });
+    }
+    if (!dueAllowed) {
+      return res.json({
+        success: false,
+        message: "Bitte einen Schultag in den nächsten Tagen als Fälligkeit wählen."
+      });
     }
 
     const ins = await pool.query(
