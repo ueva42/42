@@ -36,6 +36,8 @@
     loading: false
   };
 
+  let pollTimer = null;
+
   function esc(str) {
     return String(str ?? "")
       .replace(/&/g, "&amp;")
@@ -52,8 +54,90 @@
     return state.bundle?.settings || {};
   }
 
-  function members() {
+  function isPersonal() {
+    return String(settings().deviceMode || "shared") === "personal";
+  }
+
+  function myUserId() {
+    return Number(state.bootstrap?.studentId || 0);
+  }
+
+  function isAcceptedMember(member) {
+    return String(member?.inviteStatus || "accepted") !== "pending";
+  }
+
+  function allMembers() {
     return state.bundle?.members || [];
+  }
+
+  function members() {
+    const list = allMembers();
+    return isPersonal() ? list.filter(isAcceptedMember) : list;
+  }
+
+  function pendingMembers() {
+    return allMembers().filter((m) => !isAcceptedMember(m));
+  }
+
+  function myMember() {
+    const uid = myUserId();
+    return allMembers().find((m) => Number(m.userId) === uid) || null;
+  }
+
+  function focusSelf() {
+    const uid = myUserId();
+    const idx = members().findIndex((m) => Number(m.userId) === uid);
+    state.currentMemberIdx = idx >= 0 ? idx : 0;
+    return currentMember();
+  }
+
+  function fillDraftFromMember(m) {
+    const whatGoals = (m?.whatGoals || []).length
+      ? m.whatGoals
+      : m?.whatGoalText
+        ? [{ id: m.whatGoalId, text: m.whatGoalText }]
+        : [];
+    const howGoals = (m?.howGoals || []).length
+      ? m.howGoals
+      : m?.howGoalText
+        ? [{ id: m.howGoalId, text: m.howGoalText }]
+        : [];
+    state.draftGoal = {
+      ...emptyDraftGoal(),
+      whatGoals,
+      howGoals,
+      whatGoalId: whatGoals[0]?.id || null,
+      whatGoalText: whatGoals.map((g) => g.text).join(" · "),
+      howGoalId: howGoals[0]?.id || null,
+      howGoalText: howGoals.map((g) => g.text).join(" · ")
+    };
+  }
+
+  function goOwnGoals() {
+    const me = focusSelf();
+    if (!me) {
+      state.screen = "members";
+      return;
+    }
+    if (me.goalsComplete) {
+      state.screen = "overview";
+      return;
+    }
+    fillDraftFromMember(me);
+    state.screen = "what";
+  }
+
+  function afterOwnStep(kind) {
+    if (kind === "goals") {
+      state.screen = "overview";
+      return;
+    }
+    if (kind === "mid") {
+      state.screen = "work";
+      return;
+    }
+    const me = myMember();
+    state.screen = me?.reflectionAt && state.bundle?.progress?.reflectComplete ? "done" : "work";
   }
 
   function currentMember() {
@@ -211,14 +295,22 @@
         }
       }
       if (Array.isArray(data.members) && data.members.length) {
-        state.selectedMembers = data.members.map((m) => Number(m.userId));
+        state.selectedMembers = data.members
+          .filter((m) => String(m.inviteStatus || "accepted") !== "pending")
+          .map((m) => Number(m.userId));
       }
-      if (data.members?.length && Object.keys(state.roleAssignments).length === 0) {
+      if (
+        data.members?.length &&
+        (isPersonal() || Object.keys(state.roleAssignments).length === 0)
+      ) {
+        const nextAssign = {};
         for (const m of data.members) {
+          if (String(m.inviteStatus || "accepted") === "pending") continue;
           for (const role of m.roles || []) {
-            if (role.roleId) state.roleAssignments[String(role.roleId)] = Number(m.userId);
+            if (role.roleId) nextAssign[String(role.roleId)] = Number(m.userId);
           }
         }
+        state.roleAssignments = nextAssign;
       }
     }
     persistLocal();
@@ -526,14 +618,44 @@
   function renderHome() {
     const enabled = state.bootstrap?.enabledSubjects || [];
     const active = state.bootstrap?.activeSessions || [];
+    const mine = active.filter((s) => s.isMine !== false && (s.isMine || s.deviceMode !== "personal"));
+    const joinable = state.bootstrap?.joinableGroups || [];
+    const invites = state.bootstrap?.pendingInvites || [];
     const fixed = state.bootstrap?.fixedGroups || [];
     const body = `
       <p class="gm-lead">Zuerst bildet ihr eine <strong>feste Gruppe</strong> (Personen + Rollen). In jeder Stunde wählt ihr dann ein <strong>neues Ziel</strong> aus dem Levelplan – die Gruppe bleibt.</p>
       ${
-        active.length
+        invites.length
+          ? `<h3 class="gm-h3">Einladungen</h3>
+             <div class="gm-cards">
+               ${invites
+                 .map(
+                   (s) => `
+                 <div class="gm-card-wrap">
+                   <div class="gm-card gm-card--static">
+                     <span class="gm-card-title">${esc(s.subject)}${
+                       s.groupName ? `: ${esc(s.groupName)}` : ""
+                     }</span>
+                     <span class="gm-card-sub">${esc(
+                       (s.memberNames || []).join(", ") || "Gruppe"
+                     )}</span>
+                     <span class="gm-card-meta">${esc(s.topicName || "Noch kein Ziel")} · ${s.memberCount || 0}/${s.maxMembers || 4}</span>
+                   </div>
+                   <div class="gm-footer-row">
+                     <button type="button" class="gm-primary" data-invite-accept="${esc(s.id)}">Annehmen</button>
+                     <button type="button" class="gm-ghost" data-invite-decline="${esc(s.id)}">Ablehnen</button>
+                   </div>
+                 </div>`
+                 )
+                 .join("")}
+             </div>`
+          : ""
+      }
+      ${
+        mine.length
           ? `<h3 class="gm-h3">Offene Stunde</h3>
              <div class="gm-cards">
-               ${active
+               ${mine
                  .map(
                    (s) => `
                  <div class="gm-card-wrap">
@@ -551,6 +673,32 @@
                      )}</span>
                    </button>
                    <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe löschen">Löschen</button>
+                 </div>`
+                 )
+                 .join("")}
+             </div>`
+          : ""
+      }
+      ${
+        joinable.length
+          ? `<h3 class="gm-h3">Gruppe beitreten</h3>
+             <p class="gm-muted">Offene Gruppen für eure Tabletklasse – tippe, wenn du mitmachen willst.</p>
+             <div class="gm-cards">
+               ${joinable
+                 .map(
+                   (s) => `
+                 <div class="gm-card-wrap">
+                   <button type="button" class="gm-card" data-join="${esc(s.id)}">
+                     <span class="gm-card-title">${esc(s.subject)}${
+                       s.groupName ? `: ${esc(s.groupName)}` : ""
+                     }</span>
+                     <span class="gm-card-sub">${esc(
+                       (s.memberNames || []).join(", ") || "Noch frei"
+                     )}</span>
+                     <span class="gm-card-meta">${s.memberCount || 0} von ${s.maxMembers || 4} · ${esc(
+                       s.topicName || "Thema folgt"
+                     )}</span>
+                   </button>
                  </div>`
                  )
                  .join("")}
@@ -588,7 +736,10 @@
                enabled.map((s) => ({
                  id: s.subject,
                  title: s.subject,
-                 sub: `${s.minMembers}–${s.maxMembers} Personen`
+                 sub:
+                   s.deviceMode === "personal"
+                     ? `${s.minMembers}–${s.maxMembers} Personen · eigenes Gerät`
+                     : `${s.minMembers}–${s.maxMembers} Personen`
                })),
                null,
                "subject"
@@ -647,6 +798,78 @@
     const classmates = state.bundle?.classmates || state.bootstrap?.classmates || [];
     const min = settings().minMembers || 2;
     const max = settings().maxMembers || 4;
+    if (isPersonal()) {
+      const accepted = members();
+      const pending = pendingMembers();
+      const taken = new Set(
+        allMembers().map((m) => Number(m.userId))
+      );
+      const invitees = classmates.filter((c) => !taken.has(Number(c.id)));
+      const ok = accepted.length >= min && accepted.length <= max;
+      const body = `
+        <p class="gm-lead">Bildet eure Gruppe auf den eigenen Tablets. Lade Leute ein oder lass sie über „Gruppe beitreten“ dazukommen. (${accepted.length} dabei, ${min}–${max})</p>
+        <p class="gm-muted">Die Gruppe aktualisiert sich automatisch, sobald jemand zusagt.</p>
+        <h3 class="gm-h3">Dabei</h3>
+        ${
+          accepted.length
+            ? cardGrid(
+                accepted.map((m) => ({
+                  id: m.userId,
+                  title: m.displayName,
+                  desc: Number(m.userId) === myUserId() ? "Du" : "in der Gruppe",
+                  icon: "✓",
+                  accent: "#22d3ee",
+                  selected: true
+                })),
+                null,
+                "member-static"
+              )
+            : `<div class="gm-empty">Du bist die erste Person in dieser Gruppe.</div>`
+        }
+        ${
+          pending.length
+            ? `<h3 class="gm-h3">Eingeladen</h3>
+               ${cardGrid(
+                 pending.map((m) => ({
+                   id: m.userId,
+                   title: m.displayName,
+                   desc: "wartet auf Zusage",
+                   icon: "◎",
+                   accent: "#a855f7"
+                 })),
+                 null,
+                 "member-static"
+               )}`
+            : ""
+        }
+        ${
+          invitees.length
+            ? `<h3 class="gm-h3">Mitschüler einladen</h3>
+               ${cardGrid(
+                 invitees.map((c) => ({
+                   id: c.id,
+                   title: c.displayName,
+                   desc: c.busyInOtherGroup ? "schon in Gruppe" : "Tippen zum Einladen",
+                   icon: "＋",
+                   accent: "#22d3ee",
+                   disabled: !!c.busyInOtherGroup
+                 })),
+                 null,
+                 "invite"
+               )}`
+            : ""
+        }`;
+      return shell(
+        "Schritt 1 von 5",
+        "Wer arbeitet mit dir?",
+        body,
+        `<div class="gm-footer-row gm-footer-row--stack">
+          <button type="button" class="gm-primary" id="gmMembersReady" ${ok ? "" : "disabled"}>Weiter zu den Rollen</button>
+          <button type="button" class="gm-ghost" id="gmLeaveGroup">Gruppe verlassen</button>
+        </div>`
+      );
+    }
+
     const body = `
       <p class="gm-lead">Tippt auf alle, die heute zusammenarbeiten. (${state.selectedMembers.length} gewählt, ${min}–${max})</p>
       ${cardGrid(
@@ -680,6 +903,59 @@
         "Wer übernimmt welche Aufgabe?",
         `<div class="gm-empty">Es sind keine Gruppenmitglieder gespeichert. Bitte einen Schritt zurück und die Personen erneut wählen.</div>`,
         `<button type="button" class="gm-primary" id="gmRolesBackMembers">Zurück zu den Personen</button>`
+      );
+    }
+    if (isPersonal()) {
+      const uid = myUserId();
+      const allAssigned =
+        roles.length > 0 && roles.every((r) => state.roleAssignments[String(r.id)]);
+      const iHaveRole = roles.some((r) => Number(state.roleAssignments[String(r.id)]) === uid);
+      const body = `
+        <p class="gm-lead">Übernimm auf deinem Tablet die Aufgabe, die du in der Gruppe machst. Freie Rollen können die anderen selbst wählen.</p>
+        <div class="gm-role-board">
+          ${roles
+            .map((role, idx) => {
+              const roleId = String(role.id);
+              const holderId = state.roleAssignments[roleId];
+              const person = mems.find((m) => String(m.userId) === String(holderId));
+              const mine = Number(holderId) === uid;
+              const accent = tileAccentFor({ meta: role.name, title: role.name });
+              return `
+              <article class="goal-step-card goal-step-card--wide plan-mission-live gm-mission-card ${
+                person ? "is-ready" : ""
+              }">
+                <header class="goal-step-card__head">
+                  <span class="goal-step-card__step" style="--tile-accent:${accent}">${
+                    person ? "✓" : String(idx + 1)
+                  }</span>
+                  <h3 class="goal-step-card__title">${esc(role.name)}</h3>
+                  ${
+                    person
+                      ? `<span class="gm-mission-status is-ready">${esc(person.displayName)}</span>`
+                      : `<span class="gm-mission-status">Noch frei</span>`
+                  }
+                </header>
+                <div class="mission-summary">
+                  ${missionBlock("Aufgabe", missionValue(role.description || "Rollenaufgabe in der Gruppe"))}
+                  ${
+                    person && !mine
+                      ? missionBlock("Übernommen", missionValue(person.displayName))
+                      : `<button type="button" class="gm-primary" data-role-claim="${esc(roleId)}" data-claim="${
+                          mine ? "0" : "1"
+                        }">${mine ? "Wieder freigeben" : "Ich übernehme das"}</button>`
+                  }
+                </div>
+              </article>`;
+            })
+            .join("")}
+        </div>`;
+      return shell(
+        "Schritt 2 von 5",
+        "Welche Aufgabe übernimmst du?",
+        body,
+        `<button type="button" class="gm-primary" id="gmRolesNext" ${
+          allAssigned && iHaveRole ? "" : "disabled"
+        }">Rollen bestätigen</button>`
       );
     }
     const body = `
@@ -935,7 +1211,11 @@
            ${
              factsDone
                ? `<div class="plan-acc__continue">
-                    <p class="gm-muted">Passt alles? Dann weitergeben oder ändern.</p>
+                    <p class="gm-muted">${
+                      isPersonal()
+                        ? "Passt alles? Dann bestätigen."
+                        : "Passt alles? Dann weitergeben oder ändern."
+                    }</p>
                   </div>`
                : ""
            }`
@@ -957,7 +1237,9 @@
       factsDone
         ? `<div class="gm-footer-row">
         <button type="button" class="gm-ghost" id="gmConfirmEdit">Ändern</button>
-        <button type="button" class="gm-primary" id="gmConfirmOk">Passt so – weitergeben</button>
+        <button type="button" class="gm-primary" id="gmConfirmOk">${
+          isPersonal() ? "Passt so" : "Passt so – weitergeben"
+        }</button>
       </div>`
         : ""
     );
@@ -1082,10 +1364,15 @@
           .map((d) => `<p class="gm-doc">${esc(d.content)}</p>`)
           .join("")}
       </div>`;
+    const me = myMember();
     const midFooter = settings().enableMidCheck
-      ? p.midComplete
-        ? `<button type="button" class="gm-ghost" id="gmEditMid">Zwischencheck ändern</button>`
-        : `<button type="button" class="gm-primary" id="gmStartMid">Zwischencheck starten</button>`
+      ? isPersonal()
+        ? me?.midCheckAt
+          ? `<button type="button" class="gm-ghost" id="gmEditMid">Zwischencheck ändern</button>`
+          : `<button type="button" class="gm-primary" id="gmStartMid">Meinen Zwischencheck</button>`
+        : p.midComplete
+          ? `<button type="button" class="gm-ghost" id="gmEditMid">Zwischencheck ändern</button>`
+          : `<button type="button" class="gm-primary" id="gmStartMid">Zwischencheck starten</button>`
       : "";
     return shell(
       `Fortschritt Ziele ${p.goalsDone}/${p.total}`,
@@ -1093,7 +1380,13 @@
       body,
       `<div class="gm-footer-row gm-footer-row--stack">
         ${midFooter}
-        ${settings().enableReflection ? `<button type="button" class="gm-primary" id="gmStartReflect">Abschlussrunde starten</button>` : ""}
+        ${
+          settings().enableReflection
+            ? `<button type="button" class="gm-primary" id="gmStartReflect">${
+                isPersonal() ? "Meinen Abschluss" : "Abschlussrunde starten"
+              }</button>`
+            : ""
+        }
       </div>`
     );
   }
@@ -1677,7 +1970,9 @@
       "Wie ist es heute gelaufen?",
       body,
       step === 5
-        ? `<button type="button" class="gm-primary" id="gmReflectSave">Fertig – weitergeben</button>`
+        ? `<button type="button" class="gm-primary" id="gmReflectSave">${
+            isPersonal() ? "Fertig" : "Fertig – weitergeben"
+          }</button>`
         : ""
     );
   }
@@ -1781,6 +2076,33 @@
     el.innerHTML = styles() + html;
     bind();
     persistLocal();
+    syncPoll();
+  }
+
+  function syncPoll() {
+    const want =
+      isPersonal() &&
+      state.sessionId &&
+      ["members", "roles", "overview", "work"].includes(state.screen);
+    if (!want) {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      return;
+    }
+    if (pollTimer) return;
+    pollTimer = setInterval(refreshSessionQuiet, 4000);
+  }
+
+  async function refreshSessionQuiet() {
+    if (!state.sessionId || document.hidden) return;
+    try {
+      const full = await api(`/api/student/group-sessions/${state.sessionId}`);
+      const prev = state.screen;
+      applyBundle(full);
+      if (state.screen === prev) render();
+    } catch (_err) {}
   }
 
   function styles() {
@@ -1908,6 +2230,142 @@
       });
     });
 
+    document.querySelectorAll("[data-join]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        clearFlash();
+        try {
+          const id = btn.getAttribute("data-join");
+          const data = await api(`/api/student/group-sessions/${id}/join`, {
+            method: "POST",
+            body: "{}"
+          });
+          applyBundle(data);
+          resumeScreenFromBundle();
+          render();
+        } catch (err) {
+          state.error = err.message;
+          render();
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-invite-accept]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        clearFlash();
+        try {
+          const id = btn.getAttribute("data-invite-accept");
+          const data = await api(`/api/student/group-sessions/${id}/invite-respond`, {
+            method: "POST",
+            body: JSON.stringify({ accept: true })
+          });
+          applyBundle(data);
+          resumeScreenFromBundle();
+          render();
+        } catch (err) {
+          state.error = err.message;
+          render();
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-invite-decline]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        clearFlash();
+        try {
+          const id = btn.getAttribute("data-invite-decline");
+          await api(`/api/student/group-sessions/${id}/invite-respond`, {
+            method: "POST",
+            body: JSON.stringify({ accept: false })
+          });
+          await loadBootstrap();
+          state.screen = "home";
+          render();
+        } catch (err) {
+          state.error = err.message;
+          render();
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-invite]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        clearFlash();
+        try {
+          const userId = Number(btn.getAttribute("data-invite"));
+          const data = await api(`/api/student/group-sessions/${state.sessionId}/invite`, {
+            method: "POST",
+            body: JSON.stringify({ userId })
+          });
+          applyBundle(data);
+          render();
+        } catch (err) {
+          state.error = err.message;
+          render();
+        }
+      });
+    });
+
+    document.getElementById("gmMembersReady")?.addEventListener("click", async () => {
+      clearFlash();
+      try {
+        const data = await api(`/api/student/group-sessions/${state.sessionId}/members/ready`, {
+          method: "POST",
+          body: "{}"
+        });
+        applyBundle(data);
+        if (data.suggestedAssignments) {
+          /* Rollen werden in der Tabletklasse selbst übernommen */
+        }
+        state.screen = "roles";
+        render();
+      } catch (err) {
+        state.error = err.message;
+        render();
+      }
+    });
+
+    document.getElementById("gmLeaveGroup")?.addEventListener("click", async () => {
+      clearFlash();
+      if (!window.confirm("Diese Gruppe wirklich verlassen?")) return;
+      try {
+        const data = await api(`/api/student/group-sessions/${state.sessionId}/leave`, {
+          method: "POST",
+          body: "{}"
+        });
+        if (data.deleted || !data.session) {
+          state.sessionId = null;
+          state.bundle = null;
+          await loadBootstrap();
+          state.screen = "home";
+        } else {
+          applyBundle(data);
+        }
+        render();
+      } catch (err) {
+        state.error = err.message;
+        render();
+      }
+    });
+
+    document.querySelectorAll("[data-role-claim]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        clearFlash();
+        try {
+          const roleId = btn.getAttribute("data-role-claim");
+          const claim = btn.getAttribute("data-claim") !== "0";
+          const data = await api(`/api/student/group-sessions/${state.sessionId}/roles/claim`, {
+            method: "PATCH",
+            body: JSON.stringify({ roleId, claim })
+          });
+          applyBundle(data);
+          render();
+        } catch (err) {
+          state.error = err.message;
+          render();
+        }
+      });
+    });
+
     document.querySelectorAll("[data-delete]").forEach((btn) => {
       btn.addEventListener("click", async (ev) => {
         ev.preventDefault();
@@ -1967,9 +2425,15 @@
             body: JSON.stringify({ topicId })
           });
           applyBundle(data);
-          state.screen = settings().enableSharedGoal ? "shared" : "handoff";
-          state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
-          if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
+          if (settings().enableSharedGoal) {
+            state.screen = "shared";
+          } else if (isPersonal()) {
+            goOwnGoals();
+          } else {
+            state.screen = "handoff";
+            state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
+            if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
+          }
           render();
         } catch (err) {
           state.error = err.message;
@@ -1979,15 +2443,23 @@
     });
 
     document.getElementById("gmTopicNext")?.addEventListener("click", () => {
-      state.screen = settings().enableSharedGoal ? "shared" : "handoff";
-      state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
-      if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
+      if (settings().enableSharedGoal) state.screen = "shared";
+      else if (isPersonal()) goOwnGoals();
+      else {
+        state.screen = "handoff";
+        state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
+        if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
+      }
       render();
     });
     document.getElementById("gmSkipTopic")?.addEventListener("click", () => {
-      state.screen = settings().enableSharedGoal ? "shared" : "handoff";
-      state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
-      if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
+      if (settings().enableSharedGoal) state.screen = "shared";
+      else if (isPersonal()) goOwnGoals();
+      else {
+        state.screen = "handoff";
+        state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
+        if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
+      }
       render();
     });
 
@@ -2121,9 +2593,13 @@
           body: JSON.stringify({ sharedGoal: text })
         });
         applyBundle(data);
-        state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
-        if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
-        state.screen = "handoff";
+        if (isPersonal()) {
+          goOwnGoals();
+        } else {
+          state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
+          if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
+          state.screen = "handoff";
+        }
         state.draftGoal = emptyDraftGoal();
         render();
       } catch (err) {
@@ -2273,12 +2749,16 @@
         applyBundle(data);
         // clear personal draft before next person
         state.draftGoal = emptyDraftGoal();
-        const next = nextPendingMember((mem) => mem.goalsComplete);
-        if (next >= 0) {
-          state.currentMemberIdx = next;
-          state.screen = "handoff";
+        if (isPersonal()) {
+          afterOwnStep("goals");
         } else {
-          state.screen = "overview";
+          const next = nextPendingMember((mem) => mem.goalsComplete);
+          if (next >= 0) {
+            state.currentMemberIdx = next;
+            state.screen = "handoff";
+          } else {
+            state.screen = "overview";
+          }
         }
         render();
       } catch (err) {
@@ -2322,6 +2802,19 @@
 
     document.getElementById("gmStartMid")?.addEventListener("click", () => {
       state.midEditMode = false;
+      if (isPersonal()) {
+        const me = focusSelf();
+        if (me?.midCheckAt) {
+          state.message = "Du hast den Check schon gemacht.";
+          render();
+          return;
+        }
+        state.midDraft = emptyMidDraft();
+        state.midStep = 1;
+        state.screen = "mid";
+        render();
+        return;
+      }
       state.currentMemberIdx = nextPendingMember((m) => m.midCheckAt);
       if (state.currentMemberIdx < 0) {
         state.message = "Alle haben den Check schon gemacht.";
@@ -2336,6 +2829,15 @@
 
     document.getElementById("gmEditMid")?.addEventListener("click", () => {
       state.midEditMode = true;
+      if (isPersonal()) {
+        const me = focusSelf();
+        loadMidDraftFromMember(me);
+        state.midStep = 1;
+        state.missionFactIndex = 0;
+        state.screen = "mid";
+        render();
+        return;
+      }
       state.currentMemberIdx = 0;
       state.midDraft = emptyMidDraft();
       state.midStep = 1;
@@ -2346,6 +2848,20 @@
 
     document.getElementById("gmStartReflect")?.addEventListener("click", () => {
       state.midEditMode = false;
+      if (isPersonal()) {
+        const me = focusSelf();
+        if (me?.reflectionAt) {
+          state.screen = state.bundle?.progress?.reflectComplete ? "done" : "work";
+          state.message = "Du hast den Abschluss schon gemacht.";
+          render();
+          return;
+        }
+        state.reflectDraft = {};
+        state.reflectStep = 1;
+        state.screen = "reflect";
+        render();
+        return;
+      }
       state.currentMemberIdx = nextPendingMember((m) => m.reflectionAt);
       if (state.currentMemberIdx < 0) {
         state.screen = "done";
@@ -2466,19 +2982,25 @@
         applyBundle(data);
         state.midDraft = emptyMidDraft();
         state.midStep = 1;
-        let next = -1;
-        if (state.midEditMode) {
-          next = state.currentMemberIdx + 1 < members().length ? state.currentMemberIdx + 1 : -1;
-        } else {
-          next = nextPendingMember((mem) => mem.midCheckAt);
-        }
-        if (next >= 0) {
-          state.currentMemberIdx = next;
-          state.screen = "mid-handoff";
-        } else {
+        if (isPersonal()) {
           state.midEditMode = false;
-          state.message = "Danke! Zwischencheck fertig.";
+          state.message = "Danke! Zwischencheck gespeichert.";
           state.screen = "work";
+        } else {
+          let next = -1;
+          if (state.midEditMode) {
+            next = state.currentMemberIdx + 1 < members().length ? state.currentMemberIdx + 1 : -1;
+          } else {
+            next = nextPendingMember((mem) => mem.midCheckAt);
+          }
+          if (next >= 0) {
+            state.currentMemberIdx = next;
+            state.screen = "mid-handoff";
+          } else {
+            state.midEditMode = false;
+            state.message = "Danke! Zwischencheck fertig.";
+            state.screen = "work";
+          }
         }
         render();
       } catch (err) {
@@ -2550,6 +3072,8 @@
         state.reflectStep = 1;
         if (data.session?.status === "closed") {
           state.screen = "done";
+        } else if (isPersonal()) {
+          afterOwnStep("reflect");
         } else {
           const next = nextPendingMember((mem) => mem.reflectionAt);
           if (next >= 0) {
@@ -2612,6 +3136,10 @@
       return;
     }
     if (step === "personal_goals" || !state.bundle?.progress?.goalsComplete) {
+      if (isPersonal()) {
+        goOwnGoals();
+        return;
+      }
       state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
       state.screen = state.currentMemberIdx >= 0 ? "handoff" : "overview";
       return;
@@ -2621,23 +3149,38 @@
 
   function onBack() {
     clearFlash();
-    const map = {
-      members: "home",
-      roles: "members",
-      "pick-topic": "roles",
-      shared: "pick-topic",
-      handoff: "shared",
-      what: "handoff",
-      how: "what",
-      confirm: "how",
-      overview: "handoff",
-      mid: "mid-handoff",
-      "mid-handoff": "work",
-      reflect: "reflect-handoff",
-      "reflect-handoff": "work",
-      work: "home",
-      done: "home"
-    };
+    const map = isPersonal()
+      ? {
+          members: "home",
+          roles: "members",
+          "pick-topic": "roles",
+          shared: "pick-topic",
+          what: "shared",
+          how: "what",
+          confirm: "how",
+          overview: "what",
+          mid: "work",
+          reflect: "work",
+          work: "home",
+          done: "home"
+        }
+      : {
+          members: "home",
+          roles: "members",
+          "pick-topic": "roles",
+          shared: "pick-topic",
+          handoff: "shared",
+          what: "handoff",
+          how: "what",
+          confirm: "how",
+          overview: "handoff",
+          mid: "mid-handoff",
+          "mid-handoff": "work",
+          reflect: "reflect-handoff",
+          "reflect-handoff": "work",
+          work: "home",
+          done: "home"
+        };
     state.screen = map[state.screen] || "home";
     if (state.screen === "home") {
       state.sessionId = null;
@@ -2663,9 +3206,13 @@
 
   async function startSubject(subject, date) {
     clearFlash();
-    const existing = (state.bootstrap?.activeSessions || []).find(
-      (s) => String(s.subject || "").toLowerCase() === String(subject || "").toLowerCase()
-    );
+    const existing = (state.bootstrap?.activeSessions || []).find((s) => {
+      const same =
+        String(s.subject || "").toLowerCase() === String(subject || "").toLowerCase();
+      if (!same) return false;
+      if (s.deviceMode === "personal") return !!s.isMine;
+      return true;
+    });
     if (existing?.id) {
       state.selectedMembers = [];
       state.roleAssignments = {};
@@ -2744,9 +3291,11 @@
             (s) => s.subject === subjectFromQuery
           );
           if (enabled) {
-            const existing = (state.bootstrap?.activeSessions || []).find(
-              (s) => s.subject === subjectFromQuery
-            );
+            const existing = (state.bootstrap?.activeSessions || []).find((s) => {
+              if (s.subject !== subjectFromQuery) return false;
+              if (s.deviceMode === "personal") return !!s.isMine;
+              return true;
+            });
             if (existing) {
               const full = await api(`/api/student/group-sessions/${existing.id}`);
               applyBundle(full);

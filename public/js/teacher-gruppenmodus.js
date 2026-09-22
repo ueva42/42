@@ -179,6 +179,10 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     }
   }
 
+  function className() {
+    return state.classes.find((c) => String(c.id) === String(state.classId))?.name || "Klasse";
+  }
+
   function renderToolbar() {
     const classOpts = state.classes
       .map(
@@ -190,21 +194,49 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
       (s) =>
         `<option value="${escapeHtml(s)}" ${s === state.subject ? "selected" : ""}>${escapeHtml(s)}</option>`
     ).join("");
+    const enabled = !!state.settings?.enabled;
+    const personal = state.settings?.deviceMode === "personal";
+    const view = state.view === "import" ? "roles" : state.view;
 
     return `
-      <div class="gm-toolbar">
-        <label>Klasse
-          <select id="gmClassSelect">${classOpts}</select>
-        </label>
-        <label>Fach
-          <select id="gmSubjectSelect">${subjectOpts}</select>
-        </label>
-        <div class="gm-toolbar-actions">
-          <button type="button" class="action ${state.view === "overview" ? "gm-btn-active" : ""}" id="gmViewOverview">Offene Gruppen</button>
-          <button type="button" class="action ${state.view === "settings" ? "gm-btn-active" : ""}" id="gmViewSettings">Einstellungen</button>
-          <button type="button" class="action ${state.view === "roles" || state.view === "import" ? "gm-btn-active" : ""}" id="gmViewRoles">Rollen und Rollenziele</button>
+      <div class="gm-head">
+        <div class="gm-head__title">
+          <h2>Gruppenmodus</h2>
+          <p>${escapeHtml(className())} · ${escapeHtml(state.subject)}
+            <span class="gm-chip ${enabled ? "is-on" : ""}">${enabled ? "eingeschaltet" : "aus"}</span>
+            ${
+              enabled
+                ? `<span class="gm-chip">${personal ? "eigene Geräte" : "ein Tablet"}</span>`
+                : ""
+            }
+          </p>
         </div>
-      </div>`;
+        <div class="gm-head__filters">
+          <label>Klasse
+            <select id="gmClassSelect">${classOpts}</select>
+          </label>
+          <label>Fach
+            <select id="gmSubjectSelect">${subjectOpts}</select>
+          </label>
+        </div>
+      </div>
+      <nav class="gm-tabs" aria-label="Gruppenmodus">
+        <button type="button" class="gm-tab ${view === "overview" ? "is-on" : ""}" id="gmViewOverview">Gruppen</button>
+        <button type="button" class="gm-tab ${view === "settings" ? "is-on" : ""}" id="gmViewSettings">Einrichten</button>
+        <button type="button" class="gm-tab ${view === "roles" ? "is-on" : ""}" id="gmViewRoles">Rollen</button>
+      </nav>`;
+  }
+
+  function flowRow({ id, checked, title, hint, extraHtml = "" }) {
+    return `
+      <label class="gm-flow">
+        <input type="checkbox" id="${id}" ${checked ? "checked" : ""}/>
+        <span class="gm-flow__text">
+          <strong>${title}</strong>
+          <em>${hint}</em>
+        </span>
+        ${extraHtml}
+      </label>`;
   }
 
   function renderSettings() {
@@ -212,51 +244,171 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     if (!s) return `<p class="tc-hint">Einstellungen werden geladen…</p>`;
 
     const howText = (s.howGoalOptions || []).join("\n");
+    const personal = s.deviceMode === "personal";
+    const roles = s.roles || [];
+    const activeRoles = roles.filter((r) => r.active !== false);
 
     return `
       <div class="panel gm-panel">
-        <h2>Gruppenmodus – ${escapeHtml(state.subject)}</h2>
-        <p class="hint">Mehrere Lernende arbeiten gemeinsam an einem Gerät (z.&nbsp;B. Laborarbeit).</p>
+        <section class="gm-sec">
+          <div class="gm-sec__head">
+            <span class="gm-step">1</span>
+            <div>
+              <h3>Einschalten</h3>
+              <p>Gilt nur für ${escapeHtml(className())} · ${escapeHtml(state.subject)}.</p>
+            </div>
+          </div>
+          <label class="gm-switch-row">
+            <input type="checkbox" id="gmEnabled" ${s.enabled ? "checked" : ""}/>
+            <span>
+              <strong>Gruppenmodus für dieses Fach nutzen</strong>
+              <em>Ohne diesen Schalter sehen die Schüler das Fach im Gruppenmodus nicht.</em>
+            </span>
+          </label>
+        </section>
 
-        <label class="gm-switch">
-          <input type="checkbox" id="gmEnabled" ${s.enabled ? "checked" : ""}/>
-          <span>Gruppenmodus aktivieren – mehrere Lernende arbeiten gemeinsam an einem Gerät</span>
-        </label>
+        <section class="gm-sec">
+          <div class="gm-sec__head">
+            <span class="gm-step">2</span>
+            <div>
+              <h3>Wie arbeiten die Schüler?</h3>
+              <p>Das ändert, ob das Tablet weitergegeben wird.</p>
+            </div>
+          </div>
+          <div class="gm-choices">
+            <label class="gm-choice ${personal ? "" : "is-on"}">
+              <input type="radio" name="gmDeviceMode" value="shared" ${personal ? "" : "checked"}/>
+              <strong>Ein gemeinsames Tablet</strong>
+              <span>Labor ohne 1:1-Ausstattung. Die App reicht das Gerät weiter: „Gib das iPad jetzt an …“.</span>
+            </label>
+            <label class="gm-choice ${personal ? "is-on" : ""}">
+              <input type="radio" name="gmDeviceMode" value="personal" ${personal ? "checked" : ""}/>
+              <strong>Jede Person eigenes Tablet</strong>
+              <span>Tabletklasse 9/10. Gruppe wählen oder beitreten, Rollen selbst übernehmen, ohne Weitergeben.</span>
+            </label>
+          </div>
+        </section>
 
-        <div class="gm-grid">
-          <label>Min. Gruppengröße <input type="number" id="gmMin" min="2" max="8" value="${s.minMembers}" /></label>
-          <label>Max. Gruppengröße <input type="number" id="gmMax" min="2" max="8" value="${s.maxMembers}" /></label>
-          <label class="gm-check"><input type="checkbox" id="gmMultiRoles" ${s.allowMultiRoles ? "checked" : ""}/> Mehrfachrollen erlauben</label>
-          <label class="gm-check"><input type="checkbox" id="gmRoleSwitch" ${s.allowRoleSwitch ? "checked" : ""}/> Rollenwechsel zwischen Stunden</label>
-          <label class="gm-check"><input type="checkbox" id="gmShared" ${s.enableSharedGoal ? "checked" : ""}/> Gemeinsames Vorhaben</label>
-          <label class="gm-check"><input type="checkbox" id="gmWhat" ${s.enableWhatGoals ? "checked" : ""}/> Persönliche Was-Ziele</label>
-          <label>Max. Was-Ziele / Rolle <input type="number" id="gmMaxWhat" min="1" max="3" value="${s.maxWhatGoals || 3}" /></label>
-          <label class="gm-check"><input type="checkbox" id="gmHow" ${s.enableHowGoals ? "checked" : ""}/> Persönliche Wie-Ziele</label>
-          <label>Max. Wie-Ziele / Rolle <input type="number" id="gmMaxHow" min="1" max="3" value="${s.maxHowGoals || 3}" /></label>
-          <label class="gm-check"><input type="checkbox" id="gmMid" ${s.enableMidCheck ? "checked" : ""}/> Zwischencheck</label>
-          <label class="gm-check"><input type="checkbox" id="gmReflect" ${s.enableReflection ? "checked" : ""}/> Abschlussreflexion</label>
-          <label class="gm-check"><input type="checkbox" id="gmFreeWhat" ${s.allowFreeWhatGoal ? "checked" : ""}/> Freie Was-Ziele erlauben</label>
-          <label class="gm-check"><input type="checkbox" id="gmFreeHow" ${s.allowFreeHowGoal ? "checked" : ""}/> Freie Wie-Ziele erlauben</label>
-        </div>
+        <section class="gm-sec">
+          <div class="gm-sec__head">
+            <span class="gm-step">3</span>
+            <div>
+              <h3>Gruppengröße</h3>
+              <p>Wie viele Personen gehören fest zusammen.</p>
+            </div>
+          </div>
+          <div class="gm-size">
+            <label class="gm-num">
+              <span>Mindestens</span>
+              <input type="number" id="gmMin" min="2" max="8" value="${s.minMembers}"/>
+            </label>
+            <span class="gm-size__sep">bis</span>
+            <label class="gm-num">
+              <span>Höchstens</span>
+              <input type="number" id="gmMax" min="2" max="8" value="${s.maxMembers}"/>
+            </label>
+          </div>
+          ${flowRow({
+            id: "gmMultiRoles",
+            checked: s.allowMultiRoles,
+            title: "Mehrere Rollen pro Person",
+            hint: "Wenn die Gruppe kleiner ist als die Zahl der Aufgaben."
+          })}
+          ${flowRow({
+            id: "gmRoleSwitch",
+            checked: s.allowRoleSwitch,
+            title: "Rollen in der nächsten Stunde wechseln",
+            hint: "Die Gruppe bleibt, die Aufgaben können rotieren."
+          })}
+        </section>
 
-        <h3>Aufgaben / Rollen</h3>
-        <p class="hint">Rollen und persönliche Was-/Wie-Ziele verwaltest du unter „Rollen und Rollenziele“.</p>
-        <ul class="gm-role-summary">
-          ${(s.roles || [])
-            .map(
-              (r) =>
-                `<li>${escapeHtml(r.name)} · ${(r.wasGoals || []).length} Was · ${(r.howGoals || []).length} Wie ${r.active ? "" : "(inaktiv)"}</li>`
-            )
-            .join("")}
-        </ul>
-        <button type="button" class="action" id="gmGotoRoles">Rollen und Rollenziele öffnen</button>
+        <section class="gm-sec">
+          <div class="gm-sec__head">
+            <span class="gm-step">4</span>
+            <div>
+              <h3>Ablauf in der Stunde</h3>
+              <p>Nur einschalten, was die Gruppe wirklich braucht.</p>
+            </div>
+          </div>
+          <div class="gm-flow-list">
+            ${flowRow({
+              id: "gmShared",
+              checked: s.enableSharedGoal,
+              title: "Gemeinsames Vorhaben",
+              hint: "Ein Ziel aus dem Levelplan für die ganze Gruppe."
+            })}
+            ${flowRow({
+              id: "gmWhat",
+              checked: s.enableWhatGoals,
+              title: "Persönliche Was-Ziele",
+              hint: "Was macht jede Person in ihrer Rolle?",
+              extraHtml: `<label class="gm-num gm-num--inline"><span>max.</span><input type="number" id="gmMaxWhat" min="1" max="3" value="${s.maxWhatGoals || 3}"/></label>`
+            })}
+            ${flowRow({
+              id: "gmHow",
+              checked: s.enableHowGoals,
+              title: "Persönliche Wie-Ziele",
+              hint: "Wie soll die Arbeit gelingen?",
+              extraHtml: `<label class="gm-num gm-num--inline"><span>max.</span><input type="number" id="gmMaxHow" min="1" max="3" value="${s.maxHowGoals || 3}"/></label>`
+            })}
+            ${flowRow({
+              id: "gmMid",
+              checked: s.enableMidCheck,
+              title: "Zwischencheck",
+              hint: "Kurzer Stopp: Bin ich noch auf Kurs?"
+            })}
+            ${flowRow({
+              id: "gmReflect",
+              checked: s.enableReflection,
+              title: "Abschlussreflexion",
+              hint: "Am Ende der Stunde kurz zurückblicken."
+            })}
+          </div>
+          <details class="gm-more">
+            <summary>Weitere Optionen</summary>
+            ${flowRow({
+              id: "gmFreeWhat",
+              checked: s.allowFreeWhatGoal,
+              title: "Freie Was-Ziele",
+              hint: "Schüler dürfen eigene Was-Ziele schreiben (auch ohne Levelplan)."
+            })}
+            ${flowRow({
+              id: "gmFreeHow",
+              checked: s.allowFreeHowGoal,
+              title: "Freie Wie-Ziele",
+              hint: "Schüler dürfen eigene Wie-Ziele schreiben."
+            })}
+            <label class="gm-fallback">
+              <span>Ersatz-Wie-Ziele, falls eine Rolle noch keine eigenen hat</span>
+              <textarea id="gmHowOptions" rows="5" class="gm-textarea">${escapeHtml(howText)}</textarea>
+            </label>
+          </details>
+        </section>
 
-        <h3>Fallback-Wie-Ziele (wenn eine Rolle noch keine eigenen hat)</h3>
-        <textarea id="gmHowOptions" rows="6" class="gm-textarea">${escapeHtml(howText)}</textarea>
+        <section class="gm-sec">
+          <div class="gm-sec__head">
+            <span class="gm-step">5</span>
+            <div>
+              <h3>Rollen</h3>
+              <p>Aufgaben wie Versuch, Protokoll, Ergebnis – mit Was- und Wie-Zielen.</p>
+            </div>
+          </div>
+          ${
+            activeRoles.length
+              ? `<div class="gm-role-pills">${activeRoles
+                  .map(
+                    (r) =>
+                      `<span class="gm-pill">${escapeHtml(r.name)} · ${(r.wasGoals || []).length} Was · ${(r.howGoals || []).length} Wie</span>`
+                  )
+                  .join("")}</div>`
+              : `<p class="gm-empty-line">Noch keine Rollen für ${escapeHtml(state.subject)}. Bitte anlegen oder importieren.</p>`
+          }
+          <button type="button" class="action" id="gmGotoRoles">Rollen bearbeiten</button>
+        </section>
 
         <div class="gm-save-row">
           <button type="button" class="action" id="gmSaveSettings" ${state.saving ? "disabled" : ""}>
-            ${state.saving ? "Speichern…" : "Einstellungen speichern"}
+            ${state.saving ? "Speichern…" : "Einrichtung speichern"}
           </button>
           ${state.message ? `<span class="gm-ok">${escapeHtml(state.message)}</span>` : ""}
           ${state.error ? `<span class="gm-err">${escapeHtml(state.error)}</span>` : ""}
@@ -332,13 +484,13 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
 
     return `
       <div class="panel gm-panel">
-        <h2>Rollen und Rollenziele – ${escapeHtml(state.subject)}</h2>
-        <p class="hint">Fachbezogen und importierbar. Persönliche Was-/Wie-Ziele gehören zur Rolle, das gemeinsame Ziel kommt aus dem Levelplan.</p>
+        <h3>Rollen für ${escapeHtml(state.subject)}</h3>
+        <p class="hint">Jede Rolle braucht Was-Ziele (Aufgabe) und Wie-Ziele (Arbeitsweise). Die Schüler wählen später, wer welche Rolle übernimmt.</p>
         <div class="gm-role-toolbar">
           <button type="button" class="action" id="gmAddRole">Rolle hinzufügen</button>
-          <button type="button" class="action" id="gmImportRoles">Rollen und Rollenziele importieren</button>
-          <button type="button" class="action" id="gmCopyRoles">Vorlage aus anderem Fach übernehmen</button>
-          <button type="button" class="action" id="gmDownloadExample">Beispieldatei (.txt)</button>
+          <button type="button" class="action" id="gmImportRoles">Importieren</button>
+          <button type="button" class="action" id="gmCopyRoles">Aus anderem Fach kopieren</button>
+          <button type="button" class="action" id="gmDownloadExample">Beispieldatei</button>
         </div>
         ${state.message ? `<p class="gm-ok">${escapeHtml(state.message)}</p>` : ""}
         ${state.error ? `<p class="gm-err">${escapeHtml(state.error)}</p>` : ""}
@@ -471,35 +623,49 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
   }
 
   function renderOverview() {
+    const enabled = !!state.settings?.enabled;
+    const setupBanner = !enabled
+      ? `<div class="gm-banner">
+           <div>
+             <strong>Noch nicht eingerichtet</strong>
+             <p>Für ${escapeHtml(className())} · ${escapeHtml(state.subject)} ist der Gruppenmodus aus.</p>
+           </div>
+           <button type="button" class="action" id="gmGotoSetup">Jetzt einrichten</button>
+         </div>`
+      : "";
+
     if (!state.sessions.length) {
       return `
         <div class="panel gm-panel">
-          <h2>Offene Gruppen</h2>
-          <p class="hint">Noch keine offenen Gruppen für ${escapeHtml(state.subject)}.</p>
-          <p class="hint">Gruppen sind themengebunden (Levelplan) und bleiben bestehen, bis sie abgeschlossen oder gelöscht werden.</p>
+          ${setupBanner}
+          <h3>Gruppen in dieser Stunde</h3>
+          <p class="hint">Sobald Schüler eine Gruppe starten, erscheint sie hier – mit Rollen, Zielen und Fortschritt.</p>
         </div>`;
     }
 
     return `
       <div class="panel gm-panel">
-        <h2>Offene Gruppen</h2>
+        ${setupBanner}
+        <h3>Gruppen in dieser Stunde</h3>
         <div class="gm-session-list">
           ${state.sessions
             .map((bundle) => {
               const s = bundle.session;
               const p = bundle.progress;
               const open = state.expandedId === s.id;
+              const names = (bundle.members || [])
+                .map((m) => m.displayName)
+                .filter(Boolean)
+                .join(", ");
               return `
               <article class="gm-session-card">
                 <button type="button" class="gm-session-head" data-expand="${s.id}">
-                  <div>
-                    <strong>${escapeHtml(s.groupName || s.subject)}</strong>
+                  <div class="gm-session-head__row">
+                    <strong>${escapeHtml(s.groupName || names || s.subject)}</strong>
                     <span class="gm-status ${statusClass(s.status)}">${escapeHtml(statusLabel(s.status))}</span>
                   </div>
-                  <p>${escapeHtml(s.topicName || "ohne Thema")} · ${escapeHtml(s.sharedGoal || "kein Vorhaben")}</p>
-                  <p class="gm-progress-line">
-                    Ziele ${p.goalsDone}/${p.total} · Check ${p.midDone}/${p.total} · Reflexion ${p.reflectDone}/${p.total}
-                  </p>
+                  <p>${escapeHtml(s.topicName || "Noch kein Thema")} · ${escapeHtml(s.sharedGoal || "kein Vorhaben")}</p>
+                  <p class="gm-progress-line">${escapeHtml(names || "Keine Mitglieder")} · Ziele ${p.goalsDone}/${p.total} · Check ${p.midDone}/${p.total} · Abschluss ${p.reflectDone}/${p.total}</p>
                 </button>
                 ${
                   open
@@ -536,41 +702,72 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
             : renderOverview();
     el.innerHTML = `
       <style>
-        .gm-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:16px}
-        .gm-toolbar label{display:flex;flex-direction:column;gap:4px;font-size:.85rem}
-        .gm-toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
-        .gm-btn-active{outline:2px solid #3dd6c6}
-        .gm-panel h2{margin-top:0}
-        .gm-switch{display:flex;gap:10px;align-items:flex-start;margin:12px 0;font-weight:600}
-        .gm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:12px 0}
-        .gm-check{display:flex;gap:8px;align-items:center;margin:6px 0}
-        .gm-textarea{width:100%;max-width:720px}
+        .gm-head{display:flex;flex-wrap:wrap;gap:16px 24px;justify-content:space-between;align-items:flex-end;margin:0 0 14px}
+        .gm-head__title h2{margin:0 0 4px;font-size:1.15rem;letter-spacing:.06em;text-transform:uppercase}
+        .gm-head__title p{margin:0;color:#94a3b8;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+        .gm-head__filters{display:flex;flex-wrap:wrap;gap:10px}
+        .gm-head__filters label{display:flex;flex-direction:column;gap:4px;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8}
+        .gm-head__filters select{min-width:140px;margin:0}
+        .gm-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;border:1px solid rgba(148,163,184,.35);color:#cbd5e1}
+        .gm-chip.is-on{border-color:rgba(34,211,238,.55);color:#67e8f9;background:rgba(34,211,238,.12)}
+        .gm-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+        .gm-tab{min-height:40px;padding:8px 16px;border-radius:999px;border:1px solid rgba(148,163,184,.35);background:rgba(8,24,48,.55);color:#e2e8f0;cursor:pointer;font-weight:700;letter-spacing:.04em}
+        .gm-tab.is-on{border-color:rgba(34,211,238,.75);background:rgba(34,211,238,.16);color:#ecfeff;box-shadow:0 0 16px rgba(34,211,238,.18)}
+        .gm-panel{color:#e5e7eb}
+        .gm-panel h3{margin:0 0 4px}
+        .gm-sec{margin:0 0 22px;padding:0 0 18px;border-bottom:1px solid rgba(148,163,184,.16)}
+        .gm-sec:last-of-type{border-bottom:0;margin-bottom:8px}
+        .gm-sec__head{display:flex;gap:12px;align-items:flex-start;margin:0 0 12px}
+        .gm-sec__head p{margin:0;color:#94a3b8;font-size:.9rem}
+        .gm-step{flex:0 0 28px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;background:rgba(34,211,238,.16);color:#67e8f9;border:1px solid rgba(34,211,238,.4)}
+        .gm-switch-row,.gm-flow{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;border:1px solid rgba(148,163,184,.22);background:rgba(8,24,48,.45);margin:0 0 8px;cursor:pointer}
+        .gm-switch-row input,.gm-flow input[type="checkbox"],.gm-choice input{min-width:0;width:18px;height:18px;margin:0;accent-color:#22d3ee}
+        .gm-switch-row span,.gm-flow__text{display:grid;gap:2px}
+        .gm-switch-row em,.gm-flow__text em,.gm-choice span{font-style:normal;color:#94a3b8;font-size:.85rem;font-weight:400}
+        .gm-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+        .gm-choice{display:grid;gap:6px;padding:14px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.28);background:rgba(8,24,48,.45);cursor:pointer}
+        .gm-choice.is-on{border-color:rgba(34,211,238,.8);box-shadow:0 0 0 1px rgba(34,211,238,.35),0 0 18px rgba(34,211,238,.16);background:rgba(8,47,73,.5)}
+        .gm-size{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:0 0 10px}
+        .gm-size__sep{color:#94a3b8;padding-bottom:10px}
+        .gm-num{display:flex;flex-direction:column;gap:4px;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8}
+        .gm-num input,.gm-panel input[type="number"]{min-width:0;width:72px;margin:0}
+        .gm-num--inline{flex-direction:row;align-items:center;gap:6px}
+        .gm-flow-list{display:grid;gap:8px}
+        .gm-more{margin-top:10px;color:#cbd5e1}
+        .gm-more summary{cursor:pointer;color:#67e8f9;margin-bottom:10px}
+        .gm-fallback{display:grid;gap:6px;margin-top:8px;color:#94a3b8;font-size:.85rem}
+        .gm-textarea{width:100%;max-width:none;min-height:120px;border-radius:14px;border:1px solid rgba(34,211,238,.28);background:rgba(2,6,23,.9);color:#f8fafc;padding:10px 12px}
         .gm-save-row,.gm-footer-row,.gm-role-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px}
-        .gm-ok{color:#1a7f4b}
-        .gm-err{color:#b00020}
-        .gm-session-card,.gm-role-card{border:1px solid rgba(0,0,0,.12);border-radius:12px;margin-bottom:12px;overflow:hidden}
-        .gm-session-head,.gm-role-card-head{display:block;width:100%;text-align:left;padding:14px 16px;background:#fff;border:0;cursor:pointer}
-        .gm-session-head p,.gm-role-card-head p{margin:4px 0 0;color:#555}
-        .gm-status,.gm-pill{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:.75rem;background:#e8f7f5}
-        .gm-pill--warn,.gm-status--warn{background:#fff3cd}
-        .gm-status--ok{background:#d8f5e5}
-        .gm-status--run{background:#d7f0ff}
-        .gm-session-body,.gm-role-card-body{padding:0 16px 14px;border-top:1px solid rgba(0,0,0,.06)}
-        .gm-member-line{display:grid;grid-template-columns:1.2fr 1.5fr 24px 24px 24px;gap:8px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05)}
-        .gm-member-detail{font-size:.9rem;color:#444;padding:0 0 8px}
+        .gm-ok{color:#4ade80}
+        .gm-err{color:#fca5a5}
+        .gm-banner{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;padding:14px 16px;border-radius:14px;border:1px solid rgba(250,204,21,.4);background:rgba(250,204,21,.08);margin-bottom:16px}
+        .gm-banner p{margin:4px 0 0;color:#cbd5e1}
+        .gm-empty-line{color:#94a3b8;margin:0 0 10px}
+        .gm-role-pills{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+        .gm-session-card,.gm-role-card{border:1px solid rgba(34,211,238,.2);border-radius:14px;margin-bottom:12px;overflow:hidden;background:rgba(8,24,48,.4)}
+        .gm-session-head,.gm-role-card-head{display:block;width:100%;text-align:left;padding:14px 16px;background:transparent;border:0;cursor:pointer;color:inherit}
+        .gm-session-head__row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+        .gm-session-head p,.gm-role-card-head p{margin:4px 0 0;color:#94a3b8}
+        .gm-status,.gm-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.75rem;background:rgba(34,211,238,.14);color:#a5f3fc;border:1px solid rgba(34,211,238,.28)}
+        .gm-pill--warn,.gm-status--warn{background:rgba(250,204,21,.16);color:#fde68a;border-color:rgba(250,204,21,.35)}
+        .gm-status--ok{background:rgba(74,222,128,.16);color:#86efac;border-color:rgba(74,222,128,.35)}
+        .gm-status--run{background:rgba(56,189,248,.16);color:#7dd3fc;border-color:rgba(56,189,248,.35)}
+        .gm-session-body,.gm-role-card-body{padding:0 16px 14px;border-top:1px solid rgba(148,163,184,.12)}
+        .gm-member-line{display:grid;grid-template-columns:1.2fr 1.5fr 24px 24px 24px;gap:8px;padding:8px 0;border-bottom:1px solid rgba(148,163,184,.1)}
+        .gm-member-detail{font-size:.9rem;color:#cbd5e1;padding:0 0 8px}
         .gm-goal-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
         .gm-goal-cols ul{list-style:none;padding:0;margin:0 0 8px}
-        .gm-goal-cols li{display:flex;gap:6px;align-items:flex-start;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.06)}
+        .gm-goal-cols li{display:flex;gap:6px;align-items:flex-start;padding:6px 0;border-bottom:1px solid rgba(148,163,184,.1)}
         .gm-goal-cols li span{flex:1}
         .gm-goal-cols li.is-off,.gm-role-card.is-off{opacity:.55}
         .gm-role-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
-        .gm-role-summary{margin:8px 0 12px;padding-left:18px}
-        .gm-pre{white-space:pre-wrap;background:rgba(0,0,0,.04);padding:12px;border-radius:8px;font-size:.9rem;line-height:1.45;max-width:720px}
-        .gm-textarea--import{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9rem;max-width:900px;min-height:280px}
+        .gm-pre{white-space:pre-wrap;background:rgba(2,6,23,.7);padding:12px;border-radius:8px;font-size:.9rem;line-height:1.45;border:1px solid rgba(148,163,184,.2)}
+        .gm-textarea--import{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9rem;min-height:280px}
         .gm-file-label{cursor:pointer;display:inline-flex;align-items:center}
         .gm-import-format{margin-bottom:12px}
-        @media (max-width:700px){
-          .gm-member-line,.gm-goal-cols{grid-template-columns:1fr}
+        @media (max-width:800px){
+          .gm-choices,.gm-member-line,.gm-goal-cols{grid-template-columns:1fr}
+          .gm-flow{grid-template-columns:auto 1fr}
         }
       </style>
       ${renderToolbar()}
@@ -584,6 +781,8 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
   function readSettingsFromForm() {
     if (!state.settings) return;
     state.settings.enabled = !!document.getElementById("gmEnabled")?.checked;
+    const deviceRadio = document.querySelector('input[name="gmDeviceMode"]:checked');
+    state.settings.deviceMode = deviceRadio?.value === "personal" ? "personal" : "shared";
     state.settings.minMembers = Number(document.getElementById("gmMin")?.value || 2);
     state.settings.maxMembers = Number(document.getElementById("gmMax")?.value || 4);
     state.settings.allowMultiRoles = !!document.getElementById("gmMultiRoles")?.checked;
@@ -631,9 +830,19 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
       state.view = "roles";
       await refresh();
     });
+    document.getElementById("gmGotoSetup")?.addEventListener("click", async () => {
+      state.view = "settings";
+      await refresh();
+    });
     document.getElementById("gmSaveSettings")?.addEventListener("click", async () => {
       readSettingsFromForm();
       await saveSettings();
+    });
+    document.querySelectorAll('input[name="gmDeviceMode"]').forEach((el) => {
+      el.addEventListener("change", () => {
+        readSettingsFromForm();
+        render();
+      });
     });
     document.getElementById("gmAddRole")?.addEventListener("click", addRole);
 
@@ -931,8 +1140,8 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     state.error = "";
     render();
     try {
+      await loadSettings();
       if (state.view === "overview") await loadSessions();
-      else await loadSettings();
     } catch (err) {
       state.error = err.message || "Laden fehlgeschlagen.";
     } finally {

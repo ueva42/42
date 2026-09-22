@@ -13,7 +13,8 @@ import {
   sessionProgress,
   suggestRoleAssignment,
   toIsoDateOnly,
-  validateMemberCount
+  validateMemberCount,
+  normalizeDeviceMode
 } from "../lib/group-mode.js";
 
 function assert(cond, msg) {
@@ -165,4 +166,19 @@ testCover();
 testGoals();
 testCsvImport();
 testMultiGoals();
+testDeviceMode();
 console.log("OK – group-mode helper tests passed");
+
+function testDeviceMode() {
+  assert(normalizeDeviceMode("personal") === "personal", "personal");
+  assert(normalizeDeviceMode("shared") === "shared", "shared");
+  assert(normalizeDeviceMode("") === "shared", "default shared");
+  const pending = sessionProgress(
+    [
+      { invite_status: "accepted", goals_confirmed_at: "x" },
+      { invite_status: "pending" }
+    ],
+    { enableWhatGoals: false, enableHowGoals: false }
+  );
+  assert(pending.total === 1, "pending members ignored in progress");
+}
