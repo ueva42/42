@@ -245,15 +245,16 @@
     );
   }
 
-  function activeLevelcheckForThema(thema) {
-    const list = levelchecksForThema(thema?.id);
-    if (!list.length) return null;
-    const upcoming = list.find((lc) => lc.isUpcoming);
-    return upcoming || list[list.length - 1];
+  function linkedGoalIdsForThema(themaId) {
+    const ids = new Set();
+    for (const lc of levelchecksForThema(themaId)) {
+      for (const id of lc.linkedGoalIds || []) ids.add(String(id));
+    }
+    return ids;
   }
 
-  function linkedGoalIdSet(lc) {
-    return new Set((lc?.linkedGoalIds || []).map(String));
+  function isLevelcheckLinkedGoal(goalId) {
+    return linkedGoalIdsForThema(selectedThema()?.id).has(String(goalId));
   }
 
   function formatGradeLabel(key) {
@@ -389,6 +390,7 @@
   }
 
   function renderPracticeDial(goal) {
+    if (isLevelcheckLinkedGoal(goal.id)) return "";
     if (!hasQuizMaterial(goal)) return "";
     const pct = practicePercentOf(goal);
     const shown = pct == null ? 0 : pct;
@@ -425,7 +427,10 @@
         body = `<span class="lp-material-hint">${escapeHtml(parts.join(" · "))}</span>`;
       }
     }
-    return `<div class="lp-material-cell">${body}${renderPracticeDial(goal)}</div>`;
+    const lcNote = isLevelcheckLinkedGoal(goal.id)
+      ? `<p class="lp-practice-caption">Levelcheck – Ergebnis nur am Regler oben</p>`
+      : "";
+    return `<div class="lp-material-cell">${body}${renderPracticeDial(goal)}${lcNote}</div>`;
   }
 
   function renderStatusButton(goal, tier) {
@@ -509,8 +514,7 @@
   function renderDesktopTable(goals) {
     const tiers = activeTiers();
     const colSpan = 2 + tiers.length;
-    const lc = activeLevelcheckForThema(selectedThema());
-    const linked = linkedGoalIdSet(lc);
+    const linked = linkedGoalIdsForThema(selectedThema()?.id);
     const headerCells = tiers
       .map((tier) => `<th class="${tier.colClass}">${escapeHtml(tier.label)}</th>`)
       .join("");
@@ -554,8 +558,7 @@
 
   function renderMobileCards(goals) {
     const tiers = activeTiers();
-    const lc = activeLevelcheckForThema(selectedThema());
-    const linked = linkedGoalIdSet(lc);
+    const linked = linkedGoalIdsForThema(selectedThema()?.id);
     return `
       <div class="lp-mobile-list">
         ${goals
@@ -622,20 +625,21 @@
           <p class="lp-lc-card__title">${escapeHtml(lc.topicName)}</p>
           <p class="lp-lc-card__meta">${linkedCount} geprüfte Ziel(e)${goalsText ? ` · ${escapeHtml(goalsText)}${(lc.linkedGoalLabels || []).length > 3 ? " …" : ""}` : ""}</p>
           <p class="lp-lc-card__status">${escapeHtml(status)}</p>
-          ${
-            lc.isPast || pct != null
-              ? `<div class="lp-lc-dial-wrap" data-lp-lc-dial data-topic-id="${escapeHtml(lc.levelCheckId)}" data-threshold="${threshold}" data-pct="${pct == null ? 70 : pct}">
-                  <div class="lc-dial ${pct != null && pct >= threshold ? "is-pass" : ""} is-editable" data-lc-dial data-topic-id="${escapeHtml(lc.levelCheckId)}" data-threshold="${threshold}" style="--pct:${pct == null ? 70 : pct}; --threshold:${threshold}; --accent:${pct != null && pct >= threshold ? "#22c55e" : "#22d3ee"}" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct == null ? 70 : pct}" tabindex="0">
-                    <div class="lc-dial__ring" aria-hidden="true"></div>
-                    <div class="lc-dial__threshold" aria-hidden="true"></div>
-                    <div class="lc-dial__knob" aria-hidden="true"></div>
-                    <div class="lc-dial__center"><strong data-lc-dial-value>${pct == null ? 70 : pct} %</strong><span>richtig</span></div>
-                  </div>
-                  <input type="range" class="lc-dial__range" min="0" max="100" step="1" value="${pct == null ? 70 : pct}" aria-label="Levelcheck Prozent" />
-                  <button type="button" class="zielpfad-btn" data-lp-save-lc-percent data-topic-id="${escapeHtml(lc.levelCheckId)}">Ergebnis speichern</button>
-                </div>`
-              : `<p class="lp-lc-card__hint">Bereite die markierten Ziele vor. Nach dem Termin trägst du hier die % ein.</p>`
-          }
+          <div class="lp-lc-dial-wrap" data-lp-lc-dial data-topic-id="${escapeHtml(lc.levelCheckId)}" data-threshold="${threshold}" data-pct="${pct == null ? 70 : pct}">
+            <div class="lc-dial ${pct != null && pct >= threshold ? "is-pass" : ""} is-editable" data-lc-dial data-topic-id="${escapeHtml(lc.levelCheckId)}" data-threshold="${threshold}" style="--pct:${pct == null ? 70 : pct}; --threshold:${threshold}; --accent:${pct != null && pct >= threshold ? "#22c55e" : "#22d3ee"}" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct == null ? 70 : pct}" tabindex="0">
+              <div class="lc-dial__ring" aria-hidden="true"></div>
+              <div class="lc-dial__threshold" aria-hidden="true"></div>
+              <div class="lc-dial__knob" aria-hidden="true"></div>
+              <div class="lc-dial__center"><strong data-lc-dial-value>${pct == null ? 70 : pct} %</strong><span>richtig</span></div>
+            </div>
+            <input type="range" class="lc-dial__range" min="0" max="100" step="1" value="${pct == null ? 70 : pct}" aria-label="Levelcheck Prozent" />
+            <button type="button" class="zielpfad-btn" data-lp-save-lc-percent data-topic-id="${escapeHtml(lc.levelCheckId)}">${pct == null ? "Ergebnis speichern" : "Ergebnis aktualisieren"}</button>
+            ${
+              lc.isUpcoming && pct == null
+                ? `<p class="lp-lc-card__hint">Ein Regler für alle geprüften Ziele. Nach dem Termin hier die % eintragen.</p>`
+                : ""
+            }
+          </div>
         </article>`;
       })
       .join("");
@@ -644,7 +648,7 @@
       <section class="lp-lc-banner" aria-label="Levelchecks">
         <div class="lp-lc-banner__head">
           <h3>Levelcheck</h3>
-          <p>Keine Zielnote – nur die geprüften Ziele. Mit dem Kreisregler trägst du dein Ergebnis ein.</p>
+          <p>Für die gelb markierten Ziele gilt nur dieser eine Regler – kein eigener Lernnachweis.</p>
         </div>
         <div class="lp-lc-grid">${cards}</div>
       </section>`;
@@ -799,8 +803,7 @@
 
     ensureSelection();
     const thema = selectedThema();
-    const lc = activeLevelcheckForThema(thema);
-    const linked = linkedGoalIdSet(lc);
+    const linked = linkedGoalIdsForThema(thema?.id);
     let goals = (thema?.goals || []).filter(goalMatchesStatusFilter);
     if (state.focusLevelcheckGoals && linked.size) {
       goals = [...goals].sort((a, b) => {
@@ -832,7 +835,7 @@
       ? `<p class="lp-table-hint lp-table-hint--plan">Nach deinem Tagesziel: trage hier ein, was <strong>in Arbeit</strong> ist und was schon <strong>sicher</strong> läuft.</p>`
       : "";
     const lcHint = linked.size
-      ? `<p class="lp-table-hint lp-table-hint--lc">Gelb markiert: Ziele, die im Levelcheck geprüft werden (${linked.size}).</p>`
+      ? `<p class="lp-table-hint lp-table-hint--lc">Gelb markiert: Ziele im Levelcheck (${linked.size}) – dafür nur der eine Regler oben.</p>`
       : "";
 
     return `
