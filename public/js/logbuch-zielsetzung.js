@@ -650,27 +650,13 @@
       </div>`;
   }
 
-  function renderFeedbackSection(topic) {
-    // Reflexion nach Zielnote-Pfad (KA/Test) – Levelcheck-Reflexion läuft über Levelplan-% 
-    if (!topic?.targetGrade || topic.requiresTargetGrade === false) return "";
-    if (!hasLevelcheckResult(topic) && !topic.achievedGrade) {
-      // Optional: reflection still after target without % for KA - keep glow/grow available after target
-      // For now allow feedback once target is set
-    }
+  function renderFeedbackBody(topic) {
     const V = window.LogbuchVisuals;
     if (!V) return "";
 
     const glowOptions = feedbackOptions("glow");
     const growOptions = feedbackOptions("grow");
     const nextOptions = feedbackOptions("nextGoal");
-
-    function labelFor(fieldKey, value) {
-      const options = fieldKey === "glow" ? glowOptions : fieldKey === "grow" ? growOptions : nextOptions;
-      const raw = String(value ?? "");
-      if (!raw) return "—";
-      const found = options.find((o) => String(o.value) === raw);
-      return found ? found.label : raw;
-    }
 
     function renderChoiceCard({ fieldKey, title, question, accent, options }) {
       const value = topic[fieldKey] || "";
@@ -699,9 +685,7 @@
         <article class="zielpfad-eval-card" style="--eval-accent:${accent}" data-zs-reflection-field="${escapeHtml(fieldKey)}" data-topic-id="${escapeHtml(topic.id)}">
           <h4 class="zielpfad-eval-card__title">${escapeHtml(title)}</h4>
           <p class="zielpfad-eval-card__question">${escapeHtml(question)}</p>
-
           ${V.strategyTileGrid(tiles, activeValue, "data-zs-select-reflection")}
-
           <input
             type="text"
             class="zs-feedback-custom ${isCustom ? "" : "zs-feedback-custom-hidden"}"
@@ -715,69 +699,50 @@
         </article>`;
     }
 
-    const targetLabel = formatGradeLabel(topic.targetGradeLabel || topic.targetGrade);
-    const resultLabel =
-      topic.levelcheckPercent != null ? `${Number(topic.levelcheckPercent)} %` : "–";
+    return `
+      <div class="zielpfad-eval-grid zielpfad-eval-grid--modal">
+        ${renderChoiceCard({
+          fieldKey: "glow",
+          title: "GLOW",
+          question: "Was hat schon gut funktioniert und möchtest du beibehalten?",
+          accent: "#22c55e",
+          options: glowOptions
+        })}
+        ${renderChoiceCard({
+          fieldKey: "grow",
+          title: "GROW",
+          question: "Woran kannst du noch wachsen?",
+          accent: "#a855f7",
+          options: growOptions
+        })}
+        ${renderChoiceCard({
+          fieldKey: "nextGoal",
+          title: "NEXT",
+          question: "Was machst du bei der nächsten Arbeit besser oder anders?",
+          accent: "#a855f7",
+          options: nextOptions
+        })}
+      </div>`;
+  }
+
+  function renderReflectionModal() {
+    if (!state.modal || state.modal.type !== "reflection") return "";
+    const topic = findTopic(state.modal.topicId);
+    if (!topic?.targetGrade || topic.requiresTargetGrade === false) return "";
 
     return `
-      <section class="zielpfad-eval">
-        <h3 class="zielpfad-block__title">Deine Auswertung</h3>
-
-        <div class="zielpfad-eval-grid">
-          ${renderChoiceCard({
-            fieldKey: "glow",
-            title: "GLOW",
-            question: "Was hat schon gut funktioniert und möchtest du beibehalten?",
-            accent: "#22c55e",
-            options: glowOptions
-          })}
-          ${renderChoiceCard({
-            fieldKey: "grow",
-            title: "GROW",
-            question: "Woran kannst du noch wachsen?",
-            accent: "#a855f7",
-            options: growOptions
-          })}
-          ${renderChoiceCard({
-            fieldKey: "nextGoal",
-            title: "NEXT",
-            question: "Was machst du bei der nächsten Arbeit besser oder anders?",
-            accent: "#a855f7",
-            options: nextOptions
-          })}
+      <div class="zielpfad-modal-backdrop" role="dialog" aria-modal="true" aria-label="Auswertung">
+        <div class="zielpfad-modal zielpfad-modal--reflect" data-zs-modal-panel>
+          <div class="zielpfad-modal__head">
+            <div class="zielpfad-modal__titles">
+              <h3 class="zielpfad-modal__title">Glow · Grow · Next</h3>
+              <p class="zielpfad-modal__sub">Kurze Auswertung nach der Arbeit – tippe deine Antworten an.</p>
+            </div>
+            <button type="button" class="zielpfad-modal__close" data-zs-close-grade-modal>Fertig</button>
+          </div>
+          ${renderFeedbackBody(topic)}
         </div>
-
-        <article class="zielpfad-take-summary">
-          <h4 class="zielpfad-take-summary__title">Das nehme ich mit</h4>
-          <div class="zielpfad-take-summary__grid">
-            <div class="zielpfad-take-item">
-              <span>Zielnote</span>
-              <strong>${escapeHtml(targetLabel)}</strong>
-            </div>
-            <div class="zielpfad-take-item">
-              <span>Levelcheck</span>
-              <strong>${escapeHtml(resultLabel)}</strong>
-            </div>
-            <div class="zielpfad-take-item">
-              <span>Glow</span>
-              <strong>${escapeHtml(labelFor("glow", topic.glow))}</strong>
-            </div>
-            <div class="zielpfad-take-item">
-              <span>Grow</span>
-              <strong>${escapeHtml(labelFor("grow", topic.grow))}</strong>
-            </div>
-            <div class="zielpfad-take-item">
-              <span>Next</span>
-              <strong>${escapeHtml(labelFor("nextGoal", topic.nextGoal))}</strong>
-            </div>
-          </div>
-          <div class="zielpfad-take-summary__actions">
-            <button type="button" class="zielpfad-btn" data-zs-noop-save-eval disabled>
-              Auswertung speichern
-            </button>
-          </div>
-        </article>
-      </section>`;
+      </div>`;
   }
 
   function renderZielpfadHero(topic) {
@@ -898,7 +863,7 @@
 
     return `
       <div class="zielpfad-modal-backdrop" role="dialog" aria-modal="true" aria-label="Zielnote auswählen">
-        <div class="zielpfad-modal">
+        <div class="zielpfad-modal" data-zs-modal-panel>
           <div class="zielpfad-modal__head">
             <div class="zielpfad-modal__titles">
               <h3 class="zielpfad-modal__title">Zielnote auswählen</h3>
@@ -948,32 +913,41 @@
   }
 
   function renderAchievedGradeModal() {
-    return "";
-  }
-
-  function renderLevelcheckResultModal() {
-    if (!state.modal || state.modal.type !== "levelcheckResult") return "";
+    if (!state.modal || state.modal.type !== "achievedGrade") return "";
     const topic = findTopic(state.modal.topicId);
-    if (!topic) return "";
-    const draft =
-      state.modal.draft != null
-        ? Number(state.modal.draft)
-        : topic.levelcheckPercent != null
-          ? Number(topic.levelcheckPercent)
-          : 70;
+    if (!topic || topic.requiresTargetGrade === false) return "";
+
+    const options = gradeOptions();
+    const selected = topic.achievedGrade != null ? String(topic.achievedGrade) : "";
 
     return `
-      <div class="zielpfad-modal-backdrop" role="dialog" aria-modal="true" aria-label="Levelcheck-Ergebnis">
-        <div class="zielpfad-modal zielpfad-modal--dial">
+      <div class="zielpfad-modal-backdrop" role="dialog" aria-modal="true" aria-label="Erreichte Note">
+        <div class="zielpfad-modal" data-zs-modal-panel>
           <div class="zielpfad-modal__head">
             <div class="zielpfad-modal__titles">
-              <h3 class="zielpfad-modal__title">Levelcheck-Ergebnis</h3>
-              <p class="zielpfad-modal__sub">Wie viel Prozent hast du richtig? Keine Note – nur der Anteil.</p>
+              <h3 class="zielpfad-modal__title">Erreichte Note</h3>
+              <p class="zielpfad-modal__sub">Welche Note hast du in der Arbeit bekommen? Danach kommt Glow · Grow · Next.</p>
             </div>
             <button type="button" class="zielpfad-modal__close" data-zs-close-grade-modal>Schließen</button>
           </div>
-          <div class="lc-dial-modal-body">
-            ${renderLevelcheckDial({ ...topic, levelcheckPercent: draft }, { editable: true, draft })}
+          <div class="zielpfad-grade-tile-grid">
+            ${options
+              .map((g) => {
+                const val = String(g.value);
+                const isSel = selected && val === selected;
+                return `
+                  <button
+                    type="button"
+                    class="zielpfad-grade-tile ${isSel ? "is-selected" : ""}"
+                    data-zs-select-achieved-grade
+                    data-topic-id="${escapeHtml(topic.id)}"
+                    data-grade="${escapeHtml(val)}"
+                    aria-pressed="${isSel ? "true" : "false"}"
+                  >
+                    <span class="zielpfad-grade-tile__label">${escapeHtml(g.label)}</span>
+                  </button>`;
+              })
+              .join("")}
           </div>
         </div>
       </div>`;
@@ -1098,40 +1072,74 @@
     return "Aufgabe starten";
   }
 
-  function renderTaskRow(item) {
+  function renderTaskTile(item, topicId) {
     const isRequired = itemIsRequired(item);
+    const status = item.status || "offen";
     return `
-      <article class="zielpfad-task-row ${isRequired ? "is-required" : "is-challenge"} zielpfad-task-row--${item.status === "sicher" ? "sicher" : item.status === "in_arbeit" ? "arbeit" : "offen"}">
-        <div class="zielpfad-task-row__main">
-          <div class="zielpfad-task-row__tags">
-            <span class="zielpfad-tier-badge">${escapeHtml(item.tierLabel)}</span>
-            <span class="zielpfad-status ${statusBadgeForGoal(item.status)}">${escapeHtml(statusLabelForGoal(item.status))}</span>
-            <span class="zielpfad-badge ${tierBadgeClassForItem(item)}">${escapeHtml(item.pathLabel || tierPathLabel(isRequired))}</span>
-          </div>
-          <p class="zielpfad-task-row__subject">${escapeHtml(item.goalText)}</p>
-          <p class="zielpfad-task-row__text">${escapeHtml(item.taskText)}</p>
-        </div>
-        <div class="zielpfad-task-row__actions">
-          ${
-            resolvePracticeUrl(item.practiceUrl)
-              ? `<button type="button" class="zielpfad-btn zielpfad-btn--sm" data-zs-practice-url="${escapeHtml(resolvePracticeUrl(item.practiceUrl))}">Jetzt üben</button>`
-              : `<button type="button" class="zielpfad-btn zielpfad-btn--sm" data-zs-goto-levelplan>${escapeHtml(taskActionLabel(item))}</button>`
-          }
-        </div>
-      </article>`;
+      <button
+        type="button"
+        class="zs-goal-tile ${isRequired ? "is-required" : "is-challenge"} zs-goal-tile--${status === "sicher" || status === "geschafft" ? "done" : status === "in_arbeit" ? "arbeit" : "offen"}"
+        data-zs-open-goal="${escapeHtml(topicId)}"
+        data-zs-goal-key="${escapeHtml(String(item.goalId || item.goalText || ""))}"
+        data-zs-tier="${escapeHtml(item.tier || "")}"
+      >
+        <span class="zs-goal-tile__status">${escapeHtml(statusLabelForGoal(status))}</span>
+        <strong class="zs-goal-tile__title">${escapeHtml(item.goalText || "Ziel")}</strong>
+        <span class="zs-goal-tile__path">${escapeHtml(item.pathLabel || tierPathLabel(isRequired))}</span>
+      </button>`;
   }
 
-  function renderTaskGroup(title, items) {
+  function renderTaskTileGroup(title, items, topicId) {
     if (!items.length) return "";
     return `
       <div class="zielpfad-level-subgroup">
         <h5 class="zielpfad-level-subgroup__title">${escapeHtml(title)}</h5>
-        <div class="zielpfad-task-rows">
+        <div class="zs-goal-tile-grid">
           ${items
             .slice()
             .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0))
-            .map(renderTaskRow)
+            .map((item) => renderTaskTile(item, topicId))
             .join("")}
+        </div>
+      </div>`;
+  }
+
+  function findWorkItem(topic, goalKey, tier) {
+    const key = String(goalKey || "");
+    return (
+      allWorkItemsForTopic(topic).find(
+        (item) =>
+          String(item.goalId || item.goalText || "") === key &&
+          (!tier || String(item.tier) === String(tier))
+      ) || null
+    );
+  }
+
+  function renderGoalDetailModal() {
+    if (!state.modal || state.modal.type !== "goalDetail") return "";
+    const topic = findTopic(state.modal.topicId);
+    if (!topic) return "";
+    const item = findWorkItem(topic, state.modal.goalKey, state.modal.tier);
+    if (!item) return "";
+    const isRequired = itemIsRequired(item);
+    const tierLabel = item.tierLabel || LEVEL_CHECK_TIER_LABELS[item.tier] || item.tier || "";
+
+    return `
+      <div class="zielpfad-modal-backdrop" role="dialog" aria-modal="true" aria-label="Zielbeschreibung">
+        <div class="zielpfad-modal zielpfad-modal--goal" data-zs-modal-panel>
+          <div class="zielpfad-modal__head">
+            <div class="zielpfad-modal__titles">
+              <p class="zielpfad-modal__kicker">${escapeHtml(tierLabel)} · ${escapeHtml(item.pathLabel || tierPathLabel(isRequired))}</p>
+              <h3 class="zielpfad-modal__title">${escapeHtml(item.goalText || "Ziel")}</h3>
+              <p class="zielpfad-modal__sub">Das solltest du können:</p>
+            </div>
+            <button type="button" class="zielpfad-modal__close" data-zs-close-grade-modal>Schließen</button>
+          </div>
+          <p class="zs-goal-detail__text">${escapeHtml(item.taskText || "–")}</p>
+          <p class="zs-goal-detail__status">Stand: ${escapeHtml(statusLabelForGoal(item.status))}</p>
+          <div class="zielpfad-modal__foot zs-goal-detail__actions">
+            ${actionButtonForItem(item, "Im Lernstand üben")}
+          </div>
         </div>
       </div>`;
   }
@@ -1146,9 +1154,9 @@
     if (!allItems.length) {
       return `
         <section class="zielpfad-block">
-          <h3 class="zielpfad-block__title">Aufgaben</h3>
+          <h3 class="zielpfad-block__title">Ziele zum Üben</h3>
           <article class="zielpfad-task-empty">
-            <p>Für dieses Thema sind noch keine Aufgaben hinterlegt.</p>
+            <p>Für dieses Thema sind noch keine Ziele hinterlegt.</p>
           </article>
         </section>`;
     }
@@ -1168,14 +1176,15 @@
             <h3 class="zielpfad-level-block__title">${escapeHtml(label)}</h3>
             <p class="zielpfad-level-block__sub">${escapeHtml(pctLine)}</p>
           </div>
-          ${required.length ? renderTaskGroup("Für dein Ziel erforderlich", required) : ""}
-          ${challenge.length ? renderTaskGroup("Herausforderung", challenge) : ""}
+          ${required.length ? renderTaskTileGroup("Für dein Ziel erforderlich", required, topic.id) : ""}
+          ${challenge.length ? renderTaskTileGroup("Herausforderung", challenge, topic.id) : ""}
         </section>`;
     }).join("");
 
     return `
       <section class="zielpfad-block">
         ${renderGoalReachedBanner(topic)}
+        <p class="zielpfad-block__sub">Tippe eine Kachel an – dann siehst du, was du können solltest.</p>
         ${sections}
       </section>`;
   }
@@ -1190,17 +1199,55 @@
   }
 
   function renderResultSection(topic) {
-    // %-Ergebnis gehört zum Levelcheck-Flow im Levelplan, nicht zur Zielnote
     if (!topic?.targetGrade || topic.requiresTargetGrade === false) return "";
+    const hasAchieved = topic.achievedGrade != null && topic.achievedGrade !== "";
+    const achievedLabel = hasAchieved
+      ? formatGradeLabel(topic.achievedGradeLabel || topic.achievedGrade)
+      : null;
+    const reflectionCount = ["glow", "grow", "nextGoal"].filter((k) =>
+      String(topic[k] ?? "").trim()
+    ).length;
+    const targetLabel = formatGradeLabel(topic.targetGradeLabel || topic.targetGrade);
+
     return `
       <section class="zielpfad-block zielpfad-result">
         <h3 class="zielpfad-block__title">Nach der Klassenarbeit / dem Test</h3>
-        <article class="zielpfad-result-card">
-          <p class="zielpfad-result__pending">
-            Levelcheck-Ergebnisse trägst du im <b>Levelplan</b> ein (Kreisregler).
-            Hier geht es um deine Zielnote für Klassenarbeit oder Test.
+        <article class="zs-result-compact">
+          <div class="zs-result-compact__grades">
+            <div class="zs-result-compact__grade">
+              <span>Zielnote</span>
+              <strong>${escapeHtml(targetLabel)}</strong>
+            </div>
+            <div class="zs-result-compact__grade ${hasAchieved ? "is-set" : ""}">
+              <span>Erreicht</span>
+              <strong>${hasAchieved ? escapeHtml(achievedLabel) : "–"}</strong>
+            </div>
+          </div>
+          <p class="zs-result-compact__hint">
+            Trage deine Note ein – danach öffnet sich Glow · Grow · Next.
           </p>
-          ${renderFeedbackSection(topic)}
+          <div class="zs-result-compact__actions">
+            <button
+              type="button"
+              class="zielpfad-btn"
+              data-zs-open-achieved-grade-modal
+              data-topic-id="${escapeHtml(topic.id)}"
+            >
+              ${hasAchieved ? "Erreichte Note ändern" : "Erreichte Note eintragen"}
+            </button>
+            ${
+              hasAchieved
+                ? `<button
+                    type="button"
+                    class="zielpfad-btn"
+                    data-zs-open-reflection
+                    data-topic-id="${escapeHtml(topic.id)}"
+                  >
+                    Glow · Grow · Next${reflectionCount ? ` (${reflectionCount}/3)` : ""}
+                  </button>`
+                : ""
+            }
+          </div>
         </article>
       </section>`;
   }
@@ -1245,9 +1292,9 @@
       prog && prog.hasRecommended && prog.total > 0
         ? Math.round((prog.completed / prog.total) * 100)
         : null;
-    const reflectionDone = hasLevelcheckResult(topic)
-      ? [topic.grow, topic.glow, topic.nextGoal].filter((v) => String(v ?? "").trim()).length
-      : 0;
+    const reflectionDone = ["glow", "grow", "nextGoal"].filter((k) =>
+      String(topic[k] ?? "").trim()
+    ).length;
 
     return `
       <article class="zielpfad-archived-card" data-topic-id="${escapeHtml(topic.id)}">
@@ -1257,9 +1304,10 @@
             <p class="zielpfad-archived-card__meta">${typePart}${datePart}</p>
             <div class="zielpfad-archived-card__grades">
               <span>Ziel: ${escapeHtml(topic.targetGradeLabel || "–")}</span>
-              <span>Levelcheck: ${
-                hasLevelcheckResult(topic) ? `${Number(topic.levelcheckPercent)} %` : "–"
-              }</span>
+              <span>Erreicht: ${escapeHtml(
+                topic.achievedGradeLabel ||
+                  (topic.achievedGrade != null ? formatGradeLabel(topic.achievedGrade) : "–")
+              )}</span>
             </div>
             ${renderGoalResultBadge(topic)}
             <p class="zielpfad-archived-card__reflection">
@@ -1414,8 +1462,6 @@
 
     const group = visibleGroups()[0];
     const { upcoming } = group ? splitTopicsForSubject(group) : { upcoming: null };
-    const modalHtml = renderTargetGradeModal();
-    const achievedModalHtml = renderLevelcheckResultModal();
 
     root.innerHTML =
       V?.pageShell(`
@@ -1425,8 +1471,10 @@
           ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
           ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
           ${renderGrouped()}
-          ${modalHtml}
-          ${achievedModalHtml}
+          ${renderTargetGradeModal()}
+          ${renderAchievedGradeModal()}
+          ${renderGoalDetailModal()}
+          ${renderReflectionModal()}
         </div>
       `) || "";
 
@@ -1460,6 +1508,14 @@
       });
     });
 
+    root.querySelectorAll(".zielpfad-modal-backdrop").forEach((backdrop) => {
+      backdrop.addEventListener("click", (e) => {
+        if (e.target !== backdrop) return;
+        state.modal = null;
+        render();
+      });
+    });
+
     root.querySelectorAll("[data-zs-select-grade=\"target\"], [data-zs-select-grade]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const topicId = btn.dataset.topicId;
@@ -1471,31 +1527,12 @@
       });
     });
 
-    root.querySelectorAll("[data-zs-open-levelcheck-result]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const topicId = btn.dataset.topicId;
-        if (!topicId) return;
-        const topic = findTopic(topicId);
-        state.modal = {
-          type: "levelcheckResult",
-          topicId,
-          draft: topic?.levelcheckPercent != null ? Number(topic.levelcheckPercent) : 70
-        };
-        state.message = "";
-        render();
-      });
-    });
-
     root.querySelectorAll("[data-zs-open-achieved-grade-modal]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const topicId = btn.dataset.topicId;
         if (!topicId) return;
-        const topic = findTopic(topicId);
-        state.modal = {
-          type: "levelcheckResult",
-          topicId,
-          draft: topic?.levelcheckPercent != null ? Number(topic.levelcheckPercent) : 70
-        };
+        if (findTopic(topicId)?.requiresTargetGrade === false) return;
+        state.modal = { type: "achievedGrade", topicId };
         state.message = "";
         render();
       });
@@ -1503,11 +1540,36 @@
 
     root.querySelectorAll("[data-zs-select-achieved-grade]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        /* Note-Eingabe entfernt – Levelcheck-% nutzen */
+        const topicId = btn.dataset.topicId;
+        const grade = btn.dataset.grade;
+        if (!topicId || !grade) return;
+        if (findTopic(topicId)?.requiresTargetGrade === false) return;
+        state.modal = null;
+        saveField(topicId, "achievedGradeKey", grade, { openReflection: true });
       });
     });
 
-    bindLevelcheckDials(root);
+    root.querySelectorAll("[data-zs-open-reflection]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const topicId = btn.dataset.topicId;
+        if (!topicId) return;
+        state.modal = { type: "reflection", topicId };
+        state.message = "";
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-zs-open-goal]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const topicId = btn.dataset.zsOpenGoal;
+        const goalKey = btn.dataset.zsGoalKey;
+        const tier = btn.dataset.zsTier;
+        if (!topicId || !goalKey) return;
+        state.modal = { type: "goalDetail", topicId, goalKey, tier };
+        state.message = "";
+        render();
+      });
+    });
     // Reflection tiles (GLOW / GROW / NEXT) – wir speichern beim Tippen (Ausnahme: Eigene Antwort => Input anzeigen)
     root
       .querySelectorAll(".strategy-tile[data-zs-select-reflection]")
@@ -1617,7 +1679,7 @@
 
   function feedbackFieldLabel(apiField) {
     if (apiField === "targetGradeKey") return "Zielnote";
-    if (apiField === "achievedGradeKey") return "Levelcheck-Ergebnis";
+    if (apiField === "achievedGradeKey") return "Erreichte Note";
     if (apiField === "levelcheckPercent") return "Levelcheck-Ergebnis";
     if (apiField === "growText") return "Grow";
     if (apiField === "glowText") return "Glow";
@@ -1631,7 +1693,9 @@
       const label =
         item.field === "targetGrade"
           ? "Zielnote"
-          : item.field === "achievedGrade" || item.field === "levelcheckPercent"
+          : item.field === "achievedGrade"
+            ? "Erreichte Note"
+            : item.field === "levelcheckPercent"
             ? "Levelcheck"
             : item.field === "grow"
               ? "Grow"
@@ -1747,7 +1811,7 @@
     });
   }
 
-  async function saveField(topicId, field, value) {
+  async function saveField(topicId, field, value, options = {}) {
     state.saving =
       field.startsWith("grow") || field.startsWith("glow") || field.startsWith("nextGoal")
         ? `${topicId}_${field.replace("Text", "")}`
@@ -1809,6 +1873,15 @@
           ? ` · ${data.levelcheckPercent} % gespeichert`
           : "";
       state.message = `${label} gespeichert${unlockMsg}${buildXpMessage(data.xpDetails)}`;
+      if (options.openReflection) {
+        state.modal = { type: "reflection", topicId };
+      } else if (
+        field === "glowText" ||
+        field === "growText" ||
+        field === "nextGoalText"
+      ) {
+        state.modal = { type: "reflection", topicId };
+      }
       if (Number(data.xpAwarded) > 0 && typeof window.loadMe === "function") {
         await window.loadMe();
       }
