@@ -60,6 +60,7 @@ import {
   isTimetableFreeSubject,
   countTimetableSlotsBySubject,
   countLessonGroupsBySubject,
+  maxConsecutiveSlotsBySubject,
   subjectNeedsMidCheck
 } from "./lib/logbuch-day.js";
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
@@ -1841,12 +1842,15 @@ async function midCheckInfoForStudent(studentId, date, subject) {
   }
   const counts = countTimetableSlotsBySubject(timetable);
   const groups = countLessonGroupsBySubject(timetable);
+  const consecutive = maxConsecutiveSlotsBySubject(timetable);
   const slotCount = subject ? counts[subject] || 0 : 0;
   const groupCount = subject ? groups[subject] || 0 : 0;
+  const consecutiveCount = subject ? consecutive[subject] || 0 : 0;
   return {
     subjectSlotCount: slotCount,
     subjectLessonGroups: groupCount,
-    needsMidCheck: subjectNeedsMidCheck(groupCount),
+    subjectConsecutiveSlots: consecutiveCount,
+    needsMidCheck: subjectNeedsMidCheck(slotCount),
     subjectSlotCounts: counts
   };
 }
@@ -5969,6 +5973,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     );
     const subjectSlotCounts = countTimetableSlotsBySubject(activeTimetable);
     const subjectLessonGroups = countLessonGroupsBySubject(activeTimetable);
+    const subjectConsecutiveSlots = maxConsecutiveSlotsBySubject(activeTimetable);
 
     const seenSubjects = new Set();
     const uniqueTimetableSlots = [];
@@ -5984,26 +5989,28 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     for (const slot of uniqueTimetableSlots) {
       const entry = findEntryForSlot(slot);
       if (entry) usedEntryIds.add(entry.id);
-      const needsMidCheck = subjectNeedsMidCheck(subjectLessonGroups[slot.subject] || 0);
+      const needsMidCheck = subjectNeedsMidCheck(subjectSlotCounts[slot.subject] || 0);
       if (entry) entry.needsMidCheck = needsMidCheck;
       blocks.push({
         slot,
         entry,
         subjectSlotCount: subjectSlotCounts[slot.subject] || 0,
         subjectLessonGroups: subjectLessonGroups[slot.subject] || 0,
+        subjectConsecutiveSlots: subjectConsecutiveSlots[slot.subject] || 0,
         needsMidCheck
       });
     }
 
     for (const entry of entries) {
       if (!usedEntryIds.has(entry.id)) {
-        const needsMidCheck = subjectNeedsMidCheck(subjectLessonGroups[entry.subject] || 0);
+        const needsMidCheck = subjectNeedsMidCheck(subjectSlotCounts[entry.subject] || 0);
         entry.needsMidCheck = needsMidCheck;
         blocks.push({
           slot: { subject: entry.subject, timeslot: entry.timeslot, room: null },
           entry,
           subjectSlotCount: subjectSlotCounts[entry.subject] || 0,
           subjectLessonGroups: subjectLessonGroups[entry.subject] || 0,
+          subjectConsecutiveSlots: subjectConsecutiveSlots[entry.subject] || 0,
           needsMidCheck
         });
       }
@@ -6239,7 +6246,7 @@ app.delete("/api/student/homework/:id", isStudent, async (req, res) => {
     const del = await pool.query(
       `
       DELETE FROM student_homework
-      WHERE id = $1 AND user_id = $2 AND done = false
+      WHERE id = $1 AND user_id = $2
       RETURNING id
     `,
       [id, studentId]
@@ -6247,7 +6254,7 @@ app.delete("/api/student/homework/:id", isStudent, async (req, res) => {
     if (!del.rows.length) {
       return res.json({
         success: false,
-        message: "Löschen nicht möglich (fehlt oder schon erledigt)."
+        message: "Hausaufgabe nicht gefunden."
       });
     }
     res.json({ success: true });
@@ -6369,7 +6376,7 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
       return res.json({
         success: false,
         message:
-          "Zwischen-Check gibt es nur, wenn das Fach heute in getrennten Stunden steht – nicht bei einer Einzel- oder Doppelstunde.",
+          "Zwischen-Check gibt es bei einer Doppelstunde (nach der ersten Stunde) – nicht bei einer Einzelstunde.",
         needsMidCheck: false
       });
     }

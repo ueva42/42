@@ -1,5 +1,5 @@
 /**
- * Tests für Zwischencheck-Regel (Einzel-/Doppelstunde vs. getrennte Blöcke).
+ * Tests für Zwischencheck-Regel (Einzelstunde vs. Doppelstunde).
  * Ausführen: node scripts/test-student-day-checks.js
  */
 import {
@@ -7,6 +7,7 @@ import {
   isTimetableFreeSubject,
   countTimetableSlotsBySubject,
   countLessonGroupsBySubject,
+  maxConsecutiveSlotsBySubject,
   subjectNeedsMidCheck,
   plannedWorkIsEmpty
 } from "../lib/logbuch-day.js";
@@ -39,30 +40,49 @@ function testSlotCounts() {
   assert(counts.Frei == null, "Frei ignored");
 }
 
-function testLessonGroups() {
+function testLessonGroupsAndMidCheck() {
   const doppel = [
     { subject: "Mathe", timeslot: "7.50-8.35" },
     { subject: "Mathe", timeslot: "8.40-9.25" },
     { subject: "Deutsch", timeslot: "9.30-10.15" }
   ];
+  const doppelCounts = countTimetableSlotsBySubject(doppel);
   const doppelGroups = countLessonGroupsBySubject(doppel);
+  const doppelRun = maxConsecutiveSlotsBySubject(doppel);
+  assert(doppelCounts.Mathe === 2, `Doppelstunde Mathe slots=${doppelCounts.Mathe}`);
   assert(doppelGroups.Mathe === 1, `Doppelstunde Mathe groups=${doppelGroups.Mathe}`);
-  assert(doppelGroups.Deutsch === 1, "Deutsch single group");
-  assert(!subjectNeedsMidCheck(doppelGroups.Mathe), "Doppelstunde skips Zwischencheck");
-  assert(!subjectNeedsMidCheck(doppelGroups.Deutsch), "Einzelstunde skips Zwischencheck");
+  assert(doppelRun.Mathe === 2, `Doppelstunde Mathe consecutive=${doppelRun.Mathe}`);
+  assert(subjectNeedsMidCheck(doppelCounts.Mathe), "Doppelstunde needs Zwischencheck");
+  assert(!subjectNeedsMidCheck(doppelCounts.Deutsch), "Einzelstunde skips Zwischencheck");
+
+  const acrossBigBreak = [
+    { subject: "Mathe", timeslot: "9.30-10.15" },
+    { subject: "Mathe", timeslot: "10.35-11.20" }
+  ];
+  const bigBreakCounts = countTimetableSlotsBySubject(acrossBigBreak);
+  const bigBreakRun = maxConsecutiveSlotsBySubject(acrossBigBreak);
+  assert(bigBreakCounts.Mathe === 2, "Mathe über große Pause = 2 Slots");
+  assert(bigBreakRun.Mathe === 1, "große Pause trennt enge Consecutive-Serie");
+  assert(
+    subjectNeedsMidCheck(bigBreakCounts.Mathe),
+    "Doppelstunde über große Pause braucht trotzdem Zwischencheck"
+  );
 
   const split = [
     { subject: "Mathe", timeslot: "7.50-8.35" },
     { subject: "Deutsch", timeslot: "8.40-9.25" },
     { subject: "Mathe", timeslot: "11.25-12.10" }
   ];
-  const splitGroups = countLessonGroupsBySubject(split);
-  assert(splitGroups.Mathe === 2, `split Mathe groups=${splitGroups.Mathe}`);
-  assert(subjectNeedsMidCheck(splitGroups.Mathe), "two separate Mathe lessons keep Zwischencheck");
+  const splitCounts = countTimetableSlotsBySubject(split);
+  assert(splitCounts.Mathe === 2, `split Mathe slots=${splitCounts.Mathe}`);
+  assert(
+    subjectNeedsMidCheck(splitCounts.Mathe),
+    "zwei Mathe-Slots am Tag → Zwischencheck (auch wenn getrennt)"
+  );
 
   assert(!subjectNeedsMidCheck(0), "zero skips");
   assert(!subjectNeedsMidCheck(1), "one skips");
-  assert(subjectNeedsMidCheck(2), "two groups keep");
+  assert(subjectNeedsMidCheck(2), "two slots keep");
 }
 
 function testPracticePercentReuse() {
@@ -80,7 +100,7 @@ function testPlannedWorkEmpty() {
 
 testFreeSlotsIgnored();
 testSlotCounts();
-testLessonGroups();
+testLessonGroupsAndMidCheck();
 testPracticePercentReuse();
 testPlannedWorkEmpty();
 console.log("OK – student day / check helper tests passed");

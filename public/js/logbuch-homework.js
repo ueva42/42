@@ -170,12 +170,15 @@
     const ui = UI();
     const id = ui.escapeHtml(hw.id);
     const remindOn = hw.remind !== false && !hw.done;
+    const checkIcon = hw.done
+      ? `<svg class="hw-tile__check-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.2 16.6 4.8 12.2l1.4-1.4 3 3 8-8 1.4 1.4z"/></svg>`
+      : `<svg class="hw-tile__check-icon hw-tile__check-icon--open" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.25" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>`;
     return `
       <article class="hw-tile ${hw.done ? "hw-tile--done" : ""}">
         ${
           editable
-            ? `<button type="button" class="hw-tile__check ${hw.done ? "is-done" : ""}" data-hw-toggle="${id}" data-done="${hw.done ? "1" : "0"}" aria-pressed="${hw.done ? "true" : "false"}" aria-label="${hw.done ? "Wieder öffnen" : "Als erledigt markieren"}" ${state.hwBusy ? "disabled" : ""}>${hw.done ? "✓" : ""}</button>`
-            : `<span class="hw-tile__check ${hw.done ? "is-done" : ""}" aria-hidden="true">${hw.done ? "✓" : ""}</span>`
+            ? `<button type="button" class="hw-tile__check ${hw.done ? "is-done" : ""}" data-hw-toggle="${id}" data-done="${hw.done ? "1" : "0"}" aria-pressed="${hw.done ? "true" : "false"}" aria-label="${hw.done ? "Wieder öffnen" : "Als erledigt markieren"}" title="${hw.done ? "Wieder öffnen" : "Als erledigt markieren"}" ${state.hwBusy ? "disabled" : ""}>${checkIcon}</button>`
+            : `<span class="hw-tile__check ${hw.done ? "is-done" : ""}" aria-hidden="true">${checkIcon}</span>`
         }
         <div class="hw-tile__body">
           <p class="hw-tile__subject">${ui.escapeHtml(hw.subject)}</p>
@@ -192,11 +195,7 @@
                     ? ""
                     : `<button type="button" class="hw-btn-icon hw-btn-icon--remind ${remindOn ? "is-on" : ""}" data-hw-remind="${id}" data-remind="${hw.remind !== false ? "1" : "0"}" aria-pressed="${hw.remind !== false ? "true" : "false"}" aria-label="${hw.remind !== false ? "Erinnerung aus" : "Erinnerung an"}" title="${hw.remind !== false ? "Erinnerung an" : "Erinnerung aus"}">🔔</button>`
                 }
-                ${
-                  hw.done
-                    ? ""
-                    : `<button type="button" class="hw-btn-icon" data-hw-delete="${id}" aria-label="Löschen" title="Löschen">×</button>`
-                }
+                <button type="button" class="hw-btn-icon hw-btn-icon--delete" data-hw-delete="${id}" aria-label="Hausaufgabe löschen" title="Löschen">Löschen</button>
               </div>`
             : ""
         }
@@ -305,7 +304,7 @@
 
     const banner =
       openToday.length && editable
-        ? `<p class="hw-remind-banner">${openToday.length === 1 ? "1 Hausaufgabe ist heute fällig." : `${openToday.length} Hausaufgaben sind heute fällig.`} Tippe den Kreis an, wenn du fertig bist.</p>`
+        ? `<p class="hw-remind-banner">${openToday.length === 1 ? "1 Hausaufgabe ist heute fällig." : `${openToday.length} Hausaufgaben sind heute fällig.`} Tippe links auf erledigt – oder lösche falsche Einträge.</p>`
         : "";
 
     const rows = groups.length

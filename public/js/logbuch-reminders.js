@@ -441,7 +441,7 @@ window.LogbuchReminders = (function () {
       const checkState = store[reminderKey(entry.id, "check")] || {};
       const reflectState = store[reminderKey(entry.id, "reflect")] || {};
 
-      // Zwischen-Check nur bei 2+ Stunden desselben Fachs
+      // Zwischen-Check nur bei Doppelstunde (2+ zusammenhängende Slots)
       const needsMidCheck = block.needsMidCheck !== false && entry.needsMidCheck !== false;
       if (needsMidCheck && !block.hasCheck && remain >= 10) {
         const latePlan = now > checkAt && !checkState.firedAt;

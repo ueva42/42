@@ -824,7 +824,7 @@
         <div class="plan-app">
           ${renderDailyGoalCard(uiSkip, state.entry)}
           <div class="logbuch-msg logbuch-msg-info">
-            Heute steht ${uiSkip.escapeHtml(state.entry.subject || "dieses Fach")} nur als Einzel- oder Doppelstunde – der Zwischen-Check entfällt.
+            Heute steht ${uiSkip.escapeHtml(state.entry.subject || "dieses Fach")} nur als Einzelstunde – der Zwischen-Check entfällt. Am Ende kommt der Tagesabschluss.
           </div>
           ${uiSkip.btnPrimary("Zum Tagesabschluss", "checkGoReflectBtn", false, "today-app-btn")}
           ${uiSkip.btnGhost("Zurück zu Mein Tag", "checkBackBtn", "today-app-btn today-app-btn--ghost")}
