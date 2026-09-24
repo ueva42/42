@@ -3846,6 +3846,48 @@ body.student-app {
   gap: 10px;
 }
 
+.zs-goal-tile-grid--levels {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.zs-lernziel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.zs-lernziel-row {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 14, 35, 0.72);
+  padding: 14px;
+}
+
+.zs-lernziel-row__head {
+  margin-bottom: 10px;
+}
+
+.zs-lernziel-row__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.zs-lernziel-row__sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.zs-lernziel-footer {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .zs-goal-tile {
   display: flex;
   flex-direction: column;
@@ -3862,6 +3904,18 @@ body.student-app {
   text-align: left;
   cursor: pointer;
   transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.zs-goal-tile--level {
+  min-height: 96px;
+}
+
+.zs-goal-tile__level {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--grade-accent, #22d3ee) 85%, #fff);
 }
 
 .zs-goal-tile:hover,
@@ -4023,6 +4077,10 @@ body.student-app {
 @media (max-width: 720px) {
   .zs-goal-tile-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .zs-goal-tile-grid--levels {
+    grid-template-columns: 1fr;
   }
 
   .zielpfad-modal--reflect .strategy-tile-grid {
@@ -12955,7 +13013,7 @@ h2 {
 <script src="/js/logbuch-levelplan.js?v=31"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
-<script src="/js/logbuch-zielsetzung.js?v=33"></script>
+<script src="/js/logbuch-zielsetzung.js?v=34"></script>
 <script src="/js/logbuch-checkpoint-plan.js?v=12"></script>
 <script src="/js/logbuch-materialschrank.js?v=8"></script>
 <script src="/js/logbuch-homework.js?v=3"></script>

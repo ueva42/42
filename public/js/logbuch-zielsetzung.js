@@ -1072,36 +1072,46 @@
     return "Aufgabe starten";
   }
 
-  function renderTaskTile(item, topicId) {
+  function renderLevelTile(item, topicId) {
     const isRequired = itemIsRequired(item);
     const status = item.status || "offen";
+    const tierLabel = item.tierLabel || LEVEL_CHECK_TIER_LABELS[item.tier] || item.tier || "Level";
+    const accent =
+      item.tier === "rookie" ? "#22d3ee" : item.tier === "operator" ? "#a855f7" : "#f472b6";
     return `
       <button
         type="button"
-        class="zs-goal-tile ${isRequired ? "is-required" : "is-challenge"} zs-goal-tile--${status === "sicher" || status === "geschafft" ? "done" : status === "in_arbeit" ? "arbeit" : "offen"}"
+        class="zs-goal-tile zs-goal-tile--level ${isRequired ? "is-required" : "is-challenge"} zs-goal-tile--${status === "sicher" || status === "geschafft" ? "done" : status === "in_arbeit" ? "arbeit" : "offen"}"
+        style="--grade-accent:${accent}"
         data-zs-open-goal="${escapeHtml(topicId)}"
         data-zs-goal-key="${escapeHtml(String(item.goalId || item.goalText || ""))}"
         data-zs-tier="${escapeHtml(item.tier || "")}"
       >
+        <span class="zs-goal-tile__level">${escapeHtml(tierLabel)}</span>
         <span class="zs-goal-tile__status">${escapeHtml(statusLabelForGoal(status))}</span>
-        <strong class="zs-goal-tile__title">${escapeHtml(item.goalText || "Ziel")}</strong>
         <span class="zs-goal-tile__path">${escapeHtml(item.pathLabel || tierPathLabel(isRequired))}</span>
       </button>`;
   }
 
-  function renderTaskTileGroup(title, items, topicId) {
-    if (!items.length) return "";
+  function renderLernzielRow(group, topicId) {
+    const byTier = new Map((group.items || []).map((item) => [item.tier, item]));
+    const levelTiles = LEVEL_CHECK_TIER_ORDER.map((tier) => byTier.get(tier))
+      .filter(Boolean)
+      .map((item) => renderLevelTile(item, topicId))
+      .join("");
+
+    if (!levelTiles) return "";
+
     return `
-      <div class="zielpfad-level-subgroup">
-        <h5 class="zielpfad-level-subgroup__title">${escapeHtml(title)}</h5>
-        <div class="zs-goal-tile-grid">
-          ${items
-            .slice()
-            .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0))
-            .map((item) => renderTaskTile(item, topicId))
-            .join("")}
+      <article class="zs-lernziel-row">
+        <div class="zs-lernziel-row__head">
+          <h4 class="zs-lernziel-row__title">${escapeHtml(group.goalText || "Lernziel")}</h4>
+          <p class="zs-lernziel-row__sub">Level: Rookie → Operator → Street Legend</p>
         </div>
-      </div>`;
+        <div class="zs-goal-tile-grid zs-goal-tile-grid--levels">
+          ${levelTiles}
+        </div>
+      </article>`;
   }
 
   function findWorkItem(topic, goalKey, tier) {
@@ -1129,9 +1139,9 @@
         <div class="zielpfad-modal zielpfad-modal--goal" data-zs-modal-panel>
           <div class="zielpfad-modal__head">
             <div class="zielpfad-modal__titles">
-              <p class="zielpfad-modal__kicker">${escapeHtml(tierLabel)} · ${escapeHtml(item.pathLabel || tierPathLabel(isRequired))}</p>
-              <h3 class="zielpfad-modal__title">${escapeHtml(item.goalText || "Ziel")}</h3>
-              <p class="zielpfad-modal__sub">Das solltest du können:</p>
+              <p class="zielpfad-modal__kicker">${escapeHtml(item.goalText || "Lernziel")} · ${escapeHtml(tierLabel)}</p>
+              <h3 class="zielpfad-modal__title">${escapeHtml(tierLabel)}</h3>
+              <p class="zielpfad-modal__sub">${escapeHtml(item.pathLabel || tierPathLabel(isRequired))} – das solltest du können:</p>
             </div>
             <button type="button" class="zielpfad-modal__close" data-zs-close-grade-modal>Schließen</button>
           </div>
@@ -1139,6 +1149,7 @@
           <p class="zs-goal-detail__status">Stand: ${escapeHtml(statusLabelForGoal(item.status))}</p>
           <div class="zielpfad-modal__foot zs-goal-detail__actions">
             ${actionButtonForItem(item, "Im Lernstand üben")}
+            <button type="button" class="zielpfad-btn zielpfad-btn--ghost" data-zs-goto-levelplan>Zum Lernstand</button>
           </div>
         </div>
       </div>`;
@@ -1148,44 +1159,36 @@
     if (!topic?.targetGrade) return "";
 
     const allItems = allWorkItemsForTopic(topic);
-    const profile = getGradeRequirements(topic.targetGrade);
-    const tierAccents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f472b6" };
-
     if (!allItems.length) {
       return `
         <section class="zielpfad-block">
-          <h3 class="zielpfad-block__title">Ziele zum Üben</h3>
+          <h3 class="zielpfad-block__title">Lernziele</h3>
           <article class="zielpfad-task-empty">
-            <p>Für dieses Thema sind noch keine Ziele hinterlegt.</p>
+            <p>Für dieses Thema sind noch keine Lernziele hinterlegt.</p>
           </article>
         </section>`;
     }
 
-    const sections = LEVEL_CHECK_TIER_ORDER.map((tier) => {
-      const tierItems = allItems.filter((item) => item.tier === tier);
-      if (!tierItems.length) return "";
-      const pct = profile ? Math.round((profile[tier] || 0) * 100) : 0;
-      const required = tierItems.filter(itemIsRequired);
-      const challenge = tierItems.filter((item) => !itemIsRequired(item));
-      const label = LEVEL_CHECK_TIER_LABELS[tier] || tier;
-      const pctLine = pct > 0 ? `${pct} % für dein Ziel vorgesehen` : "Freiwillige Vertiefung";
-
-      return `
-        <section class="zielpfad-level-block" style="--grade-accent:${tierAccents[tier]}">
-          <div class="zielpfad-level-block__head">
-            <h3 class="zielpfad-level-block__title">${escapeHtml(label)}</h3>
-            <p class="zielpfad-level-block__sub">${escapeHtml(pctLine)}</p>
-          </div>
-          ${required.length ? renderTaskTileGroup("Für dein Ziel erforderlich", required, topic.id) : ""}
-          ${challenge.length ? renderTaskTileGroup("Herausforderung", challenge, topic.id) : ""}
-        </section>`;
-    }).join("");
+    const groups = groupItemsByGoal(allItems).sort(
+      (a, b) =>
+        (a.items[0]?.sortIndex ?? 0) - (b.items[0]?.sortIndex ?? 0) ||
+        String(a.goalText || "").localeCompare(String(b.goalText || ""), "de")
+    );
 
     return `
       <section class="zielpfad-block">
         ${renderGoalReachedBanner(topic)}
-        <p class="zielpfad-block__sub">Tippe eine Kachel an – dann siehst du, was du können solltest.</p>
-        ${sections}
+        <h3 class="zielpfad-block__title">Lernziele</h3>
+        <p class="zielpfad-block__sub">
+          Pro Lernziel siehst du die Level in der Reihenfolge Rookie → Operator → Street Legend.
+          Fortschritt eintragen und üben machst du im <b>Lernstand</b> – hier nur der Überblick für deine Zielnote.
+        </p>
+        <div class="zs-lernziel-list">
+          ${groups.map((group) => renderLernzielRow(group, topic.id)).join("")}
+        </div>
+        <div class="zs-lernziel-footer">
+          <button type="button" class="zielpfad-btn" data-zs-goto-levelplan>Im Lernstand weiterüben</button>
+        </div>
       </section>`;
   }
 
