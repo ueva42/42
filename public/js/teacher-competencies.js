@@ -40,7 +40,8 @@
       date: "",
       type: "klassenarbeit",
       customLabel: "",
-      linked: []
+      linked: [],
+      selectableAsDayGoal: true
     },
     data: null,
     loading: false,
@@ -51,12 +52,17 @@
     expandedTopicIds: new Set()
   };
 
+  function defaultSelectableAsDayGoal(type) {
+    return String(type || "") !== "levelcheck";
+  }
+
   function clearFormDraft() {
     state.formDraft = {
       date: "",
       type: "klassenarbeit",
       customLabel: "",
-      linked: []
+      linked: [],
+      selectableAsDayGoal: true
     };
   }
 
@@ -65,11 +71,16 @@
     const dateEl = card.querySelector(".tc-checkpoint-date");
     const typeEl = card.querySelector(".tc-checkpoint-type");
     const customEl = card.querySelector(".tc-checkpoint-type-custom");
+    const selectableEl = card.querySelector(".tc-selectable-day-goal");
+    const type = typeEl?.value || "klassenarbeit";
     state.formDraft = {
       date: dateEl?.value?.trim() || "",
-      type: typeEl?.value || "klassenarbeit",
+      type,
       customLabel: customEl?.value?.trim() || "",
-      linked: [...card.querySelectorAll(".tc-was-goal-check:checked")].map((el) => el.value)
+      linked: [...card.querySelectorAll(".tc-was-goal-check:checked")].map((el) => el.value),
+      selectableAsDayGoal: selectableEl
+        ? !!selectableEl.checked
+        : defaultSelectableAsDayGoal(type)
     };
   }
 
@@ -311,7 +322,11 @@
         date: isoToGerman(cp.checkpointDate),
         type,
         customLabel: type === "custom" ? cp.checkpointTypeLabel || "" : "",
-        linked: new Set(linkedIdsForCheckpoint(cp))
+        linked: new Set(linkedIdsForCheckpoint(cp)),
+        selectableAsDayGoal:
+          cp.selectableAsDayGoal == null
+            ? defaultSelectableAsDayGoal(type)
+            : !!cp.selectableAsDayGoal
       };
     }
     ensureThemaSelection();
@@ -320,7 +335,11 @@
       date: state.formDraft.date,
       type: state.formDraft.type,
       customLabel: state.formDraft.customLabel,
-      linked: new Set(state.formDraft.linked || [])
+      linked: new Set(state.formDraft.linked || []),
+      selectableAsDayGoal:
+        state.formDraft.selectableAsDayGoal == null
+          ? defaultSelectableAsDayGoal(state.formDraft.type)
+          : !!state.formDraft.selectableAsDayGoal
     };
   }
 
@@ -401,6 +420,18 @@
               >
             </label>
           </div>
+
+          <label class="tc-selectable-day-goal-label">
+            <input
+              type="checkbox"
+              class="tc-selectable-day-goal"
+              ${values.selectableAsDayGoal ? "checked" : ""}
+            >
+            Als Tagesziel in „Mein Tag“ wählbar
+          </label>
+          <p class="tc-hint">
+            Levelchecks sind standardmäßig aus. Nur mit Haken können Schülerinnen und Schüler diesen Termin beim Tagesziel auswählen.
+          </p>
 
           <div class="tc-linked-block">
             <h4 class="tc-linked-title">Was-Ziele für diesen Nachweis</h4>
@@ -535,8 +566,13 @@
     const card = root.querySelector(".tc-levelcheck-card");
     if (card) {
       card.querySelector(".tc-checkpoint-type")?.addEventListener("change", (e) => {
+        const type = e.target.value || "klassenarbeit";
+        const selectableEl = card.querySelector(".tc-selectable-day-goal");
+        if (selectableEl && !state.editCheckpointId) {
+          selectableEl.checked = defaultSelectableAsDayGoal(type);
+        }
         captureFormDraft(card);
-        toggleCustomField(card, e.target.value === "custom");
+        toggleCustomField(card, type === "custom");
         updateSaveButtonLabel(card);
       });
 
@@ -546,6 +582,10 @@
       });
 
       card.querySelector(".tc-checkpoint-date")?.addEventListener("input", () => {
+        captureFormDraft(card);
+      });
+
+      card.querySelector(".tc-selectable-day-goal")?.addEventListener("change", () => {
         captureFormDraft(card);
       });
 
@@ -606,6 +646,7 @@
     const linkedSubtopicIds = [...card.querySelectorAll(".tc-was-goal-check:checked")].map(
       (el) => el.value
     );
+    const selectableEl = card.querySelector(".tc-selectable-day-goal");
 
     return {
       levelCheckId: primaryTopicIdFromLinked(linkedSubtopicIds),
@@ -613,7 +654,10 @@
       dateRaw,
       checkpointType,
       checkpointTypeLabel: checkpointType === "custom" ? customEl?.value?.trim() || "" : null,
-      linkedSubtopicIds
+      linkedSubtopicIds,
+      selectableAsDayGoal: selectableEl
+        ? !!selectableEl.checked
+        : defaultSelectableAsDayGoal(checkpointType)
     };
   }
 
@@ -659,7 +703,8 @@
           checkpointDate: payload.checkpointDate,
           checkpointType: payload.checkpointType,
           checkpointTypeLabel: payload.checkpointTypeLabel,
-          linkedSubtopicIds: payload.linkedSubtopicIds
+          linkedSubtopicIds: payload.linkedSubtopicIds,
+          selectableAsDayGoal: payload.selectableAsDayGoal
         })
       });
       const data = await res.json();

@@ -1375,16 +1375,34 @@ function isPlanCheckpointType(typeKey, typeLabel = null) {
 
 function mapLevelCheckCheckpointRow(row) {
   const linked = row.linked_subtopic_ids;
+  const type = normalizeCheckpointType(row.checkpoint_type);
   return {
     id: row.id,
     levelCheckId: row.level_check_id,
     checkpointDate: normalizeIsoDate(row.checkpoint_date),
-    checkpointType: normalizeCheckpointType(row.checkpoint_type),
+    checkpointType: type,
     checkpointTypeLabel: row.checkpoint_type_label ?? null,
     linkedSubtopicIds: Array.isArray(linked)
       ? linked.map((id) => String(id))
-      : []
+      : [],
+    selectableAsDayGoal: resolveSelectableAsDayGoal(row.selectable_as_day_goal, type)
   };
+}
+
+function defaultSelectableAsDayGoal(checkpointType) {
+  // Levelchecks sind nur wählbar, wenn die Lehrkraft das explizit freigibt.
+  return !isLevelcheckCheckpointType(checkpointType);
+}
+
+function resolveSelectableAsDayGoal(raw, checkpointType) {
+  if (raw === true || raw === false) return raw;
+  if (raw === "true" || raw === 1 || raw === "1") return true;
+  if (raw === "false" || raw === 0 || raw === "0") return false;
+  return defaultSelectableAsDayGoal(checkpointType);
+}
+
+function isCheckpointSelectableAsDayGoal(cp) {
+  return resolveSelectableAsDayGoal(cp?.selectableAsDayGoal, cp?.checkpointType) === true;
 }
 
 function flattenScheduledCheckpoints(levelChecks) {
@@ -1418,6 +1436,10 @@ function flattenScheduledCheckpoints(levelChecks) {
         linkedSubtopicIds: Array.isArray(check.linkedSubtopicIds)
           ? check.linkedSubtopicIds.map((id) => String(id))
           : [],
+        selectableAsDayGoal: resolveSelectableAsDayGoal(
+          check.selectableAsDayGoal,
+          check.checkpointType
+        ),
         name: check.name,
         subject: check.subject,
         sortOrder: check.sortOrder ?? 0,
@@ -1446,7 +1468,8 @@ function listPlanCheckpointsForSubject(levelChecks, subject) {
   const filtered = flattenScheduledCheckpoints(levelChecks).filter(
     (c) =>
       c.subject === subject &&
-      isPlanCheckpointType(c.checkpointType, c.checkpointTypeLabel)
+      isPlanCheckpointType(c.checkpointType, c.checkpointTypeLabel) &&
+      isCheckpointSelectableAsDayGoal(c)
   );
 
   return filtered.sort((a, b) => {
@@ -3386,6 +3409,15 @@ async function migrate() {
     )
   `);
   await ensureColumn("level_check_checkpoints", "school_id", "INTEGER");
+  await ensureColumn("level_check_checkpoints", "selectable_as_day_goal", "BOOLEAN");
+  await pool.query(`
+    UPDATE level_check_checkpoints
+    SET selectable_as_day_goal = CASE
+      WHEN LOWER(COALESCE(checkpoint_type, '')) = 'levelcheck' THEN FALSE
+      ELSE TRUE
+    END
+    WHERE selectable_as_day_goal IS NULL
+  `).catch(() => {});
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_level_check_checkpoints_topic_date
     ON level_check_checkpoints (level_check_id, checkpoint_date DESC)
@@ -6871,6 +6903,7 @@ async function findCheckpointForSchool(checkpointId, schoolId) {
       cp.checkpoint_type,
       cp.checkpoint_type_label,
       cp.linked_subtopic_ids,
+      cp.selectable_as_day_goal,
       lc.class_id,
       lc.subject,
       lc.name
@@ -7088,7 +7121,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
   if (checkIds.length) {
     const cpRes = await pool.query(
       `
-      SELECT id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids
+      SELECT id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids, selectable_as_day_goal
       FROM level_check_checkpoints
       WHERE level_check_id = ANY($1::uuid[])
         AND (class_id = $2 OR class_id IS NULL)
@@ -8614,15 +8647,21 @@ app.post("/api/teacher/levelcheck-checkpoints", isAdmin, async (req, res) => {
     }
 
     const linkedSubtopicIds = linkedIds;
+    const selectableAsDayGoal = resolveSelectableAsDayGoal(
+      Object.prototype.hasOwnProperty.call(req.body, "selectableAsDayGoal")
+        ? req.body.selectableAsDayGoal
+        : undefined,
+      checkpointType
+    );
 
     const ins = await pool.query(
       `
       INSERT INTO level_check_checkpoints (
         school_id, level_check_id, class_id, checkpoint_date, checkpoint_type,
-        checkpoint_type_label, linked_subtopic_ids
+        checkpoint_type_label, linked_subtopic_ids, selectable_as_day_goal
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
-      RETURNING id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids
+      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+      RETURNING id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids, selectable_as_day_goal
     `,
       [
         schoolId,
@@ -8631,7 +8670,8 @@ app.post("/api/teacher/levelcheck-checkpoints", isAdmin, async (req, res) => {
         checkpointDate,
         checkpointType,
         checkpointTypeLabel,
-        JSON.stringify(linkedSubtopicIds)
+        JSON.stringify(linkedSubtopicIds),
+        selectableAsDayGoal
       ]
     );
 
@@ -8667,14 +8707,19 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) =
     const hasType = Object.prototype.hasOwnProperty.call(req.body, "checkpointType");
     const hasTypeLabel = Object.prototype.hasOwnProperty.call(req.body, "checkpointTypeLabel");
     const hasLinked = Object.prototype.hasOwnProperty.call(req.body, "linkedSubtopicIds");
+    const hasSelectable = Object.prototype.hasOwnProperty.call(req.body, "selectableAsDayGoal");
 
-    if (!hasDate && !hasType && !hasTypeLabel && !hasLinked) {
+    if (!hasDate && !hasType && !hasTypeLabel && !hasLinked && !hasSelectable) {
       return res.json({ success: false, message: "Keine Änderung übergeben." });
     }
 
     let checkpointDate = normalizeIsoDate(existing.checkpoint_date);
     let checkpointType = normalizeCheckpointType(existing.checkpoint_type);
     let checkpointTypeLabel = existing.checkpoint_type_label ?? null;
+    let selectableAsDayGoal = resolveSelectableAsDayGoal(
+      existing.selectable_as_day_goal,
+      existing.checkpoint_type
+    );
 
     if (hasDate) {
       checkpointDate = normalizeIsoDate(req.body.checkpointDate);
@@ -8699,6 +8744,16 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) =
         success: false,
         message: "Bitte eine eigene Bezeichnung für den Checkpoint-Typ eingeben."
       });
+    }
+
+    if (hasSelectable) {
+      selectableAsDayGoal = resolveSelectableAsDayGoal(
+        req.body.selectableAsDayGoal,
+        checkpointType
+      );
+    } else if (hasType) {
+      // Bei Typwechsel ohne explizite Freigabe: Levelcheck standardmäßig aus.
+      selectableAsDayGoal = defaultSelectableAsDayGoal(checkpointType);
     }
 
     let linkedSubtopicIds = Array.isArray(existing.linked_subtopic_ids)
@@ -8734,9 +8789,10 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) =
         checkpoint_date = $2,
         checkpoint_type = $3,
         checkpoint_type_label = $4,
-        linked_subtopic_ids = $5::jsonb
-      WHERE id = $6
-      RETURNING id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids
+        linked_subtopic_ids = $5::jsonb,
+        selectable_as_day_goal = $6
+      WHERE id = $7
+      RETURNING id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids, selectable_as_day_goal
     `,
       [
         levelCheckId,
@@ -8744,6 +8800,7 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) =
         checkpointType,
         checkpointTypeLabel,
         JSON.stringify(linkedSubtopicIds),
+        selectableAsDayGoal,
         checkpointId
       ]
     );
