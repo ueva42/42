@@ -1850,7 +1850,7 @@ async function midCheckInfoForStudent(studentId, date, subject) {
     subjectSlotCount: slotCount,
     subjectLessonGroups: groupCount,
     subjectConsecutiveSlots: consecutiveCount,
-    needsMidCheck: subjectNeedsMidCheck(slotCount),
+    needsMidCheck: subjectNeedsMidCheck(consecutiveCount),
     subjectSlotCounts: counts
   };
 }
@@ -5989,7 +5989,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     for (const slot of uniqueTimetableSlots) {
       const entry = findEntryForSlot(slot);
       if (entry) usedEntryIds.add(entry.id);
-      const needsMidCheck = subjectNeedsMidCheck(subjectSlotCounts[slot.subject] || 0);
+      const needsMidCheck = subjectNeedsMidCheck(subjectConsecutiveSlots[slot.subject] || 0);
       if (entry) entry.needsMidCheck = needsMidCheck;
       blocks.push({
         slot,
@@ -6003,7 +6003,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
 
     for (const entry of entries) {
       if (!usedEntryIds.has(entry.id)) {
-        const needsMidCheck = subjectNeedsMidCheck(subjectSlotCounts[entry.subject] || 0);
+        const needsMidCheck = subjectNeedsMidCheck(subjectConsecutiveSlots[entry.subject] || 0);
         entry.needsMidCheck = needsMidCheck;
         blocks.push({
           slot: { subject: entry.subject, timeslot: entry.timeslot, room: null },
@@ -6376,7 +6376,7 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
       return res.json({
         success: false,
         message:
-          "Zwischen-Check gibt es bei einer Doppelstunde (nach der ersten Stunde) – nicht bei einer Einzelstunde.",
+          "Zwischen-Check gibt es nur bei einer Doppelstunde (gleiches Fach direkt hintereinander) – nicht bei einer Einzelstunde.",
         needsMidCheck: false
       });
     }
