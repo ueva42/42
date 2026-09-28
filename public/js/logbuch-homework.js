@@ -4,6 +4,7 @@
 (function () {
   const UI = () => window.LogbuchUI;
   const DUE_DAY_COUNT = 6;
+  const MAX_PARTNERS = 3;
 
   const state = {
     date: null,
@@ -15,6 +16,7 @@
     hwDueDate: "",
     hwTitle: "",
     hwClassDone: "",
+    hwPartnerIds: [],
     hwBusy: false,
     hwMessage: "",
     hwError: "",
@@ -104,6 +106,7 @@
     state.hwDueDate = next;
     state.hwTitle = "";
     state.hwClassDone = "";
+    state.hwPartnerIds = [];
     state.hwRemind = true;
     state.hwError = "";
     state.hwMessage = "";
@@ -166,10 +169,23 @@
     });
   }
 
+  function homeworkClassmates() {
+    return Array.isArray(state.data?.homeworkClassmates) ? state.data.homeworkClassmates : [];
+  }
+
+  function partnerLine(hw) {
+    const names = (hw.partners || [])
+      .map((p) => p.displayName || p.name)
+      .filter(Boolean);
+    if (!names.length) return "";
+    return `Mit ${names.join(", ")}`;
+  }
+
   function renderTile(hw, editable) {
     const ui = UI();
     const id = ui.escapeHtml(hw.id);
     const remindOn = hw.remind !== false && !hw.done;
+    const partners = partnerLine(hw);
     const checkIcon = hw.done
       ? `<svg class="hw-tile__check-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.2 16.6 4.8 12.2l1.4-1.4 3 3 8-8 1.4 1.4z"/></svg>`
       : `<svg class="hw-tile__check-icon hw-tile__check-icon--open" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.25" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>`;
@@ -184,6 +200,7 @@
           <p class="hw-tile__subject">${ui.escapeHtml(hw.subject)}</p>
           <h4 class="hw-tile__title">${ui.escapeHtml(hw.title)}</h4>
           ${homeworkClassNoteHtml(hw, ui)}
+          ${partners ? `<p class="hw-tile__partners">${ui.escapeHtml(partners)}</p>` : ""}
           ${hw.done && hw.doneNote ? `<p class="hw-item__note">${ui.escapeHtml(hw.doneNote)}</p>` : ""}
           <p class="hw-tile__due">${hw.done ? "Erledigt" : `Bis ${ui.escapeHtml(formatDueHint(hw.dueDate))}`}</p>
         </div>
@@ -207,13 +224,16 @@
     const ui = UI();
     const subjects = homeworkSubjects();
     const dueOptions = dueDateOptions();
+    const classmates = homeworkClassmates();
     const step = state.modalStep;
-    const titles = ["Fach wählen", "Wann ist sie fertig?", "Hausaufgabe setzen"];
+    const titles = ["Fach wählen", "Wann ist sie fertig?", "Hausaufgabe setzen", "Mit wem ausgemacht?"];
     const subs = [
       "Tipp das Fach an.",
       "An welchem Schultag soll sie erledigt sein?",
-      "Was nimmst du mit nach Hause?"
+      "Was nimmst du mit nach Hause?",
+      "Optional – höchstens drei aus deiner Klasse. Sonst Alleine lassen."
     ];
+    const totalSteps = classmates.length ? 4 : 3;
 
     let body = "";
     if (step === 0) {
@@ -236,7 +256,7 @@
             )
             .join("")}
         </div>`;
-    } else {
+    } else if (step === 2) {
       body = `
         <div class="hw-form">
           <p class="hw-modal__picked">${ui.escapeHtml(state.hwSubject)} · bis ${ui.escapeHtml(formatDueHint(state.hwDueDate))}</p>
@@ -254,14 +274,37 @@
           </label>
           <p class="hw-remind-hint">Die Erinnerung erscheint in der App, solange sie geöffnet ist.</p>
         </div>`;
+    } else {
+      const selected = new Set(state.hwPartnerIds.map(String));
+      body = `
+        <div class="hw-form">
+          <p class="hw-modal__picked">${ui.escapeHtml(state.hwSubject)} · ${ui.escapeHtml(state.hwTitle || "…")}</p>
+          <div class="hw-modal__chips" role="group" aria-label="Partner">
+            <button type="button" class="choice-chip ${!selected.size ? "is-active" : ""}" data-hw-partner-alone>Alleine</button>
+            ${classmates
+              .map((c) => {
+                const cid = String(c.id);
+                const active = selected.has(cid);
+                return `<button type="button" class="choice-chip ${active ? "is-active" : ""}" data-hw-partner="${ui.escapeHtml(cid)}" ${!active && selected.size >= MAX_PARTNERS ? "disabled" : ""}>${ui.escapeHtml(c.displayName || c.name || "?")}</button>`;
+              })
+              .join("")}
+          </div>
+          <p class="hw-remind-hint">${selected.size ? `${selected.size} von ${MAX_PARTNERS} ausgewählt` : "Standard: Alleine"}</p>
+        </div>`;
     }
+
+    const onLastStep = step === totalSteps - 1;
+    const canGoNext =
+      (step === 0 && state.hwSubject) ||
+      (step === 1 && state.hwDueDate) ||
+      (step === 2 && String(state.hwTitle || "").trim().length >= 2);
 
     return `
       <div class="hw-modal-backdrop" id="hwModalBackdrop" role="dialog" aria-modal="true" aria-label="${ui.escapeHtml(titles[step])}">
         <div class="hw-modal">
           <div class="hw-modal__head">
             <div>
-              <p class="hw-modal__kicker">Schritt ${step + 1} von 3</p>
+              <p class="hw-modal__kicker">Schritt ${step + 1} von ${totalSteps}</p>
               <h3 class="hw-modal__title">${ui.escapeHtml(titles[step])}</h3>
               <p class="hw-modal__sub">${ui.escapeHtml(subs[step])}</p>
             </div>
@@ -276,11 +319,9 @@
                 : ""
             }
             ${
-              step === 2
+              onLastStep
                 ? `<button type="button" class="today-app-btn" id="hwAddBtn" ${state.hwBusy ? "disabled" : ""}>${state.hwBusy ? "Speichern…" : "Hausaufgabe setzen"}</button>`
-                : `<button type="button" class="today-app-btn" id="hwModalNext" ${
-                    (step === 0 && !state.hwSubject) || (step === 1 && !state.hwDueDate) ? "disabled" : ""
-                  }>Weiter</button>`
+                : `<button type="button" class="today-app-btn" id="hwModalNext" ${canGoNext ? "" : "disabled"}>Weiter</button>`
             }
           </div>
         </div>
@@ -374,6 +415,11 @@
     root.querySelector("#hwModalNext")?.addEventListener("click", () => {
       if (state.modalStep === 0 && !state.hwSubject) return;
       if (state.modalStep === 1 && !state.hwDueDate) return;
+      if (state.modalStep === 2 && String(state.hwTitle || "").trim().length < 2) {
+        state.hwError = "Bitte eine kurze Aufgabe für zu Hause eingeben.";
+        render();
+        return;
+      }
       state.modalStep += 1;
       state.hwError = "";
       render();
@@ -405,6 +451,21 @@
     });
     root.querySelector("#hwRemindInput")?.addEventListener("change", (e) => {
       state.hwRemind = !!e.target.checked;
+    });
+    root.querySelector("[data-hw-partner-alone]")?.addEventListener("click", () => {
+      state.hwPartnerIds = [];
+      render();
+    });
+    root.querySelectorAll("[data-hw-partner]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = Number(btn.dataset.hwPartner);
+        if (!Number.isFinite(id)) return;
+        const set = new Set(state.hwPartnerIds.map(Number));
+        if (set.has(id)) set.delete(id);
+        else if (set.size < MAX_PARTNERS) set.add(id);
+        state.hwPartnerIds = [...set];
+        render();
+      });
     });
     root.querySelector("#hwAddBtn")?.addEventListener("click", () => addHomework());
 
@@ -458,7 +519,8 @@
           classDoneNote: classDoneNote || null,
           assignedDate: state.date,
           dueDate,
-          remind: state.hwRemind !== false
+          remind: state.hwRemind !== false,
+          partnerIds: state.hwPartnerIds || []
         })
       });
       const data = await res.json();
@@ -472,6 +534,7 @@
       state.modalStep = 0;
       state.hwTitle = "";
       state.hwClassDone = "";
+      state.hwPartnerIds = [];
       state.hwRemind = true;
       state.hwMessage = "Gesetzt – du siehst sie als Kachel.";
       await loadDay();

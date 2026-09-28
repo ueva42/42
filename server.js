@@ -32,7 +32,7 @@ import {
   DEMO_STUDENT,
   DEMO_PASSWORD
 } from "./lib/demo-seed.js";
-import { migrateGroupModeTables } from "./lib/group-mode.js";
+import { migrateGroupModeTables, displayNameFromUser } from "./lib/group-mode.js";
 import { registerGroupModeRoutes } from "./lib/group-mode-api.js";
 import {
   parseLevelplanImportText as parseLevelplanImportTextBase,
@@ -2308,6 +2308,10 @@ function listUpcomingSchoolDays(fromIso, count = 6) {
 }
 
 function mapHomeworkRow(row) {
+  const partnerIds = Array.isArray(row.partner_ids)
+    ? row.partner_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+    : [];
+  const partners = Array.isArray(row._partners) ? row._partners : [];
   return {
     id: row.id,
     subject: row.subject,
@@ -2319,8 +2323,82 @@ function mapHomeworkRow(row) {
     doneNote: row.done_note || null,
     doneAt: row.done_at || null,
     remind: row.remind !== false,
+    partnerIds,
+    partners,
     createdAt: row.created_at
   };
+}
+
+const HOMEWORK_MAX_PARTNERS = 3;
+
+async function fetchHomeworkClassmates(classId, studentId) {
+  if (!classId) return [];
+  const r = await pool.query(
+    `
+    SELECT id, name
+    FROM users
+    WHERE class_id = $1
+      AND role = 'student'
+      AND id <> $2
+    ORDER BY name ASC
+  `,
+    [classId, studentId]
+  );
+  return r.rows.map((u) => ({
+    id: Number(u.id),
+    name: u.name,
+    displayName: displayNameFromUser(u.name)
+  }));
+}
+
+async function validateHomeworkPartnerIds(classId, studentId, rawIds) {
+  if (!Array.isArray(rawIds) || !rawIds.length) return [];
+  if (!classId) return [];
+  const wanted = [
+    ...new Set(
+      rawIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0 && id !== Number(studentId))
+    )
+  ].slice(0, HOMEWORK_MAX_PARTNERS);
+  if (!wanted.length) return [];
+  const r = await pool.query(
+    `
+    SELECT id
+    FROM users
+    WHERE class_id = $1
+      AND role = 'student'
+      AND id = ANY($2::int[])
+  `,
+    [classId, wanted]
+  );
+  const allowed = new Set(r.rows.map((row) => Number(row.id)));
+  return wanted.filter((id) => allowed.has(id));
+}
+
+async function attachHomeworkPartners(items) {
+  const idSet = new Set();
+  for (const item of items || []) {
+    for (const id of item.partnerIds || []) idSet.add(Number(id));
+  }
+  if (!idSet.size) {
+    return (items || []).map((item) => ({ ...item, partners: [] }));
+  }
+  const r = await pool.query(
+    `
+    SELECT id, name
+    FROM users
+    WHERE id = ANY($1::int[])
+  `,
+    [[...idSet]]
+  );
+  const byId = new Map(
+    r.rows.map((u) => [Number(u.id), { id: Number(u.id), displayName: displayNameFromUser(u.name) }])
+  );
+  return (items || []).map((item) => ({
+    ...item,
+    partners: (item.partnerIds || []).map((id) => byId.get(Number(id))).filter(Boolean)
+  }));
 }
 
 async function purgeExpiredHomework(studentId, asOfDate = todayIsoDate()) {
@@ -2331,7 +2409,7 @@ async function purgeExpiredHomework(studentId, asOfDate = todayIsoDate()) {
 }
 
 const HOMEWORK_SELECT_COLS =
-  "id, subject, title, class_done_note, assigned_date, due_date, done, done_note, done_at, remind, created_at";
+  "id, subject, title, class_done_note, assigned_date, due_date, done, done_note, done_at, remind, partner_ids, created_at";
 
 async function fetchHomeworkForDate(studentId, date, asOfDate = todayIsoDate()) {
   if (date === asOfDate) {
@@ -2348,7 +2426,8 @@ async function fetchHomeworkForDate(studentId, date, asOfDate = todayIsoDate()) 
   `,
     [studentId, asOfDate]
   );
-  const items = r.rows.map(mapHomeworkRow);
+  const mapped = r.rows.map(mapHomeworkRow);
+  const items = await attachHomeworkPartners(mapped);
   return {
     items,
     due: items.filter((h) => h.dueDate === date),
@@ -3801,6 +3880,7 @@ async function migrate() {
 
   await ensureColumn("student_homework", "class_done_note", "TEXT");
   await ensureColumn("student_homework", "remind", "BOOLEAN NOT NULL DEFAULT TRUE");
+  await ensureColumn("student_homework", "partner_ids", "JSONB NOT NULL DEFAULT '[]'::jsonb");
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_student_homework_user_due
@@ -6024,6 +6104,12 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
 
     const timetableSubjects = timetableSubjectsFromRows(timetable);
     const homework = await fetchHomeworkForDate(studentId, date, demoToday);
+    const homeworkClassmates = classId
+      ? await fetchHomeworkClassmates(classId, studentId).catch((err) => {
+          console.error("⚠️ homework classmates in /today:", err);
+          return [];
+        })
+      : [];
 
     let targetHintsBySubject = {};
     if (classId) {
@@ -6127,6 +6213,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       blocks,
       phases,
       homework,
+      homeworkClassmates,
       nextSchoolDay: nextSchoolDayIso(date),
       groupModeBySubject,
       targetHintsBySubject
@@ -6153,6 +6240,12 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
       normalizeIsoDate(req.body.dueDate) || nextSchoolDayIso(assignedDate);
     const dueAllowed = allowedDueDates.includes(dueDate);
     const remind = req.body.remind === false ? false : true;
+    const { classId } = await getStudentClassContext(studentId);
+    const partnerIds = await validateHomeworkPartnerIds(
+      classId,
+      studentId,
+      req.body.partnerIds
+    );
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
       return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
@@ -6176,14 +6269,25 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
     const ins = await pool.query(
       `
       INSERT INTO student_homework
-        (school_id, user_id, subject, title, class_done_note, assigned_date, due_date, remind)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (school_id, user_id, subject, title, class_done_note, assigned_date, due_date, remind, partner_ids)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
       RETURNING ${HOMEWORK_SELECT_COLS}
     `,
-      [schoolId, studentId, subject, title.slice(0, 300), classDoneNote, assignedDate, dueDate, remind]
+      [
+        schoolId,
+        studentId,
+        subject,
+        title.slice(0, 300),
+        classDoneNote,
+        assignedDate,
+        dueDate,
+        remind,
+        JSON.stringify(partnerIds)
+      ]
     );
 
-    res.json({ success: true, homework: mapHomeworkRow(ins.rows[0]) });
+    const [homework] = await attachHomeworkPartners([mapHomeworkRow(ins.rows[0])]);
+    res.json({ success: true, homework });
   } catch (err) {
     console.error("❌ POST /api/student/homework:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
