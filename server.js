@@ -61,7 +61,9 @@ import {
   countTimetableSlotsBySubject,
   countLessonGroupsBySubject,
   maxConsecutiveSlotsBySubject,
-  subjectNeedsMidCheck
+  subjectNeedsMidCheck,
+  midCheckFlagsForTimetable,
+  normalizeSubjectKey
 } from "./lib/logbuch-day.js";
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
 
@@ -991,7 +993,8 @@ function buildTimetableEditorSlots(dayRows) {
     id: null,
     timeslot,
     subject: "",
-    room: ""
+    room: "",
+    requiresMidCheck: false
   }));
 
   for (const row of dayRows) {
@@ -1001,7 +1004,8 @@ function buildTimetableEditorSlots(dayRows) {
       id: row.id,
       timeslot: TIMETABLE_DEFAULT_TIMES[idx],
       subject: row.subject,
-      room: row.room || ""
+      room: row.room || "",
+      requiresMidCheck: !!row.requires_mid_check
     };
   }
 
@@ -1030,14 +1034,62 @@ async function fetchTimetableForClassDay(classId, weekday) {
   if (!classId || !weekday) return [];
   const tRes = await pool.query(
     `
-    SELECT timeslot, subject, room
+    SELECT timeslot, subject, room, COALESCE(requires_mid_check, FALSE) AS requires_mid_check
     FROM timetables
     WHERE class_id = $1 AND weekday = $2
     ORDER BY timeslot ASC
   `,
     [classId, weekday]
   );
-  return sortTimetableSlots(tRes.rows);
+  return sortTimetableSlots(
+    tRes.rows.map((row) => ({
+      ...row,
+      requiresMidCheck: !!row.requires_mid_check
+    }))
+  );
+}
+
+function midCheckForSubject(timetable, subject) {
+  const flags = midCheckFlagsForTimetable(timetable, TIMETABLE_DEFAULT_TIMES);
+  if (!subject) {
+    return {
+      subjectSlotCount: 0,
+      subjectLessonGroups: 0,
+      subjectConsecutiveSlots: 0,
+      needsMidCheck: false,
+      subjectSlotCounts: countTimetableSlotsBySubject(timetable)
+    };
+  }
+  const key = normalizeSubjectKey(subject);
+  const match =
+    flags[subject] ||
+    Object.entries(flags).find(([s]) => normalizeSubjectKey(s) === key)?.[1] ||
+    null;
+  const counts = countTimetableSlotsBySubject(timetable);
+  const groups = countLessonGroupsBySubject(timetable, TIMETABLE_DEFAULT_TIMES);
+  const consecutive = maxConsecutiveSlotsBySubject(timetable, TIMETABLE_DEFAULT_TIMES);
+  const slotCount =
+    counts[subject] ||
+    Object.entries(counts).find(([s]) => normalizeSubjectKey(s) === key)?.[1] ||
+    0;
+  const groupCount =
+    groups[subject] ||
+    Object.entries(groups).find(([s]) => normalizeSubjectKey(s) === key)?.[1] ||
+    0;
+  const consecutiveCount =
+    match?.consecutiveSlots ||
+    consecutive[subject] ||
+    Object.entries(consecutive).find(([s]) => normalizeSubjectKey(s) === key)?.[1] ||
+    0;
+  return {
+    subjectSlotCount: slotCount,
+    subjectLessonGroups: groupCount,
+    subjectConsecutiveSlots: consecutiveCount,
+    needsMidCheck: match
+      ? match.needsMidCheck
+      : subjectNeedsMidCheck(consecutiveCount, false),
+    subjectSlotCounts: counts
+  };
 }
 
 const PLAN_ENTRY_FIELDS = `
@@ -1840,19 +1892,7 @@ async function midCheckInfoForStudent(studentId, date, subject) {
   if (classId && weekday) {
     timetable = await fetchTimetableForClassDay(classId, weekday);
   }
-  const counts = countTimetableSlotsBySubject(timetable);
-  const groups = countLessonGroupsBySubject(timetable);
-  const consecutive = maxConsecutiveSlotsBySubject(timetable);
-  const slotCount = subject ? counts[subject] || 0 : 0;
-  const groupCount = subject ? groups[subject] || 0 : 0;
-  const consecutiveCount = subject ? consecutive[subject] || 0 : 0;
-  return {
-    subjectSlotCount: slotCount,
-    subjectLessonGroups: groupCount,
-    subjectConsecutiveSlots: consecutiveCount,
-    needsMidCheck: subjectNeedsMidCheck(consecutiveCount),
-    subjectSlotCounts: counts
-  };
+  return midCheckForSubject(timetable, subject);
 }
 
 async function findStudentAccessibleLevelCheckGoal(goalId, classId, schoolId) {
@@ -3415,6 +3455,7 @@ async function migrate() {
     )
   `);
   await ensureColumn("timetables", "school_id", "INTEGER");
+  await ensureColumn("timetables", "requires_mid_check", "BOOLEAN NOT NULL DEFAULT FALSE");
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_log_entries_user_date
@@ -6051,15 +6092,23 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     const activeTimetable = timetable.filter(
       (slot) => slot.subject && !isTimetableFreeSubject(slot.subject)
     );
-    const subjectSlotCounts = countTimetableSlotsBySubject(activeTimetable);
-    const subjectLessonGroups = countLessonGroupsBySubject(activeTimetable);
-    const subjectConsecutiveSlots = maxConsecutiveSlotsBySubject(activeTimetable);
+    const subjectSlotCounts = countTimetableSlotsBySubject(timetable);
+    const subjectLessonGroups = countLessonGroupsBySubject(
+      timetable,
+      TIMETABLE_DEFAULT_TIMES
+    );
+    const subjectConsecutiveSlots = maxConsecutiveSlotsBySubject(
+      timetable,
+      TIMETABLE_DEFAULT_TIMES
+    );
+    const midFlags = midCheckFlagsForTimetable(timetable, TIMETABLE_DEFAULT_TIMES);
 
     const seenSubjects = new Set();
     const uniqueTimetableSlots = [];
     for (const slot of activeTimetable) {
-      if (seenSubjects.has(slot.subject)) continue;
-      seenSubjects.add(slot.subject);
+      const key = normalizeSubjectKey(slot.subject);
+      if (seenSubjects.has(key)) continue;
+      seenSubjects.add(key);
       uniqueTimetableSlots.push(slot);
     }
 
@@ -6069,7 +6118,12 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
     for (const slot of uniqueTimetableSlots) {
       const entry = findEntryForSlot(slot);
       if (entry) usedEntryIds.add(entry.id);
-      const needsMidCheck = subjectNeedsMidCheck(subjectConsecutiveSlots[slot.subject] || 0);
+      const flag =
+        midFlags[slot.subject] ||
+        Object.entries(midFlags).find(
+          ([s]) => normalizeSubjectKey(s) === normalizeSubjectKey(slot.subject)
+        )?.[1];
+      const needsMidCheck = !!flag?.needsMidCheck;
       if (entry) entry.needsMidCheck = needsMidCheck;
       blocks.push({
         slot,
@@ -6083,7 +6137,12 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
 
     for (const entry of entries) {
       if (!usedEntryIds.has(entry.id)) {
-        const needsMidCheck = subjectNeedsMidCheck(subjectConsecutiveSlots[entry.subject] || 0);
+        const flag =
+          midFlags[entry.subject] ||
+          Object.entries(midFlags).find(
+            ([s]) => normalizeSubjectKey(s) === normalizeSubjectKey(entry.subject)
+          )?.[1];
+        const needsMidCheck = !!flag?.needsMidCheck;
         entry.needsMidCheck = needsMidCheck;
         blocks.push({
           slot: { subject: entry.subject, timeslot: entry.timeslot, room: null },
@@ -10966,7 +11025,8 @@ app.get("/api/teacher/timetable", isAdmin, async (req, res) => {
 
     const rowsRes = await pool.query(
       `
-      SELECT id, weekday, timeslot, subject, room
+      SELECT id, weekday, timeslot, subject, room,
+             COALESCE(requires_mid_check, FALSE) AS requires_mid_check
       FROM timetables
       WHERE class_id=$1 AND school_id=$2
       ORDER BY weekday ASC, timeslot ASC
@@ -11033,6 +11093,7 @@ app.put("/api/teacher/timetable", isAdmin, async (req, res) => {
       const timeslot = String(entry.timeslot || "").trim();
       const subject = String(entry.subject || "").trim();
       const room = String(entry.room || "").trim() || null;
+      const requiresMidCheck = !!entry.requiresMidCheck || !!entry.requires_mid_check;
 
       if (!timeslot && !subject && !room) continue;
 
@@ -11064,7 +11125,13 @@ app.put("/api/teacher/timetable", isAdmin, async (req, res) => {
         });
       }
 
-      cleaned.push({ weekday, timeslot, subject, room });
+      cleaned.push({
+        weekday,
+        timeslot,
+        subject,
+        room,
+        requiresMidCheck: isTimetableFreeSubject(subject) ? false : requiresMidCheck
+      });
     }
 
     await pool.query("BEGIN");
@@ -11077,10 +11144,18 @@ app.put("/api/teacher/timetable", isAdmin, async (req, res) => {
       for (const row of cleaned) {
         await pool.query(
           `
-          INSERT INTO timetables (class_id, school_id, weekday, timeslot, subject, room)
-          VALUES ($1,$2,$3,$4,$5,$6)
+          INSERT INTO timetables (class_id, school_id, weekday, timeslot, subject, room, requires_mid_check)
+          VALUES ($1,$2,$3,$4,$5,$6,$7)
         `,
-          [classId, schoolId, row.weekday, row.timeslot, row.subject, row.room]
+          [
+            classId,
+            schoolId,
+            row.weekday,
+            row.timeslot,
+            row.subject,
+            row.room,
+            row.requiresMidCheck
+          ]
         );
       }
 

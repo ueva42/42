@@ -51,7 +51,8 @@
       grid[d.id] = Array.from({ length: maxSlots }, (_, i) => ({
         timeslot: defaultTimes[i] || "",
         subject: "",
-        room: ""
+        room: "",
+        requiresMidCheck: false
       }));
     });
     return grid;
@@ -67,7 +68,8 @@
         return {
           timeslot,
           subject: s.subject || "",
-          room: s.room || ""
+          room: s.room || "",
+          requiresMidCheck: !!s.requiresMidCheck
         };
       });
     });
@@ -76,6 +78,28 @@
 
   function isFreeSubject(subject) {
     return subject === FREE_SUBJECT;
+  }
+
+  function subjectKey(subject) {
+    return String(subject || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+  }
+
+  /** Indices die zu einer Doppelstunde gehören (gleiches Fach direkt hintereinander). */
+  function doublePeriodIndexes(slots) {
+    const marks = new Set();
+    for (let i = 0; i < (slots || []).length - 1; i++) {
+      const a = slots[i]?.subject;
+      const b = slots[i + 1]?.subject;
+      if (!a || !b || isFreeSubject(a) || isFreeSubject(b)) continue;
+      if (subjectKey(a) === subjectKey(b)) {
+        marks.add(i);
+        marks.add(i + 1);
+      }
+    }
+    return marks;
   }
 
   function subjectOptions(subjects, selected) {
@@ -118,7 +142,8 @@
     root.innerHTML = `
       <div class="panel">
         <h2>Stundenplan</h2>
-        <p class="hint">Pro Klasse: 5 Tage × max. ${maxSlots} Stunden. Zeitslot ist Pflicht. „Frei“ = freie Stunde ohne Logbuch. „Nicht genutzt“ = wird nicht gespeichert (z. B. wenn ihr weniger als ${maxSlots} Stunden nutzt).</p>
+        <p class="hint">Pro Klasse: 5 Tage × max. ${maxSlots} Stunden. Zeitslot ist Pflicht. „Frei“ = freie Stunde ohne Logbuch. „Nicht genutzt“ = wird nicht gespeichert.</p>
+        <p class="hint">Doppelstunde = gleiches Fach in zwei <strong>aufeinanderfolgenden</strong> Stunden → Zwischencheck automatisch. Alternativ Checkbox „Zwischencheck“ setzen.</p>
 
         <div class="tt-toolbar">
           <label>Klasse:</label>
@@ -134,25 +159,62 @@
         <div class="tt-grid">
           ${WEEKDAYS.map((day) => {
             const slots = state.grid[day.id] || [];
+            const doubles = doublePeriodIndexes(slots);
             return `
               <div class="tt-day-col">
                 <div class="tt-day-head">${day.label}</div>
                 ${slots
-                  .map(
-                    (slot, idx) => `
-                  <div class="tt-slot ${isFreeSubject(slot.subject) ? "tt-slot-free" : ""}" data-weekday="${day.id}" data-index="${idx}">
-                    <div class="tt-slot-nr">Stunde ${idx + 1}</div>
-                    <div class="tt-slot-time">${escapeHtml(defaultTimesFor(state.data)[idx] || slot.timeslot)}</div>
+                  .map((slot, idx) => {
+                    const isDouble = doubles.has(idx);
+                    const midOn = !!slot.requiresMidCheck || isDouble;
+                    const showMid =
+                      !!slot.subject && !isFreeSubject(slot.subject);
+                    return `
+                  <div class="tt-slot ${isFreeSubject(slot.subject) ? "tt-slot-free" : ""} ${
+                    isDouble ? "tt-slot-double" : ""
+                  }" data-weekday="${day.id}" data-index="${idx}">
+                    <div class="tt-slot-nr">Stunde ${idx + 1}${
+                      isDouble
+                        ? ` <span class="tt-double-badge">Doppelstunde</span>`
+                        : ""
+                    }</div>
+                    <div class="tt-slot-time">${escapeHtml(
+                      defaultTimesFor(state.data)[idx] || slot.timeslot
+                    )}</div>
                     <select class="tt-input tt-subject-select" data-field="subject">
                       ${subjectOptions(subjects, slot.subject)}
                     </select>
                     <input type="text" class="tt-input tt-subject-other" placeholder="Fach eingeben"
-                      value="${escapeHtml((subjects.includes(slot.subject) || isFreeSubject(slot.subject) ? "" : slot.subject) || "")}"
-                      style="${subjects.includes(slot.subject) || isFreeSubject(slot.subject) || !slot.subject ? "display:none" : ""}">
+                      value="${escapeHtml(
+                        (subjects.includes(slot.subject) || isFreeSubject(slot.subject)
+                          ? ""
+                          : slot.subject) || ""
+                      )}"
+                      style="${
+                        subjects.includes(slot.subject) ||
+                        isFreeSubject(slot.subject) ||
+                        !slot.subject
+                          ? "display:none"
+                          : ""
+                      }">
                     <input type="text" class="tt-input" placeholder="Raum (optional)"
                       value="${escapeHtml(slot.room)}" data-field="room">
-                  </div>`
-                  )
+                    ${
+                      showMid
+                        ? `<label class="tt-mid-check"><input type="checkbox" data-field="requiresMidCheck" ${
+                            slot.requiresMidCheck || isDouble ? "checked" : ""
+                          } ${isDouble ? "disabled" : ""}> Zwischencheck${
+                            isDouble ? " (auto)" : ""
+                          }</label>`
+                        : ""
+                    }
+                    ${
+                      midOn && showMid
+                        ? `<div class="tt-mid-hint">Zwischen-Check aktiv</div>`
+                        : ""
+                    }
+                  </div>`;
+                  })
                   .join("")}
               </div>`;
           }).join("")}
@@ -190,7 +252,16 @@
         subject = otherInput?.value.trim() || "";
       }
       const room = slotEl.querySelector('[data-field="room"]')?.value.trim() || "";
-      grid[weekday][index] = { timeslot, subject, room };
+      const midEl = slotEl.querySelector('[data-field="requiresMidCheck"]');
+      const requiresMidCheck = !!(midEl && midEl.checked && !midEl.disabled);
+      grid[weekday][index] = { timeslot, subject, room, requiresMidCheck };
+    });
+    // Auto-Doppelstunden brauchen kein Flag; manuell gesetzte behalten
+    WEEKDAYS.forEach((day) => {
+      const doubles = doublePeriodIndexes(grid[day.id] || []);
+      (grid[day.id] || []).forEach((slot, idx) => {
+        if (doubles.has(idx)) slot.requiresMidCheck = false;
+      });
     });
     state.grid = grid;
   }
@@ -203,6 +274,11 @@
       loadTimetable();
     });
 
+    const refreshFromDom = () => {
+      readGridFromDom(root);
+      render();
+    };
+
     root.querySelectorAll(".tt-subject-select").forEach((sel) => {
       sel.addEventListener("change", () => {
         const slot = sel.closest(".tt-slot");
@@ -212,11 +288,20 @@
         if (sel.value === "__other__") {
           other.style.display = "";
           other.focus();
-        } else {
-          other.style.display = "none";
-          other.value = "";
+          return;
         }
+        other.style.display = "none";
+        other.value = "";
+        refreshFromDom();
       });
+    });
+
+    root.querySelectorAll(".tt-subject-other").forEach((inp) => {
+      inp.addEventListener("change", refreshFromDom);
+    });
+
+    root.querySelectorAll('[data-field="requiresMidCheck"]').forEach((cb) => {
+      cb.addEventListener("change", refreshFromDom);
     });
 
     root.querySelector("#ttSaveBtn")?.addEventListener("click", saveTimetable);
@@ -232,7 +317,8 @@
           weekday: day.id,
           timeslot: defaultTimes[idx] || slot.timeslot,
           subject: slot.subject,
-          room: slot.room
+          room: slot.room,
+          requiresMidCheck: !!slot.requiresMidCheck
         });
       });
     });
