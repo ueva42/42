@@ -12439,6 +12439,7 @@ app.get("/api/student", isAdmin, async (req, res) => {
     SELECT
       u.id,
       u.name,
+      u.password,
       u.xp,
       u.freedom_rank,
       COALESCE(u.first_login, FALSE) AS first_login,
@@ -12462,10 +12463,13 @@ app.get("/api/student", isAdmin, async (req, res) => {
 
   const students = r.rows.map((row) => {
     const rank = serializeFreedomRank(row.freedom_rank);
+    const firstLogin = !!row.first_login;
     return {
       id: row.id,
       name: row.name,
-      firstLogin: !!row.first_login,
+      firstLogin,
+      // Einmalpasswort nur sichtbar, solange first_login noch aktiv ist
+      password: firstLogin ? row.password : null,
       xp: Number(row.xp || 0),
       earnedXp: Number(row.earned_xp || 0),
       freedomRank: rank.id,
@@ -12589,14 +12593,32 @@ app.patch("/api/student/:id/freedom-rank", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// ADMIN – Passwortkarten: nur nach bewusstem Neuausstellen (kein Auslesen gespeicherter Passwörter)
+// ADMIN – Passwortkarten: nur offene Einmalpasswörter (first_login)
 // -------------------------------------------------------
-app.get("/api/exportPasswords", isAdmin, async (_req, res) => {
-  res.status(410).json({
-    success: false,
-    message:
-      "Gespeicherte Passwörter können aus Datenschutzgründen nicht mehr ausgelesen werden. Bitte „Passwörter neu setzen & Karten“ nutzen."
-  });
+app.get("/api/exportPasswords", isAdmin, async (req, res) => {
+  try {
+    const classId = Number(req.query.classId);
+    const schoolId = req.session.user.school_id;
+    if (!classId) return res.json([]);
+
+    const r = await pool.query(
+      `
+      SELECT id, name, password
+      FROM users
+      WHERE role = 'student'
+        AND class_id = $1
+        AND school_id = $2
+        AND COALESCE(first_login, FALSE) = TRUE
+      ORDER BY name ASC
+    `,
+      [classId, schoolId]
+    );
+
+    res.json(r.rows);
+  } catch (err) {
+    console.error("❌ GET /api/exportPasswords:", err);
+    res.status(500).json([]);
+  }
 });
 
 app.post("/api/student/reissuePasswords", isAdmin, async (req, res) => {

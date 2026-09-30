@@ -937,6 +937,18 @@
       font-size: 12px;
       color: #94a3b8;
     }
+    .pw-temp {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .pw-active {
+      color: #166534;
+      font-weight: 600;
+    }
     .class-rank-toast {
       margin: 0 0 10px;
       font-size: 13px;
@@ -1725,7 +1737,8 @@
         <button class="action" onclick="renameClass()">Umbenennen</button>
         <button class="delete" onclick="deleteClass()">Klasse löschen</button>
         <!-- Passwortkarten-Button -->
-        <button class="action" onclick="printPasswordCards()">Passwörter neu setzen &amp; Karten</button>
+        <button class="action" onclick="printPasswordCards()">Passwortkarten (offene Einmal-PWs)</button>
+        <button class="action" onclick="reissueAllPasswords()">Alle Einmalpasswörter neu setzen</button>
 
         <div id="classXpBanner" class="class-xp-banner" hidden>
           <span class="class-xp-banner__label">Klassen-XP</span>
@@ -1740,7 +1753,7 @@
               <th>Name</th>
               <th>Level</th>
               <th>XP</th>
-              <th>Login</th>
+              <th>Passwort</th>
               <th>Neu setzen</th>
               <th>Löschen</th>
             </tr>
@@ -1753,7 +1766,7 @@
         <h3>Schüler:in anlegen</h3>
         <input id="studentName" placeholder="Name" />
         <p class="hint">
-          Beim Anlegen wird ein Einmalpasswort erzeugt und nur einmal angezeigt (nicht dauerhaft einsehbar).
+          Beim Anlegen wird ein Einmalpasswort erzeugt. Es bleibt in der Liste sichtbar, bis die Person sich einloggt und ein eigenes Passwort setzt – danach steht hier „Aktiv“.
         </p>
         <button class="action" onclick="addStudent()">Anlegen</button>
       </div>
@@ -2430,6 +2443,9 @@ async function loadClassStudents() {
     const rank = window.FreedomRanks?.get(rankId) || { id: rankId, label: rankId, icon: "", symbol: "" };
     const tr = document.createElement("tr");
     tr.dataset.studentId = String(s.id);
+    const pwCell = s.firstLogin && s.password
+      ? `<code class="pw-temp">${escapeHtml(s.password)}</code>`
+      : `<span class="pw-active">Aktiv</span>`;
     tr.innerHTML = `
       <td>${escapeHtml(s.name)}</td>
       <td>
@@ -2448,7 +2464,7 @@ async function loadClassStudents() {
         </div>
       </td>
       <td>${Number(s.xp || 0).toLocaleString("de-DE")}</td>
-      <td id="login_${s.id}">${s.firstLogin ? "Einmalpasswort offen" : "Aktiv"}</td>
+      <td id="login_${s.id}">${pwCell}</td>
       <td><button class="action" onclick="resetStudentPassword(${s.id}, ${JSON.stringify(s.name)})">Neu setzen</button></td>
       <td><button class="delete" onclick="deleteStudent(${s.id})">X</button></td>
     `;
@@ -2469,8 +2485,18 @@ function showOneTimePassword(title, password, name) {
   const who = name ? ` für ${name}` : "";
   const msg =
     `${title}${who}:\n\n${pw}\n\n` +
-    "Bitte jetzt notieren oder weitergeben – danach ist es hier nicht mehr einsehbar.";
+    "Das Einmalpasswort bleibt in der Klassenliste sichtbar, bis ein eigenes Passwort gesetzt wurde.";
   window.prompt(msg, pw);
+}
+
+function setLoginCell(studentId, password) {
+  const cell = document.getElementById(`login_${studentId}`);
+  if (!cell) return;
+  if (password) {
+    cell.innerHTML = `<code class="pw-temp">${escapeHtml(password)}</code>`;
+  } else {
+    cell.innerHTML = `<span class="pw-active">Aktiv</span>`;
+  }
 }
 
 function showClassRankToast(message, isError) {
@@ -2553,7 +2579,7 @@ async function deleteStudent(id) {
   loadXPStudents();
 }
 
-/* Passwort neu setzen (nur einmal sichtbar) */
+/* Passwort neu setzen → wieder Einmalpasswort (in Liste sichtbar) */
 async function resetStudentPassword(id, name) {
   if (!window.confirm(`Neues Einmalpasswort für ${name || "diese Person"} erzeugen? Das bisherige funktioniert danach nicht mehr.`)) {
     return;
@@ -2568,22 +2594,29 @@ async function resetStudentPassword(id, name) {
     alert(data.message || "Reset fehlgeschlagen.");
     return;
   }
-  const cell = document.getElementById(`login_${id}`);
-  if (cell) cell.textContent = "Einmalpasswort offen";
+  const pw = data.temporaryPassword || data.password;
+  setLoginCell(id, pw);
   showOneTimePassword(
     "Neues Einmalpasswort",
-    data.temporaryPassword || data.password,
+    pw,
     data.studentName || name
   );
 }
 
-/* Passwörter neu setzen und Karten drucken (Einmal-Ausgabe) */
-async function printPasswordCards() {
+/* Offene Einmalpasswörter als Karten drucken (ohne Reset) */
+function printPasswordCards() {
+  const classId = document.getElementById("classManageSelect").value;
+  if (!classId) return;
+  window.open(`/password-cards.html?classId=${encodeURIComponent(classId)}`, "_blank");
+}
+
+/* Alle Passwörter bewusst neu setzen und Karten öffnen */
+async function reissueAllPasswords() {
   const classId = document.getElementById("classManageSelect").value;
   if (!classId) return;
   if (
     !window.confirm(
-      "Für die ganze Klasse neue Einmalpasswörter erzeugen und Karten öffnen?\n\nAlte Passwörter funktionieren danach nicht mehr. Die neuen Passwörter sind nur jetzt in den Karten sichtbar."
+      "Für die ganze Klasse neue Einmalpasswörter erzeugen und Karten öffnen?\n\nAlte Passwörter (auch eigene) funktionieren danach nicht mehr."
     )
   ) {
     return;
