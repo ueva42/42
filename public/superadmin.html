@@ -498,7 +498,7 @@
           <tr>
             <th>Schule</th>
             <th>Benutzername</th>
-            <th>Passwort (aktueller Stand)</th>
+            <th>Login-Status</th>
             <th>Aktionen</th>
           </tr>
           </thead>
@@ -672,9 +672,9 @@ async function loadAdmins() {
     tr.innerHTML = `
       <td>${a.school_name} (${a.slug})</td>
       <td>${a.name}</td>
-      <td id="admin_pw_${a.id}">${a.password}</td>
+      <td id="admin_pw_${a.id}">nicht einsehbar</td>
       <td>
-        <button class="action" onclick="resetAdminPassword(${a.id})">Reset PW</button>
+        <button class="action" onclick="resetAdminPassword(${a.id}, ${JSON.stringify(a.name)})">Neu setzen</button>
         <button class="delete" onclick="deleteAdmin(${a.id})">X</button>
       </td>
     `;
@@ -703,22 +703,31 @@ async function createAdmin() {
   document.getElementById("adminNameInput").value = "";
   await loadAdmins();
 
-  if (data.password) {
-    alert(`Einmalpasswort für Admin "${name}": ${data.password}`);
+  const pw = data.temporaryPassword || data.password;
+  if (pw) {
+    window.prompt(
+      `Einmalpasswort für Admin "${name}" (bitte jetzt notieren – danach nicht mehr einsehbar):`,
+      pw
+    );
   }
 }
 
 /* Admin PW reset */
-async function resetAdminPassword(id) {
+async function resetAdminPassword(id, name) {
+  if (!confirm(`Neues Passwort für ${name || "diesen Admin"} erzeugen?`)) return;
   const r = await fetch(`/api/superadmin/admins/reset/${id}`, { method:"POST" });
   const data = await r.json();
   if (!data.success) {
     alert(data.message || "Reset fehlgeschlagen.");
     return;
   }
+  const pw = data.temporaryPassword || data.password;
   const cell = document.getElementById(`admin_pw_${id}`);
-  if (cell) cell.textContent = data.password;
-  alert(`Neues Passwort: ${data.password}`);
+  if (cell) cell.textContent = "nicht einsehbar";
+  window.prompt(
+    `Neues Passwort${name ? ` für ${name}` : ""} (bitte jetzt notieren – danach nicht mehr einsehbar):`,
+    pw
+  );
 }
 
 /* Admin löschen */

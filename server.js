@@ -12439,9 +12439,9 @@ app.get("/api/student", isAdmin, async (req, res) => {
     SELECT
       u.id,
       u.name,
-      u.password,
       u.xp,
       u.freedom_rank,
+      COALESCE(u.first_login, FALSE) AS first_login,
       COALESCE(
         (
           SELECT SUM(t.amount)
@@ -12465,7 +12465,7 @@ app.get("/api/student", isAdmin, async (req, res) => {
     return {
       id: row.id,
       name: row.name,
-      password: row.password,
+      firstLogin: !!row.first_login,
       xp: Number(row.xp || 0),
       earnedXp: Number(row.earned_xp || 0),
       freedomRank: rank.id,
@@ -12589,26 +12589,67 @@ app.patch("/api/student/:id/freedom-rank", isAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------
-// ADMIN – Export: Passwortkarten für eine Klasse
+// ADMIN – Passwortkarten: nur nach bewusstem Neuausstellen (kein Auslesen gespeicherter Passwörter)
 // -------------------------------------------------------
-app.get("/api/exportPasswords", isAdmin, async (req, res) => {
-  const classId  = Number(req.query.classId);
-  const schoolId = req.session.user.school_id;
+app.get("/api/exportPasswords", isAdmin, async (_req, res) => {
+  res.status(410).json({
+    success: false,
+    message:
+      "Gespeicherte Passwörter können aus Datenschutzgründen nicht mehr ausgelesen werden. Bitte „Passwörter neu setzen & Karten“ nutzen."
+  });
+});
 
-  if (!classId) {
-    return res.json([]);
+app.post("/api/student/reissuePasswords", isAdmin, async (req, res) => {
+  try {
+    const classId = Number(req.body.classId);
+    const schoolId = req.session.user.school_id;
+    if (!classId) {
+      return res.json({ success: false, message: "classId fehlt." });
+    }
+
+    const classOk = await pool.query(
+      `SELECT id FROM classes WHERE id = $1 AND school_id = $2`,
+      [classId, schoolId]
+    );
+    if (!classOk.rows.length) {
+      return res.json({ success: false, message: "Klasse nicht gefunden." });
+    }
+
+    const studentsRes = await pool.query(
+      `
+      SELECT id, name
+      FROM users
+      WHERE role = 'student'
+        AND class_id = $1
+        AND school_id = $2
+      ORDER BY name ASC
+    `,
+      [classId, schoolId]
+    );
+
+    const issued = [];
+    for (const student of studentsRes.rows) {
+      const temporaryPassword = generateTempPassword();
+      await pool.query(
+        `
+        UPDATE users
+        SET password = $1, first_login = TRUE
+        WHERE id = $2 AND school_id = $3 AND role = 'student'
+      `,
+        [temporaryPassword, student.id, schoolId]
+      );
+      issued.push({
+        id: student.id,
+        name: student.name,
+        password: temporaryPassword
+      });
+    }
+
+    res.json({ success: true, students: issued });
+  } catch (err) {
+    console.error("❌ POST /api/student/reissuePasswords:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
   }
-
-  const r = await pool.query(`
-    SELECT id, name, password
-    FROM users
-    WHERE role='student'
-      AND class_id=$1
-      AND school_id=$2
-    ORDER BY name ASC
-  `, [classId, schoolId]);
-
-  res.json(r.rows);
 });
 
 app.post("/api/student", isAdmin, async (req, res) => {
@@ -12618,14 +12659,14 @@ app.post("/api/student", isAdmin, async (req, res) => {
   if (!name || !classId)
     return res.json({ success: false });
 
-  const tempPassword = generateTempPassword();
+  const temporaryPassword = generateTempPassword();
 
   await pool.query(`
     INSERT INTO users (name,password,role,class_id,school_id,xp,first_login,freedom_rank)
     VALUES ($1,$2,'student',$3,$4,0,TRUE,$5)
-  `, [name, tempPassword, classId, schoolId, FREEDOM_RANK_DEFAULT]);
+  `, [name, temporaryPassword, classId, schoolId, FREEDOM_RANK_DEFAULT]);
 
-  res.json({ success: true });
+  res.json({ success: true, temporaryPassword, firstLogin: true });
 });
 
 app.delete("/api/student/:id", isAdmin, async (req, res) => {
@@ -12651,14 +12692,20 @@ app.post("/api/student/resetPassword", isAdmin, async (req, res) => {
   const r = await pool.query(`
     UPDATE users
     SET password=$1, first_login=TRUE
-    WHERE id=$2 AND school_id=$3
-    RETURNING id
+    WHERE id=$2 AND school_id=$3 AND role='student'
+    RETURNING id, name
   `, [newPassword, studentId, schoolId]);
 
   if (!r.rows.length)
     return res.json({ success: false, message: "Schüler:in nicht gefunden" });
 
-  res.json({ success: true, password: newPassword });
+  res.json({
+    success: true,
+    temporaryPassword: newPassword,
+    password: newPassword,
+    studentName: r.rows[0].name,
+    firstLogin: true
+  });
 });
 
 // -------------------------------------------------------
@@ -13253,7 +13300,7 @@ app.delete("/api/superadmin/schools/:id", isSuperadmin, async (req, res) => {
 app.get("/api/superadmin/admins", isSuperadmin, async (_req, res) => {
   const r = await pool.query(
     `
-    SELECT u.id,u.name,u.password,s.slug,s.name AS school_name
+    SELECT u.id, u.name, s.slug, s.name AS school_name
     FROM users u
     JOIN schools s ON u.school_id = s.id
     WHERE u.role='admin'
@@ -13274,18 +13321,27 @@ app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
   }
   const schoolId = s.rows[0].id;
 
-  const tempPassword = generateTempPassword();
+  const temporaryPassword = generateTempPassword();
 
-  await pool.query(
+  const ins = await pool.query(
     `
     INSERT INTO users (name,password,role,school_id,first_login)
     VALUES ($1,$2,'admin',$3,FALSE)
     ON CONFLICT (name,school_id) DO NOTHING
+    RETURNING id
   `,
-    [name, tempPassword, schoolId]
+    [name, temporaryPassword, schoolId]
   );
 
-  res.json({ success: true });
+  if (!ins.rows.length) {
+    return res.json({ success: false, message: "Admin existiert bereits." });
+  }
+
+  res.json({
+    success: true,
+    temporaryPassword,
+    password: temporaryPassword
+  });
 });
 
 // Admin-Passwort zurücksetzen
@@ -13304,7 +13360,11 @@ app.post(
       return res.json({ success: false, message: "Admin nicht gefunden" });
     }
 
-    res.json({ success: true, password: newPassword });
+    res.json({
+      success: true,
+      temporaryPassword: newPassword,
+      password: newPassword
+    });
   }
 );
 

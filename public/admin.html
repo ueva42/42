@@ -1725,7 +1725,7 @@
         <button class="action" onclick="renameClass()">Umbenennen</button>
         <button class="delete" onclick="deleteClass()">Klasse löschen</button>
         <!-- Passwortkarten-Button -->
-        <button class="action" onclick="printPasswordCards()">Passwortkarten drucken</button>
+        <button class="action" onclick="printPasswordCards()">Passwörter neu setzen &amp; Karten</button>
 
         <div id="classXpBanner" class="class-xp-banner" hidden>
           <span class="class-xp-banner__label">Klassen-XP</span>
@@ -1740,8 +1740,8 @@
               <th>Name</th>
               <th>Level</th>
               <th>XP</th>
-              <th>Passwort</th>
-              <th>Reset</th>
+              <th>Login</th>
+              <th>Neu setzen</th>
               <th>Löschen</th>
             </tr>
           </thead>
@@ -1753,7 +1753,7 @@
         <h3>Schüler:in anlegen</h3>
         <input id="studentName" placeholder="Name" />
         <p class="hint">
-          Beim Anlegen wird automatisch ein einmaliges Passwort erzeugt (Erst-Login).
+          Beim Anlegen wird ein Einmalpasswort erzeugt und nur einmal angezeigt (nicht dauerhaft einsehbar).
         </p>
         <button class="action" onclick="addStudent()">Anlegen</button>
       </div>
@@ -2431,14 +2431,14 @@ async function loadClassStudents() {
     const tr = document.createElement("tr");
     tr.dataset.studentId = String(s.id);
     tr.innerHTML = `
-      <td>${s.name}</td>
+      <td>${escapeHtml(s.name)}</td>
       <td>
         <div class="freedom-rank-cell" id="rankCell_${s.id}">
           <img src="${rank.icon}" alt="${rank.label}" width="28" height="28" />
-          <label class="sr-only" for="rankSelect_${s.id}">Level für ${s.name}</label>
+          <label class="sr-only" for="rankSelect_${s.id}">Level für ${escapeHtml(s.name)}</label>
           <select
             id="rankSelect_${s.id}"
-            aria-label="Level für ${s.name}"
+            aria-label="Level für ${escapeHtml(s.name)}"
             data-student-id="${s.id}"
             data-prev="${rankId}"
             onchange="onFreedomRankChange(this)"
@@ -2448,12 +2448,29 @@ async function loadClassStudents() {
         </div>
       </td>
       <td>${Number(s.xp || 0).toLocaleString("de-DE")}</td>
-      <td id="pw_${s.id}">${s.password}</td>
-      <td><button class="action" onclick="resetStudentPassword(${s.id})">Reset</button></td>
+      <td id="login_${s.id}">${s.firstLogin ? "Einmalpasswort offen" : "Aktiv"}</td>
+      <td><button class="action" onclick="resetStudentPassword(${s.id}, ${JSON.stringify(s.name)})">Neu setzen</button></td>
       <td><button class="delete" onclick="deleteStudent(${s.id})">X</button></td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function showOneTimePassword(title, password, name) {
+  const pw = String(password || "");
+  const who = name ? ` für ${name}` : "";
+  const msg =
+    `${title}${who}:\n\n${pw}\n\n` +
+    "Bitte jetzt notieren oder weitergeben – danach ist es hier nicht mehr einsehbar.";
+  window.prompt(msg, pw);
 }
 
 function showClassRankToast(message, isError) {
@@ -2511,13 +2528,21 @@ async function addStudent() {
   const name = document.getElementById("studentName").value.trim();
   if (!classId || !name) return;
 
-  await fetch("/api/student", {
+  const r = await fetch("/api/student", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({name, classId})
   });
+  const data = await r.json();
+  if (!data.success) {
+    alert(data.message || "Anlegen fehlgeschlagen.");
+    return;
+  }
 
   document.getElementById("studentName").value = "";
+  if (data.temporaryPassword || data.password) {
+    showOneTimePassword("Einmalpasswort", data.temporaryPassword || data.password, name);
+  }
   loadClassStudents();
   loadXPStudents();
 }
@@ -2528,26 +2553,63 @@ async function deleteStudent(id) {
   loadXPStudents();
 }
 
-/* Passwort-Reset Schüler */
-async function resetStudentPassword(id) {
+/* Passwort neu setzen (nur einmal sichtbar) */
+async function resetStudentPassword(id, name) {
+  if (!window.confirm(`Neues Einmalpasswort für ${name || "diese Person"} erzeugen? Das bisherige funktioniert danach nicht mehr.`)) {
+    return;
+  }
   const r = await fetch("/api/student/resetPassword", {
     method: "POST",
     headers: { "Content-Type":"application/json" },
     body: JSON.stringify({ studentId: id })
   });
   const data = await r.json();
-  if (data.success) {
-    const cell = document.getElementById(`pw_${id}`);
-    if (cell) cell.textContent = data.password;
-    alert(`Neues Passwort für die Schülerin/den Schüler: ${data.password}`);
+  if (!data.success) {
+    alert(data.message || "Reset fehlgeschlagen.");
+    return;
   }
+  const cell = document.getElementById(`login_${id}`);
+  if (cell) cell.textContent = "Einmalpasswort offen";
+  showOneTimePassword(
+    "Neues Einmalpasswort",
+    data.temporaryPassword || data.password,
+    data.studentName || name
+  );
 }
 
-/* Passwortkarten drucken */
-function printPasswordCards() {
+/* Passwörter neu setzen und Karten drucken (Einmal-Ausgabe) */
+async function printPasswordCards() {
   const classId = document.getElementById("classManageSelect").value;
   if (!classId) return;
-  window.open(`/password-cards.html?classId=${classId}`, "_blank");
+  if (
+    !window.confirm(
+      "Für die ganze Klasse neue Einmalpasswörter erzeugen und Karten öffnen?\n\nAlte Passwörter funktionieren danach nicht mehr. Die neuen Passwörter sind nur jetzt in den Karten sichtbar."
+    )
+  ) {
+    return;
+  }
+
+  try {
+    const r = await fetch("/api/student/reissuePasswords", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ classId: Number(classId) })
+    });
+    const data = await r.json();
+    if (!data.success || !Array.isArray(data.students)) {
+      alert(data.message || "Passwörter konnten nicht neu gesetzt werden.");
+      return;
+    }
+    sessionStorage.setItem(
+      "solPasswordCards",
+      JSON.stringify({ classId: Number(classId), students: data.students, issuedAt: Date.now() })
+    );
+    loadClassStudents();
+    window.open(`/password-cards.html?classId=${encodeURIComponent(classId)}`, "_blank");
+  } catch (err) {
+    console.error(err);
+    alert("Netzwerkfehler beim Neuausstellen.");
+  }
 }
 
 /* ---------------------------- MISSIONEN ---------------------------- */
