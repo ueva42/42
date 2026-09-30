@@ -595,6 +595,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
 
   function renderMemberLine(m) {
     const roles = (m.roles || []).map((r) => r.name).join(", ") || "–";
+    const topic = m.topicName || "–";
     const goalOk = m.goalsComplete ? "✓" : "○";
     const midOk = m.midCheckAt ? "✓" : "○";
     const refOk = m.reflectionAt ? "✓" : "○";
@@ -609,6 +610,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
       ${
         state.expandedId === m.id || true
           ? `<div class="gm-member-detail">
+              <p><em>Unterthema:</em> ${escapeHtml(topic)}</p>
               <p><em>Was:</em> ${escapeHtml(m.whatGoalText || "–")}</p>
               <p><em>Wie:</em> ${escapeHtml(m.howGoalText || "–")}</p>
               ${
@@ -664,7 +666,15 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
                     <strong>${escapeHtml(s.groupName || names || s.subject)}</strong>
                     <span class="gm-status ${statusClass(s.status)}">${escapeHtml(statusLabel(s.status))}</span>
                   </div>
-                  <p>${escapeHtml(s.topicName || "Noch kein Thema")} · ${escapeHtml(s.sharedGoal || "kein Vorhaben")}</p>
+                  <p>${escapeHtml(
+                    (bundle.members || [])
+                      .map((m) => m.topicName)
+                      .filter(Boolean)
+                      .filter((v, i, a) => a.indexOf(v) === i)
+                      .join(" · ") ||
+                      s.topicName ||
+                      "Noch kein Thema"
+                  )} · ${escapeHtml(s.sharedGoal || "kein Vorhaben")}</p>
                   <p class="gm-progress-line">${escapeHtml(names || "Keine Mitglieder")} · Ziele ${p.goalsDone}/${p.total} · Check ${p.midDone}/${p.total} · Abschluss ${p.reflectDone}/${p.total}</p>
                 </button>
                 ${
@@ -677,7 +687,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
                               ? `<button type="button" class="action gm-close-force" data-close="${s.id}">Stunde beenden</button>`
                               : `<button type="button" class="action gm-reopen" data-reopen="${s.id}">Wieder öffnen</button>`
                           }
-                          <button type="button" class="action gm-delete-session" data-delete="${s.id}">Gruppe löschen</button>
+                          <button type="button" class="action gm-delete-session" data-delete="${s.id}">Gruppe auflösen</button>
                         </div>
                       </div>`
                     : ""
@@ -1128,8 +1138,15 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     document.querySelectorAll("[data-delete]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-delete");
-        if (!window.confirm("Diese Gruppe wirklich löschen?")) return;
+        if (
+          !window.confirm(
+            "Gruppe wirklich auflösen? Alle Mitglieder werden freigegeben und können neue Gruppen bilden."
+          )
+        ) {
+          return;
+        }
         await fetch(`/api/teacher/group-sessions/${id}/delete`, { method: "POST" });
+        state.message = "Gruppe aufgelöst – alle sind wieder frei.";
         await refresh();
       });
     });

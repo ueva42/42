@@ -737,7 +737,7 @@
                          : "Noch kein Ziel für heute gewählt"
                      )}</span>
                    </button>
-                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe löschen">Löschen</button>
+                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe auflösen">Gruppe auflösen</button>
                  </div>`
                  )
                  .join("")}
@@ -786,7 +786,7 @@
                      <span class="gm-card-sub">${esc((s.memberNames || []).join(", ") || "Gruppe")}</span>
                      <span class="gm-card-meta">Letztes Ziel: ${esc(s.topicName || "–")} · Heute neues Ziel wählen</span>
                    </button>
-                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe löschen">Gruppe löschen</button>
+                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe auflösen">Gruppe auflösen</button>
                  </div>`
                  )
                  .join("")}
@@ -1025,7 +1025,13 @@
                   ${missionBlock("Aufgabe", missionValue(role.description || "Rollenaufgabe in der Gruppe"))}
                   <button type="button" class="gm-primary" data-role-claim="${esc(roleId)}" data-claim="${
                     mine ? "0" : "1"
-                  }">${mine ? "Wieder freigeben" : "Ich übernehme das auch"}</button>
+                  }">${
+                    mine
+                      ? "Wieder freigeben"
+                      : holders.length
+                        ? "Ich übernehme das auch"
+                        : "Ich übernehme das"
+                  }</button>
                 </div>
               </article>`;
             })
@@ -1352,6 +1358,10 @@
             shared ? missionBlock("Gemeinsames Ziel", missionValue(shared)) : "",
             missionBlock("Rolle", missionValue(roles || "–")),
             missionBlock(
+              "Unterthema",
+              missionValue(m.topicName || state.bundle?.session?.topicName || "–")
+            ),
+            missionBlock(
               "Was-Ziele",
               whatList.length
                 ? missionList(whatList)
@@ -1431,9 +1441,17 @@
         step: "★",
         ready: true,
         blocks: missionBlock(
-          "Fach / Thema",
+          "Fach / Unterthemen",
           missionValue(
-            [state.bundle?.session?.subject, state.bundle?.session?.topicName]
+            [
+              state.bundle?.session?.subject,
+              members()
+                .map((m) =>
+                  m.topicName ? `${m.displayName}: ${m.topicName}` : null
+                )
+                .filter(Boolean)
+                .join(" · ") || state.bundle?.session?.topicName
+            ]
               .filter(Boolean)
               .join(" · ") || "–"
           )
@@ -2490,7 +2508,13 @@
         clearFlash();
         const id = btn.getAttribute("data-delete");
         if (!id) return;
-        if (!window.confirm("Diese Gruppenarbeit wirklich löschen?")) return;
+        if (
+          !window.confirm(
+            "Gruppe wirklich auflösen? Alle Mitglieder werden freigegeben und können neue Gruppen bilden."
+          )
+        ) {
+          return;
+        }
         try {
           await api(`/api/student/group-sessions/${id}/delete`, { method: "POST" });
           if (String(state.sessionId) === String(id)) {
@@ -2502,7 +2526,7 @@
               localStorage.removeItem(LS_KEY);
             } catch (_) {}
           }
-          state.message = "Gruppe gelöscht.";
+          state.message = "Gruppe aufgelöst – alle sind wieder frei.";
           await loadBootstrap();
           state.screen = "home";
           render();
