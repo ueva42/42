@@ -10,7 +10,7 @@
     bundle: null,
     screen: "home", // home | pick-subject | pick-topic | members | roles | shared | handoff | what | how | confirm | overview | work | mid-handoff | mid | reflect-handoff | reflect | done
     selectedMembers: [],
-    roleAssignments: {}, // roleId -> userId
+    roleAssignments: {}, // roleId -> [userId, ...] (Rollen dürfen doppelt)
     sharedGoal: "",
     currentMemberIdx: 0,
     draftGoal: {
@@ -145,8 +145,12 @@
   }
 
   function topicGoals() {
-    const topicId = state.bundle?.session?.topicId;
-    const topicName = state.bundle?.session?.topicName;
+    const me = myMember();
+    const focus = memberTopicFocus();
+    const topicId =
+      focus?.topicId || me?.topicId || state.bundle?.session?.topicId || null;
+    const topicName =
+      focus?.topicName || me?.topicName || state.bundle?.session?.topicName || null;
     const topics = state.bundle?.topics || [];
     let topic = topics.find((t) => String(t.id) === String(topicId));
     if (!topic && topicName) {
@@ -307,13 +311,74 @@
         for (const m of data.members) {
           if (String(m.inviteStatus || "accepted") === "pending") continue;
           for (const role of m.roles || []) {
-            if (role.roleId) nextAssign[String(role.roleId)] = Number(m.userId);
+            if (!role.roleId) continue;
+            const rid = String(role.roleId);
+            if (!nextAssign[rid]) nextAssign[rid] = [];
+            const uid = Number(m.userId);
+            if (!nextAssign[rid].includes(uid)) nextAssign[rid].push(uid);
           }
         }
         state.roleAssignments = nextAssign;
       }
     }
     persistLocal();
+  }
+
+  function holdersForRole(roleId) {
+    const v = state.roleAssignments[String(roleId)];
+    if (Array.isArray(v)) return v.map(Number).filter((n) => Number.isFinite(n));
+    if (v != null && v !== "") return [Number(v)].filter((n) => Number.isFinite(n));
+    return [];
+  }
+
+  function roleAssignmentsList() {
+    const out = [];
+    for (const [roleId, users] of Object.entries(state.roleAssignments || {})) {
+      for (const uid of holdersForRole(roleId)) {
+        out.push({ roleId, userId: uid });
+      }
+    }
+    return out;
+  }
+
+  function everyMemberHasRole(mems = members()) {
+    const assigned = new Set(roleAssignmentsList().map((a) => Number(a.userId)));
+    return mems.length > 0 && mems.every((m) => assigned.has(Number(m.userId)));
+  }
+
+  function setRoleHolders(roleId, userIds) {
+    const rid = String(roleId);
+    const uniq = [...new Set((userIds || []).map(Number).filter((n) => Number.isFinite(n) && n > 0))];
+    if (!uniq.length) delete state.roleAssignments[rid];
+    else state.roleAssignments[rid] = uniq;
+  }
+
+  function toggleRoleHolder(roleId, userId) {
+    const uid = Number(userId);
+    const cur = holdersForRole(roleId);
+    if (cur.includes(uid)) {
+      setRoleHolders(
+        roleId,
+        cur.filter((id) => id !== uid)
+      );
+      return;
+    }
+    if (!settings().allowMultiRoles) {
+      for (const [rid] of Object.entries(state.roleAssignments)) {
+        if (rid === String(roleId)) continue;
+        setRoleHolders(
+          rid,
+          holdersForRole(rid).filter((id) => id !== uid)
+        );
+      }
+    }
+    setRoleHolders(roleId, [...cur, uid]);
+  }
+
+  function memberTopicFocus() {
+    if (isPersonal()) return myMember();
+    const pending = members().find((m) => !m.topicId);
+    return pending || members()[state.currentMemberIdx] || members()[0] || null;
   }
 
   async function ensureTopicsLoaded() {
@@ -753,10 +818,20 @@
 
   function renderPickTopic() {
     const topics = state.bundle?.topics || [];
+    const focus = memberTopicFocus();
     const names = members()
-      .map((m) => m.displayName)
+      .map((m) => {
+        const mark = m.topicId ? "✓" : "…";
+        return `${m.displayName}${m.topicName ? ` (${m.topicName})` : ` ${mark}`}`;
+      })
       .filter(Boolean)
       .join(", ");
+    const focusLabel = focus
+      ? isPersonal()
+        ? "Dein Unterthema für heute"
+        : `Unterthema für ${focus.displayName}`
+      : "Unterthema wählen";
+    const selectedId = focus?.topicId || null;
     const body =
       topics.length === 0
         ? `<div class="gm-empty">Für dieses Fach gibt es noch keinen Levelplan.
@@ -767,9 +842,10 @@
              }</div>`
         : `${
             names
-              ? `<p class="gm-muted">Gruppe: ${esc(names)} – welches Ziel bearbeitet ihr <strong>heute</strong>?</p>`
+              ? `<p class="gm-muted">Jede Person wählt ein eigenes Unterthema (gleiche Rolle möglich). ${esc(names)}</p>`
               : ""
           }
+          <p class="gm-lead">${esc(focusLabel)}</p>
           ${cardGrid(
             topics.map((t) => ({
               id: t.id,
@@ -777,20 +853,21 @@
               sub: `${(t.goals || []).length} Kompetenzen`,
               disabled: !(t.goals || []).length && !settings().allowFreeWhatGoal
             })),
-            state.bundle?.session?.topicId,
+            selectedId,
             "topic"
           )}`;
 
+    const allDone = members().every((m) => m.topicId);
     const footer =
       topics.length === 0 && settings().allowFreeWhatGoal
         ? `<button type="button" class="gm-primary" id="gmSkipTopic">Ohne Raster weiter</button>`
         : `<button type="button" class="gm-primary" id="gmTopicNext" ${
-            state.bundle?.session?.topicId ? "" : "disabled"
-          }>Dieses Ziel für heute</button>`;
+            selectedId || allDone ? "" : "disabled"
+          }">${allDone ? "Weiter" : "Unterthema speichern"}</button>`;
 
     return shell("Schritt 3 von 5", "Welches Ziel heute?", body, footer, {
-      meta: "Die Gruppe bleibt fest – nur das Levelplan-Ziel wechselt von Stunde zu Stunde.",
-      chips: [state.bundle?.session?.subject, names].filter(Boolean)
+      meta: "Gleiche Rollen dürfen an unterschiedlichen Unterthemen arbeiten.",
+      chips: [state.bundle?.session?.subject, focus?.displayName].filter(Boolean)
     });
   }
 
@@ -866,6 +943,7 @@
         `<div class="gm-footer-row gm-footer-row--stack">
           <button type="button" class="gm-primary" id="gmMembersReady" ${ok ? "" : "disabled"}>Weiter zu den Rollen</button>
           <button type="button" class="gm-ghost" id="gmLeaveGroup">Gruppe verlassen</button>
+          <button type="button" class="gm-ghost gm-danger-text" id="gmDissolveGroup">Gruppe auflösen</button>
         </div>`
       );
     }
@@ -885,12 +963,19 @@
         null,
         "member"
       )}`;
-    const ok = state.selectedMembers.length >= min && state.selectedMembers.length <= max;
+    const okShared = state.selectedMembers.length >= min && state.selectedMembers.length <= max;
     return shell(
       "Schritt 1 von 5",
       "Wer arbeitet heute zusammen?",
       body,
-      `<button type="button" class="gm-primary" id="gmMembersNext" ${ok ? "" : "disabled"}>Weiter</button>`
+      `<div class="gm-footer-row gm-footer-row--stack">
+        <button type="button" class="gm-primary" id="gmMembersNext" ${okShared ? "" : "disabled"}>Weiter</button>
+        ${
+          state.sessionId
+            ? `<button type="button" class="gm-ghost gm-danger-text" id="gmDissolveGroup">Gruppe auflösen</button>`
+            : ""
+        }
+      </div>`
     );
   }
 
@@ -907,43 +992,40 @@
     }
     if (isPersonal()) {
       const uid = myUserId();
-      const allAssigned =
-        roles.length > 0 && roles.every((r) => state.roleAssignments[String(r.id)]);
-      const iHaveRole = roles.some((r) => Number(state.roleAssignments[String(r.id)]) === uid);
+      const allAssigned = everyMemberHasRole(mems);
+      const iHaveRole = roleAssignmentsList().some((a) => Number(a.userId) === uid);
       const body = `
-        <p class="gm-lead">Übernimm auf deinem Tablet die Aufgabe, die du in der Gruppe machst. Freie Rollen können die anderen selbst wählen.</p>
+        <p class="gm-lead">Übernimm eine Aufgabe – dieselbe Rolle dürfen mehrere Personen wählen und danach an unterschiedlichen Unterthemen arbeiten.</p>
         <div class="gm-role-board">
           ${roles
             .map((role, idx) => {
               const roleId = String(role.id);
-              const holderId = state.roleAssignments[roleId];
-              const person = mems.find((m) => String(m.userId) === String(holderId));
-              const mine = Number(holderId) === uid;
+              const holders = holdersForRole(roleId)
+                .map((id) => mems.find((m) => Number(m.userId) === Number(id)))
+                .filter(Boolean);
+              const mine = holders.some((p) => Number(p.userId) === uid);
               const accent = tileAccentFor({ meta: role.name, title: role.name });
+              const names = holders.map((p) => p.displayName).join(", ");
               return `
               <article class="goal-step-card goal-step-card--wide plan-mission-live gm-mission-card ${
-                person ? "is-ready" : ""
+                holders.length ? "is-ready" : ""
               }">
                 <header class="goal-step-card__head">
                   <span class="goal-step-card__step" style="--tile-accent:${accent}">${
-                    person ? "✓" : String(idx + 1)
+                    holders.length ? "✓" : String(idx + 1)
                   }</span>
                   <h3 class="goal-step-card__title">${esc(role.name)}</h3>
                   ${
-                    person
-                      ? `<span class="gm-mission-status is-ready">${esc(person.displayName)}</span>`
+                    holders.length
+                      ? `<span class="gm-mission-status is-ready">${esc(names)}</span>`
                       : `<span class="gm-mission-status">Noch frei</span>`
                   }
                 </header>
                 <div class="mission-summary">
                   ${missionBlock("Aufgabe", missionValue(role.description || "Rollenaufgabe in der Gruppe"))}
-                  ${
-                    person && !mine
-                      ? missionBlock("Übernommen", missionValue(person.displayName))
-                      : `<button type="button" class="gm-primary" data-role-claim="${esc(roleId)}" data-claim="${
-                          mine ? "0" : "1"
-                        }">${mine ? "Wieder freigeben" : "Ich übernehme das"}</button>`
-                  }
+                  <button type="button" class="gm-primary" data-role-claim="${esc(roleId)}" data-claim="${
+                    mine ? "0" : "1"
+                  }">${mine ? "Wieder freigeben" : "Ich übernehme das auch"}</button>
                 </div>
               </article>`;
             })
@@ -959,26 +1041,30 @@
       );
     }
     const body = `
-      <p class="gm-lead">Tippt bei jeder Aufgabe auf die Person, die sie übernimmt.</p>
+      <p class="gm-lead">Tippt Personen zu den Aufgaben – dieselbe Rolle darf mehrfach vergeben werden.</p>
       <div class="gm-role-board">
         ${roles
           .map((role, idx) => {
             const roleId = String(role.id);
-            const uid = state.roleAssignments[roleId];
-            const person = mems.find((m) => String(m.userId) === String(uid));
+            const holderIds = holdersForRole(roleId);
+            const people = holderIds
+              .map((id) => mems.find((m) => Number(m.userId) === Number(id)))
+              .filter(Boolean);
             const accent = tileAccentFor({ meta: role.name, title: role.name });
             return `
             <article class="goal-step-card goal-step-card--wide plan-mission-live gm-mission-card ${
-              person ? "is-ready" : ""
+              people.length ? "is-ready" : ""
             }">
               <header class="goal-step-card__head">
                 <span class="goal-step-card__step" style="--tile-accent:${accent}">${
-                  person ? "✓" : String(idx + 1)
+                  people.length ? "✓" : String(idx + 1)
                 }</span>
                 <h3 class="goal-step-card__title">${esc(role.name)}</h3>
                 ${
-                  person
-                    ? `<span class="gm-mission-status is-ready">${esc(person.displayName)}</span>`
+                  people.length
+                    ? `<span class="gm-mission-status is-ready">${esc(
+                        people.map((p) => p.displayName).join(", ")
+                      )}</span>`
                     : `<span class="gm-mission-status">Noch frei</span>`
                 }
               </header>
@@ -988,16 +1074,18 @@
                   missionValue(role.description || "Rollenaufgabe in der Gruppe")
                 )}
                 ${missionBlock(
-                  "Wer übernimmt das?",
+                  "Wer übernimmt das? (mehrere möglich)",
                   cardGrid(
                     mems.map((m) => ({
                       id: `${roleId}:${m.userId}`,
                       title: m.displayName,
-                      desc: String(uid) === String(m.userId) ? `Macht ${role.name}` : "Tippen zum Zuweisen",
+                      desc: holderIds.includes(Number(m.userId))
+                        ? `Macht ${role.name}`
+                        : "Tippen zum Zuweisen",
                       meta: role.name,
                       icon: "◎",
                       accent,
-                      selected: String(uid) === String(m.userId)
+                      selected: holderIds.includes(Number(m.userId))
                     })),
                     null,
                     "role-assign"
@@ -1009,8 +1097,7 @@
           .join("")}
       </div>
       <button type="button" class="gm-ghost" id="gmSuggestRoles">Vorschlag übernehmen</button>`;
-    const allAssigned =
-      roles.length > 0 && roles.every((r) => state.roleAssignments[String(r.id)]);
+    const allAssigned = everyMemberHasRole(mems);
     return shell(
       "Schritt 2 von 5",
       "Wer übernimmt welche Aufgabe?",
@@ -2150,6 +2237,7 @@
       .gm-footer-row{display:flex;gap:10px}
       .gm-footer-row .gm-primary,.gm-footer-row .gm-ghost{flex:1}
       .gm-footer-row--stack{flex-direction:column}
+      .gm-danger-text{color:#b91c1c!important}
       .gm-textarea,.gm-select{width:100%;border-radius:14px;border:1px solid rgba(34,211,238,.35);background:rgba(8,24,48,.9);color:#f9fafb;padding:12px;font-size:1rem}
       .gm-banner{padding:10px 12px;border-radius:12px;margin-bottom:10px}
       .gm-banner--err{background:rgba(220,60,60,.2)}
@@ -2347,6 +2435,35 @@
       }
     });
 
+    document.getElementById("gmDissolveGroup")?.addEventListener("click", async () => {
+      clearFlash();
+      if (!state.sessionId) return;
+      if (
+        !window.confirm(
+          "Gruppe wirklich auflösen? Alle Mitglieder werden freigegeben und können neue Gruppen bilden."
+        )
+      ) {
+        return;
+      }
+      try {
+        await api(`/api/student/group-sessions/${state.sessionId}/delete`, { method: "POST" });
+        state.sessionId = null;
+        state.bundle = null;
+        state.selectedMembers = [];
+        state.roleAssignments = {};
+        try {
+          localStorage.removeItem(LS_KEY);
+        } catch (_) {}
+        state.message = "Gruppe aufgelöst – alle sind wieder frei.";
+        await loadBootstrap();
+        state.screen = "home";
+        render();
+      } catch (err) {
+        state.error = err.message;
+        render();
+      }
+    });
+
     document.querySelectorAll("[data-role-claim]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         clearFlash();
@@ -2420,19 +2537,27 @@
         clearFlash();
         try {
           const topicId = btn.getAttribute("data-topic");
+          const focus = memberTopicFocus();
+          const payload = { topicId };
+          if (focus?.userId) payload.userId = focus.userId;
           const data = await api(`/api/student/group-sessions/${state.sessionId}/topic`, {
             method: "PATCH",
-            body: JSON.stringify({ topicId })
+            body: JSON.stringify(payload)
           });
           applyBundle(data);
-          if (settings().enableSharedGoal) {
-            state.screen = "shared";
-          } else if (isPersonal()) {
-            goOwnGoals();
+          if (data.topicComplete) {
+            if (settings().enableSharedGoal) {
+              state.screen = "shared";
+            } else if (isPersonal()) {
+              goOwnGoals();
+            } else {
+              state.screen = "handoff";
+              state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
+              if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
+            }
           } else {
-            state.screen = "handoff";
-            state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
-            if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
+            state.screen = "pick-topic";
+            state.message = "Unterthema gespeichert – als Nächstes die nächste Person.";
           }
           render();
         } catch (err) {
@@ -2442,7 +2567,7 @@
       });
     });
 
-    document.getElementById("gmTopicNext")?.addEventListener("click", () => {
+    function advanceAfterTopics() {
       if (settings().enableSharedGoal) state.screen = "shared";
       else if (isPersonal()) goOwnGoals();
       else {
@@ -2451,16 +2576,18 @@
         if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
       }
       render();
+    }
+
+    document.getElementById("gmTopicNext")?.addEventListener("click", () => {
+      if (!members().every((m) => m.topicId)) {
+        state.error = "Jede Person braucht noch ein eigenes Unterthema.";
+        render();
+        return;
+      }
+      advanceAfterTopics();
     });
     document.getElementById("gmSkipTopic")?.addEventListener("click", () => {
-      if (settings().enableSharedGoal) state.screen = "shared";
-      else if (isPersonal()) goOwnGoals();
-      else {
-        state.screen = "handoff";
-        state.currentMemberIdx = nextPendingMember((m) => m.goalsComplete);
-        if (state.currentMemberIdx < 0) state.currentMemberIdx = 0;
-      }
-      render();
+      advanceAfterTopics();
     });
 
     document.querySelectorAll("[data-member]").forEach((btn) => {
@@ -2487,7 +2614,8 @@
         if (data.suggestedAssignments) {
           state.roleAssignments = {};
           for (const a of data.suggestedAssignments) {
-            if (a.roleId != null) state.roleAssignments[String(a.roleId)] = Number(a.userId);
+            if (a.roleId == null || a.userId == null) continue;
+            setRoleHolders(a.roleId, [...holdersForRole(a.roleId), Number(a.userId)]);
           }
         }
         state.screen = "roles";
@@ -2511,19 +2639,7 @@
           render();
           return;
         }
-        if (String(state.roleAssignments[roleId]) === String(uid)) {
-          delete state.roleAssignments[roleId];
-          render();
-          return;
-        }
-        if (!settings().allowMultiRoles) {
-          for (const [rid, userId] of Object.entries(state.roleAssignments)) {
-            if (Number(userId) === uid && rid !== roleId) {
-              delete state.roleAssignments[rid];
-            }
-          }
-        }
-        state.roleAssignments[roleId] = uid;
+        toggleRoleHolder(roleId, uid);
         render();
       });
     });
@@ -2535,14 +2651,17 @@
       const suggested = state.bundle?.suggestedAssignments || [];
       state.roleAssignments = {};
       for (const a of suggested) {
-        if (a.roleId != null) state.roleAssignments[String(a.roleId)] = Number(a.userId);
+        if (a.roleId == null || a.userId == null) continue;
+        setRoleHolders(a.roleId, [...holdersForRole(a.roleId), Number(a.userId)]);
       }
       if (!Object.keys(state.roleAssignments).length) {
         const roles = (settings().roles || []).filter((r) => r && r.active !== false);
         const mems = members();
-        roles.forEach((role, idx) => {
-          const uid = mems[idx % mems.length]?.userId;
-          if (uid != null) state.roleAssignments[String(role.id)] = Number(uid);
+        mems.forEach((m, idx) => {
+          const role = roles[idx % Math.max(roles.length, 1)];
+          if (role && m.userId != null) {
+            setRoleHolders(role.id, [...holdersForRole(role.id), Number(m.userId)]);
+          }
         });
       }
       render();
@@ -2550,10 +2669,7 @@
     document.getElementById("gmRolesNext")?.addEventListener("click", async () => {
       clearFlash();
       try {
-        const assignments = Object.entries(state.roleAssignments).map(([roleId, userId]) => ({
-          roleId,
-          userId: Number(userId)
-        }));
+        const assignments = roleAssignmentsList();
         const data = await api(`/api/student/group-sessions/${state.sessionId}/roles`, {
           method: "PATCH",
           body: JSON.stringify({ assignments })
@@ -3127,7 +3243,11 @@
       state.screen = "roles";
       return;
     }
-    if (!s.topicId || step === "topic") {
+    if (
+      step === "topic" ||
+      !mems.every((m) => m.topicId) ||
+      (!s.topicId && !mems.some((m) => m.topicId))
+    ) {
       state.screen = "pick-topic";
       return;
     }
