@@ -105,11 +105,23 @@
   function renderStats(stats) {
     const s = stats || {};
     return `
-      <div class="stats-grid">
-        <div class="stat-card"><div class="label">Schüler:innen</div><div class="value">${s.studentCount ?? 0}</div></div>
-        <div class="stat-card"><div class="label">Mit Plan</div><div class="value">${s.plannedCount ?? 0}</div></div>
-        <div class="stat-card"><div class="label">Aufmerksamkeit</div><div class="value">${s.needsAttentionCount ?? 0}</div></div>
-        <div class="stat-card"><div class="label">Positive Signale</div><div class="value">${s.positiveCount ?? 0}</div></div>
+      <div class="tile-grid tile-grid--stats">
+        <div class="tile tile--stat" role="group" aria-label="Schüler:innen">
+          <div class="tile-label">Schüler:innen</div>
+          <div class="tile-value">${s.studentCount ?? 0}</div>
+        </div>
+        <div class="tile tile--stat planned" role="group" aria-label="Mit Plan">
+          <div class="tile-label">Mit Plan</div>
+          <div class="tile-value">${s.plannedCount ?? 0}</div>
+        </div>
+        <div class="tile tile--stat attn" role="group" aria-label="Aufmerksamkeit">
+          <div class="tile-label">Aufmerksamkeit</div>
+          <div class="tile-value">${s.needsAttentionCount ?? 0}</div>
+        </div>
+        <div class="tile tile--stat positive" role="group" aria-label="Positive Signale">
+          <div class="tile-label">Positive Signale</div>
+          <div class="tile-value">${s.positiveCount ?? 0}</div>
+        </div>
       </div>`;
   }
 
@@ -117,23 +129,56 @@
     if (!insights?.length) {
       return `<div class="empty">Keine Hinweise für heute – ruhiger Stand oder noch wenig Logbuch-Daten.</div>`;
     }
-    return `<div class="insight-list">${insights
+    return `<div class="tile-grid tile-grid--insights">${insights
       .map(
         (i) => `
-      <article class="insight-card priority-${escapeHtml(i.priority)}">
-        <div class="insight-meta">
-          <span>${escapeHtml(i.studentName)}${i.subject ? ` · ${escapeHtml(i.subject)}` : ""}</span>
+      <article class="tile tile--insight priority-${escapeHtml(i.priority)}">
+        <div class="tile-meta">
+          <span class="name">${escapeHtml(i.studentName)}${i.subject ? ` · ${escapeHtml(i.subject)}` : ""}</span>
           <span class="prio ${escapeHtml(i.priority)}">${escapeHtml(i.priority)}</span>
         </div>
-        <h3>${escapeHtml(i.title)}</h3>
-        <p>${escapeHtml(i.observation)}</p>
-        <div class="insight-prompt">${escapeHtml(i.prompt)}</div>
-        <div class="btn-row">
+        <h3 class="tile-title">${escapeHtml(i.title)}</h3>
+        <p class="tile-obs">${escapeHtml(i.observation)}</p>
+        <div class="tile-actions">
           <button type="button" class="btn btn-ghost" data-open-student="${i.studentId}">Ansehen</button>
           <button type="button" class="btn btn-primary" data-feedback="${i.studentId}" data-name="${escapeHtml(i.studentName)}">Rückmeldung</button>
         </div>
       </article>`
       )
+      .join("")}</div>`;
+  }
+
+  function studentStatusLabel(s) {
+    if (s.needsAttention) return s.topInsight || "Braucht Aufmerksamkeit";
+    if (s.positive) return s.topInsight || "Positives Signal";
+    if (s.reflected) return "Plan + Reflexion";
+    if (s.planned) return "Plan vorhanden";
+    return "Noch kein Plan";
+  }
+
+  function renderStudentTiles(students, gridClass = "tile-grid--students") {
+    if (!students?.length) return `<div class="empty">Keine Schüler:innen in dieser Klasse.</div>`;
+    return `<div class="tile-grid ${gridClass}">${students
+      .map((s) => {
+        const cls = [
+          "tile",
+          "tile--student",
+          s.needsAttention ? "needs-attention" : "",
+          s.positive && !s.needsAttention ? "positive-signal" : ""
+        ]
+          .filter(Boolean)
+          .join(" ");
+        return `
+      <button type="button" class="${cls}" data-open-student="${s.id}" aria-label="${escapeHtml(s.name)}">
+        <h3 class="tile-name">${escapeHtml(s.name)}</h3>
+        <p class="tile-status">${escapeHtml(studentStatusLabel(s))}</p>
+        <div class="status-dots" aria-hidden="true">
+          <span class="status-dot ${s.planned ? "on" : ""}" title="Plan"></span>
+          <span class="status-dot ${s.reflected ? "reflect" : ""}" title="Reflexion"></span>
+          <span class="status-dot ${s.needsAttention ? "attn" : ""}" title="Hinweis"></span>
+        </div>
+      </button>`;
+      })
       .join("")}</div>`;
   }
 
@@ -154,18 +199,30 @@
     const cards = state.overview?.classes || [];
     if (state.loading && !cards.length) return `<div class="empty">Lade Klassen…</div>`;
     if (!cards.length) return `<div class="empty">Keine zugewiesenen Klassen.</div>`;
-    return `<div class="class-list">${cards
-      .map(
-        (c) => `
-      <article class="class-card">
-        <h3>${escapeHtml(c.className)}</h3>
-        <p>${c.studentCount} Schüler:innen · ${c.plannedCount} mit Plan · ${c.needsAttentionCount} mit Hinweis</p>
-        <div class="btn-row">
-          <button type="button" class="btn btn-primary" data-goto-class="${c.classId}">Heute öffnen</button>
-        </div>
-      </article>`
-      )
-      .join("")}</div>`;
+
+    const activeId = Number(state.classId) || cards[0]?.classId;
+    const active = cards.find((c) => Number(c.classId) === Number(activeId)) || cards[0];
+    const classTiles = `
+      <div class="section-title">Klassen</div>
+      <div class="tile-grid tile-grid--students">${cards
+        .map((c) => {
+          const activeCls = Number(c.classId) === Number(active?.classId) ? "active" : "";
+          return `
+        <button type="button" class="tile tile--class ${activeCls}" data-goto-class="${c.classId}" aria-pressed="${activeCls ? "true" : "false"}">
+          <h3>${escapeHtml(c.className)}</h3>
+          <div class="tile-metrics">
+            <span class="metric"><strong>${c.studentCount}</strong> SuS</span>
+            <span class="metric"><strong>${c.plannedCount}</strong> Plan</span>
+            <span class="metric"><strong>${c.needsAttentionCount}</strong> Hinweis</span>
+          </div>
+        </button>`;
+        })
+        .join("")}</div>`;
+
+    return `
+      ${classTiles}
+      <div class="section-title">${escapeHtml(active?.className || "Schüler:innen")}</div>
+      ${renderStudentTiles(active?.students || [])}`;
   }
 
   function renderLernbegleitung() {
@@ -181,26 +238,26 @@
     ];
     return `
       <div class="section-title">Lernbegleitung &amp; Planung</div>
-      <div class="tool-list">${tools
+      <div class="tile-grid tile-grid--tools">${tools
         .map(
           (t) => `
-        <a class="tool-card" href="${t.href}" style="text-decoration:none;color:inherit;display:block">
+        <a class="tile tile--tool" href="${t.href}">
           <h3>${escapeHtml(t.title)}</h3>
           <p>${escapeHtml(t.desc)}</p>
         </a>`
         )
         .join("")}</div>
-      <div class="section-title" style="margin-top:18px">Konto</div>
-      <div class="tool-list">
+      <div class="section-title">Konto</div>
+      <div class="tile-grid tile-grid--tools">
         ${
           state.me?.canAdmin
-            ? `<a class="tool-card" href="/admin#class" style="text-decoration:none;color:inherit;display:block">
+            ? `<a class="tile tile--tool" href="/admin#class">
                 <h3>Administration</h3>
                 <p>Klassen, Schüler, XP, Lehrerverwaltung</p>
               </a>`
             : ""
         }
-        <button type="button" class="tool-card btn-ghost" id="logoutBtn" style="text-align:left;width:100%">
+        <button type="button" class="tile tile--tool tile--danger" id="logoutBtn">
           <h3>Abmelden</h3>
           <p>Session beenden</p>
         </button>
@@ -223,7 +280,7 @@
 
     return `
       <div class="section-title">Wochenansicht (ohne Ranking)</div>
-      <div class="history-list">${data.students
+      <div class="tile-grid tile-grid--history">${data.students
         .map((s) => {
           const pills = days
             .map((day) => {
@@ -234,25 +291,13 @@
               return `<span class="day-pill ${cls}" title="${day}">${mark}</span>`;
             })
             .join("");
-          const notes = (s.notes || [])
-            .filter((n) => n.conversationHeld || n.privateNote)
-            .slice(0, 2)
-            .map(
-              (n) =>
-                `<div class="muted" style="font-size:.82rem;margin-top:6px">Gespräch ${escapeHtml(String(n.date).slice(0, 10))}${
-                  n.privateNote ? `: ${escapeHtml(n.privateNote)}` : ""
-                }</div>`
-            )
-            .join("");
+          const noteCount = (s.notes || []).filter((n) => n.conversationHeld || n.privateNote).length;
           return `
-            <article class="student-row">
-              <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
-                <strong>${escapeHtml(s.name)}</strong>
-                <button type="button" class="btn btn-ghost" data-open-student="${s.id}" style="min-height:40px">Detail</button>
-              </div>
-              <div style="margin-top:8px">${pills}</div>
-              ${notes}
-            </article>`;
+            <button type="button" class="tile tile--history tile--student" data-open-student="${s.id}" aria-label="${escapeHtml(s.name)} Detail">
+              <h3 class="tile-name">${escapeHtml(s.name)}</h3>
+              <div class="day-row">${pills}</div>
+              ${noteCount ? `<span class="tile-hint">${noteCount} Gesprächsnotiz${noteCount === 1 ? "" : "en"}</span>` : `<span class="tile-hint">P = Plan · R = Reflexion</span>`}
+            </button>`;
         })
         .join("")}</div>
       <p class="muted" style="margin-top:10px;font-size:.82rem">P = Plan · R = Reflexion · Gesprächsnotizen nur für Lehrkräfte</p>`;
@@ -275,7 +320,7 @@
     if (state.detailTab === "heute") {
       if (!d.today?.length) body = `<div class="empty">Kein Plan für diesen Tag.</div>`;
       else {
-        body = d.today
+        body = `<div class="detail-stack">${d.today
           .map(
             (e) => `
           <div class="detail-block insight-card">
@@ -294,21 +339,21 @@
             }
           </div>`
           )
-          .join("");
+          .join("")}</div>`;
       }
     } else if (state.detailTab === "verlauf") {
       body = !d.history?.length
         ? `<div class="empty">Kein Verlauf.</div>`
-        : d.history
+        : `<div class="tile-grid tile-grid--insights">${d.history
             .map(
               (h) => `
-          <div class="student-row">
+          <div class="tile tile--insight" style="min-height:96px;cursor:default">
             <strong>${escapeHtml(String(h.date).slice(0, 10))} · ${escapeHtml(h.subject)}</strong>
-            <p class="muted" style="margin:6px 0 0">Ziel: ${escapeHtml(h.goal || "–")}</p>
-            <p class="muted" style="margin:4px 0 0">Erreicht: ${escapeHtml(h.goalAchieved || "–")} · ${h.confidenceBefore ?? "–"} → ${h.confidenceAfter ?? "–"}</p>
+            <p class="tile-obs" style="-webkit-line-clamp:3">Ziel: ${escapeHtml(h.goal || "–")}</p>
+            <span class="tile-hint">Erreicht: ${escapeHtml(h.goalAchieved || "–")} · ${h.confidenceBefore ?? "–"} → ${h.confidenceAfter ?? "–"}</span>
           </div>`
             )
-            .join("");
+            .join("")}</div>`;
     } else {
       body = `
         <div class="btn-row" style="margin-bottom:12px">
@@ -317,19 +362,19 @@
         ${
           !d.feedback?.length
             ? `<div class="empty">Noch keine Rückmeldungen.</div>`
-            : d.feedback
+            : `<div class="tile-grid tile-grid--insights">${d.feedback
                 .map((f) => {
                   const chipLabels = Object.fromEntries((d.feedbackChips || []).map((c) => [c.id, c.label]));
                   const chips = (f.chips || []).map((id) => chipLabels[id] || id).join(", ");
                   return `
-                  <div class="student-row">
+                  <div class="tile tile--insight" style="min-height:96px;cursor:default">
                     <strong>${escapeHtml(String(f.date).slice(0, 10))}${f.teacherName ? ` · ${escapeHtml(f.teacherName)}` : ""}</strong>
-                    ${chips ? `<p style="margin:6px 0 0">${escapeHtml(chips)}</p>` : ""}
-                    ${f.note ? `<p class="muted" style="margin:6px 0 0">${escapeHtml(f.note)}</p>` : ""}
-                    ${f.conversationHeld ? `<p class="muted" style="margin:6px 0 0">Gespräch geführt${f.teacherPrivateNote ? `: ${escapeHtml(f.teacherPrivateNote)}` : ""}</p>` : ""}
+                    ${chips ? `<p class="tile-obs">${escapeHtml(chips)}</p>` : ""}
+                    ${f.note ? `<span class="tile-hint">${escapeHtml(f.note)}</span>` : ""}
+                    ${f.conversationHeld ? `<span class="tile-hint">Gespräch geführt${f.teacherPrivateNote ? `: ${escapeHtml(f.teacherPrivateNote)}` : ""}</span>` : ""}
                   </div>`;
                 })
-                .join("")
+                .join("")}</div>`
         }`;
     }
 
@@ -523,7 +568,11 @@
     if (gc) {
       state.classId = Number(gc.getAttribute("data-goto-class"));
       fillClassSelect(state.classes);
-      classSelect.value = String(state.classId);
+      if (classSelect) classSelect.value = String(state.classId);
+      if (state.tab === "klassen") {
+        render();
+        return;
+      }
       setTab("heute");
       return;
     }
