@@ -2604,11 +2604,58 @@ const pool = new Pool({
       : undefined
 });
 
+pool.on("error", (err) => {
+  console.error("❌ Unerwarteter PostgreSQL-Pool-Fehler:", err.message || err);
+});
+
+async function ensureSessionTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      sid VARCHAR NOT NULL PRIMARY KEY,
+      sess JSON NOT NULL,
+      expire TIMESTAMP(6) NOT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS IDX_user_sessions_expire
+    ON user_sessions (expire)
+  `);
+}
+
+async function verifyDatabaseReady() {
+  const ping = await pool.query("SELECT 1 AS ok, NOW() AS db_now");
+  await ensureSessionTable();
+  const probeSid = `__boot_${Date.now()}`;
+  await pool.query(
+    `
+    INSERT INTO user_sessions (sid, sess, expire)
+    VALUES ($1, $2::json, NOW() + INTERVAL '1 minute')
+    ON CONFLICT (sid) DO UPDATE
+      SET sess = EXCLUDED.sess, expire = EXCLUDED.expire
+  `,
+    [probeSid, JSON.stringify({ boot: true })]
+  );
+  await pool.query(`DELETE FROM user_sessions WHERE sid = $1`, [probeSid]);
+  return {
+    ok: true,
+    dbNow: ping.rows[0]?.db_now || null
+  };
+}
+
 const isProduction =
   process.env.NODE_ENV === "production" || !!process.env.RAILWAY_ENVIRONMENT;
 
 const PgSession = connectPgSimple(session);
 const SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
+
+// Session-Tabelle vor dem Session-Middleware anlegen (Region-Umzüge / frische DBs)
+try {
+  await ensureSessionTable();
+  console.log("✔️ user_sessions bereit");
+} catch (err) {
+  console.error("❌ user_sessions konnte nicht angelegt werden:", err.message || err);
+}
+
 app.use(
   session({
     store: new PgSession({
@@ -4273,7 +4320,11 @@ function loginUserSession(req, res, user, options = {}) {
   req.session.regenerate((regErr) => {
     if (regErr) {
       console.error("❌ session regenerate:", regErr);
-      return res.status(500).json({ success: false });
+      return res.status(500).json({
+        success: false,
+        message:
+          "Login-Session konnte nicht gestartet werden. Bitte DATABASE_URL/Postgres prüfen (nach Regionswechsel neu verknüpfen und App neu starten)."
+      });
     }
 
     req.session.user = {
@@ -4286,7 +4337,11 @@ function loginUserSession(req, res, user, options = {}) {
     req.session.save((saveErr) => {
       if (saveErr) {
         console.error("❌ session save:", saveErr);
-        return res.status(500).json({ success: false });
+        return res.status(500).json({
+          success: false,
+          message:
+            "Login-Session konnte nicht gespeichert werden. Postgres-Verbindung oder Tabelle user_sessions prüfen."
+        });
       }
 
       const payload = {
@@ -13724,10 +13779,34 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "streets-of-logic" });
 });
 
+app.get("/health/db", async (_req, res) => {
+  try {
+    const info = await verifyDatabaseReady();
+    res.json({
+      ok: true,
+      service: "streets-of-logic",
+      database: true,
+      sessions: true,
+      dbNow: info.dbNow
+    });
+  } catch (err) {
+    console.error("❌ /health/db:", err);
+    res.status(500).json({
+      ok: false,
+      service: "streets-of-logic",
+      database: false,
+      sessions: false,
+      message: err.message || "Datenbank nicht erreichbar"
+    });
+  }
+});
+
 const PORT = process.env.PORT || 8080;
 
 async function boot() {
   try {
+    await verifyDatabaseReady();
+    console.log("✔️ Datenbank & Sessions schreibbereit");
     await migrate();
     if (isDemoEnabled()) {
       const demoResult = await ensureDemoSchool(pool);
@@ -13736,8 +13815,8 @@ async function boot() {
       }
     }
   } catch (err) {
-    console.error("❌ Migration fehlgeschlagen:", err);
-    console.error("Server startet trotzdem – bitte Migration prüfen.");
+    console.error("❌ Migration/DB-Check fehlgeschlagen:", err);
+    console.error("Server startet trotzdem – bitte DATABASE_URL und Postgres-Region prüfen.");
   }
 
   app.listen(PORT, () => {
