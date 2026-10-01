@@ -2990,6 +2990,7 @@ async function seedSchoolDefaults(schoolId) {
 // -------------------------------------------------------
 async function migrate() {
   console.log("🔧 Migration läuft…");
+  await ensureSessionTable();
 
   // SCHULEN
   await pool.query(`
