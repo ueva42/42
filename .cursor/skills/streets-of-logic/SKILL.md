@@ -21,10 +21,13 @@ German SRL logbook + GTA-themed XP platform for schools (classes 5–9+).
 | Role | After login | UI |
 |------|-------------|-----|
 | `student` | `/student/today` (or `/first-login`) | `public/student.html` SPA |
-| `admin` (teacher) | `/teacher/dashboard` | `public/admin.html` |
+| `teacher` | `/teacher` (Lehrer-App) | `public/teacher.html` |
+| `admin` (often also teaching) | `/teacher` → Admin via Profil/„Administration“ | `teacher.html` + `admin.html` |
 | `superadmin` | `/superadmin` | `public/superadmin.html` |
 
 Session: `req.session.user = { id, role, class_id, school_id }`. Multi-tenant via `school_id`.
+Teacher class scope: `teacher_class_assignments` (admins see all school classes).
+Auth helpers: `isTeacher` (teacher|admin), `isAdmin` (admin only). Insights: `lib/teacher-insights.js`.
 
 ## What the app does (feature map)
 
@@ -70,8 +73,13 @@ Schools, per-school admins, system status, reset school.
 
 ```
 server.js                          # APIs, migrate(), constants (LOG_SUBJECTS, …)
+lib/teacher-auth.js                # Teacher/Admin access + class assignments
+lib/teacher-insights.js            # Regelbasierte Insight-Karten (A–E)
+lib/teacher-coaching-api.js        # /api/teacher/today, feedback, admin teachers
 public/student.html                # Student shell + inline gamification JS
-public/admin.html                  # Admin shell + legacy tab JS
+public/teacher.html                # Lehrer-App Shell (Heute/Klassen/…)
+public/js/teacher-app.js           # Lehrer-App Frontend
+public/admin.html                  # Admin + legacy teacher tools
 public/js/student-router.js        # /student/* routing
 public/js/logbuch-screens.js       # Screen dispatcher
 public/js/logbuch-today.js           # Mein Tag

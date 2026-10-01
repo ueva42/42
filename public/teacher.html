@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#050816" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Streets of Logic" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <title>Streets of Logic – Lehrkräfte</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="/js/client-cache-reset.js?v=2"></script>
+  <script src="/js/auth-fetch.js?v=13"></script>
+  <style>
+    :root {
+      --navy: #050816;
+      --panel: #0b1428;
+      --panel-2: #101b33;
+      --cyan: #22d3ee;
+      --violet: #8b5cf6;
+      --orange: #f97316;
+      --green: #34d399;
+      --red: #fb7185;
+      --amber: #fbbf24;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --line: rgba(148, 163, 184, 0.18);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --nav-h: 64px;
+      --touch: 44px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(34,211,238,.12), transparent 42%),
+        radial-gradient(circle at 88% 8%, rgba(139,92,246,.14), transparent 40%),
+        radial-gradient(circle at 50% 100%, rgba(249,115,22,.08), transparent 45%),
+        var(--navy);
+      min-height: 100dvh;
+      padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px);
+    }
+    button, select, input, textarea { font: inherit; }
+    .teacher-top {
+      position: sticky; top: 0; z-index: 20;
+      backdrop-filter: blur(14px);
+      background: rgba(5,8,22,.82);
+      border-bottom: 1px solid var(--line);
+      padding: 12px 16px 10px;
+    }
+    .teacher-brand {
+      font-family: Orbitron, system-ui;
+      font-size: .78rem;
+      letter-spacing: .14em;
+      color: var(--cyan);
+      margin: 0 0 2px;
+    }
+    .teacher-greeting {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    .teacher-sub {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+    .teacher-toolbar {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;
+    }
+    .teacher-toolbar select, .teacher-toolbar input[type="date"] {
+      min-height: var(--touch);
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      padding: 0 12px;
+      flex: 1 1 140px;
+    }
+    .teacher-main { padding: 14px 16px 24px; max-width: 920px; margin: 0 auto; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    @media (min-width: 720px) {
+      .stats-grid { grid-template-columns: repeat(4, minmax(0,1fr)); }
+    }
+    .stat-card {
+      background: linear-gradient(160deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px 14px;
+      min-height: 72px;
+    }
+    .stat-card .label { color: var(--muted); font-size: .78rem; }
+    .stat-card .value { font-size: 1.45rem; font-weight: 700; margin-top: 4px; }
+    .section-title {
+      font-family: Orbitron, system-ui;
+      font-size: .72rem;
+      letter-spacing: .12em;
+      color: var(--muted);
+      margin: 8px 0 10px;
+      text-transform: uppercase;
+    }
+    .insight-list, .class-list, .tool-list, .history-list { display: grid; gap: 10px; }
+    .insight-card, .class-card, .tool-card, .student-row {
+      background: rgba(11,20,40,.92);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+    }
+    .insight-card.priority-hoch { border-color: rgba(251,113,133,.45); }
+    .insight-card.priority-mittel { border-color: rgba(251,191,36,.35); }
+    .insight-card.priority-niedrig { border-color: rgba(52,211,153,.3); }
+    .insight-meta {
+      display: flex; justify-content: space-between; gap: 8px; align-items: center;
+      margin-bottom: 8px; font-size: .8rem; color: var(--muted);
+    }
+    .prio {
+      display: inline-flex; align-items: center; min-height: 28px;
+      padding: 0 10px; border-radius: 999px; font-weight: 600; font-size: .75rem;
+      background: rgba(148,163,184,.12);
+    }
+    .prio.hoch { color: #fecdd3; background: rgba(251,113,133,.16); }
+    .prio.mittel { color: #fde68a; background: rgba(251,191,36,.14); }
+    .prio.niedrig { color: #a7f3d0; background: rgba(52,211,153,.14); }
+    .insight-card h3 { margin: 0 0 6px; font-size: 1.02rem; }
+    .insight-card p { margin: 0 0 8px; color: #cbd5e1; font-size: .92rem; line-height: 1.4; }
+    .insight-prompt {
+      margin: 0 0 12px; padding: 10px 12px; border-radius: 12px;
+      background: rgba(34,211,238,.08); border: 1px solid rgba(34,211,238,.18);
+      font-size: .9rem;
+    }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      min-height: var(--touch); min-width: var(--touch);
+      border: 0; border-radius: 12px; padding: 0 14px;
+      font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--cyan), #38bdf8); color: #082f49; }
+    .btn-ghost { background: rgba(148,163,184,.12); color: var(--text); border: 1px solid var(--line); }
+    .btn-danger { background: rgba(251,113,133,.18); color: #fecdd3; }
+    .empty {
+      padding: 28px 16px; text-align: center; color: var(--muted);
+      border: 1px dashed var(--line); border-radius: 16px;
+    }
+    .class-card h3, .tool-card h3 { margin: 0 0 6px; }
+    .class-card p, .tool-card p { margin: 0 0 12px; color: var(--muted); font-size: .9rem; }
+    .muted { color: var(--muted); }
+    .hidden { display: none !important; }
+    .teacher-bottomnav {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 2px; padding: 6px 6px calc(6px + var(--safe-bottom));
+      background: rgba(5,8,22,.94);
+      border-top: 1px solid var(--line);
+      backdrop-filter: blur(16px);
+    }
+    .teacher-bottomnav button {
+      min-height: 56px; border: 0; background: transparent; color: var(--muted);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 2px; font-size: .72rem; font-weight: 600; cursor: pointer;
+    }
+    .teacher-bottomnav button.active { color: var(--cyan); }
+    .sheet-backdrop {
+      position: fixed; inset: 0; background: rgba(2,6,23,.62);
+      z-index: 40; display: none;
+    }
+    .sheet-backdrop.open { display: block; }
+    .sheet {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 41;
+      max-height: min(88dvh, 720px); overflow: auto;
+      background: linear-gradient(180deg, #111b33, #0a1224);
+      border-radius: 22px 22px 0 0;
+      border: 1px solid var(--line);
+      border-bottom: 0;
+      padding: 12px 16px calc(18px + var(--safe-bottom));
+      transform: translateY(110%);
+      transition: transform .22s ease;
+    }
+    .sheet.open { transform: translateY(0); }
+    .sheet-handle {
+      width: 42px; height: 4px; border-radius: 999px; background: rgba(148,163,184,.35);
+      margin: 4px auto 12px;
+    }
+    .chip-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+    .chip {
+      min-height: var(--touch); border-radius: 999px; padding: 0 14px;
+      border: 1px solid var(--line); background: rgba(148,163,184,.08);
+      color: var(--text); cursor: pointer;
+    }
+    .chip.active { border-color: rgba(34,211,238,.55); background: rgba(34,211,238,.14); color: #a5f3fc; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: .82rem; color: var(--muted); margin-bottom: 6px; }
+    .field textarea, .field input {
+      width: 100%; min-height: var(--touch); border-radius: 12px;
+      border: 1px solid var(--line); background: var(--panel); color: var(--text);
+      padding: 10px 12px;
+    }
+    .field textarea { min-height: 96px; resize: vertical; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; }
+    .tabs button {
+      min-height: 40px; border-radius: 999px; border: 1px solid var(--line);
+      background: transparent; color: var(--muted); padding: 0 14px; white-space: nowrap; cursor: pointer;
+    }
+    .tabs button.active { color: var(--text); background: rgba(34,211,238,.14); border-color: rgba(34,211,238,.35); }
+    .detail-block { margin-bottom: 14px; }
+    .detail-block h4 { margin: 0 0 8px; font-size: .95rem; }
+    .day-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      min-height: 28px; padding: 0 10px; border-radius: 999px;
+      background: rgba(148,163,184,.12); font-size: .78rem; margin: 0 6px 6px 0;
+    }
+    .day-pill.on { background: rgba(34,211,238,.16); color: #a5f3fc; }
+    .day-pill.reflect { background: rgba(52,211,153,.14); color: #a7f3d0; }
+    .check-row { display: flex; align-items: center; gap: 10px; min-height: var(--touch); }
+    .check-row input { width: 20px; height: 20px; }
+  </style>
+</head>
+<body>
+  <header class="teacher-top">
+    <p class="teacher-brand">STREETS OF LOGIC</p>
+    <h1 class="teacher-greeting" id="greeting">Lehrerbereich</h1>
+    <p class="teacher-sub" id="subline">Wer braucht heute Unterstützung – und warum?</p>
+    <div class="teacher-toolbar" id="toolbar">
+      <select id="classSelect" aria-label="Klasse"></select>
+      <input type="date" id="dateInput" aria-label="Datum" />
+    </div>
+  </header>
+
+  <main class="teacher-main" id="app"></main>
+
+  <nav class="teacher-bottomnav" aria-label="Lehrer-Navigation">
+    <button type="button" data-tab="heute" class="active">Heute</button>
+    <button type="button" data-tab="klassen">Klassen</button>
+    <button type="button" data-tab="lernbegleitung">Lernbegleitung</button>
+    <button type="button" data-tab="verlauf">Verlauf</button>
+  </nav>
+
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-handle"></div>
+    <div id="sheetBody"></div>
+  </div>
+
+  <script src="/js/teacher-app.js?v=1"></script>
+</body>
+</html>

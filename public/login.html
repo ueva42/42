@@ -11,7 +11,7 @@
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <script src="/js/client-cache-reset.js?v=2"></script>
-  <script src="/js/auth-fetch.js?v=12"></script>
+  <script src="/js/auth-fetch.js?v=13"></script>
   <title>Streets of Logic – Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -555,7 +555,7 @@
         return;
       }
       try {
-        if (role === "admin" || role === "student" || role === "superadmin") {
+        if (role === "admin" || role === "student" || role === "superadmin" || role === "teacher") {
           sessionStorage.setItem("sol.authed", role);
           localStorage.setItem("sol.authed", role);
         }
@@ -576,8 +576,8 @@
           window.location.replace("/superadmin");
           return;
         }
-        if (data.role === "admin") {
-          window.location.replace("/teacher/dashboard");
+        if (data.role === "admin" || data.role === "teacher") {
+          window.location.replace(data.redirectTo || "/teacher");
           return;
         }
         if (data.role === "student") {
@@ -596,7 +596,11 @@
           if (sessionRes.ok) {
             const sessionData = await sessionRes.json();
             if (sessionData.authenticated && sessionData.role === role) {
-              if (role !== "admin" || sessionData.ready !== false) return true;
+              if (
+                (role !== "admin" && role !== "teacher") ||
+                sessionData.ready !== false
+              )
+                return true;
             }
           }
         } catch (_err) {}
@@ -622,11 +626,11 @@
         return;
       }
 
-      if (role === "admin") {
+      if (role === "admin" || role === "teacher") {
         if (window.__purgeTeacherClientCaches) {
           await window.__purgeTeacherClientCaches();
         }
-        window.location.href = "/teacher/dashboard";
+        window.location.href = "/teacher";
         return;
       }
 

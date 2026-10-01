@@ -127,7 +127,9 @@
   const state = {
     todayDate: null,
     blocks: [],
-    nextStep: null
+    nextStep: null,
+    feedback: [],
+    feedbackLabels: {}
   };
 
   function todayIso() {
@@ -294,6 +296,34 @@
       </button>`;
   }
 
+  function renderTeacherFeedback(ui) {
+    const items = state.feedback || [];
+    if (!items.length) return "";
+    const labels = state.feedbackLabels || {};
+    return `
+      <section class="hub-feedback-panel" style="margin:14px 0 4px">
+        <p class="hub-block-label">Rückmeldungen von Lehrkräften</p>
+        <div class="hub-feedback-list" style="display:grid;gap:8px">
+          ${items
+            .slice(0, 5)
+            .map((f) => {
+              const chips = (f.chips || [])
+                .map((id) => labels[id] || id)
+                .filter(Boolean)
+                .join(" · ");
+              return `<article class="dashboard-feature-card" style="padding:12px 14px">
+                <p class="hub-status-card__title" style="margin:0 0 4px">${ui.escapeHtml(
+                  String(f.date || "").slice(0, 10)
+                )}${f.teacherName ? ` · ${ui.escapeHtml(f.teacherName)}` : ""}</p>
+                ${chips ? `<p class="hub-status-card__meta" style="margin:0 0 4px">${ui.escapeHtml(chips)}</p>` : ""}
+                ${f.note ? `<p style="margin:0;color:#cbd5e1">${ui.escapeHtml(f.note)}</p>` : ""}
+              </article>`;
+            })
+            .join("")}
+        </div>
+      </section>`;
+  }
+
   function renderStatusPanel(ui, stats, step) {
     const V = window.LogbuchVisuals;
     const missionLabel = step.label === "Tagesziel setzen" ? "5-Minuten-Start" : step.label;
@@ -455,6 +485,7 @@
         </section>
 
         ${renderStatusPanel(ui, stats, step)}
+        ${renderTeacherFeedback(ui)}
 
         <section class="hub-block">
           <h2 class="hub-block-label">Dein Kontrollzentrum</h2>
@@ -499,6 +530,18 @@
       state.todayDate = data.date || todayIso();
       state.blocks = data.blocks || [];
       state.nextStep = computeNextStep(state.blocks, state.todayDate);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadTeacherFeedback() {
+    try {
+      const res = await fetch("/api/student/feedback", { credentials: "same-origin" });
+      if (!res.ok) return;
+      const data = await res.json();
+      state.feedback = data.feedback || [];
+      state.feedbackLabels = data.chipLabels || {};
     } catch (err) {
       console.error(err);
     }
@@ -603,13 +646,13 @@
   }
 
   async function init() {
-    await loadTodayData();
+    await Promise.all([loadTodayData(), loadTeacherFeedback()]);
     render();
     refreshStats();
   }
 
   async function refresh() {
-    await loadTodayData();
+    await Promise.all([loadTodayData(), loadTeacherFeedback()]);
     render();
     refreshStats();
   }

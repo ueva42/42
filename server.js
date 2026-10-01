@@ -35,6 +35,16 @@ import {
 import { migrateGroupModeTables, displayNameFromUser } from "./lib/group-mode.js";
 import { registerGroupModeRoutes } from "./lib/group-mode-api.js";
 import {
+  migrateTeacherAreaTables,
+  teacherCanAccessClass,
+  teacherCanAccessStudent,
+  userCanAccessAdminArea,
+  userCanAccessTeacherArea,
+  listAccessibleClasses,
+  defaultPostLoginPath
+} from "./lib/teacher-auth.js";
+import { registerTeacherCoachingRoutes } from "./lib/teacher-coaching-api.js";
+import {
   parseLevelplanImportText as parseLevelplanImportTextBase,
   normalizeLevelplanImportRows as normalizeLevelplanImportRowsBase
 } from "./lib/levelplan-import.js";
@@ -2688,7 +2698,7 @@ async function refreshSessionUserFromDb(req) {
 
   const r = await pool.query(
     `
-    SELECT id, role, class_id, school_id
+    SELECT id, role, class_id, school_id, COALESCE(is_active, TRUE) AS is_active
     FROM users
     WHERE id = $1
     LIMIT 1
@@ -2698,6 +2708,10 @@ async function refreshSessionUserFromDb(req) {
   if (!r.rows.length) return { user: null, changed: false };
 
   const row = r.rows[0];
+  if (row.is_active === false) {
+    return { user: null, changed: true, inactive: true };
+  }
+
   const next = {
     id: row.id,
     role: row.role,
@@ -2732,8 +2746,11 @@ app.use((req, res, next) => {
 });
 
 function sendToAppOrLogin(req, res) {
-  const role = req.session?.user?.role;
-  if (role === "admin") return res.redirect(302, "/teacher/dashboard");
+  const user = req.session?.user;
+  const role = user?.role;
+  if (role === "admin" || role === "teacher") {
+    return res.redirect(302, defaultPostLoginPath(user));
+  }
   if (role === "student") return res.redirect(302, "/student/hub");
   if (role === "superadmin") return res.redirect(302, "/superadmin");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
@@ -3041,6 +3058,7 @@ async function migrate() {
   await ensureColumn("users", "first_login", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("users", "has_seen_start_briefing", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("users", "school_id", "INTEGER");
+  await ensureColumn("users", "is_active", "BOOLEAN NOT NULL DEFAULT TRUE");
 
   // Freiheitsrang (manuell durch Lehrkraft, unabhängig von XP)
   await ensureColumn(
@@ -3998,6 +4016,7 @@ async function migrate() {
   `);
 
   await migrateGroupModeTables(pool);
+  await migrateTeacherAreaTables(pool);
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_timetables_class_weekday
@@ -4361,7 +4380,8 @@ app.post("/api/login", async (req, res) => {
 
   const r = await pool.query(
     `
-    SELECT id,name,password,role,class_id,school_id,first_login
+    SELECT id,name,password,role,class_id,school_id,first_login,
+           COALESCE(is_active, TRUE) AS is_active
     FROM users
     WHERE name=$1
     ORDER BY id ASC
@@ -4374,6 +4394,9 @@ app.post("/api/login", async (req, res) => {
 
   const user = r.rows[0];
   if (user.password !== password) return res.json({ success: false });
+  if (user.is_active === false) {
+    return res.json({ success: false, message: "Konto deaktiviert." });
+  }
 
   loginUserSession(req, res, user);
 });
@@ -4480,7 +4503,13 @@ app.get("/api/auth/session", async (req, res) => {
       role: current.role,
       id: current.id,
       schoolId: current.school_id ?? null,
-      ready: current.role === "admin" ? current.school_id != null : true,
+      ready:
+        current.role === "admin" || current.role === "teacher"
+          ? current.school_id != null
+          : true,
+      canAdmin: userCanAccessAdminArea(current),
+      canTeacher: userCanAccessTeacherArea(current),
+      redirectTo: defaultPostLoginPath(current),
       isDemo
     });
   } catch (err) {
@@ -4492,7 +4521,13 @@ app.get("/api/auth/session", async (req, res) => {
         role: fallback.role,
         id: fallback.id,
         schoolId: fallback.school_id ?? null,
-        ready: fallback.role === "admin" ? fallback.school_id != null : true,
+        ready:
+          fallback.role === "admin" || fallback.role === "teacher"
+            ? fallback.school_id != null
+            : true,
+        canAdmin: userCanAccessAdminArea(fallback),
+        canTeacher: userCanAccessTeacherArea(fallback),
+        redirectTo: defaultPostLoginPath(fallback),
         isDemo: false
       });
     }
@@ -4839,6 +4874,7 @@ function isHtmlPageRequest(req) {
   // Teacher/Student-SPA immer als HTML behandeln (auch ohne Sec-Fetch-Mode, z. B. via Service Worker).
   if (
     req.path.startsWith("/teacher/") ||
+    req.path === "/teacher" ||
     req.path.startsWith("/student/") ||
     req.path === "/admin" ||
     req.path.startsWith("/superadmin") ||
@@ -4874,6 +4910,10 @@ function isAdmin(req, res, next) {
   (async () => {
     try {
       const refreshed = await refreshSessionUserFromDb(req);
+      if (refreshed.inactive) {
+        req.session.user = null;
+        return denyAccess(req, res);
+      }
       const liveUser = refreshed.user;
       if (!liveUser || liveUser.role !== "admin") return denyAccess(req, res);
       if (refreshed.changed) {
@@ -4886,6 +4926,40 @@ function isAdmin(req, res, next) {
       next();
     } catch (err) {
       console.error("❌ isAdmin:", err);
+      return denyAccess(req, res);
+    }
+  })();
+}
+
+function isTeacher(req, res, next) {
+  const sessionUser = req.session?.user;
+  if (!sessionUser?.id || !userCanAccessTeacherArea(sessionUser)) {
+    return denyAccess(req, res);
+  }
+  if (sessionUser.school_id != null) {
+    return next();
+  }
+  (async () => {
+    try {
+      const refreshed = await refreshSessionUserFromDb(req);
+      if (refreshed.inactive) {
+        req.session.user = null;
+        return denyAccess(req, res);
+      }
+      const liveUser = refreshed.user;
+      if (!liveUser || !userCanAccessTeacherArea(liveUser)) {
+        return denyAccess(req, res);
+      }
+      if (refreshed.changed) {
+        try {
+          await saveSession(req);
+        } catch (err) {
+          console.error("❌ isTeacher save:", err);
+        }
+      }
+      next();
+    } catch (err) {
+      console.error("❌ isTeacher:", err);
       return denyAccess(req, res);
     }
   })();
@@ -4905,7 +4979,7 @@ function isSuperadmin(req, res, next) {
 
 registerGroupModeRoutes(app, {
   pool,
-  isAdmin,
+  isAdmin: isTeacher,
   isStudent,
   getStudentClassContext,
   getLevelChecksForClass,
@@ -4913,6 +4987,15 @@ registerGroupModeRoutes(app, {
   todayIsoDate,
   LEVEL_CHECK_TIERS,
   LEVEL_CHECK_TIER_LABELS
+});
+
+registerTeacherCoachingRoutes(app, {
+  pool,
+  isTeacher,
+  isAdmin,
+  isStudent,
+  resolveSchoolDate,
+  ensureColumn
 });
 
 // -------------------------------------------------------
@@ -8474,7 +8557,7 @@ app.get("/api/student/competencies", isStudent, (req, res) => {
 // -------------------------------------------------------
 // TEACHER: Levelstatus (Themen + Unterthemen)
 // -------------------------------------------------------
-app.get("/api/teacher/levelchecks", isAdmin, async (req, res) => {
+app.get("/api/teacher/levelchecks", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.query.classId);
@@ -8542,12 +8625,12 @@ app.get("/api/teacher/levelchecks", isAdmin, async (req, res) => {
   }
 });
 
-app.get("/api/teacher/levelcheck-topics", isAdmin, (req, res) => {
+app.get("/api/teacher/levelcheck-topics", isTeacher, (req, res) => {
   const q = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
   res.redirect(307, `/api/teacher/levelchecks${q}`);
 });
 
-app.post("/api/teacher/levelchecks", isAdmin, async (req, res) => {
+app.post("/api/teacher/levelchecks", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.body.classId);
@@ -8642,7 +8725,7 @@ app.post("/api/teacher/levelchecks", isAdmin, async (req, res) => {
   }
 });
 
-app.post("/api/teacher/levelchecks/:id/goals", isAdmin, async (req, res) => {
+app.post("/api/teacher/levelchecks/:id/goals", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const levelCheckId = req.params.id;
@@ -8707,10 +8790,10 @@ async function handleDeleteLevelCheck(req, res) {
   }
 }
 
-app.delete("/api/teacher/levelchecks/:id", isAdmin, handleDeleteLevelCheck);
-app.post("/api/teacher/levelchecks/:id/delete", isAdmin, handleDeleteLevelCheck);
+app.delete("/api/teacher/levelchecks/:id", isTeacher, handleDeleteLevelCheck);
+app.post("/api/teacher/levelchecks/:id/delete", isTeacher, handleDeleteLevelCheck);
 
-app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
+app.patch("/api/teacher/levelchecks/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const levelCheckId = req.params.id;
@@ -8821,7 +8904,7 @@ app.patch("/api/teacher/levelchecks/:id", isAdmin, async (req, res) => {
   }
 });
 
-app.post("/api/teacher/levelcheck-checkpoints", isAdmin, async (req, res) => {
+app.post("/api/teacher/levelcheck-checkpoints", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.body.classId);
@@ -8920,7 +9003,7 @@ app.post("/api/teacher/levelcheck-checkpoints", isAdmin, async (req, res) => {
   }
 });
 
-app.patch("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) => {
+app.patch("/api/teacher/levelcheck-checkpoints/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const checkpointId = req.params.id;
@@ -9050,7 +9133,7 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) =
   }
 });
 
-app.delete("/api/teacher/levelcheck-checkpoints/:id", isAdmin, async (req, res) => {
+app.delete("/api/teacher/levelcheck-checkpoints/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const checkpointId = req.params.id;
@@ -9240,7 +9323,7 @@ async function loadEvaluationsByCheckpointIds(userId, checkpointIds) {
 
 app.get(
   "/api/teacher/levelcheck-checkpoints/:checkpointId/evaluations",
-  isAdmin,
+  isTeacher,
   async (req, res) => {
     try {
       const schoolId = req.session.user.school_id;
@@ -9329,7 +9412,7 @@ app.get(
 
 app.patch(
   "/api/teacher/levelcheck-checkpoints/:checkpointId/evaluations/:studentId",
-  isAdmin,
+  isTeacher,
   async (req, res) => {
     const client = await pool.connect();
     try {
@@ -9928,7 +10011,7 @@ async function importLevelplanRows(classId, schoolId, rows) {
 // -------------------------------------------------------
 // TEACHER: Levelplan importieren
 // -------------------------------------------------------
-app.post("/api/teacher/levelplan-import/preview", isAdmin, async (req, res) => {
+app.post("/api/teacher/levelplan-import/preview", isTeacher, async (req, res) => {
   try {
     const text = String(req.body.text || "");
     if (!text.trim()) {
@@ -9953,7 +10036,7 @@ app.post("/api/teacher/levelplan-import/preview", isAdmin, async (req, res) => {
   }
 });
 
-app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
+app.post("/api/teacher/levelplan-import/confirm", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     if (!schoolId) {
@@ -10063,7 +10146,7 @@ app.post("/api/teacher/levelplan-import/confirm", isAdmin, async (req, res) => {
   }
 });
 
-app.get("/api/teacher/level-plan-catalogs", isAdmin, async (req, res) => {
+app.get("/api/teacher/level-plan-catalogs", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const gradeLevel = String(req.query.gradeLevel || "").trim() || null;
@@ -10075,7 +10158,7 @@ app.get("/api/teacher/level-plan-catalogs", isAdmin, async (req, res) => {
   }
 });
 
-app.get("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
+app.get("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const catalogId = String(req.params.id || "").trim();
@@ -10203,7 +10286,7 @@ async function deleteLevelPlanCatalogForSchool(catalogId, schoolId) {
   }
 }
 
-app.delete("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
+app.delete("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const catalogId = String(req.params.id || "").trim();
@@ -10224,7 +10307,7 @@ app.delete("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => 
   }
 });
 
-app.post("/api/teacher/level-plan-catalogs/:id/delete", isAdmin, async (req, res) => {
+app.post("/api/teacher/level-plan-catalogs/:id/delete", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const catalogId = String(req.params.id || "").trim();
@@ -10245,7 +10328,7 @@ app.post("/api/teacher/level-plan-catalogs/:id/delete", isAdmin, async (req, res
   }
 });
 
-app.patch("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
+app.patch("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const catalogId = String(req.params.id || "").trim();
@@ -10280,7 +10363,7 @@ app.patch("/api/teacher/level-plan-catalogs/:id", isAdmin, async (req, res) => {
   }
 });
 
-app.get("/api/teacher/level-plan-assignments", isAdmin, async (req, res) => {
+app.get("/api/teacher/level-plan-assignments", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const r = await pool.query(
@@ -10339,7 +10422,7 @@ app.get("/api/teacher/level-plan-assignments", isAdmin, async (req, res) => {
   }
 });
 
-app.put("/api/teacher/level-plan-assignment", isAdmin, async (req, res) => {
+app.put("/api/teacher/level-plan-assignment", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.body.classId);
@@ -10441,7 +10524,7 @@ app.put("/api/teacher/level-plan-assignment", isAdmin, async (req, res) => {
 // -------------------------------------------------------
 // TEACHER: Levelplan auf andere Klasse kopieren
 // -------------------------------------------------------
-app.post("/api/teacher/levelplan-copy", isAdmin, async (req, res) => {
+app.post("/api/teacher/levelplan-copy", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const sourceClassId = Number(req.body.sourceClassId);
@@ -10516,7 +10599,7 @@ app.post("/api/teacher/levelplan-copy", isAdmin, async (req, res) => {
 // -------------------------------------------------------
 // TEACHER: Wie-Ziele pro Fach
 // -------------------------------------------------------
-app.get("/api/teacher/subject-lesson-goals", isAdmin, async (req, res) => {
+app.get("/api/teacher/subject-lesson-goals", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const goalsBySubject = await fetchCustomSubjectLessonGoals(schoolId);
@@ -10532,7 +10615,7 @@ app.get("/api/teacher/subject-lesson-goals", isAdmin, async (req, res) => {
   }
 });
 
-app.post("/api/teacher/subject-lesson-goals", isAdmin, async (req, res) => {
+app.post("/api/teacher/subject-lesson-goals", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const subject = String(req.body.subject || "").trim();
@@ -10580,7 +10663,7 @@ app.post("/api/teacher/subject-lesson-goals", isAdmin, async (req, res) => {
   }
 });
 
-app.post("/api/teacher/subject-lesson-goals/seed-defaults", isAdmin, async (req, res) => {
+app.post("/api/teacher/subject-lesson-goals/seed-defaults", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const subject = String(req.body.subject || "").trim();
@@ -10625,7 +10708,7 @@ app.post("/api/teacher/subject-lesson-goals/seed-defaults", isAdmin, async (req,
   }
 });
 
-app.delete("/api/teacher/subject-lesson-goals/:id", isAdmin, async (req, res) => {
+app.delete("/api/teacher/subject-lesson-goals/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const del = await pool.query(
@@ -10648,7 +10731,7 @@ app.delete("/api/teacher/subject-lesson-goals/:id", isAdmin, async (req, res) =>
   }
 });
 
-app.patch("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
+app.patch("/api/teacher/levelcheck-goals/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const goalId = req.params.id;
@@ -10742,7 +10825,7 @@ app.patch("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
   }
 });
 
-app.patch("/api/teacher/classes/:classId/active-levels", isAdmin, async (req, res) => {
+app.patch("/api/teacher/classes/:classId/active-levels", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.params.classId);
@@ -10781,7 +10864,7 @@ app.patch("/api/teacher/classes/:classId/active-levels", isAdmin, async (req, re
   }
 });
 
-app.delete("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
+app.delete("/api/teacher/levelcheck-goals/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const result = await deleteLevelCheckGoalForSchool(req.params.id, schoolId);
@@ -10795,7 +10878,7 @@ app.delete("/api/teacher/levelcheck-goals/:id", isAdmin, async (req, res) => {
   }
 });
 
-app.post("/api/teacher/levelcheck-goals/:id/delete", isAdmin, async (req, res) => {
+app.post("/api/teacher/levelcheck-goals/:id/delete", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const result = await deleteLevelCheckGoalForSchool(req.params.id, schoolId);
@@ -10812,7 +10895,7 @@ app.post("/api/teacher/levelcheck-goals/:id/delete", isAdmin, async (req, res) =
 // -------------------------------------------------------
 // TEACHER: Klassenübersicht (Dashboard)
 // -------------------------------------------------------
-app.get("/api/teacher/dashboard", isAdmin, async (req, res) => {
+app.get("/api/teacher/dashboard", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.query.classId);
@@ -10823,6 +10906,9 @@ app.get("/api/teacher/dashboard", isAdmin, async (req, res) => {
     }
     if (!date) {
       return res.status(400).json({ error: "Ungültiges Datum" });
+    }
+    if (!(await teacherCanAccessClass(pool, req.session.user, classId))) {
+      return res.status(403).json({ error: "Kein Zugriff auf diese Klasse" });
     }
 
     const classRes = await pool.query(
@@ -10985,13 +11071,16 @@ app.get("/api/teacher/dashboard", isAdmin, async (req, res) => {
   }
 });
 
-app.get("/api/teacher/student-week", isAdmin, async (req, res) => {
+app.get("/api/teacher/student-week", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const studentId = Number(req.query.studentId);
     const refDate = await resolveSchoolDate(req, req.query.date);
     if (!studentId || !refDate) {
       return res.status(400).json({ error: "Parameter fehlen" });
+    }
+    if (!(await teacherCanAccessStudent(pool, req.session.user, studentId))) {
+      return res.status(403).json({ error: "Kein Zugriff" });
     }
 
     const studentRes = await pool.query(
@@ -11062,13 +11151,15 @@ app.get("/api/teacher/student-week", isAdmin, async (req, res) => {
 // -------------------------------------------------------
 const TIMETABLE_MAX_SLOTS_PER_DAY = 7;
 
-app.get("/api/teacher/timetable", isAdmin, async (req, res) => {
+app.get("/api/teacher/timetable", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.query.classId);
-
     if (!classId) {
       return res.status(400).json({ error: "classId fehlt" });
+    }
+    if (!(await teacherCanAccessClass(pool, req.session.user, classId))) {
+      return res.status(403).json({ error: "Kein Zugriff auf diese Klasse" });
     }
 
     const classRes = await pool.query(
@@ -11120,7 +11211,7 @@ app.get("/api/teacher/timetable", isAdmin, async (req, res) => {
   }
 });
 
-app.put("/api/teacher/timetable", isAdmin, async (req, res) => {
+app.put("/api/teacher/timetable", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.body.classId);
@@ -11128,6 +11219,9 @@ app.put("/api/teacher/timetable", isAdmin, async (req, res) => {
 
     if (!classId) {
       return res.json({ success: false, message: "classId fehlt." });
+    }
+    if (!(await teacherCanAccessClass(pool, req.session.user, classId))) {
+      return res.json({ success: false, message: "Kein Zugriff auf diese Klasse." });
     }
     if (!Array.isArray(entries)) {
       return res.json({ success: false, message: "Ungültige Daten." });
@@ -11238,7 +11332,7 @@ function activityLevelForDay(entryCount, hasCheck, hasReflection) {
 // -------------------------------------------------------
 // TEACHER: Wochenübersicht Klasse (Heatmap)
 // -------------------------------------------------------
-app.get("/api/teacher/week", isAdmin, async (req, res) => {
+app.get("/api/teacher/week", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const classId = Number(req.query.classId);
@@ -11251,6 +11345,9 @@ app.get("/api/teacher/week", isAdmin, async (req, res) => {
     }
     if (!refDate) {
       return res.status(400).json({ error: "Ungültiges Datum" });
+    }
+    if (!(await teacherCanAccessClass(pool, req.session.user, classId))) {
+      return res.status(403).json({ error: "Kein Zugriff auf diese Klasse" });
     }
 
     const classRes = await pool.query(
@@ -12470,9 +12567,10 @@ app.post("/api/admin/class-reward-round/:id/abort", isAdmin, handleDeleteClassRe
 // -------------------------------------------------------
 // ADMIN – Klassen
 // -------------------------------------------------------
-app.get("/api/class", isAdmin, async (req, res) => {
+app.get("/api/class", isTeacher, async (req, res) => {
   try {
-    const schoolId = req.session.user?.school_id;
+    const user = req.session.user;
+    const schoolId = user?.school_id;
     if (!schoolId) {
       return res.status(400).json({
         success: false,
@@ -12480,17 +12578,8 @@ app.get("/api/class", isAdmin, async (req, res) => {
       });
     }
 
-    const r = await pool.query(
-      `
-      SELECT id, name
-      FROM classes
-      WHERE school_id = $1
-      ORDER BY name ASC
-    `,
-      [schoolId]
-    );
-
-    res.json(r.rows);
+    const rows = await listAccessibleClasses(pool, user);
+    res.json(rows);
   } catch (err) {
     console.error("❌ /api/class:", err);
     res.status(500).json({
@@ -13697,9 +13786,31 @@ app.get("/first-login", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "first-login.html"));
 });
 
-app.get("/admin", (_req, res) => {
-  res.redirect(302, "/teacher/dashboard");
+app.get("/admin", isAdmin, (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.sendFile(path.join(__dirname, "public", "admin.html"));
 });
+
+app.get("/teacher", isTeacher, (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.sendFile(path.join(__dirname, "public", "teacher.html"));
+});
+
+const teacherAppPaths = [
+  "/teacher/heute",
+  "/teacher/klassen",
+  "/teacher/lernbegleitung",
+  "/teacher/verlauf",
+  "/teacher/profil",
+  "/teacher/schueler"
+];
+
+for (const route of teacherAppPaths) {
+  app.get(route, isTeacher, (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.sendFile(path.join(__dirname, "public", "teacher.html"));
+  });
+}
 
 const teacherSpaPaths = [
   "/teacher/dashboard",
@@ -13722,7 +13833,7 @@ const teacherSpaPaths = [
 ];
 
 for (const route of teacherSpaPaths) {
-  app.get(route, (_req, res) => {
+  app.get(route, isTeacher, (_req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.sendFile(path.join(__dirname, "public", "admin.html"));

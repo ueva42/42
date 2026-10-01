@@ -21,7 +21,7 @@
   }
 
   function authSet(role) {
-    if (role !== "admin" && role !== "student" && role !== "superadmin") return;
+    if (role !== "admin" && role !== "student" && role !== "superadmin" && role !== "teacher") return;
     try {
       sessionStorage.setItem(AUTH_KEY, role);
     } catch (_err) {}
