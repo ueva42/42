@@ -166,6 +166,83 @@ body.admin-app .nav-item.active svg {
   fill: #fff;
 }
 
+body.admin-app .nav-item-switch {
+  border-color: rgba(34, 211, 238, 0.4);
+  background: linear-gradient(120deg, rgba(34, 211, 238, 0.16), rgba(59, 130, 246, 0.14));
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.12);
+}
+
+body.admin-app .nav-item-switch svg {
+  fill: var(--admin-cyan);
+}
+
+body.admin-app .nav-item-switch .nav-label {
+  color: var(--admin-text);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+body.admin-app .nav-item-switch .nav-switch-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.95);
+  color: #0b1220;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.admin-app .nav-item-switch:hover {
+  border-color: rgba(34, 211, 238, 0.7);
+  background: linear-gradient(120deg, rgba(34, 211, 238, 0.24), rgba(59, 130, 246, 0.2));
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.2);
+}
+
+body.admin-app .admin-teacher-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.18), rgba(59, 130, 246, 0.14));
+  color: var(--admin-text);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+body.admin-app .admin-teacher-switch:hover,
+body.admin-app .admin-teacher-switch:focus-visible {
+  border-color: rgba(34, 211, 238, 0.75);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.28), rgba(59, 130, 246, 0.22));
+  outline: none;
+}
+
+body.admin-app .admin-teacher-switch .admin-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.95);
+  color: #0b1220;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 body.admin-app .nav-item-logout {
   background: rgba(127, 29, 29, 0.45);
   border-color: rgba(248, 113, 113, 0.5);

@@ -141,6 +141,9 @@
       border: 1px solid rgba(148,163,184,0.28);
       box-shadow: 0 3px 10px rgba(0,0,0,0.85);
       transition: transform 0.15s ease, box-shadow 0.15s ease, border 0.15s ease, background 0.15s ease;
+      min-height: 44px;
+      text-decoration: none;
+      color: inherit;
     }
 
     .nav-item svg {
@@ -154,6 +157,95 @@
     .nav-label {
       font-size: 13px;
       letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .nav-item-switch {
+      margin-top: 0;
+      margin-bottom: 4px;
+      border-radius: 14px;
+      border: 1px solid rgba(34, 211, 238, 0.45);
+      background: linear-gradient(120deg, rgba(34, 211, 238, 0.18), rgba(139, 92, 246, 0.16));
+      box-shadow: 0 0 14px rgba(34, 211, 238, 0.18);
+    }
+
+    .nav-item-switch svg {
+      fill: #67e8f9;
+    }
+
+    .nav-item-switch .nav-label {
+      color: #e0f2fe;
+      font-weight: 700;
+      text-transform: none;
+      letter-spacing: 0.02em;
+      font-size: 14px;
+    }
+
+    .nav-item-switch .nav-switch-badge {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: rgba(249, 115, 22, 0.95);
+      color: #0b1220;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .nav-item-switch:hover {
+      transform: translateX(3px);
+      border-color: rgba(103, 232, 249, 0.8);
+      background: linear-gradient(120deg, rgba(34, 211, 238, 0.28), rgba(139, 92, 246, 0.24));
+      box-shadow: 0 0 18px rgba(34, 211, 238, 0.28);
+    }
+
+    .page-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .admin-teacher-switch {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(34, 211, 238, 0.45);
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(139, 92, 246, 0.16));
+      color: #e0f2fe;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .admin-teacher-switch:hover,
+    .admin-teacher-switch:focus-visible {
+      border-color: rgba(103, 232, 249, 0.85);
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.3), rgba(139, 92, 246, 0.24));
+      outline: none;
+    }
+
+    .admin-teacher-switch .admin-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: rgba(249, 115, 22, 0.95);
+      color: #0b1220;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
     }
 
@@ -606,7 +698,9 @@
     .page-header {
       display: flex;
       justify-content: space-between;
-      align-items: baseline;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
       margin-bottom: 16px;
     }
 
@@ -1396,7 +1490,7 @@
       .tc-add-grid { grid-template-columns: 1fr; }
     }
   </style>
-  <link rel="stylesheet" href="/css/admin-theme.css?v=2">
+  <link rel="stylesheet" href="/css/admin-theme.css?v=3">
 </head>
 <body class="admin-app">
 
@@ -1409,6 +1503,12 @@
       <div class="sidebar-subtitle">CONTROL&nbsp;CENTER</div>
     </div>
   </div>
+
+  <a class="nav-item nav-item-switch admin-only-nav" href="/teacher" aria-label="Zur Lehrer-App">
+    <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+    <span class="nav-label">Zur Lehrer-App</span>
+    <span class="nav-switch-badge">Admin</span>
+  </a>
 
   <div class="sidebar-nav">
   <div class="nav-section nav-section-pinned">
@@ -1542,9 +1642,9 @@
       <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 110 10 5 5 0 010-10zm0 12c-3.3 0-7 1.7-7 4.5V20h14v-1.5C19 15.7 15.3 14 12 14zm6.7-3.7l1.3 1.3-4.9 4.9-2.1-2.1 1.3-1.3.8.8 3.6-3.6z"/></svg>
       <span class="nav-label">Profil &amp; Passwort</span>
     </div>
-    <a class="nav-item" href="/teacher" style="text-decoration:none;color:inherit">
+    <a class="nav-item nav-item-switch admin-only-nav" href="/teacher" aria-label="Zur Lehrer-App">
       <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-      <span class="nav-label">Lehrer-App</span>
+      <span class="nav-label">Zur Lehrer-App</span>
     </a>
     </div>
   </div>
@@ -1564,6 +1664,12 @@
       <div>
         <h1>STREETS OF LOGIC</h1>
         <div class="page-subtitle">XP EDITION – ADMIN CONTROL</div>
+      </div>
+      <div class="page-header-actions admin-only-nav">
+        <a class="admin-teacher-switch" href="/teacher" aria-label="Zur Lehrer-App">
+          <span class="admin-badge">Admin</span>
+          Zur Lehrer-App
+        </a>
       </div>
     </div>
 

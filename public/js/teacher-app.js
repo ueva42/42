@@ -25,6 +25,16 @@
   const sheet = document.getElementById("sheet");
   const sheetBody = document.getElementById("sheetBody");
   const sheetBackdrop = document.getElementById("sheetBackdrop");
+  const adminSwitchEl = document.getElementById("adminSwitch");
+
+  function isAdminUser(me = state.me) {
+    return me?.canAdmin === true || me?.role === "admin";
+  }
+
+  function updateAdminSwitch() {
+    if (!adminSwitchEl) return;
+    adminSwitchEl.classList.toggle("hidden", !isAdminUser());
+  }
 
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
@@ -250,8 +260,9 @@
       <div class="section-title">Konto</div>
       <div class="tile-grid tile-grid--tools">
         ${
-          state.me?.canAdmin
-            ? `<a class="tile tile--tool" href="/admin#class">
+          isAdminUser()
+            ? `<a class="tile tile--tool tile--admin" href="/admin#class">
+                <span class="tile-admin-badge">Admin</span>
                 <h3>Administration</h3>
                 <p>Klassen, Schüler, XP, Lehrerverwaltung</p>
               </a>`
@@ -639,6 +650,7 @@
     state.classes = state.me.classes || [];
     state.classId = state.classes[0]?.id || null;
     fillClassSelect(state.classes);
+    updateAdminSwitch();
 
     const path = location.pathname;
     if (path.startsWith("/teacher/schueler")) {

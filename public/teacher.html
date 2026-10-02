@@ -54,6 +54,13 @@
       border-bottom: 1px solid var(--line);
       padding: 12px 16px 10px;
     }
+    .teacher-top-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .teacher-top-text { flex: 1; min-width: 0; }
     .teacher-brand {
       font-family: Orbitron, system-ui;
       font-size: .78rem;
@@ -70,6 +77,65 @@
       margin: 4px 0 0;
       color: var(--muted);
       font-size: .9rem;
+    }
+    .teacher-admin-switch {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: var(--touch);
+      min-width: var(--touch);
+      padding: 0 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(139, 92, 246, 0.45);
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(34, 211, 238, 0.12));
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: .82rem;
+      letter-spacing: .02em;
+      white-space: nowrap;
+    }
+    .teacher-admin-switch:hover,
+    .teacher-admin-switch:focus-visible {
+      border-color: rgba(167, 139, 250, 0.8);
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.4), rgba(34, 211, 238, 0.2));
+      outline: none;
+    }
+    .teacher-admin-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: rgba(249, 115, 22, 0.95);
+      color: #0b1220;
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .tile--admin {
+      border-color: rgba(139, 92, 246, 0.45);
+      background: linear-gradient(160deg, rgba(139, 92, 246, 0.16), rgba(11, 20, 40, 0.92));
+    }
+    .tile--admin .tile-admin-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: rgba(249, 115, 22, 0.95);
+      color: #0b1220;
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
     }
     .teacher-toolbar {
       display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;
@@ -467,9 +533,17 @@
 </head>
 <body>
   <header class="teacher-top">
-    <p class="teacher-brand">STREETS OF LOGIC</p>
-    <h1 class="teacher-greeting" id="greeting">Lehrerbereich</h1>
-    <p class="teacher-sub" id="subline">Wer braucht heute Unterstützung – und warum?</p>
+    <div class="teacher-top-row">
+      <div class="teacher-top-text">
+        <p class="teacher-brand">STREETS OF LOGIC</p>
+        <h1 class="teacher-greeting" id="greeting">Lehrerbereich</h1>
+        <p class="teacher-sub" id="subline">Wer braucht heute Unterstützung – und warum?</p>
+      </div>
+      <a id="adminSwitch" class="teacher-admin-switch hidden" href="/admin#class" aria-label="Zur Administration">
+        <span class="teacher-admin-badge">Admin</span>
+        Administration
+      </a>
+    </div>
     <div class="teacher-toolbar" id="toolbar">
       <select id="classSelect" aria-label="Klasse"></select>
       <input type="date" id="dateInput" aria-label="Datum" />
@@ -491,6 +565,6 @@
     <div id="sheetBody"></div>
   </div>
 
-  <script src="/js/teacher-app.js?v=2"></script>
+  <script src="/js/teacher-app.js?v=3"></script>
 </body>
 </html>
