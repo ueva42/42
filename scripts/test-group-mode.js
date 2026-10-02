@@ -11,6 +11,7 @@ import {
   parseRoleGoalsCsv,
   roleGoalDedupeKey,
   sessionProgress,
+  shouldRolloverSessionPulse,
   suggestRoleAssignment,
   toIsoDateOnly,
   validateMemberCount,
@@ -167,6 +168,7 @@ testGoals();
 testCsvImport();
 testMultiGoals();
 testDeviceMode();
+testPulseRollover();
 console.log("OK – group-mode helper tests passed");
 
 function testDeviceMode() {
@@ -181,4 +183,27 @@ function testDeviceMode() {
     { enableWhatGoals: false, enableHowGoals: false }
   );
   assert(pending.total === 1, "pending members ignored in progress");
+}
+
+function testPulseRollover() {
+  assert(
+    shouldRolloverSessionPulse("2026-10-01", "2026-10-02", "midcheck") === true,
+    "yesterday midcheck rolls"
+  );
+  assert(
+    shouldRolloverSessionPulse("2026-10-02", "2026-10-02", "midcheck") === false,
+    "same day keeps midcheck"
+  );
+  assert(
+    shouldRolloverSessionPulse("2026-10-01", "2026-10-02", "active") === true,
+    "yesterday active rolls"
+  );
+  assert(
+    shouldRolloverSessionPulse("2026-10-01", "2026-10-02", "setup") === false,
+    "setup does not roll"
+  );
+  assert(
+    shouldRolloverSessionPulse("2026-10-01", "2026-10-02", "closed") === false,
+    "closed does not roll"
+  );
 }

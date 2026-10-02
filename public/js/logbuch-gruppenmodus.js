@@ -71,8 +71,8 @@
   }
 
   function members() {
-    const list = allMembers();
-    return isPersonal() ? list.filter(isAcceptedMember) : list;
+    // Fortschritt/Checks nur für angenommene Mitglieder (wie sessionProgress serverseitig)
+    return allMembers().filter(isAcceptedMember);
   }
 
   function pendingMembers() {
@@ -347,6 +347,11 @@
       state.bundle = data;
       state.sessionId = data.session.id;
       state.sharedGoal = data.session.sharedGoal || state.sharedGoal;
+      if (data.pulseRolledOver) {
+        state.message =
+          state.message ||
+          "Neuer Tag: Der offene Zwischen-/Abschlusscheck von gestern wurde zurückgesetzt.";
+      }
       // Levelplan-Themen nicht verlieren, wenn eine Antwort sie nicht mitschickt
       if (!Array.isArray(state.bundle.topics) || !state.bundle.topics.length) {
         if (Array.isArray(data.topics) && data.topics.length) {
