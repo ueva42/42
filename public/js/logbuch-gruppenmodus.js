@@ -152,7 +152,13 @@
     const topicName =
       focus?.topicName || me?.topicName || state.bundle?.session?.topicName || null;
     const topics = state.bundle?.topics || [];
+    // Thema-ID (level_check) oder Unterthema-ID (goal) auflösen
     let topic = topics.find((t) => String(t.id) === String(topicId));
+    if (!topic && topicId) {
+      topic = topics.find((t) =>
+        (t.goals || []).some((g) => String(g.id) === String(topicId))
+      );
+    }
     if (!topic && topicName) {
       topic = topics.find(
         (t) =>
@@ -160,9 +166,60 @@
             .trim()
             .toLowerCase() === String(topicName).trim().toLowerCase()
       );
+      if (!topic) {
+        topic = topics.find((t) =>
+          (t.goals || []).some(
+            (g) =>
+              String(g.text || "")
+                .trim()
+                .toLowerCase() === String(topicName).trim().toLowerCase()
+          )
+        );
+      }
     }
     if (!topic) topic = topics[0];
     return topic?.goals || [];
+  }
+
+  /** Unterthemen (goals) flach für die Auswahl – Themen sind nur Gruppierung. */
+  function selectableSubtopics() {
+    const topics = state.bundle?.topics || [];
+    const out = [];
+    for (const t of topics) {
+      for (const g of t.goals || []) {
+        if (!g?.id) continue;
+        out.push({
+          id: g.id,
+          title: g.text || "Unterthema",
+          sub: t.name || t.catalogName || "",
+          themaId: t.id,
+          themaName: t.name || ""
+        });
+      }
+    }
+    // Fallback: alte Sessions / Pläne ohne Goals → Themen selbst anbieten
+    if (!out.length && topics.length) {
+      return topics.map((t) => ({
+        id: t.id,
+        title: t.name,
+        sub: t.catalogName || `${(t.goals || []).length} Kompetenzen`,
+        disabled: !(t.goals || []).length && !settings().allowFreeWhatGoal,
+        themaId: t.id,
+        themaName: t.name || ""
+      }));
+    }
+    return out;
+  }
+
+  function parentThemaName(topicId) {
+    const topics = state.bundle?.topics || [];
+    const id = String(topicId || "");
+    const asThema = topics.find((t) => String(t.id) === id);
+    if (asThema) return asThema.name || "";
+    for (const t of topics) {
+      if ((t.goals || []).some((g) => String(g.id) === id)) return t.name || "";
+    }
+    return "";
   }
 
   /** Aktive Rollen-Was-/Wie-Ziele für das aktuelle Mitglied (nach zugewiesenen Rollen). */
@@ -817,7 +874,7 @@
   }
 
   function renderPickTopic() {
-    const topics = state.bundle?.topics || [];
+    const subtopics = selectableSubtopics();
     const focus = memberTopicFocus();
     const names = members()
       .map((m) => {
@@ -833,7 +890,7 @@
       : "Unterthema wählen";
     const selectedId = focus?.topicId || null;
     const body =
-      topics.length === 0
+      subtopics.length === 0
         ? `<div class="gm-empty">Für dieses Fach gibt es noch keinen Levelplan.
              ${
                settings().allowFreeWhatGoal
@@ -847,11 +904,11 @@
           }
           <p class="gm-lead">${esc(focusLabel)}</p>
           ${cardGrid(
-            topics.map((t) => ({
+            subtopics.map((t) => ({
               id: t.id,
-              title: t.name,
-              sub: `${(t.goals || []).length} Kompetenzen`,
-              disabled: !(t.goals || []).length && !settings().allowFreeWhatGoal
+              title: t.title,
+              sub: t.sub ? `Thema: ${t.sub}` : "",
+              disabled: !!t.disabled
             })),
             selectedId,
             "topic"
@@ -859,14 +916,14 @@
 
     const allDone = members().every((m) => m.topicId);
     const footer =
-      topics.length === 0 && settings().allowFreeWhatGoal
+      subtopics.length === 0 && settings().allowFreeWhatGoal
         ? `<button type="button" class="gm-primary" id="gmSkipTopic">Ohne Raster weiter</button>`
         : `<button type="button" class="gm-primary" id="gmTopicNext" ${
             selectedId || allDone ? "" : "disabled"
           }">${allDone ? "Weiter" : "Unterthema speichern"}</button>`;
 
     return shell("Schritt 3 von 5", "Welches Ziel heute?", body, footer, {
-      meta: "Gleiche Rollen dürfen an unterschiedlichen Unterthemen arbeiten.",
+      meta: "Gleiche Rollen dürfen am gleichen oder an unterschiedlichen Unterthemen arbeiten.",
       chips: [state.bundle?.session?.subject, focus?.displayName].filter(Boolean)
     });
   }
@@ -1114,13 +1171,20 @@
 
   function renderShared() {
     const goals = topicGoals();
-    const topicName = state.bundle?.session?.topicName || "";
+    const topicId = state.bundle?.session?.topicId;
+    const topicName =
+      parentThemaName(topicId) || state.bundle?.session?.topicName || "";
+    const subtopicName = state.bundle?.session?.topicName || "";
 
     const body = `
       <p class="gm-lead">Woran möchtet ihr heute gemeinsam arbeiten?</p>
       ${
         topicName
-          ? `<p class="gm-muted">Thema: <strong>${esc(topicName)}</strong></p>`
+          ? `<p class="gm-muted">Thema: <strong>${esc(topicName)}</strong>${
+              subtopicName && subtopicName !== topicName
+                ? ` · Unterthema: <strong>${esc(subtopicName)}</strong>`
+                : ""
+            }</p>`
           : ""
       }
       ${
@@ -2118,11 +2182,15 @@
       !state._topicsLoading
     ) {
       state._topicsLoading = true;
+      const before = JSON.stringify(
+        (state.bundle?.topics || []).map((t) => [t.id, (t.goals || []).length])
+      );
       ensureTopicsLoaded().finally(() => {
         state._topicsLoading = false;
-        if ((state.bundle?.topics || []).some((t) => (t.goals || []).length)) {
-          render();
-        }
+        const after = JSON.stringify(
+          (state.bundle?.topics || []).map((t) => [t.id, (t.goals || []).length])
+        );
+        if (after !== before) render();
       });
     }
     let html = "";
