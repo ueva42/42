@@ -87,7 +87,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     const map = {
       setup: "Einrichtung",
       active: "In Arbeit",
-      midcheck: "Zwischencheck",
+      midcheck: "In Arbeit",
       reflecting: "Abschluss",
       closed: "Abgeschlossen"
     };
@@ -352,12 +352,6 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
               extraHtml: `<label class="gm-num gm-num--inline"><span>max.</span><input type="number" id="gmMaxHow" min="1" max="3" value="${s.maxHowGoals || 3}"/></label>`
             })}
             ${flowRow({
-              id: "gmMid",
-              checked: s.enableMidCheck,
-              title: "Zwischencheck",
-              hint: "Kurzer Stopp: Bin ich noch auf Kurs?"
-            })}
-            ${flowRow({
               id: "gmReflect",
               checked: s.enableReflection,
               title: "Abschlussreflexion",
@@ -597,15 +591,13 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     const roles = (m.roles || []).map((r) => r.name).join(", ") || "–";
     const topic = m.topicName || "–";
     const goalOk = m.goalsComplete ? "✓" : "○";
-    const midOk = m.midCheckAt ? "✓" : "○";
     const refOk = m.reflectionAt ? "✓" : "○";
     return `
       <div class="gm-member-line">
         <strong>${escapeHtml(m.displayName)}</strong>
         <span>${escapeHtml(roles)}</span>
         <span title="Ziel">${goalOk}</span>
-        <span title="Check">${midOk}</span>
-        <span title="Reflexion">${refOk}</span>
+        <span title="Abschluss">${refOk}</span>
       </div>
       ${
         state.expandedId === m.id || true
@@ -675,7 +667,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
                       s.topicName ||
                       "Noch kein Thema"
                   )} · ${escapeHtml(s.sharedGoal || "kein Vorhaben")}</p>
-                  <p class="gm-progress-line">${escapeHtml(names || "Keine Mitglieder")} · Ziele ${p.goalsDone}/${p.total} · Check ${p.midDone}/${p.total} · Abschluss ${p.reflectDone}/${p.total}</p>
+                  <p class="gm-progress-line">${escapeHtml(names || "Keine Mitglieder")} · Ziele ${p.goalsDone}/${p.total} · Abschluss ${p.reflectDone}/${p.total}</p>
                 </button>
                 ${
                   open
@@ -802,7 +794,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     state.settings.maxWhatGoals = Math.min(3, Math.max(1, Number(document.getElementById("gmMaxWhat")?.value || 3)));
     state.settings.enableHowGoals = !!document.getElementById("gmHow")?.checked;
     state.settings.maxHowGoals = Math.min(3, Math.max(1, Number(document.getElementById("gmMaxHow")?.value || 3)));
-    state.settings.enableMidCheck = !!document.getElementById("gmMid")?.checked;
+    state.settings.enableMidCheck = false;
     state.settings.enableReflection = !!document.getElementById("gmReflect")?.checked;
     state.settings.allowFreeWhatGoal = !!document.getElementById("gmFreeWhat")?.checked;
     state.settings.allowFreeHowGoal = !!document.getElementById("gmFreeHow")?.checked;

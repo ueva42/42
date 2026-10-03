@@ -169,6 +169,7 @@ testCsvImport();
 testMultiGoals();
 testDeviceMode();
 testPulseRollover();
+testMidCheckDisabledProgress();
 console.log("OK – group-mode helper tests passed");
 
 function testDeviceMode() {
@@ -206,4 +207,16 @@ function testPulseRollover() {
     shouldRolloverSessionPulse("2026-10-01", "2026-10-02", "closed") === false,
     "closed does not roll"
   );
+}
+
+function testMidCheckDisabledProgress() {
+  const prog = sessionProgress(
+    [
+      { invite_status: "accepted", goals_confirmed_at: "x", what_goal_id: "1" },
+      { invite_status: "accepted", goals_confirmed_at: "x", what_goal_id: "2" }
+    ],
+    { enableWhatGoals: true, enableHowGoals: false, enableMidCheck: false }
+  );
+  assert(prog.midComplete === true, "mid complete when mid-check disabled");
+  assert(prog.midDone === prog.total, "midDone equals total when disabled");
 }

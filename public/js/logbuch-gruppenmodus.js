@@ -350,7 +350,7 @@
       if (data.pulseRolledOver) {
         state.message =
           state.message ||
-          "Neuer Tag: Der offene Zwischen-/Abschlusscheck von gestern wurde zurückgesetzt.";
+          "Neuer Tag: Der offene Abschlusscheck von gestern wurde zurückgesetzt.";
       }
       // Levelplan-Themen nicht verlieren, wenn eine Antwort sie nicht mitschickt
       if (!Array.isArray(state.bundle.topics) || !state.bundle.topics.length) {
@@ -477,8 +477,7 @@
       else if (step === "personal_goals") status = "Persönliche Ziele";
       else if (step === "overview") status = "Bereit zum Start";
       else status = "Wird eingerichtet";
-    } else if (session.status === "active") status = "In Arbeit";
-    else if (session.status === "midcheck") status = "Zwischencheck";
+    }     else if (session.status === "active" || session.status === "midcheck") status = "In Arbeit";
     else if (session.status === "reflecting") status = "Abschluss";
     else if (session.status === "closed") status = "Fertig";
     else status = session.status || "";
@@ -1418,7 +1417,6 @@
           const howList = m.howGoals || [];
           const phases = [
             { label: "Ziele gesetzt", done: !!m.goalsComplete },
-            { label: "Zwischen-Check", done: !!m.midCheckAt },
             { label: "Abschluss", done: !!m.reflectionAt }
           ];
           const openPhases = phases.filter((p) => !p.done);
@@ -1538,22 +1536,11 @@
           .map((d) => `<p class="gm-doc">${esc(d.content)}</p>`)
           .join("")}
       </div>`;
-    const me = myMember();
-    const midFooter = settings().enableMidCheck
-      ? isPersonal()
-        ? me?.midCheckAt
-          ? `<button type="button" class="gm-ghost" id="gmEditMid">Zwischencheck ändern</button>`
-          : `<button type="button" class="gm-primary" id="gmStartMid">Meinen Zwischencheck</button>`
-        : p.midComplete
-          ? `<button type="button" class="gm-ghost" id="gmEditMid">Zwischencheck ändern</button>`
-          : `<button type="button" class="gm-primary" id="gmStartMid">Zwischencheck starten</button>`
-      : "";
     return shell(
       `Fortschritt Ziele ${p.goalsDone}/${p.total}`,
       "Laborarbeit",
       body,
       `<div class="gm-footer-row gm-footer-row--stack">
-        ${midFooter}
         ${
           settings().enableReflection
             ? `<button type="button" class="gm-primary" id="gmStartReflect">${
@@ -2198,6 +2185,12 @@
         if (after !== before) render();
       });
     }
+    // Zwischencheck im Gruppenmodus entfernt – alte Drafts/LocalStorage umleiten
+    if (state.screen === "mid" || state.screen === "mid-handoff") {
+      state.screen = "work";
+      state.midEditMode = false;
+    }
+
     let html = "";
     switch (state.screen) {
       case "home":
@@ -2232,12 +2225,6 @@
         break;
       case "work":
         html = renderWork();
-        break;
-      case "mid-handoff":
-        html = renderHandoff("mid");
-        break;
-      case "mid":
-        html = renderMid();
         break;
       case "reflect-handoff":
         html = renderHandoff("reflect");
@@ -3536,10 +3523,13 @@
             state.currentMemberIdx = draft.currentMemberIdx || 0;
             if (full.session?.status === "setup") {
               resumeScreenFromBundle();
-            } else if (["what", "how", "confirm", "mid", "reflect"].includes(draft.screen)) {
+            } else if (["what", "how", "confirm", "mid", "mid-handoff", "reflect"].includes(draft.screen)) {
               resumeScreenFromBundle();
             } else {
               state.screen = draft.screen || "work";
+              if (state.screen === "mid" || state.screen === "mid-handoff") {
+                state.screen = "work";
+              }
             }
           } catch {
             try {
