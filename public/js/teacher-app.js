@@ -84,7 +84,10 @@
   function setTab(tab) {
     state.tab = tab;
     document.querySelectorAll(".teacher-bottomnav button").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.tab === tab);
+      const on = btn.dataset.tab === tab;
+      btn.classList.toggle("active", on);
+      if (on) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
     });
     const pathMap = {
       heute: "/teacher/heute",
@@ -112,34 +115,98 @@
     }
   }
 
+  function pct(part, total) {
+    const t = Number(total) || 0;
+    const p = Number(part) || 0;
+    if (t <= 0) return 0;
+    return Math.max(0, Math.min(100, Math.round((p / t) * 100)));
+  }
+
   function renderStats(stats) {
     const s = stats || {};
+    const total = s.studentCount ?? 0;
+    const planned = s.plannedCount ?? 0;
+    const attn = s.needsAttentionCount ?? 0;
+    const positive = s.positiveCount ?? 0;
+    const reflected = s.reflectedCount ?? 0;
     return `
       <div class="tile-grid tile-grid--stats">
         <div class="tile tile--stat" role="group" aria-label="Schüler:innen">
-          <div class="tile-label">Schüler:innen</div>
-          <div class="tile-value">${s.studentCount ?? 0}</div>
+          <div class="tile-label">Klasse</div>
+          <div class="tile-value">${total}</div>
+          <div class="tile-hint">${reflected} mit Reflexion</div>
         </div>
         <div class="tile tile--stat planned" role="group" aria-label="Mit Plan">
           <div class="tile-label">Mit Plan</div>
-          <div class="tile-value">${s.plannedCount ?? 0}</div>
+          <div class="tile-value">${planned}</div>
+          <div class="stat-bar" aria-hidden="true"><span style="width:${pct(planned, total)}%"></span></div>
+          <div class="tile-hint">${pct(planned, total)}% der Klasse</div>
         </div>
         <div class="tile tile--stat attn" role="group" aria-label="Aufmerksamkeit">
-          <div class="tile-label">Aufmerksamkeit</div>
-          <div class="tile-value">${s.needsAttentionCount ?? 0}</div>
+          <div class="tile-label">Braucht dich</div>
+          <div class="tile-value">${attn}</div>
+          <div class="stat-bar" aria-hidden="true"><span style="width:${pct(attn, total)}%"></span></div>
+          <div class="tile-hint">${attn ? "Priorität prüfen" : "Kein Hoch-Signal"}</div>
         </div>
         <div class="tile tile--stat positive" role="group" aria-label="Positive Signale">
           <div class="tile-label">Positive Signale</div>
-          <div class="tile-value">${s.positiveCount ?? 0}</div>
+          <div class="tile-value">${positive}</div>
+          <div class="stat-bar" aria-hidden="true"><span style="width:${pct(positive, total)}%"></span></div>
+          <div class="tile-hint">${positive ? "Anerkennung möglich" : "Noch keine"}</div>
         </div>
       </div>`;
   }
 
-  function renderInsights(insights) {
-    if (!insights?.length) {
-      return `<div class="empty">Keine Hinweise für heute – ruhiger Stand oder noch wenig Logbuch-Daten.</div>`;
+  function renderCoachBanner(stats, insights) {
+    const attn = stats?.needsAttentionCount ?? 0;
+    const high = (insights || []).filter((i) => i.priority === "hoch").length;
+    if (attn > 0 || high > 0) {
+      const n = Math.max(attn, high);
+      return `
+        <section class="coach-banner" aria-live="polite">
+          <div class="coach-banner__mark" aria-hidden="true">${n}</div>
+          <div>
+            <h2>${n === 1 ? "1 Person braucht dich" : `${n} Personen brauchen dich`}</h2>
+            <p>Hinweise unten nach Priorität – zuerst „hoch“, dann gezielt nachfragen oder Rückmeldung geben.</p>
+          </div>
+        </section>`;
     }
-    return `<div class="tile-grid tile-grid--insights">${insights
+    if ((stats?.studentCount || 0) > 0 && (stats?.plannedCount || 0) === 0) {
+      return `
+        <section class="coach-banner coach-banner--info" aria-live="polite">
+          <div class="coach-banner__mark" aria-hidden="true">·</div>
+          <div>
+            <h2>Noch wenig Aktivität</h2>
+            <p>Bisher keine Pläne für diesen Tag. Kurz im Unterricht erinnern oder später noch einmal schauen.</p>
+          </div>
+        </section>`;
+    }
+    return `
+      <section class="coach-banner coach-banner--calm" aria-live="polite">
+        <div class="coach-banner__mark" aria-hidden="true">✓</div>
+        <div>
+          <h2>Ruhiger Stand</h2>
+          <p>Keine hoch priorisierten Hinweise – guter Moment für kurze positive Rückmeldungen.</p>
+        </div>
+      </section>`;
+  }
+
+  function renderInsights(insights, insightTotal) {
+    const count = insights?.length || 0;
+    const total = insightTotal ?? count;
+    const head = `
+      <div class="section-head">
+        <h2 class="section-title">Wer braucht dich?</h2>
+        <span class="section-count ${count ? "hot" : ""}">${count ? `${count}${total > count ? ` / ${total}` : ""} Hinweise` : "Keine Hinweise"}</span>
+      </div>`;
+    if (!count) {
+      return `${head}
+        <div class="empty">
+          <strong>Alles im Blick</strong>
+          <p>Keine offenen Coaching-Hinweise für diesen Tag – ruhiger Stand oder noch wenig Logbuch-Daten.</p>
+        </div>`;
+    }
+    return `${head}<div class="tile-grid tile-grid--insights">${insights
       .map(
         (i) => `
       <article class="tile tile--insight priority-${escapeHtml(i.priority)}">
@@ -149,6 +216,7 @@
         </div>
         <h3 class="tile-title">${escapeHtml(i.title)}</h3>
         <p class="tile-obs">${escapeHtml(i.observation)}</p>
+        ${i.prompt ? `<p class="tile-prompt">${escapeHtml(i.prompt)}</p>` : ""}
         <div class="tile-actions">
           <button type="button" class="btn btn-ghost" data-open-student="${i.studentId}">Ansehen</button>
           <button type="button" class="btn btn-primary" data-feedback="${i.studentId}" data-name="${escapeHtml(i.studentName)}">Rückmeldung</button>
@@ -167,7 +235,9 @@
   }
 
   function renderStudentTiles(students, gridClass = "tile-grid--students") {
-    if (!students?.length) return `<div class="empty">Keine Schüler:innen in dieser Klasse.</div>`;
+    if (!students?.length) {
+      return `<div class="empty"><strong>Keine Schüler:innen</strong><p>In dieser Klasse sind keine aktiven Schüler:innen hinterlegt.</p></div>`;
+    }
     return `<div class="tile-grid ${gridClass}">${students
       .map((s) => {
         const cls = [
@@ -194,91 +264,157 @@
 
   function renderHeute() {
     const data = state.today;
-    if (state.loading && !data) return `<div class="empty">Lade Heute…</div>`;
-    if (!data) return `<div class="empty">Keine Daten.</div>`;
+    if (state.loading && !data) {
+      return `<div class="empty"><strong>Lade Heute…</strong><p>Klassenstand und Hinweise werden geladen.</p></div>`;
+    }
+    if (!data) {
+      return `<div class="empty"><strong>Keine Daten</strong><p>Heute-Ansicht konnte nicht geladen werden.</p></div>`;
+    }
     if (data.message && !data.stats?.studentCount) {
-      return `<div class="empty">${escapeHtml(data.message)}<p class="muted" style="margin-top:8px">Zuweisung erfolgt in der Administration.</p></div>`;
+      return `<div class="empty">
+        <strong>${escapeHtml(data.message)}</strong>
+        <p>Zuweisung erfolgt in der Administration. Admins wechseln oben rechts.</p>
+        ${isAdminUser() ? `<a class="btn btn-primary" href="/admin#class">Zur Administration</a>` : ""}
+      </div>`;
     }
     return `
+      ${renderCoachBanner(data.stats, data.insights)}
+      <div class="section-head">
+        <h2 class="section-title">Tagesstand</h2>
+        <span class="section-count">${escapeHtml(data.className || "Klasse")} · ${escapeHtml(data.date || state.date)}</span>
+      </div>
       ${renderStats(data.stats)}
-      <div class="section-title">Heute im Blick</div>
-      ${renderInsights(data.insights)}`;
+      ${renderInsights(data.insights, data.insightTotal)}`;
   }
 
   function renderKlassen() {
     const cards = state.overview?.classes || [];
-    if (state.loading && !cards.length) return `<div class="empty">Lade Klassen…</div>`;
-    if (!cards.length) return `<div class="empty">Keine zugewiesenen Klassen.</div>`;
+    if (state.loading && !cards.length) {
+      return `<div class="empty"><strong>Lade Klassen…</strong><p>Überblick wird vorbereitet.</p></div>`;
+    }
+    if (!cards.length) {
+      return `<div class="empty">
+        <strong>Keine zugewiesenen Klassen</strong>
+        <p>Sobald dir Klassen zugewiesen sind, siehst du hier den Schnellüberblick.</p>
+        ${isAdminUser() ? `<a class="btn btn-primary" href="/admin#class">Klassen zuweisen</a>` : ""}
+      </div>`;
+    }
 
     const activeId = Number(state.classId) || cards[0]?.classId;
     const active = cards.find((c) => Number(c.classId) === Number(activeId)) || cards[0];
     const classTiles = `
-      <div class="section-title">Klassen</div>
+      <div class="section-head">
+        <h2 class="section-title">Deine Klassen</h2>
+        <span class="section-count">${cards.length} Klasse${cards.length === 1 ? "" : "n"}</span>
+      </div>
       <div class="tile-grid tile-grid--students">${cards
         .map((c) => {
           const activeCls = Number(c.classId) === Number(active?.classId) ? "active" : "";
+          const hot = Number(c.needsAttentionCount) > 0;
           return `
         <button type="button" class="tile tile--class ${activeCls}" data-goto-class="${c.classId}" aria-pressed="${activeCls ? "true" : "false"}">
+          ${hot ? `<span class="class-badge">${c.needsAttentionCount} Hinweis</span>` : ""}
           <h3>${escapeHtml(c.className)}</h3>
           <div class="tile-metrics">
             <span class="metric"><strong>${c.studentCount}</strong> SuS</span>
             <span class="metric"><strong>${c.plannedCount}</strong> Plan</span>
-            <span class="metric"><strong>${c.needsAttentionCount}</strong> Hinweis</span>
+            <span class="metric ${hot ? "hot" : ""}"><strong>${c.needsAttentionCount}</strong> braucht dich</span>
           </div>
         </button>`;
         })
         .join("")}</div>`;
 
+    const attnStudents = (active?.students || []).filter((s) => s.needsAttention).length;
     return `
       ${classTiles}
-      <div class="section-title">${escapeHtml(active?.className || "Schüler:innen")}</div>
+      <div class="section-head">
+        <h2 class="section-title">${escapeHtml(active?.className || "Schüler:innen")}</h2>
+        <span class="section-count ${attnStudents ? "hot" : ""}">${attnStudents ? `${attnStudents} mit Hinweis` : "Tippen für Detail"}</span>
+      </div>
       ${renderStudentTiles(active?.students || [])}`;
   }
 
   function renderLernbegleitung() {
-    const tools = [
-      { href: "/teacher/dashboard", title: "Klassenübersicht", desc: "Tagesübersicht mit Logbuch-Hinweisen" },
-      { href: "/teacher/week", title: "Wochenübersicht", desc: "Aktivität der Klasse über die Woche" },
-      { href: "/teacher/timetable", title: "Stundenplan", desc: "Stundenplan der Klasse pflegen" },
-      { href: "/teacher/levelchecks", title: "Levelchecks", desc: "Nachweise und Checkpoints planen" },
-      { href: "/teacher/levelplan", title: "Levelplan", desc: "Ziele und Kataloge" },
-      { href: "/teacher/termine", title: "Termine", desc: "Termine für die Klasse" },
-      { href: "/teacher/gruppenmodus", title: "Gruppenmodus", desc: "Rollen und Gruppensettings" },
-      { href: "/teacher/materialschrank", title: "Materialschrank", desc: "Materialien für Schüler:innen" }
+    const groups = [
+      {
+        title: "Überblick",
+        tools: [
+          { href: "/teacher/dashboard", title: "Klassenübersicht", desc: "Tagesübersicht mit Logbuch-Hinweisen", accent: "cyan", cta: "Öffnen" },
+          { href: "/teacher/week", title: "Wochenübersicht", desc: "Aktivität der Klasse über die Woche", accent: "violet", cta: "Woche ansehen" }
+        ]
+      },
+      {
+        title: "Planung",
+        tools: [
+          { href: "/teacher/timetable", title: "Stundenplan", desc: "Stundenplan der Klasse pflegen", accent: "orange", cta: "Bearbeiten" },
+          { href: "/teacher/termine", title: "Termine", desc: "Termine für die Klasse", accent: "amber", cta: "Termine öffnen" },
+          { href: "/teacher/levelchecks", title: "Levelchecks", desc: "Nachweise und Checkpoints planen", accent: "green", cta: "Checks öffnen" },
+          { href: "/teacher/levelplan", title: "Levelplan", desc: "Ziele und Kataloge", accent: "green", cta: "Levelplan" }
+        ]
+      },
+      {
+        title: "Unterricht",
+        tools: [
+          { href: "/teacher/gruppenmodus", title: "Gruppenmodus", desc: "Rollen und Gruppensettings", accent: "violet", cta: "Starten" },
+          { href: "/teacher/materialschrank", title: "Materialschrank", desc: "Materialien für Schüler:innen", accent: "cyan", cta: "Materialien" }
+        ]
+      }
     ];
     return `
-      <div class="section-title">Lernbegleitung &amp; Planung</div>
-      <div class="tile-grid tile-grid--tools">${tools
+      ${groups
         .map(
-          (t) => `
-        <a class="tile tile--tool" href="${t.href}">
-          <h3>${escapeHtml(t.title)}</h3>
-          <p>${escapeHtml(t.desc)}</p>
-        </a>`
+          (g) => `
+        <div class="section-head">
+          <h2 class="section-title">${escapeHtml(g.title)}</h2>
+        </div>
+        <div class="tile-grid tile-grid--tools">${g.tools
+          .map(
+            (t) => `
+          <a class="tile tile--tool accent-${escapeHtml(t.accent)}" href="${t.href}">
+            <p class="tile-kicker">Werkzeug</p>
+            <h3>${escapeHtml(t.title)}</h3>
+            <p>${escapeHtml(t.desc)}</p>
+            <span class="tile-cta">${escapeHtml(t.cta)} →</span>
+          </a>`
+          )
+          .join("")}</div>`
         )
-        .join("")}</div>
-      <div class="section-title">Konto</div>
+        .join("")}
+      <div class="section-head">
+        <h2 class="section-title">Konto</h2>
+      </div>
       <div class="tile-grid tile-grid--tools">
         ${
           isAdminUser()
-            ? `<a class="tile tile--tool tile--admin" href="/admin#class">
+            ? `<a class="tile tile--tool tile--admin accent-violet" href="/admin#class">
                 <span class="tile-admin-badge">Admin</span>
+                <p class="tile-kicker">Verwaltung</p>
                 <h3>Administration</h3>
                 <p>Klassen, Schüler, XP, Lehrerverwaltung</p>
+                <span class="tile-cta">Zur Admin-Oberfläche →</span>
               </a>`
             : ""
         }
         <button type="button" class="tile tile--tool tile--danger" id="logoutBtn">
+          <p class="tile-kicker">Session</p>
           <h3>Abmelden</h3>
-          <p>Session beenden</p>
+          <p>Sicher beenden – auf dem nächsten Gerät neu anmelden</p>
+          <span class="tile-cta">Abmelden →</span>
         </button>
       </div>`;
   }
 
   function renderVerlauf() {
     const data = state.history;
-    if (state.loading && !data) return `<div class="empty">Lade Verlauf…</div>`;
-    if (!data?.students?.length) return `<div class="empty">Kein Verlauf für diese Klasse.</div>`;
+    if (state.loading && !data) {
+      return `<div class="empty"><strong>Lade Verlauf…</strong><p>Wochenaktivität wird geladen.</p></div>`;
+    }
+    if (!data?.students?.length) {
+      return `<div class="empty">
+        <strong>Kein Verlauf</strong>
+        <p>Für diese Klasse liegen noch keine beobachtbaren Wochen-Daten vor.</p>
+      </div>`;
+    }
 
     const days = [];
     const end = new Date(`${data.end}T12:00:00`);
@@ -290,7 +426,16 @@
     }
 
     return `
-      <div class="section-title">Wochenansicht (ohne Ranking)</div>
+      <div class="section-head">
+        <h2 class="section-title">Wochenansicht</h2>
+        <span class="section-count">ohne Ranking</span>
+      </div>
+      <div class="legend-bar" aria-hidden="true">
+        <span><i class="legend-swatch on"></i> P = Plan</span>
+        <span><i class="legend-swatch reflect"></i> R = Reflexion</span>
+        <span><i class="legend-swatch"></i> · = leer</span>
+        <span>Notizen nur für Lehrkräfte</span>
+      </div>
       <div class="tile-grid tile-grid--history">${data.students
         .map((s) => {
           const pills = days
@@ -307,11 +452,10 @@
             <button type="button" class="tile tile--history tile--student" data-open-student="${s.id}" aria-label="${escapeHtml(s.name)} Detail">
               <h3 class="tile-name">${escapeHtml(s.name)}</h3>
               <div class="day-row">${pills}</div>
-              ${noteCount ? `<span class="tile-hint">${noteCount} Gesprächsnotiz${noteCount === 1 ? "" : "en"}</span>` : `<span class="tile-hint">P = Plan · R = Reflexion</span>`}
+              ${noteCount ? `<span class="tile-hint">${noteCount} Gesprächsnotiz${noteCount === 1 ? "" : "en"}</span>` : `<span class="tile-hint">Tippen für Detail</span>`}
             </button>`;
         })
-        .join("")}</div>
-      <p class="muted" style="margin-top:10px;font-size:.82rem">P = Plan · R = Reflexion · Gesprächsnotizen nur für Lehrkräfte</p>`;
+        .join("")}</div>`;
   }
 
   function renderStudentDetail() {
@@ -390,11 +534,14 @@
     }
 
     return `
-      <div class="btn-row" style="margin-bottom:10px">
+      <div class="btn-row" style="margin-bottom:12px">
         <button type="button" class="btn btn-ghost" id="backFromStudent">← Zurück</button>
+        <button type="button" class="btn btn-primary" data-feedback="${d.student.id}" data-name="${escapeHtml(d.student.name)}">Rückmeldung</button>
       </div>
-      <h2 style="margin:0 0 4px">${escapeHtml(d.student.name)}</h2>
-      <p class="muted" style="margin:0 0 12px">${escapeHtml(d.student.className || "")}</p>
+      <div class="detail-hero">
+        <h2>${escapeHtml(d.student.name)}</h2>
+        <p class="muted" style="margin:0">${escapeHtml(d.student.className || "")} · Coaching-Detail</p>
+      </div>
       ${tabBar}
       ${body}`;
   }
@@ -420,11 +567,11 @@
       appEl.innerHTML = renderKlassen();
     } else if (state.tab === "lernbegleitung") {
       greetingEl.textContent = "Lernbegleitung";
-      sublineEl.textContent = "Planung, Stundenplan, Levelchecks & mehr";
+      sublineEl.textContent = "Werkzeuge für Planung, Überblick und Unterricht";
       appEl.innerHTML = renderLernbegleitung();
     } else {
       greetingEl.textContent = "Verlauf";
-      sublineEl.textContent = "Beobachtbare Aktivität ohne Scores";
+      sublineEl.textContent = "Beobachtbare Aktivität – ohne Ranking oder Scores";
       appEl.innerHTML = renderVerlauf();
     }
   }
@@ -670,6 +817,6 @@
 
   boot().catch((err) => {
     console.error(err);
-    appEl.innerHTML = `<div class="empty">Lehrerbereich konnte nicht geladen werden.</div>`;
+    appEl.innerHTML = `<div class="empty"><strong>Laden fehlgeschlagen</strong><p>Lehrerbereich konnte nicht geladen werden. Bitte neu anmelden.</p></div>`;
   });
 })();
