@@ -4995,7 +4995,10 @@ registerTeacherCoachingRoutes(app, {
   isAdmin,
   isStudent,
   resolveSchoolDate,
-  ensureColumn
+  ensureColumn,
+  getLevelChecksForClass,
+  resolveCheckpointTypeLabel,
+  formatGermanDate
 });
 
 // -------------------------------------------------------

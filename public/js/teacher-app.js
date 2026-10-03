@@ -8,6 +8,10 @@
     classId: null,
     date: todayIso(),
     today: null,
+    matrix: null,
+    levelCheckId: null,
+    matrixFilter: "alle",
+    matrixGoalId: null,
     classes: [],
     overview: null,
     history: null,
@@ -115,117 +119,6 @@
     }
   }
 
-  function pct(part, total) {
-    const t = Number(total) || 0;
-    const p = Number(part) || 0;
-    if (t <= 0) return 0;
-    return Math.max(0, Math.min(100, Math.round((p / t) * 100)));
-  }
-
-  function renderStats(stats) {
-    const s = stats || {};
-    const total = s.studentCount ?? 0;
-    const planned = s.plannedCount ?? 0;
-    const attn = s.needsAttentionCount ?? 0;
-    const positive = s.positiveCount ?? 0;
-    const reflected = s.reflectedCount ?? 0;
-    return `
-      <div class="tile-grid tile-grid--stats">
-        <div class="tile tile--stat" role="group" aria-label="Schüler:innen">
-          <div class="tile-label">Klasse</div>
-          <div class="tile-value">${total}</div>
-          <div class="tile-hint">${reflected} mit Reflexion</div>
-        </div>
-        <div class="tile tile--stat planned" role="group" aria-label="Mit Plan">
-          <div class="tile-label">Mit Plan</div>
-          <div class="tile-value">${planned}</div>
-          <div class="stat-bar" aria-hidden="true"><span style="width:${pct(planned, total)}%"></span></div>
-          <div class="tile-hint">${pct(planned, total)}% der Klasse</div>
-        </div>
-        <div class="tile tile--stat attn" role="group" aria-label="Aufmerksamkeit">
-          <div class="tile-label">Braucht dich</div>
-          <div class="tile-value">${attn}</div>
-          <div class="stat-bar" aria-hidden="true"><span style="width:${pct(attn, total)}%"></span></div>
-          <div class="tile-hint">${attn ? "Priorität prüfen" : "Kein Hoch-Signal"}</div>
-        </div>
-        <div class="tile tile--stat positive" role="group" aria-label="Positive Signale">
-          <div class="tile-label">Positive Signale</div>
-          <div class="tile-value">${positive}</div>
-          <div class="stat-bar" aria-hidden="true"><span style="width:${pct(positive, total)}%"></span></div>
-          <div class="tile-hint">${positive ? "Anerkennung möglich" : "Noch keine"}</div>
-        </div>
-      </div>`;
-  }
-
-  function renderCoachBanner(stats, insights) {
-    const attn = stats?.needsAttentionCount ?? 0;
-    const high = (insights || []).filter((i) => i.priority === "hoch").length;
-    if (attn > 0 || high > 0) {
-      const n = Math.max(attn, high);
-      return `
-        <section class="coach-banner" aria-live="polite">
-          <div class="coach-banner__mark" aria-hidden="true">${n}</div>
-          <div>
-            <h2>${n === 1 ? "1 Person braucht dich" : `${n} Personen brauchen dich`}</h2>
-            <p>Hinweise unten nach Priorität – zuerst „hoch“, dann gezielt nachfragen oder Rückmeldung geben.</p>
-          </div>
-        </section>`;
-    }
-    if ((stats?.studentCount || 0) > 0 && (stats?.plannedCount || 0) === 0) {
-      return `
-        <section class="coach-banner coach-banner--info" aria-live="polite">
-          <div class="coach-banner__mark" aria-hidden="true">·</div>
-          <div>
-            <h2>Noch wenig Aktivität</h2>
-            <p>Bisher keine Pläne für diesen Tag. Kurz im Unterricht erinnern oder später noch einmal schauen.</p>
-          </div>
-        </section>`;
-    }
-    return `
-      <section class="coach-banner coach-banner--calm" aria-live="polite">
-        <div class="coach-banner__mark" aria-hidden="true">✓</div>
-        <div>
-          <h2>Ruhiger Stand</h2>
-          <p>Keine hoch priorisierten Hinweise – guter Moment für kurze positive Rückmeldungen.</p>
-        </div>
-      </section>`;
-  }
-
-  function renderInsights(insights, insightTotal) {
-    const count = insights?.length || 0;
-    const total = insightTotal ?? count;
-    const head = `
-      <div class="section-head">
-        <h2 class="section-title">Wer braucht dich?</h2>
-        <span class="section-count ${count ? "hot" : ""}">${count ? `${count}${total > count ? ` / ${total}` : ""} Hinweise` : "Keine Hinweise"}</span>
-      </div>`;
-    if (!count) {
-      return `${head}
-        <div class="empty">
-          <strong>Alles im Blick</strong>
-          <p>Keine offenen Coaching-Hinweise für diesen Tag – ruhiger Stand oder noch wenig Logbuch-Daten.</p>
-        </div>`;
-    }
-    return `${head}<div class="tile-grid tile-grid--insights">${insights
-      .map(
-        (i) => `
-      <article class="tile tile--insight priority-${escapeHtml(i.priority)}">
-        <div class="tile-meta">
-          <span class="name">${escapeHtml(i.studentName)}${i.subject ? ` · ${escapeHtml(i.subject)}` : ""}</span>
-          <span class="prio ${escapeHtml(i.priority)}">${escapeHtml(i.priority)}</span>
-        </div>
-        <h3 class="tile-title">${escapeHtml(i.title)}</h3>
-        <p class="tile-obs">${escapeHtml(i.observation)}</p>
-        ${i.prompt ? `<p class="tile-prompt">${escapeHtml(i.prompt)}</p>` : ""}
-        <div class="tile-actions">
-          <button type="button" class="btn btn-ghost" data-open-student="${i.studentId}">Ansehen</button>
-          <button type="button" class="btn btn-primary" data-feedback="${i.studentId}" data-name="${escapeHtml(i.studentName)}">Rückmeldung</button>
-        </div>
-      </article>`
-      )
-      .join("")}</div>`;
-  }
-
   function studentStatusLabel(s) {
     if (s.needsAttention) return s.topInsight || "Braucht Aufmerksamkeit";
     if (s.positive) return s.topInsight || "Positives Signal";
@@ -262,29 +155,313 @@
       .join("")}</div>`;
   }
 
+  // ---------------------------------------------------------
+  // Heute = Levelcheck-Matrix (Klasse × Unterthemen)
+  // ---------------------------------------------------------
+  const MATRIX_FILTERS = [
+    { id: "alle", label: "Alle" },
+    { id: "hilfe", label: "Nur Hilfe !" },
+    { id: "heute", label: "Heute aktiv ●" },
+    { id: "offen", label: "Offen ○" }
+  ];
+
+  function matrixStorageKey() {
+    return `sol-teacher-matrix-lc-${state.classId || "x"}`;
+  }
+
+  function cellIcon(cell) {
+    if (!cell) return "○";
+    if (cell.status === "done") return "✓";
+    if (cell.status === "today") return "●";
+    if (cell.status === "working") return "◐";
+    return "○";
+  }
+
+  function cellPrimaryText(cell) {
+    if (!cell) return "offen";
+    if (cell.status === "done") {
+      return cell.resultPercent != null ? `${cell.resultPercent} %` : "abgeschlossen";
+    }
+    if (cell.status === "open") return "offen";
+    return cell.tierLabel || cell.statusLabel || "in Arbeit";
+  }
+
+  function cellSecondaryText(cell) {
+    if (!cell || cell.status === "open") return "";
+    const parts = [];
+    if (cell.status === "done") {
+      if (cell.tierLabel) parts.push(cell.tierLabel);
+      if (cell.resultSource === "teacher") parts.push("bewertet");
+      else if (cell.resultSource === "student") parts.push("Übungs-Check");
+    } else {
+      if (cell.resultPercent != null) parts.push(`${cell.resultPercent} %`);
+      if (cell.workDays) parts.push(`${cell.workDays} Tg.`);
+      if (cell.status === "today") parts.push("heute");
+    }
+    return parts.join(" · ");
+  }
+
+  function cellTitle(cell, studentName, goalText) {
+    const bits = [`${studentName} · ${goalText}`, cell?.statusLabel || "offen"];
+    if (cell?.tierLabel) bits.push(`Level: ${cell.tierLabel}`);
+    if (cell?.resultPercent != null) bits.push(`${cell.resultPercent} %`);
+    for (const r of cell?.helpReasons || []) bits.push(`! ${r.label}`);
+    return bits.join(" — ");
+  }
+
+  function renderMatrixCellInner(cell) {
+    const help = cell?.help
+      ? `<span class="lm-help" aria-label="Hilfe-Signal">!</span>`
+      : "";
+    const secondary = cellSecondaryText(cell);
+    return `
+      <span class="lm-cell-main">
+        <span class="lm-icon" aria-hidden="true">${cellIcon(cell)}</span>
+        <span class="lm-text">${escapeHtml(cellPrimaryText(cell))}</span>
+      </span>
+      ${secondary ? `<span class="lm-sub">${escapeHtml(secondary)}</span>` : ""}
+      ${help}`;
+  }
+
+  function studentMatchesFilter(student, goalId) {
+    const filter = state.matrixFilter || "alle";
+    if (filter === "alle") return true;
+    const cells = goalId
+      ? [student.cells?.[goalId]].filter(Boolean)
+      : Object.values(student.cells || {});
+    if (filter === "hilfe") return cells.some((c) => c.help);
+    if (filter === "heute") {
+      return cells.some((c) => c.today) || (!goalId && student.topicToday);
+    }
+    if (filter === "offen") {
+      if (!cells.length) return true;
+      return goalId ? cells[0].status === "open" : cells.every((c) => c.status === "open");
+    }
+    return true;
+  }
+
+  function renderMatrixPicker(data) {
+    const list = data.levelChecks || [];
+    if (!list.length) return "";
+    const bySubject = {};
+    for (const lc of list) {
+      (bySubject[lc.subject] ||= []).push(lc);
+    }
+    const options = Object.entries(bySubject)
+      .map(
+        ([subject, items]) => `<optgroup label="${escapeHtml(subject)}">${items
+          .map((lc) => {
+            const cpBit = lc.checkpointDateLabel
+              ? ` · ${escapeHtml(lc.checkpointTypeLabel || "Check")} ${escapeHtml(lc.checkpointDateLabel)}`
+              : "";
+            const sel = String(lc.id) === String(data.levelCheck?.id) ? "selected" : "";
+            return `<option value="${escapeHtml(lc.id)}" ${sel}>${escapeHtml(lc.name)}${cpBit}</option>`;
+          })
+          .join("")}</optgroup>`
+      )
+      .join("");
+    return `
+      <div class="lm-picker">
+        <label for="lcSelect">Levelcheck / Klassenarbeit</label>
+        <select id="lcSelect" aria-label="Levelcheck wählen">${options}</select>
+      </div>`;
+  }
+
+  function renderMatrixHead(data) {
+    const lc = data.levelCheck;
+    if (!lc) return "";
+    const cps = (lc.checkpoints || []).slice(0, 3);
+    const cpText = cps.length
+      ? cps.map((cp) => `${escapeHtml(cp.typeLabel)} ${escapeHtml(cp.dateLabel)}`).join(" · ")
+      : "Kein Termin hinterlegt";
+    const t = data.matrix?.totals || {};
+    return `
+      <section class="lm-head">
+        <div class="lm-head-text">
+          <p class="tile-kicker">${escapeHtml(lc.subject)}${lc.catalogName ? ` · ${escapeHtml(lc.catalogName)}` : ""}</p>
+          <h2>${escapeHtml(lc.name)}</h2>
+          <p class="muted">${cpText} · ${lc.goalCount} Unterthemen</p>
+        </div>
+        <div class="lm-head-stats" aria-label="Klassenstand">
+          <span><strong>${t.studentCount ?? 0}</strong> SuS</span>
+          <span class="${t.todayCount ? "on" : ""}"><strong>${t.todayCount ?? 0}</strong> ● heute</span>
+          <span class="${t.helpCount ? "hot" : ""}"><strong>${t.helpCount ?? 0}</strong> ! Hilfe</span>
+          <span><strong>${t.openCount ?? 0}</strong> ○ offen</span>
+        </div>
+      </section>`;
+  }
+
+  function renderMatrixFilters() {
+    return `
+      <div class="lm-filters" role="group" aria-label="Filter">
+        ${MATRIX_FILTERS.map(
+          (f) =>
+            `<button type="button" class="chip ${state.matrixFilter === f.id ? "active" : ""}" data-mfilter="${f.id}" aria-pressed="${state.matrixFilter === f.id ? "true" : "false"}">${escapeHtml(f.label)}</button>`
+        ).join("")}
+      </div>`;
+  }
+
+  function renderMatrixLegend(legend) {
+    return `
+      <div class="legend-bar lm-legend" aria-label="Legende">
+        <span>● heute im Tagesziel</span>
+        <span>◐ in Arbeit (Level)</span>
+        <span>✓ abgeschlossen (≥ ${legend?.passPercent ?? 70} % oder bestanden)</span>
+        <span>○ offen</span>
+        <span>! Hilfe-Signal (Zwischencheck, Reflexion, ${legend?.stuckDays ?? 3}+ Tage, Rückstufung)</span>
+      </div>`;
+  }
+
+  function summaryText(sum) {
+    const s = sum || {};
+    return `${s.working ?? 0} in Arbeit · ${s.done ?? 0} abgeschlossen · ${s.open ?? 0} offen · ${s.help ?? 0} Hilfe`;
+  }
+
+  function renderMatrixTable(data) {
+    const m = data.matrix;
+    const goals = m?.goals || [];
+    const students = (m?.students || []).filter((s) => studentMatchesFilter(s, null));
+    if (!goals.length) return "";
+    const head = `
+      <thead>
+        <tr>
+          <th scope="col" class="lm-name-col">Schüler:in</th>
+          ${goals
+            .map(
+              (g, i) =>
+                `<th scope="col" class="lm-goal-col"><span class="lm-goal-num">${i + 1}</span><span class="lm-goal-text" title="${escapeHtml(g.text)}">${escapeHtml(g.text)}</span></th>`
+            )
+            .join("")}
+        </tr>
+      </thead>`;
+    const body = students.length
+      ? students
+          .map(
+            (s) => `
+        <tr class="${s.flags?.help ? "has-help" : ""}">
+          <th scope="row" class="lm-name-col">
+            <button type="button" class="lm-name" data-open-student="${s.id}" aria-label="${escapeHtml(s.name)} öffnen">
+              <span class="lm-name-text">${escapeHtml(s.name)}</span>
+              <span class="lm-name-flags" aria-hidden="true">${s.flags?.help ? "!" : ""}${s.topicToday ? " ●" : ""}</span>
+            </button>
+          </th>
+          ${goals
+            .map((g) => {
+              const cell = s.cells?.[g.id];
+              return `<td class="lm-cell status-${escapeHtml(cell?.status || "open")} ${cell?.help ? "help" : ""}">
+                <button type="button" class="lm-cell-btn" data-open-student="${s.id}" title="${escapeHtml(cellTitle(cell, s.name, g.text))}" aria-label="${escapeHtml(cellTitle(cell, s.name, g.text))}">
+                  ${renderMatrixCellInner(cell)}
+                </button>
+              </td>`;
+            })
+            .join("")}
+        </tr>`
+          )
+          .join("")
+      : `<tr><td colspan="${goals.length + 1}" class="lm-empty-row">Keine Schüler:innen für diesen Filter.</td></tr>`;
+    const foot = `
+      <tfoot>
+        <tr>
+          <th scope="row" class="lm-name-col lm-sum-label">Summe</th>
+          ${goals.map((g) => `<td class="lm-sum">${escapeHtml(summaryText(g.summary))}</td>`).join("")}
+        </tr>
+      </tfoot>`;
+    return `<div class="lm-wrap" role="region" aria-label="Levelcheck-Matrix" tabindex="0"><table class="lm-table">${head}<tbody>${body}</tbody>${foot}</table></div>`;
+  }
+
+  function renderMatrixList(data) {
+    const m = data.matrix;
+    const goals = m?.goals || [];
+    if (!goals.length) return "";
+    const goalId =
+      goals.find((g) => g.id === state.matrixGoalId)?.id || goals[0].id;
+    const goal = goals.find((g) => g.id === goalId);
+    const students = (m?.students || []).filter((s) => studentMatchesFilter(s, goalId));
+    return `
+      <div class="lm-list">
+        <div class="lm-picker">
+          <label for="mGoalSelect">Unterthema</label>
+          <select id="mGoalSelect" aria-label="Unterthema wählen">
+            ${goals
+              .map(
+                (g, i) =>
+                  `<option value="${escapeHtml(g.id)}" ${g.id === goalId ? "selected" : ""}>${i + 1}. ${escapeHtml(g.text)}</option>`
+              )
+              .join("")}
+          </select>
+        </div>
+        <p class="lm-list-sum">${escapeHtml(summaryText(goal?.summary))}</p>
+        ${
+          students.length
+            ? `<div class="lm-list-rows">${students
+                .map((s) => {
+                  const cell = s.cells?.[goalId];
+                  const reasons = (cell?.helpReasons || []).map((r) => r.label).join(" · ");
+                  return `
+              <button type="button" class="lm-row status-${escapeHtml(cell?.status || "open")} ${cell?.help ? "help" : ""}" data-open-student="${s.id}">
+                <span class="lm-row-name">${escapeHtml(s.name)}${s.topicToday && !cell?.today ? ` <small class="muted">● Thema heute</small>` : ""}</span>
+                <span class="lm-row-cell">${renderMatrixCellInner(cell)}</span>
+                ${reasons ? `<span class="lm-row-reasons">${escapeHtml(reasons)}</span>` : ""}
+              </button>`;
+                })
+                .join("")}</div>`
+            : `<div class="empty"><strong>Keine Treffer</strong><p>Keine Schüler:innen für diesen Filter.</p></div>`
+        }
+      </div>`;
+  }
+
+  function renderInsightStrip(todayData) {
+    const list = (todayData?.insights || []).filter((i) => i.priority === "hoch").slice(0, 4);
+    if (!list.length) return "";
+    return `
+      <div class="section-head">
+        <h2 class="section-title">Heute im Blick</h2>
+        <span class="section-count hot">${list.length} Hinweis${list.length === 1 ? "" : "e"}</span>
+      </div>
+      <div class="lm-strip">${list
+        .map(
+          (i) => `
+        <button type="button" class="lm-strip-item" data-open-student="${i.studentId}">
+          <strong>${escapeHtml(i.studentName)}</strong>
+          <span>${escapeHtml(i.title)}${i.subject ? ` · ${escapeHtml(i.subject)}` : ""}</span>
+        </button>`
+        )
+        .join("")}</div>`;
+  }
+
   function renderHeute() {
-    const data = state.today;
+    const data = state.matrix;
     if (state.loading && !data) {
-      return `<div class="empty"><strong>Lade Heute…</strong><p>Klassenstand und Hinweise werden geladen.</p></div>`;
+      return `<div class="empty"><strong>Lade Matrix…</strong><p>Levelcheck und Klassenstand werden geladen.</p></div>`;
     }
-    if (!data) {
-      return `<div class="empty"><strong>Keine Daten</strong><p>Heute-Ansicht konnte nicht geladen werden.</p></div>`;
-    }
-    if (data.message && !data.stats?.studentCount) {
+    if (!state.classId || !state.classes.length) {
       return `<div class="empty">
-        <strong>${escapeHtml(data.message)}</strong>
+        <strong>Keine Klasse zugewiesen.</strong>
         <p>Zuweisung erfolgt in der Administration. Admins wechseln oben rechts.</p>
         ${isAdminUser() ? `<a class="btn btn-primary" href="/admin#class">Zur Administration</a>` : ""}
       </div>`;
     }
+    if (!data) {
+      return `<div class="empty"><strong>Keine Daten</strong><p>Matrix konnte nicht geladen werden.</p></div>`;
+    }
+    if (!data.levelCheck) {
+      return `
+        ${renderMatrixPicker(data)}
+        <div class="empty">
+          <strong>${escapeHtml(data.message || "Kein Levelcheck gewählt.")}</strong>
+          <p>Levelchecks mit Unterthemen legst du unter Lernbegleitung → Levelchecks an.</p>
+          <a class="btn btn-primary" href="/teacher/levelchecks">Levelchecks öffnen</a>
+        </div>
+        ${renderInsightStrip(state.today)}`;
+    }
     return `
-      ${renderCoachBanner(data.stats, data.insights)}
-      <div class="section-head">
-        <h2 class="section-title">Tagesstand</h2>
-        <span class="section-count">${escapeHtml(data.className || "Klasse")} · ${escapeHtml(data.date || state.date)}</span>
-      </div>
-      ${renderStats(data.stats)}
-      ${renderInsights(data.insights, data.insightTotal)}`;
+      ${renderMatrixPicker(data)}
+      ${renderMatrixHead(data)}
+      ${renderMatrixFilters()}
+      ${renderMatrixTable(data)}
+      ${renderMatrixList(data)}
+      ${renderMatrixLegend(data.matrix?.legend)}
+      ${renderInsightStrip(state.today)}`;
   }
 
   function renderKlassen() {
@@ -559,7 +736,7 @@
     document.getElementById("toolbar").classList.remove("hidden");
     if (state.tab === "heute") {
       greetingEl.textContent = name ? `Hallo ${name}` : "Heute";
-      sublineEl.textContent = "Wer braucht heute Unterstützung – und warum?";
+      sublineEl.textContent = "Levelcheck-Matrix: Wer arbeitet woran – und wer braucht Hilfe?";
       appEl.innerHTML = renderHeute();
     } else if (state.tab === "klassen") {
       greetingEl.textContent = "Klassen";
@@ -654,20 +831,71 @@
     render();
   }
 
+  async function loadMatrix() {
+    if (!state.classId) {
+      state.matrix = null;
+      return;
+    }
+    if (!state.levelCheckId) {
+      try {
+        state.levelCheckId = localStorage.getItem(matrixStorageKey()) || null;
+      } catch (_) {
+        state.levelCheckId = null;
+      }
+    }
+    const params = new URLSearchParams({
+      classId: String(state.classId),
+      date: state.date
+    });
+    if (state.levelCheckId) params.set("levelCheckId", state.levelCheckId);
+    const data = await api(`/api/teacher/levelcheck-matrix?${params.toString()}`);
+    state.matrix = data;
+    state.levelCheckId = data.levelCheck?.id || null;
+    if (state.levelCheckId) {
+      try {
+        localStorage.setItem(matrixStorageKey(), state.levelCheckId);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    const goals = data.matrix?.goals || [];
+    if (!goals.some((g) => g.id === state.matrixGoalId)) {
+      state.matrixGoalId = goals[0]?.id || null;
+    }
+  }
+
   async function loadToday() {
     if (!state.classId) {
       state.today = { message: "Keine Klasse zugewiesen.", stats: {}, insights: [] };
+      state.matrix = null;
       render();
       return;
     }
     state.loading = true;
     render();
     try {
-      state.today = await api(
+      const todayReq = api(
         `/api/teacher/today?classId=${encodeURIComponent(state.classId)}&date=${encodeURIComponent(state.date)}`
-      );
-      if (state.today.classId) state.classId = state.today.classId;
-      fillClassSelect(state.today.classes || state.classes);
+      ).catch((err) => {
+        console.warn("Heute-Insights nicht geladen:", err);
+        return null;
+      });
+      try {
+        await loadMatrix();
+      } catch (err) {
+        console.error("Matrix nicht geladen:", err);
+        state.matrix = {
+          levelChecks: [],
+          levelCheck: null,
+          message: err?.message || "Matrix konnte nicht geladen werden."
+        };
+      }
+      const today = await todayReq;
+      if (today) {
+        state.today = today;
+        if (today.classId) state.classId = today.classId;
+        fillClassSelect(today.classes || state.classes);
+      }
     } finally {
       state.loading = false;
       render();
@@ -722,9 +950,16 @@
       openFeedbackSheet(fb.getAttribute("data-feedback"), fb.getAttribute("data-name") || "");
       return;
     }
+    const mf = ev.target.closest("[data-mfilter]");
+    if (mf) {
+      state.matrixFilter = mf.getAttribute("data-mfilter") || "alle";
+      render();
+      return;
+    }
     const gc = ev.target.closest("[data-goto-class]");
     if (gc) {
       state.classId = Number(gc.getAttribute("data-goto-class"));
+      state.levelCheckId = null;
       fillClassSelect(state.classes);
       if (classSelect) classSelect.value = String(state.classId);
       if (state.tab === "klassen") {
@@ -753,6 +988,24 @@
     }
   });
 
+  appEl.addEventListener("change", (ev) => {
+    if (ev.target.id === "lcSelect") {
+      state.levelCheckId = ev.target.value || null;
+      state.matrixGoalId = null;
+      try {
+        if (state.levelCheckId) localStorage.setItem(matrixStorageKey(), state.levelCheckId);
+      } catch (_) {
+        /* ignore */
+      }
+      loadToday().catch((err) => alert(err.message || "Fehler"));
+      return;
+    }
+    if (ev.target.id === "mGoalSelect") {
+      state.matrixGoalId = ev.target.value || null;
+      render();
+    }
+  });
+
   sheetBody.addEventListener("click", (ev) => {
     const chip = ev.target.closest("[data-chip]");
     if (chip && state.feedbackDraft) {
@@ -777,6 +1030,8 @@
 
   classSelect.addEventListener("change", () => {
     state.classId = Number(classSelect.value) || null;
+    state.levelCheckId = null;
+    state.matrixGoalId = null;
     loadTabData();
   });
   dateInput.addEventListener("change", () => {
