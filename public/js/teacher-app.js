@@ -14,6 +14,7 @@
     studentDetail: null,
     detailTab: "heute",
     feedbackDraft: null,
+    selectedStudentId: null,
     loading: false
   };
 
@@ -122,116 +123,263 @@
     return Math.max(0, Math.min(100, Math.round((p / t) * 100)));
   }
 
-  function renderStats(stats) {
-    const s = stats || {};
-    const total = s.studentCount ?? 0;
-    const planned = s.plannedCount ?? 0;
-    const attn = s.needsAttentionCount ?? 0;
-    const positive = s.positiveCount ?? 0;
-    const reflected = s.reflectedCount ?? 0;
-    return `
-      <div class="tile-grid tile-grid--stats">
-        <div class="tile tile--stat" role="group" aria-label="Schüler:innen">
-          <div class="tile-label">Klasse</div>
-          <div class="tile-value">${total}</div>
-          <div class="tile-hint">${reflected} mit Reflexion</div>
-        </div>
-        <div class="tile tile--stat planned" role="group" aria-label="Mit Plan">
-          <div class="tile-label">Mit Plan</div>
-          <div class="tile-value">${planned}</div>
-          <div class="stat-bar" aria-hidden="true"><span style="width:${pct(planned, total)}%"></span></div>
-          <div class="tile-hint">${pct(planned, total)}% der Klasse</div>
-        </div>
-        <div class="tile tile--stat attn" role="group" aria-label="Aufmerksamkeit">
-          <div class="tile-label">Braucht dich</div>
-          <div class="tile-value">${attn}</div>
-          <div class="stat-bar" aria-hidden="true"><span style="width:${pct(attn, total)}%"></span></div>
-          <div class="tile-hint">${attn ? "Priorität prüfen" : "Kein Hoch-Signal"}</div>
-        </div>
-        <div class="tile tile--stat positive" role="group" aria-label="Positive Signale">
-          <div class="tile-label">Positive Signale</div>
-          <div class="tile-value">${positive}</div>
-          <div class="stat-bar" aria-hidden="true"><span style="width:${pct(positive, total)}%"></span></div>
-          <div class="tile-hint">${positive ? "Anerkennung möglich" : "Noch keine"}</div>
-        </div>
-      </div>`;
-  }
-
-  function renderCoachBanner(stats, insights) {
-    const attn = stats?.needsAttentionCount ?? 0;
-    const high = (insights || []).filter((i) => i.priority === "hoch").length;
-    if (attn > 0 || high > 0) {
-      const n = Math.max(attn, high);
-      return `
-        <section class="coach-banner" aria-live="polite">
-          <div class="coach-banner__mark" aria-hidden="true">${n}</div>
-          <div>
-            <h2>${n === 1 ? "1 Person braucht dich" : `${n} Personen brauchen dich`}</h2>
-            <p>Hinweise unten nach Priorität – zuerst „hoch“, dann gezielt nachfragen oder Rückmeldung geben.</p>
-          </div>
-        </section>`;
-    }
-    if ((stats?.studentCount || 0) > 0 && (stats?.plannedCount || 0) === 0) {
-      return `
-        <section class="coach-banner coach-banner--info" aria-live="polite">
-          <div class="coach-banner__mark" aria-hidden="true">·</div>
-          <div>
-            <h2>Noch wenig Aktivität</h2>
-            <p>Bisher keine Pläne für diesen Tag. Kurz im Unterricht erinnern oder später noch einmal schauen.</p>
-          </div>
-        </section>`;
-    }
-    return `
-      <section class="coach-banner coach-banner--calm" aria-live="polite">
-        <div class="coach-banner__mark" aria-hidden="true">✓</div>
-        <div>
-          <h2>Ruhiger Stand</h2>
-          <p>Keine hoch priorisierten Hinweise – guter Moment für kurze positive Rückmeldungen.</p>
-        </div>
-      </section>`;
-  }
-
-  function renderInsights(insights, insightTotal) {
-    const count = insights?.length || 0;
-    const total = insightTotal ?? count;
-    const head = `
-      <div class="section-head">
-        <h2 class="section-title">Wer braucht dich?</h2>
-        <span class="section-count ${count ? "hot" : ""}">${count ? `${count}${total > count ? ` / ${total}` : ""} Hinweise` : "Keine Hinweise"}</span>
-      </div>`;
-    if (!count) {
-      return `${head}
-        <div class="empty">
-          <strong>Alles im Blick</strong>
-          <p>Keine offenen Coaching-Hinweise für diesen Tag – ruhiger Stand oder noch wenig Logbuch-Daten.</p>
-        </div>`;
-    }
-    return `${head}<div class="tile-grid tile-grid--insights">${insights
-      .map(
-        (i) => `
-      <article class="tile tile--insight priority-${escapeHtml(i.priority)}">
-        <div class="tile-meta">
-          <span class="name">${escapeHtml(i.studentName)}${i.subject ? ` · ${escapeHtml(i.subject)}` : ""}</span>
-          <span class="prio ${escapeHtml(i.priority)}">${escapeHtml(i.priority)}</span>
-        </div>
-        <h3 class="tile-title">${escapeHtml(i.title)}</h3>
-        <p class="tile-obs">${escapeHtml(i.observation)}</p>
-        ${i.prompt ? `<p class="tile-prompt">${escapeHtml(i.prompt)}</p>` : ""}
-        <div class="tile-actions">
-          <button type="button" class="btn btn-ghost" data-open-student="${i.studentId}">Ansehen</button>
-          <button type="button" class="btn btn-primary" data-feedback="${i.studentId}" data-name="${escapeHtml(i.studentName)}">Rückmeldung</button>
-        </div>
-      </article>`
-      )
-      .join("")}</div>`;
-  }
-
   function studentStatusLabel(s) {
     if (s.needsAttention) return s.topInsight || "Braucht Aufmerksamkeit";
     if (s.positive) return s.topInsight || "Positives Signal";
     if (s.reflected) return "Plan + Reflexion";
     if (s.planned) return "Plan vorhanden";
     return "Noch kein Plan";
+  }
+
+  function rosterStatus(s) {
+    if (s.needsAttention) return { icon: "!", cls: "hud-status--attn", tag: "Hinweis" };
+    if (s.reflected) return { icon: "✓", cls: "hud-status--ok", tag: "Reflexion" };
+    if (s.planned || s.checked) return { icon: "◐", cls: "hud-status--mid", tag: s.checked ? "Arbeit" : "Plan" };
+    return { icon: "·", cls: "", tag: "offen" };
+  }
+
+  function deriveLessonPhases(stats) {
+    const s = stats || {};
+    const total = Number(s.studentCount) || 0;
+    const planned = Number(s.plannedCount) || 0;
+    const checked = Number(s.checkedCount) || 0;
+    const reflected = Number(s.reflectedCount) || 0;
+    const planPct = pct(planned, total);
+    const workPct = pct(Math.max(checked, Math.min(planned, total - reflected)), total);
+    const reflectPct = pct(reflected, total);
+
+    let active = "plan";
+    if (total > 0) {
+      if (planPct < 55) active = "plan";
+      else if (reflectPct < 40) active = "arbeit";
+      else active = "reflexion";
+    }
+
+    const phases = [
+      {
+        id: "plan",
+        title: "Plan",
+        meta: total ? `${planned}/${total} Ziele gesetzt` : "Keine SuS",
+        pct: planPct,
+        done: planPct >= 70
+      },
+      {
+        id: "arbeit",
+        title: "Arbeit",
+        meta: total
+          ? `${checked}/${total} mit Check · ${Math.max(0, planned - reflected)} offen`
+          : "Wartet auf Plan",
+        pct: workPct,
+        done: reflectPct >= 40 && planPct >= 55
+      },
+      {
+        id: "reflexion",
+        title: "Reflexion",
+        meta: total ? `${reflected}/${total} reflektiert` : "Noch nicht gestartet",
+        pct: reflectPct,
+        done: reflectPct >= 70
+      }
+    ];
+
+    return phases.map((p) => ({
+      ...p,
+      state: p.id === active ? "active" : p.done ? "done" : "upcoming"
+    }));
+  }
+
+  function focusCopy(stats, insights) {
+    const attn = stats?.needsAttentionCount ?? 0;
+    const high = (insights || []).filter((i) => i.priority === "hoch").length;
+    const n = Math.max(attn, high);
+    if (n > 0) {
+      return {
+        title: n === 1 ? "1 Person im Blick" : `${n} Personen im Blick`,
+        text: "Zuerst Hinweise mit Priorität „hoch“ – Roster tippen oder Impuls öffnen.",
+        badge: String(n),
+        calm: false
+      };
+    }
+    if ((stats?.studentCount || 0) > 0 && (stats?.plannedCount || 0) === 0) {
+      return {
+        title: "Noch wenig Aktivität",
+        text: "Bisher keine Pläne für diesen Tag. Kurz erinnern oder später erneut schauen.",
+        badge: "·",
+        calm: false
+      };
+    }
+    return {
+      title: "Ruhiger Stand",
+      text: "Keine hoch priorisierten Hinweise – guter Moment für kurze positive Rückmeldungen.",
+      badge: "✓",
+      calm: true
+    };
+  }
+
+  function renderHudTopbar(stats) {
+    const s = stats || {};
+    const total = s.studentCount ?? 0;
+    const set = s.plannedCount ?? 0;
+    const reached = s.goalsReachedCount ?? 0;
+    const open = s.reflectionOpenCount ?? Math.max(0, set - (s.reflectedCount ?? 0));
+    const hints = s.needsAttentionCount ?? 0;
+    const progress = pct(s.reflectedCount ?? 0, total);
+    return `
+      <section class="hud-topbar hud-glass" aria-label="Klasse jetzt">
+        <div class="hud-metric hud-metric--set" role="group" aria-label="Ziele gesetzt">
+          <span class="hud-metric__label">Gesetzt</span>
+          <span class="hud-metric__value">${set}</span>
+        </div>
+        <div class="hud-metric hud-metric--ok" role="group" aria-label="Ziele erreicht">
+          <span class="hud-metric__label">Erreicht</span>
+          <span class="hud-metric__value">${reached}</span>
+        </div>
+        <div class="hud-metric hud-metric--open" role="group" aria-label="Reflexion offen">
+          <span class="hud-metric__label">Offen</span>
+          <span class="hud-metric__value">${open}</span>
+        </div>
+        <div class="hud-metric hud-metric--hint" role="group" aria-label="Hinweise">
+          <span class="hud-metric__label">Hinweise</span>
+          <span class="hud-metric__value">${hints}</span>
+        </div>
+        <div class="hud-topbar__progress" aria-hidden="true"><span style="width:${progress}%"></span></div>
+      </section>`;
+  }
+
+  function renderHudTimeline(stats) {
+    const phases = deriveLessonPhases(stats);
+    return `
+      <aside class="hud-timeline hud-glass" aria-label="Stunden-Phasen">
+        <div class="hud-panel-head">
+          <h2>Phasen</h2>
+          <span>Plan → Arbeit → Reflexion</span>
+        </div>
+        <div class="hud-phases-row">
+          ${phases
+            .map((p) => {
+              const stateCls =
+                p.state === "active" ? "is-active" : p.state === "done" ? "is-done" : "is-upcoming";
+              const mark = p.state === "done" ? "✓" : p.state === "active" ? "▶" : "·";
+              return `
+            <div class="hud-phase ${stateCls}" data-phase="${escapeHtml(p.id)}">
+              <span class="hud-phase__mark" aria-hidden="true">${mark}</span>
+              <span class="hud-phase__body">
+                <span class="hud-phase__title">${escapeHtml(p.title)}</span>
+                <span class="hud-phase__meta">${escapeHtml(p.meta)}</span>
+              </span>
+              <span class="hud-phase__bar" aria-hidden="true"><i style="width:${p.pct}%"></i></span>
+            </div>`;
+            })
+            .join("")}
+        </div>
+      </aside>`;
+  }
+
+  function renderHudRoster(students) {
+    if (!students?.length) {
+      return `
+        <aside class="hud-roster hud-glass" aria-label="Schüler-Liste">
+          <div class="hud-panel-head"><h2>Roster</h2><span>0</span></div>
+          <div class="hud-empty-inline">Keine Schüler:innen in dieser Klasse.</div>
+        </aside>`;
+    }
+    const selected = Number(state.selectedStudentId);
+    return `
+      <aside class="hud-roster hud-glass" aria-label="Schüler-Liste">
+        <div class="hud-panel-head">
+          <h2>Roster</h2>
+          <span>${students.length} SuS</span>
+        </div>
+        <ul class="hud-roster-list">
+          ${students
+            .map((s) => {
+              const st = rosterStatus(s);
+              const sel = Number(s.id) === selected ? "is-selected" : "";
+              const attn = s.needsAttention ? "is-attn" : "";
+              const hint = studentStatusLabel(s);
+              return `
+            <li>
+              <button type="button" class="hud-roster-row ${sel} ${attn}" data-open-student="${s.id}" data-select-student="${s.id}" aria-label="${escapeHtml(s.name)}: ${escapeHtml(hint)}">
+                <span class="hud-status ${st.cls}" aria-hidden="true">${st.icon}</span>
+                <span>
+                  <span class="hud-roster-name">${escapeHtml(s.name)}</span>
+                  <span class="hud-roster-hint">${escapeHtml(hint)}</span>
+                </span>
+                <span class="hud-roster-tag">${escapeHtml(st.tag)}</span>
+              </button>
+            </li>`;
+            })
+            .join("")}
+        </ul>
+      </aside>`;
+  }
+
+  function renderHudFocus(data) {
+    const focus = focusCopy(data.stats, data.insights);
+    return `
+      <section class="hud-focus hud-glass" aria-live="polite">
+        <p class="hud-focus__kicker">${escapeHtml(data.className || "Klasse")} · ${escapeHtml(data.date || state.date)}</p>
+        <h2 class="hud-focus__title">${escapeHtml(focus.title)}</h2>
+        <p class="hud-focus__text">${escapeHtml(focus.text)}</p>
+        <div class="hud-focus__attn ${focus.calm ? "is-calm" : ""}" aria-hidden="true">${escapeHtml(focus.badge)}</div>
+      </section>`;
+  }
+
+  function renderHudCoaching(insights, insightTotal) {
+    const list = insights || [];
+    const total = insightTotal ?? list.length;
+    const head = `
+      <div class="hud-panel-head">
+        <h2>Heute im Blick</h2>
+        <span class="${list.length ? "section-count hot" : ""}">${
+          list.length ? `${list.length}${total > list.length ? ` / ${total}` : ""} Impulse` : "Keine Impulse"
+        }</span>
+      </div>`;
+    if (!list.length) {
+      return `
+        <section class="hud-coaching hud-glass" aria-label="Coaching-Impulse">
+          ${head}
+          <div class="hud-empty-inline">Keine offenen Coaching-Hinweise – ruhiger Stand oder noch wenig Logbuch-Daten.</div>
+        </section>`;
+    }
+    return `
+      <section class="hud-coaching hud-glass" aria-label="Coaching-Impulse">
+        ${head}
+        <div class="hud-coaching-track">
+          ${list
+            .map(
+              (i, idx) => `
+            <button type="button" class="hud-coach-card priority-${escapeHtml(i.priority || "mittel")}" data-insight-idx="${idx}" aria-label="Impuls: ${escapeHtml(i.title)}">
+              <div class="hud-coach-card__meta">
+                <span class="name">${escapeHtml(i.studentName)}${i.subject ? ` · ${escapeHtml(i.subject)}` : ""}</span>
+                <span class="prio ${escapeHtml(i.priority || "")}">${escapeHtml(i.priority || "")}</span>
+              </div>
+              <h3 class="hud-coach-card__title">${escapeHtml(i.title)}</h3>
+              ${i.prompt ? `<p class="hud-coach-card__prompt">${escapeHtml(i.prompt)}</p>` : `<p class="hud-coach-card__prompt">${escapeHtml(i.observation || "")}</p>`}
+            </button>`
+            )
+            .join("")}
+        </div>
+      </section>`;
+  }
+
+  function openInsightSheet(insight) {
+    if (!insight) return;
+    openSheet(`
+      <h2 id="sheetTitle" style="margin:0 0 4px">${escapeHtml(insight.title || "Impuls")}</h2>
+      <p class="muted" style="margin:0 0 12px">${escapeHtml(insight.studentName || "")}${
+        insight.subject ? ` · ${escapeHtml(insight.subject)}` : ""
+      }${insight.priority ? ` · <span class="prio ${escapeHtml(insight.priority)}">${escapeHtml(insight.priority)}</span>` : ""}</p>
+      <p style="margin:0 0 10px;line-height:1.45">${escapeHtml(insight.observation || "")}</p>
+      ${
+        insight.prompt
+          ? `<div class="insight-prompt"><strong>Gesprächsimpuls</strong><br>${escapeHtml(insight.prompt)}</div>`
+          : ""
+      }
+      <div class="btn-row" style="margin-top:14px">
+        <button type="button" class="btn btn-ghost" data-open-student="${insight.studentId}">Schülerdetail</button>
+        <button type="button" class="btn btn-primary" data-feedback="${insight.studentId}" data-name="${escapeHtml(insight.studentName || "")}">Rückmeldung</button>
+      </div>
+    `);
   }
 
   function renderStudentTiles(students, gridClass = "tile-grid--students") {
@@ -278,13 +426,15 @@
       </div>`;
     }
     return `
-      ${renderCoachBanner(data.stats, data.insights)}
-      <div class="section-head">
-        <h2 class="section-title">Tagesstand</h2>
-        <span class="section-count">${escapeHtml(data.className || "Klasse")} · ${escapeHtml(data.date || state.date)}</span>
-      </div>
-      ${renderStats(data.stats)}
-      ${renderInsights(data.insights, data.insightTotal)}`;
+      <div class="live-hud" data-hud="heute">
+        ${renderHudTopbar(data.stats)}
+        <div class="hud-mid">
+          ${renderHudTimeline(data.stats)}
+          ${renderHudFocus(data)}
+          ${renderHudRoster(data.students || [])}
+        </div>
+        ${renderHudCoaching(data.insights, data.insightTotal)}
+      </div>`;
   }
 
   function renderKlassen() {
@@ -548,7 +698,11 @@
 
   function render() {
     const name = state.me?.name || "";
-    if (state.studentDetail && location.pathname.startsWith("/teacher/schueler")) {
+    const onStudent = state.studentDetail && location.pathname.startsWith("/teacher/schueler");
+    const hudHeute = !onStudent && state.tab === "heute";
+    document.body.classList.toggle("hud-heute", hudHeute);
+
+    if (onStudent) {
       greetingEl.textContent = state.studentDetail.student?.name || "Schülerdetail";
       sublineEl.textContent = "Heute · Verlauf · Feedback";
       document.getElementById("toolbar").classList.add("hidden");
@@ -558,8 +712,9 @@
 
     document.getElementById("toolbar").classList.remove("hidden");
     if (state.tab === "heute") {
-      greetingEl.textContent = name ? `Hallo ${name}` : "Heute";
-      sublineEl.textContent = "Wer braucht heute Unterstützung – und warum?";
+      const className = state.today?.className;
+      greetingEl.textContent = className ? `Klasse jetzt · ${className}` : name ? `Hallo ${name}` : "Heute";
+      sublineEl.textContent = "Live-HUD · beobachtbare Signale";
       appEl.innerHTML = renderHeute();
     } else if (state.tab === "klassen") {
       greetingEl.textContent = "Klassen";
@@ -712,6 +867,21 @@
   }
 
   appEl.addEventListener("click", async (ev) => {
+    const insightBtn = ev.target.closest("[data-insight-idx]");
+    if (insightBtn) {
+      const idx = Number(insightBtn.getAttribute("data-insight-idx"));
+      const insight = state.today?.insights?.[idx];
+      if (insight) {
+        state.selectedStudentId = insight.studentId;
+        render();
+        openInsightSheet(insight);
+      }
+      return;
+    }
+    const selectRow = ev.target.closest("[data-select-student]");
+    if (selectRow) {
+      state.selectedStudentId = Number(selectRow.getAttribute("data-select-student")) || null;
+    }
     const t = ev.target.closest("[data-open-student]");
     if (t) {
       openStudent(t.getAttribute("data-open-student"));
@@ -760,6 +930,20 @@
       if (state.feedbackDraft.chips.has(id)) state.feedbackDraft.chips.delete(id);
       else state.feedbackDraft.chips.add(id);
       chip.classList.toggle("active");
+      return;
+    }
+    const openFromSheet = ev.target.closest("[data-open-student]");
+    if (openFromSheet) {
+      closeSheet();
+      openStudent(openFromSheet.getAttribute("data-open-student"));
+      return;
+    }
+    const fbFromSheet = ev.target.closest("[data-feedback]");
+    if (fbFromSheet) {
+      openFeedbackSheet(
+        fbFromSheet.getAttribute("data-feedback"),
+        fbFromSheet.getAttribute("data-name") || ""
+      );
       return;
     }
     if (ev.target.closest("#fbCancel")) closeSheet();
