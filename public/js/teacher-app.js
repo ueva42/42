@@ -8,10 +8,12 @@
     classId: null,
     date: todayIso(),
     today: null,
-    matrix: null,
+    hq: null,
     levelCheckId: null,
-    matrixFilter: "alle",
-    matrixGoalId: null,
+    hqFilterHelp: false,
+    selectedStudentId: null,
+    expandedStations: {},
+    toast: null,
     classes: [],
     overview: null,
     history: null,
@@ -156,97 +158,44 @@
   }
 
   // ---------------------------------------------------------
-  // Heute = Levelcheck-Matrix (Klasse × Unterthemen)
+  // Heute = Classroom HQ / Lernstadt
   // ---------------------------------------------------------
-  const MATRIX_FILTERS = [
-    { id: "alle", label: "Alle" },
-    { id: "hilfe", label: "Nur Hilfe !" },
-    { id: "heute", label: "Heute aktiv ●" },
-    { id: "offen", label: "Offen ○" }
-  ];
-
-  function matrixStorageKey() {
-    return `sol-teacher-matrix-lc-${state.classId || "x"}`;
+  function hqStorageKey() {
+    return `sol-teacher-hq-lc-${state.classId || "x"}`;
   }
 
-  function cellIcon(cell) {
-    if (!cell) return "○";
-    if (cell.status === "done") return "✓";
-    if (cell.status === "today") return "●";
-    if (cell.status === "working") return "◐";
-    return "○";
+  function showToast(message) {
+    state.toast = message;
+    render();
+    window.clearTimeout(showToast._t);
+    showToast._t = window.setTimeout(() => {
+      state.toast = null;
+      if (state.tab === "heute") render();
+    }, 2600);
   }
 
-  function cellPrimaryText(cell) {
-    if (!cell) return "offen";
-    if (cell.status === "done") {
-      return cell.resultPercent != null ? `${cell.resultPercent} %` : "abgeschlossen";
-    }
-    if (cell.status === "open") return "offen";
-    return cell.tierLabel || cell.statusLabel || "in Arbeit";
+  function formatGermanDateUi(iso) {
+    if (!iso) return null;
+    const s = String(iso).slice(0, 10);
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : s;
   }
 
-  function cellSecondaryText(cell) {
-    if (!cell || cell.status === "open") return "";
-    const parts = [];
-    if (cell.status === "done") {
-      if (cell.tierLabel) parts.push(cell.tierLabel);
-      if (cell.resultSource === "teacher") parts.push("bewertet");
-      else if (cell.resultSource === "student") parts.push("Übungs-Check");
-    } else {
-      if (cell.resultPercent != null) parts.push(`${cell.resultPercent} %`);
-      if (cell.workDays) parts.push(`${cell.workDays} Tg.`);
-      if (cell.status === "today") parts.push("heute");
-    }
-    return parts.join(" · ");
+  function getHqCity() {
+    return state.hq?.lernstadt || state.hq?.matrix || null;
   }
 
-  function cellTitle(cell, studentName, goalText) {
-    const bits = [`${studentName} · ${goalText}`, cell?.statusLabel || "offen"];
-    if (cell?.tierLabel) bits.push(`Level: ${cell.tierLabel}`);
-    if (cell?.resultPercent != null) bits.push(`${cell.resultPercent} %`);
-    for (const r of cell?.helpReasons || []) bits.push(`! ${r.label}`);
-    return bits.join(" — ");
+  function findHqStudent(id) {
+    const city = getHqCity();
+    if (!city || id == null) return null;
+    return (city.students || []).find((s) => Number(s.id) === Number(id)) || null;
   }
 
-  function renderMatrixCellInner(cell) {
-    const help = cell?.help
-      ? `<span class="lm-help" aria-label="Hilfe-Signal">!</span>`
-      : "";
-    const secondary = cellSecondaryText(cell);
-    return `
-      <span class="lm-cell-main">
-        <span class="lm-icon" aria-hidden="true">${cellIcon(cell)}</span>
-        <span class="lm-text">${escapeHtml(cellPrimaryText(cell))}</span>
-      </span>
-      ${secondary ? `<span class="lm-sub">${escapeHtml(secondary)}</span>` : ""}
-      ${help}`;
-  }
-
-  function studentMatchesFilter(student, goalId) {
-    const filter = state.matrixFilter || "alle";
-    if (filter === "alle") return true;
-    const cells = goalId
-      ? [student.cells?.[goalId]].filter(Boolean)
-      : Object.values(student.cells || {});
-    if (filter === "hilfe") return cells.some((c) => c.help);
-    if (filter === "heute") {
-      return cells.some((c) => c.today) || (!goalId && student.topicToday);
-    }
-    if (filter === "offen") {
-      if (!cells.length) return true;
-      return goalId ? cells[0].status === "open" : cells.every((c) => c.status === "open");
-    }
-    return true;
-  }
-
-  function renderMatrixPicker(data) {
+  function renderHqPicker(data) {
     const list = data.levelChecks || [];
     if (!list.length) return "";
     const bySubject = {};
-    for (const lc of list) {
-      (bySubject[lc.subject] ||= []).push(lc);
-    }
+    for (const lc of list) (bySubject[lc.subject] ||= []).push(lc);
     const options = Object.entries(bySubject)
       .map(
         ([subject, items]) => `<optgroup label="${escapeHtml(subject)}">${items
@@ -261,178 +210,243 @@
       )
       .join("");
     return `
-      <div class="lm-picker">
-        <label for="lcSelect">Levelcheck / Klassenarbeit</label>
+      <div class="hq-picker">
+        <label for="lcSelect">Unterrichtseinheit / Klassenarbeit (Levelcheck)</label>
         <select id="lcSelect" aria-label="Levelcheck wählen">${options}</select>
       </div>`;
   }
 
-  function renderMatrixHead(data) {
+  function renderHqStats(city, data) {
+    const t = city?.stats || {};
     const lc = data.levelCheck;
-    if (!lc) return "";
-    const cps = (lc.checkpoints || []).slice(0, 3);
-    const cpText = cps.length
-      ? cps.map((cp) => `${escapeHtml(cp.typeLabel)} ${escapeHtml(cp.dateLabel)}`).join(" · ")
-      : "Kein Termin hinterlegt";
-    const t = data.matrix?.totals || {};
+    const dateLabel = formatGermanDateUi(data.date) || data.date;
     return `
-      <section class="lm-head">
-        <div class="lm-head-text">
-          <p class="tile-kicker">${escapeHtml(lc.subject)}${lc.catalogName ? ` · ${escapeHtml(lc.catalogName)}` : ""}</p>
-          <h2>${escapeHtml(lc.name)}</h2>
-          <p class="muted">${cpText} · ${lc.goalCount} Unterthemen</p>
+      <section class="hq-head" aria-label="Klassen-Überblick">
+        <div class="hq-head-text">
+          <p class="tile-kicker">Classroom HQ · Lernstadt</p>
+          <h2>${escapeHtml(data.className || "Klasse")}${lc ? ` · ${escapeHtml(lc.name)}` : ""}</h2>
+          <p class="muted">${escapeHtml(dateLabel)}${lc?.subject ? ` · ${escapeHtml(lc.subject)}` : ""} · Position = aktuelles Tagesziel</p>
         </div>
-        <div class="lm-head-stats" aria-label="Klassenstand">
-          <span><strong>${t.studentCount ?? 0}</strong> SuS</span>
-          <span class="${t.todayCount ? "on" : ""}"><strong>${t.todayCount ?? 0}</strong> ● heute</span>
-          <span class="${t.helpCount ? "hot" : ""}"><strong>${t.helpCount ?? 0}</strong> ! Hilfe</span>
-          <span><strong>${t.openCount ?? 0}</strong> ○ offen</span>
+        <div class="hq-stats" aria-label="Kennzahlen">
+          <span class="${t.withTagesziel ? "on" : ""}"><strong>${t.withTagesziel ?? 0}</strong> mit Tagesziel</span>
+          <span class="${t.openHelp ? "hot" : ""}"><strong>${t.openHelp ?? 0}</strong> offene Hilfe</span>
+          <span class="${t.reachedGoals ? "ok" : ""}"><strong>${t.reachedGoals ?? 0}</strong> Tagesziel erreicht</span>
         </div>
       </section>`;
   }
 
-  function renderMatrixFilters() {
+  function renderHqFilter() {
     return `
-      <div class="lm-filters" role="group" aria-label="Filter">
-        ${MATRIX_FILTERS.map(
-          (f) =>
-            `<button type="button" class="chip ${state.matrixFilter === f.id ? "active" : ""}" data-mfilter="${f.id}" aria-pressed="${state.matrixFilter === f.id ? "true" : "false"}">${escapeHtml(f.label)}</button>`
-        ).join("")}
+      <div class="hq-toolbar">
+        <label class="hq-filter">
+          <input type="checkbox" id="hqHelpOnly" ${state.hqFilterHelp ? "checked" : ""} />
+          <span>Nur Hilfe anzeigen</span>
+        </label>
+        <p class="hq-legend-inline" aria-hidden="true">
+          <span>◐ Ziel</span><span>! Hilfe</span><span>◆ Begleitung</span><span>✓ Erreicht</span><span>○ Kein Ziel</span>
+        </p>
       </div>`;
   }
 
-  function renderMatrixLegend(legend) {
+  function renderAvatar(student, opts = {}) {
+    const selected = Number(state.selectedStudentId) === Number(student.id);
+    const helpCls = student.helpActive ? "is-help" : "";
+    const statusCls = `st-${escapeHtml(student.statusId || "no_goal")}`;
+    const wait =
+      student.helpActive && student.waitLabel
+        ? `<span class="hq-av-wait">${escapeHtml(student.waitLabel)}</span>`
+        : "";
+    const img = student.avatarUrl
+      ? `<img src="${escapeHtml(student.avatarUrl)}" alt="" loading="lazy" decoding="async" />`
+      : `<span class="hq-av-initials" aria-hidden="true">${escapeHtml(student.initials || "?")}</span>`;
     return `
-      <div class="legend-bar lm-legend" aria-label="Legende">
-        <span>● heute im Tagesziel</span>
-        <span>◐ in Arbeit (Level)</span>
-        <span>✓ abgeschlossen (≥ ${legend?.passPercent ?? 70} % oder bestanden)</span>
-        <span>○ offen</span>
-        <span>! Hilfe-Signal (Zwischencheck, Reflexion, ${legend?.stuckDays ?? 3}+ Tage, Rückstufung)</span>
-      </div>`;
+      <button type="button"
+        class="hq-avatar ${helpCls} ${statusCls} ${selected ? "selected" : ""}"
+        data-select-student="${student.id}"
+        aria-pressed="${selected ? "true" : "false"}"
+        aria-label="${escapeHtml(student.name)} · ${escapeHtml(student.statusLabel || "")}${opts.station ? ` · ${escapeHtml(opts.station)}` : ""}">
+        <span class="hq-av-face">${img}</span>
+        <span class="hq-av-meta">
+          <span class="hq-av-name">${escapeHtml(student.name)}</span>
+          <span class="hq-av-status"><span aria-hidden="true">${escapeHtml(student.statusIcon || "○")}</span> ${escapeHtml(student.statusShort || "")}</span>
+          ${wait}
+        </span>
+      </button>`;
   }
 
-  function summaryText(sum) {
-    const s = sum || {};
-    return `${s.working ?? 0} in Arbeit · ${s.done ?? 0} abgeschlossen · ${s.open ?? 0} offen · ${s.help ?? 0} Hilfe`;
-  }
-
-  function renderMatrixTable(data) {
-    const m = data.matrix;
-    const goals = m?.goals || [];
-    const students = (m?.students || []).filter((s) => studentMatchesFilter(s, null));
-    if (!goals.length) return "";
-    const head = `
-      <thead>
-        <tr>
-          <th scope="col" class="lm-name-col">Schüler:in</th>
-          ${goals
-            .map(
-              (g, i) =>
-                `<th scope="col" class="lm-goal-col"><span class="lm-goal-num">${i + 1}</span><span class="lm-goal-text" title="${escapeHtml(g.text)}">${escapeHtml(g.text)}</span></th>`
-            )
-            .join("")}
-        </tr>
-      </thead>`;
-    const body = students.length
-      ? students
-          .map(
-            (s) => `
-        <tr class="${s.flags?.help ? "has-help" : ""}">
-          <th scope="row" class="lm-name-col">
-            <button type="button" class="lm-name" data-open-student="${s.id}" aria-label="${escapeHtml(s.name)} öffnen">
-              <span class="lm-name-text">${escapeHtml(s.name)}</span>
-              <span class="lm-name-flags" aria-hidden="true">${s.flags?.help ? "!" : ""}${s.topicToday ? " ●" : ""}</span>
-            </button>
-          </th>
-          ${goals
-            .map((g) => {
-              const cell = s.cells?.[g.id];
-              return `<td class="lm-cell status-${escapeHtml(cell?.status || "open")} ${cell?.help ? "help" : ""}">
-                <button type="button" class="lm-cell-btn" data-open-student="${s.id}" title="${escapeHtml(cellTitle(cell, s.name, g.text))}" aria-label="${escapeHtml(cellTitle(cell, s.name, g.text))}">
-                  ${renderMatrixCellInner(cell)}
-                </button>
-              </td>`;
-            })
-            .join("")}
-        </tr>`
-          )
-          .join("")
-      : `<tr><td colspan="${goals.length + 1}" class="lm-empty-row">Keine Schüler:innen für diesen Filter.</td></tr>`;
-    const foot = `
-      <tfoot>
-        <tr>
-          <th scope="row" class="lm-name-col lm-sum-label">Summe</th>
-          ${goals.map((g) => `<td class="lm-sum">${escapeHtml(summaryText(g.summary))}</td>`).join("")}
-        </tr>
-      </tfoot>`;
-    return `<div class="lm-wrap" role="region" aria-label="Levelcheck-Matrix" tabindex="0"><table class="lm-table">${head}<tbody>${body}</tbody>${foot}</table></div>`;
-  }
-
-  function renderMatrixList(data) {
-    const m = data.matrix;
-    const goals = m?.goals || [];
-    if (!goals.length) return "";
-    const goalId =
-      goals.find((g) => g.id === state.matrixGoalId)?.id || goals[0].id;
-    const goal = goals.find((g) => g.id === goalId);
-    const students = (m?.students || []).filter((s) => studentMatchesFilter(s, goalId));
+  function renderStation(station) {
+    let list = station.students || [];
+    if (state.hqFilterHelp) list = list.filter((s) => s.helpActive);
+    if (!list.length && state.hqFilterHelp) return "";
+    const expanded = Boolean(state.expandedStations[station.id]);
+    const limit = station.previewLimit || 4;
+    const overflow = !expanded && list.length > limit;
+    const shown = overflow ? list.slice(0, limit) : list;
+    const rest = overflow ? list.length - limit : 0;
+    const helpBadge =
+      station.helpCount > 0
+        ? `<span class="hq-station-help">${station.helpCount} Hilfe</span>`
+        : "";
     return `
-      <div class="lm-list">
-        <div class="lm-picker">
-          <label for="mGoalSelect">Unterthema</label>
-          <select id="mGoalSelect" aria-label="Unterthema wählen">
-            ${goals
-              .map(
-                (g, i) =>
-                  `<option value="${escapeHtml(g.id)}" ${g.id === goalId ? "selected" : ""}>${i + 1}. ${escapeHtml(g.text)}</option>`
-              )
-              .join("")}
-          </select>
+      <article class="hq-station ${station.kind === "unassigned" ? "is-unassigned" : ""}" data-station="${escapeHtml(station.id)}">
+        <header class="hq-station-head">
+          <div>
+            <h3>${escapeHtml(station.name)}</h3>
+            <p class="muted">${list.length} Person${list.length === 1 ? "" : "en"}</p>
+          </div>
+          ${helpBadge}
+        </header>
+        <div class="hq-station-people">
+          ${
+            shown.length
+              ? shown.map((s) => renderAvatar(s, { station: station.name })).join("")
+              : `<p class="hq-station-empty">Hier ist gerade niemand.</p>`
+          }
+          ${
+            rest
+              ? `<button type="button" class="hq-more" data-expand-station="${escapeHtml(station.id)}">+${rest} weitere</button>`
+              : ""
+          }
+          ${
+            expanded && list.length > limit
+              ? `<button type="button" class="hq-more" data-collapse-station="${escapeHtml(station.id)}">Weniger zeigen</button>`
+              : ""
+          }
         </div>
-        <p class="lm-list-sum">${escapeHtml(summaryText(goal?.summary))}</p>
-        ${
-          students.length
-            ? `<div class="lm-list-rows">${students
-                .map((s) => {
-                  const cell = s.cells?.[goalId];
-                  const reasons = (cell?.helpReasons || []).map((r) => r.label).join(" · ");
-                  return `
-              <button type="button" class="lm-row status-${escapeHtml(cell?.status || "open")} ${cell?.help ? "help" : ""}" data-open-student="${s.id}">
-                <span class="lm-row-name">${escapeHtml(s.name)}${s.topicToday && !cell?.today ? ` <small class="muted">● Thema heute</small>` : ""}</span>
-                <span class="lm-row-cell">${renderMatrixCellInner(cell)}</span>
-                ${reasons ? `<span class="lm-row-reasons">${escapeHtml(reasons)}</span>` : ""}
-              </button>`;
-                })
-                .join("")}</div>`
-            : `<div class="empty"><strong>Keine Treffer</strong><p>Keine Schüler:innen für diesen Filter.</p></div>`
-        }
+      </article>`;
+  }
+
+  function renderGroupHelp(city) {
+    const groups = city?.groupHelp || [];
+    if (!groups.length) return "";
+    return `
+      <div class="hq-group-hint" role="note">
+        <strong>Kurze Gruppenerklärung möglich</strong>
+        ${groups
+          .map(
+            (g) =>
+              `<span>${g.count}× Hilfe bei „${escapeHtml(g.stationName)}“ (${escapeHtml(g.studentNames.slice(0, 4).join(", "))}${g.studentNames.length > 4 ? "…" : ""})</span>`
+          )
+          .join("")}
       </div>`;
   }
 
-  function renderInsightStrip(todayData) {
-    const list = (todayData?.insights || []).filter((i) => i.priority === "hoch").slice(0, 4);
-    if (!list.length) return "";
+  function renderLernstadtCity(data) {
+    const city = data.lernstadt || data.matrix;
+    if (!city) return "";
+    const stations = (city.stations || []).filter((st) => {
+      if (!state.hqFilterHelp) return true;
+      return (st.students || []).some((s) => s.helpActive);
+    });
+    if (!stations.length) {
+      return `<div class="empty"><strong>Keine Treffer</strong><p>${state.hqFilterHelp ? "Aktuell keine offenen Hilfe-Anfragen." : "Noch keine Stationen."}</p></div>`;
+    }
     return `
-      <div class="section-head">
-        <h2 class="section-title">Heute im Blick</h2>
-        <span class="section-count hot">${list.length} Hinweis${list.length === 1 ? "" : "e"}</span>
-      </div>
-      <div class="lm-strip">${list
-        .map(
-          (i) => `
-        <button type="button" class="lm-strip-item" data-open-student="${i.studentId}">
-          <strong>${escapeHtml(i.studentName)}</strong>
-          <span>${escapeHtml(i.title)}${i.subject ? ` · ${escapeHtml(i.subject)}` : ""}</span>
-        </button>`
-        )
-        .join("")}</div>`;
+      <div class="hq-city" role="region" aria-label="Lernstadt">
+        <div class="hq-city-sky" aria-hidden="true"></div>
+        ${renderGroupHelp(city)}
+        <div class="hq-stations">${stations.map(renderStation).join("")}</div>
+      </div>`;
+  }
+
+  function renderPersonDetailPanel(student) {
+    if (!student) {
+      return `
+        <aside class="hq-detail" aria-label="Personendetail">
+          <div class="hq-detail-empty">
+            <strong>Person wählen</strong>
+            <p>Tippe auf einen Avatar in der Lernstadt, um Tagesziel, Hilfe und Levelcheck zu sehen.</p>
+          </div>
+        </aside>`;
+    }
+
+    const lc = student.levelcheck || {};
+    const levelcheckLine =
+      lc.empty || (lc.percent == null && !lc.date)
+        ? "Noch kein Levelcheck"
+        : [
+            lc.percent != null ? `${lc.percent} %` : null,
+            lc.date ? formatGermanDateUi(lc.date) : null,
+            lc.levelLabel || null
+          ]
+            .filter(Boolean)
+            .join(" · ");
+
+    const zielnote = student.zielnote
+      ? `Zielnote ${escapeHtml(student.zielnote)}`
+      : "Keine Zielnote hinterlegt";
+
+    const helpBlock = student.help
+      ? `
+        <div class="hq-detail-help">
+          <p><span aria-hidden="true">!</span> <strong>Hilfe angefragt</strong>${student.help.waitLabel ? ` · wartet ${escapeHtml(student.help.waitLabel)}` : ""}</p>
+          <p class="hq-concern">${escapeHtml(student.help.concern || "Anliegen nicht näher angegeben")}</p>
+          ${student.help.takenOver ? `<p class="muted">Begleitung übernommen${student.help.takenOverByName ? ` von ${escapeHtml(student.help.takenOverByName)}` : ""}</p>` : ""}
+        </div>`
+      : "";
+
+    const actions = [];
+    if (student.helpActive && student.statusId !== "taken_over") {
+      actions.push(
+        `<button type="button" class="btn btn-primary" data-coach-action="takeover">Begleitung übernehmen</button>`
+      );
+    }
+    if (student.helpActive) {
+      actions.push(
+        `<button type="button" class="btn btn-ghost" data-coach-action="close_help">Hilfe abschließen</button>`
+      );
+    }
+    actions.push(
+      `<button type="button" class="btn btn-ghost" data-coach-action="save_note">Begleitnotiz</button>`
+    );
+    actions.push(
+      `<button type="button" class="btn btn-ghost" data-coach-action="save_next_step">Nächsten Schritt</button>`
+    );
+
+    return `
+      <aside class="hq-detail" aria-label="Detail ${escapeHtml(student.name)}">
+        <button type="button" class="hq-detail-close" data-clear-student aria-label="Detail schließen">×</button>
+        <div class="hq-detail-hero">
+          <div class="hq-detail-av">
+            ${
+              student.avatarUrl
+                ? `<img src="${escapeHtml(student.avatarUrl)}" alt="" />`
+                : `<span>${escapeHtml(student.initials || "?")}</span>`
+            }
+          </div>
+          <div>
+            <h2>${escapeHtml(student.name)}</h2>
+            <p class="hq-status-pill st-${escapeHtml(student.statusId)}">
+              <span aria-hidden="true">${escapeHtml(student.statusIcon)}</span>
+              ${escapeHtml(student.statusLabel)}
+            </p>
+          </div>
+        </div>
+        <dl class="hq-dl">
+          <div><dt>Tagesziel</dt><dd>${escapeHtml(student.tagesziel || "Kein Tagesziel")}</dd></div>
+          <div><dt>Unterthema</dt><dd>${escapeHtml(student.unterthema || "Noch nicht zugeordnet")}</dd></div>
+          <div><dt>Aktuelles Level</dt><dd>${escapeHtml(student.currentLevelLabel || "–")}</dd></div>
+          <div><dt>Geplantes Level</dt><dd>${escapeHtml(student.plannedLevelLabel || "–")}</dd></div>
+          <div><dt>Letzter Levelcheck</dt><dd>${escapeHtml(levelcheckLine)}</dd></div>
+          <div><dt>Persönliche Zielnote</dt><dd>${zielnote}</dd></div>
+          <div><dt>Begleitnotiz</dt><dd>${escapeHtml(student.coaching?.note || "–")}</dd></div>
+          <div><dt>Nächster Lernschritt</dt><dd>${escapeHtml(student.nextStepSuggestion || student.coaching?.nextStep || "–")}</dd></div>
+        </dl>
+        ${helpBlock}
+        <div class="hq-actions">${actions.join("")}</div>
+        <button type="button" class="btn btn-ghost hq-full-link" data-open-student="${student.id}">Vollständiges Coaching-Detail</button>
+      </aside>`;
+  }
+
+  function renderToast() {
+    if (!state.toast) return "";
+    return `<div class="hq-toast" role="status">${escapeHtml(state.toast)}</div>`;
   }
 
   function renderHeute() {
-    const data = state.matrix;
+    const data = state.hq;
     if (state.loading && !data) {
-      return `<div class="empty"><strong>Lade Matrix…</strong><p>Levelcheck und Klassenstand werden geladen.</p></div>`;
+      return `<div class="empty"><strong>Lade Lernstadt…</strong><p>Klassenstand und Tagesziele werden geladen.</p></div>`;
     }
     if (!state.classId || !state.classes.length) {
       return `<div class="empty">
@@ -442,26 +456,30 @@
       </div>`;
     }
     if (!data) {
-      return `<div class="empty"><strong>Keine Daten</strong><p>Matrix konnte nicht geladen werden.</p></div>`;
+      return `<div class="empty"><strong>Keine Daten</strong><p>Lernstadt konnte nicht geladen werden.</p></div>`;
     }
     if (!data.levelCheck) {
       return `
-        ${renderMatrixPicker(data)}
+        ${renderToast()}
+        ${renderHqPicker(data)}
         <div class="empty">
           <strong>${escapeHtml(data.message || "Kein Levelcheck gewählt.")}</strong>
           <p>Levelchecks mit Unterthemen legst du unter Lernbegleitung → Levelchecks an.</p>
           <a class="btn btn-primary" href="/teacher/levelchecks">Levelchecks öffnen</a>
-        </div>
-        ${renderInsightStrip(state.today)}`;
+        </div>`;
     }
+
+    const selected = findHqStudent(state.selectedStudentId);
     return `
-      ${renderMatrixPicker(data)}
-      ${renderMatrixHead(data)}
-      ${renderMatrixFilters()}
-      ${renderMatrixTable(data)}
-      ${renderMatrixList(data)}
-      ${renderMatrixLegend(data.matrix?.legend)}
-      ${renderInsightStrip(state.today)}`;
+      ${renderToast()}
+      ${renderHqPicker(data)}
+      ${renderHqStats(getHqCity(), data)}
+      ${renderHqFilter()}
+      <div class="hq-layout ${selected ? "has-selection" : ""}">
+        ${renderLernstadtCity(data)}
+        ${renderPersonDetailPanel(selected)}
+      </div>
+      <p class="hq-footnote muted">${escapeHtml(getHqCity()?.legend?.note || "")}</p>`;
   }
 
   function renderKlassen() {
@@ -736,7 +754,7 @@
     document.getElementById("toolbar").classList.remove("hidden");
     if (state.tab === "heute") {
       greetingEl.textContent = name ? `Hallo ${name}` : "Heute";
-      sublineEl.textContent = "Levelcheck-Matrix: Wer arbeitet woran – und wer braucht Hilfe?";
+      sublineEl.textContent = "Classroom HQ · Lernstadt – wer arbeitet woran, wer braucht Begleitung?";
       appEl.innerHTML = renderHeute();
     } else if (state.tab === "klassen") {
       greetingEl.textContent = "Klassen";
@@ -831,14 +849,14 @@
     render();
   }
 
-  async function loadMatrix() {
+  async function loadHq() {
     if (!state.classId) {
-      state.matrix = null;
+      state.hq = null;
       return;
     }
     if (!state.levelCheckId) {
       try {
-        state.levelCheckId = localStorage.getItem(matrixStorageKey()) || null;
+        state.levelCheckId = localStorage.getItem(hqStorageKey()) || null;
       } catch (_) {
         state.levelCheckId = null;
       }
@@ -849,25 +867,24 @@
     });
     if (state.levelCheckId) params.set("levelCheckId", state.levelCheckId);
     const data = await api(`/api/teacher/levelcheck-matrix?${params.toString()}`);
-    state.matrix = data;
+    state.hq = data;
     state.levelCheckId = data.levelCheck?.id || null;
     if (state.levelCheckId) {
       try {
-        localStorage.setItem(matrixStorageKey(), state.levelCheckId);
+        localStorage.setItem(hqStorageKey(), state.levelCheckId);
       } catch (_) {
         /* ignore */
       }
     }
-    const goals = data.matrix?.goals || [];
-    if (!goals.some((g) => g.id === state.matrixGoalId)) {
-      state.matrixGoalId = goals[0]?.id || null;
+    if (state.selectedStudentId && !findHqStudent(state.selectedStudentId)) {
+      state.selectedStudentId = null;
     }
   }
 
   async function loadToday() {
     if (!state.classId) {
       state.today = { message: "Keine Klasse zugewiesen.", stats: {}, insights: [] };
-      state.matrix = null;
+      state.hq = null;
       render();
       return;
     }
@@ -881,13 +898,13 @@
         return null;
       });
       try {
-        await loadMatrix();
+        await loadHq();
       } catch (err) {
-        console.error("Matrix nicht geladen:", err);
-        state.matrix = {
+        console.error("Lernstadt nicht geladen:", err);
+        state.hq = {
           levelChecks: [],
           levelCheck: null,
-          message: err?.message || "Matrix konnte nicht geladen werden."
+          message: err?.message || "Lernstadt konnte nicht geladen werden."
         };
       }
       const today = await todayReq;
@@ -900,6 +917,57 @@
       state.loading = false;
       render();
     }
+  }
+
+  async function runCoachAction(action) {
+    const student = findHqStudent(state.selectedStudentId);
+    if (!student) return;
+
+    if (action === "save_note") {
+      openSheet(`
+        <h2 id="sheetTitle" style="margin:0 0 8px">Kurze Begleitnotiz</h2>
+        <p class="muted" style="margin:0 0 10px">${escapeHtml(student.name)}</p>
+        <div class="field">
+          <label for="coachNote">Notiz (nur Lehrkräfte)</label>
+          <textarea id="coachNote" maxlength="800" placeholder="Kurz und beobachtbar…">${escapeHtml(student.coaching?.note || "")}</textarea>
+        </div>
+        <div class="btn-row" style="margin-top:8px">
+          <button type="button" class="btn btn-ghost" id="coachCancel">Abbrechen</button>
+          <button type="button" class="btn btn-primary" id="coachSaveNote">Speichern</button>
+        </div>
+      `);
+      return;
+    }
+    if (action === "save_next_step") {
+      openSheet(`
+        <h2 id="sheetTitle" style="margin:0 0 8px">Nächsten Lernschritt vereinbaren</h2>
+        <p class="muted" style="margin:0 0 10px">${escapeHtml(student.name)}</p>
+        <div class="field">
+          <label for="coachNext">Nächster Schritt</label>
+          <textarea id="coachNext" maxlength="500" placeholder="z. B. Operator-Aufgaben zu …">${escapeHtml(student.coaching?.nextStep || student.nextStepSuggestion || "")}</textarea>
+        </div>
+        <div class="btn-row" style="margin-top:8px">
+          <button type="button" class="btn btn-ghost" id="coachCancel">Abbrechen</button>
+          <button type="button" class="btn btn-primary" id="coachSaveNext">Speichern</button>
+        </div>
+      `);
+      return;
+    }
+
+    const body = {
+      action,
+      studentId: student.id,
+      date: state.date,
+      logEntryId: student.logEntryId,
+      goalId: student.goalId
+    };
+    const res = await api("/api/teacher/coaching", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    showToast(res.message || "Gespeichert.");
+    await loadHq();
+    render();
   }
 
   async function loadOverview() {
@@ -940,6 +1008,36 @@
   }
 
   appEl.addEventListener("click", async (ev) => {
+    const selectBtn = ev.target.closest("[data-select-student]");
+    if (selectBtn) {
+      state.selectedStudentId = Number(selectBtn.getAttribute("data-select-student"));
+      render();
+      return;
+    }
+    if (ev.target.closest("[data-clear-student]")) {
+      state.selectedStudentId = null;
+      render();
+      return;
+    }
+    const expand = ev.target.closest("[data-expand-station]");
+    if (expand) {
+      state.expandedStations[expand.getAttribute("data-expand-station")] = true;
+      render();
+      return;
+    }
+    const collapse = ev.target.closest("[data-collapse-station]");
+    if (collapse) {
+      delete state.expandedStations[collapse.getAttribute("data-collapse-station")];
+      render();
+      return;
+    }
+    const coach = ev.target.closest("[data-coach-action]");
+    if (coach) {
+      runCoachAction(coach.getAttribute("data-coach-action")).catch((err) =>
+        alert(err.message || "Fehler")
+      );
+      return;
+    }
     const t = ev.target.closest("[data-open-student]");
     if (t) {
       openStudent(t.getAttribute("data-open-student"));
@@ -950,16 +1048,11 @@
       openFeedbackSheet(fb.getAttribute("data-feedback"), fb.getAttribute("data-name") || "");
       return;
     }
-    const mf = ev.target.closest("[data-mfilter]");
-    if (mf) {
-      state.matrixFilter = mf.getAttribute("data-mfilter") || "alle";
-      render();
-      return;
-    }
     const gc = ev.target.closest("[data-goto-class]");
     if (gc) {
       state.classId = Number(gc.getAttribute("data-goto-class"));
       state.levelCheckId = null;
+      state.selectedStudentId = null;
       fillClassSelect(state.classes);
       if (classSelect) classSelect.value = String(state.classId);
       if (state.tab === "klassen") {
@@ -991,17 +1084,17 @@
   appEl.addEventListener("change", (ev) => {
     if (ev.target.id === "lcSelect") {
       state.levelCheckId = ev.target.value || null;
-      state.matrixGoalId = null;
+      state.selectedStudentId = null;
       try {
-        if (state.levelCheckId) localStorage.setItem(matrixStorageKey(), state.levelCheckId);
+        if (state.levelCheckId) localStorage.setItem(hqStorageKey(), state.levelCheckId);
       } catch (_) {
         /* ignore */
       }
       loadToday().catch((err) => alert(err.message || "Fehler"));
       return;
     }
-    if (ev.target.id === "mGoalSelect") {
-      state.matrixGoalId = ev.target.value || null;
+    if (ev.target.id === "hqHelpOnly") {
+      state.hqFilterHelp = Boolean(ev.target.checked);
       render();
     }
   });
@@ -1015,8 +1108,52 @@
       chip.classList.toggle("active");
       return;
     }
-    if (ev.target.closest("#fbCancel")) closeSheet();
+    if (ev.target.closest("#fbCancel") || ev.target.closest("#coachCancel")) closeSheet();
     if (ev.target.closest("#fbSave")) saveFeedback().catch((err) => alert(err.message || "Fehler"));
+    if (ev.target.closest("#coachSaveNote")) {
+      const student = findHqStudent(state.selectedStudentId);
+      const note = document.getElementById("coachNote")?.value || "";
+      api("/api/teacher/coaching", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "save_note",
+          studentId: student?.id,
+          date: state.date,
+          logEntryId: student?.logEntryId,
+          goalId: student?.goalId,
+          note
+        })
+      })
+        .then(async (res) => {
+          closeSheet();
+          showToast(res.message || "Begleitnotiz gespeichert.");
+          await loadHq();
+          render();
+        })
+        .catch((err) => alert(err.message || "Fehler"));
+    }
+    if (ev.target.closest("#coachSaveNext")) {
+      const student = findHqStudent(state.selectedStudentId);
+      const nextStep = document.getElementById("coachNext")?.value || "";
+      api("/api/teacher/coaching", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "save_next_step",
+          studentId: student?.id,
+          date: state.date,
+          logEntryId: student?.logEntryId,
+          goalId: student?.goalId,
+          nextStep
+        })
+      })
+        .then(async (res) => {
+          closeSheet();
+          showToast(res.message || "Nächster Lernschritt vereinbart.");
+          await loadHq();
+          render();
+        })
+        .catch((err) => alert(err.message || "Fehler"));
+    }
   });
 
   sheetBackdrop.addEventListener("click", closeSheet);
@@ -1031,7 +1168,8 @@
   classSelect.addEventListener("change", () => {
     state.classId = Number(classSelect.value) || null;
     state.levelCheckId = null;
-    state.matrixGoalId = null;
+    state.selectedStudentId = null;
+    state.expandedStations = {};
     loadTabData();
   });
   dateInput.addEventListener("change", () => {
