@@ -4999,7 +4999,8 @@ registerTeacherCoachingRoutes(app, {
   getLevelChecksForClass,
   resolveCheckpointTypeLabel,
   formatGermanDate,
-  publicImageUrl
+  publicImageUrl,
+  getGradeRequirements
 });
 
 // -------------------------------------------------------

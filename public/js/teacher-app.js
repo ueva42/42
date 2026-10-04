@@ -10,9 +10,8 @@
     today: null,
     hq: null,
     levelCheckId: null,
-    hqFilterHelp: false,
     selectedStudentId: null,
-    expandedStations: {},
+    selectedTopicId: null,
     toast: null,
     classes: [],
     overview: null,
@@ -158,7 +157,7 @@
   }
 
   // ---------------------------------------------------------
-  // Heute = Classroom HQ / Lernstadt
+  // Heute = Themen-Cockpit
   // ---------------------------------------------------------
   function hqStorageKey() {
     return `sol-teacher-hq-lc-${state.classId || "x"}`;
@@ -181,14 +180,62 @@
     return m ? `${m[3]}.${m[2]}.${m[1]}` : s;
   }
 
-  function getHqCity() {
-    return state.hq?.lernstadt || state.hq?.matrix || null;
+  function getCockpit() {
+    return state.hq?.cockpit || state.hq?.lernstadt || state.hq?.matrix || null;
   }
 
   function findHqStudent(id) {
-    const city = getHqCity();
-    if (!city || id == null) return null;
-    return (city.students || []).find((s) => Number(s.id) === Number(id)) || null;
+    const cockpit = getCockpit();
+    if (!cockpit || id == null) return null;
+    return (cockpit.students || []).find((s) => Number(s.id) === Number(id)) || null;
+  }
+
+  function findTopic(id) {
+    const cockpit = getCockpit();
+    if (!cockpit || id == null) return null;
+    return (cockpit.topics || []).find((t) => String(t.id) === String(id)) || null;
+  }
+
+  function clearCockpitSelection() {
+    state.selectedStudentId = null;
+    state.selectedTopicId = null;
+  }
+
+  function selectStudent(id) {
+    state.selectedStudentId = Number(id);
+    const student = findHqStudent(id);
+    state.selectedTopicId = student?.topicId || null;
+  }
+
+  function selectTopic(id) {
+    state.selectedTopicId = String(id);
+    state.selectedStudentId = null;
+  }
+
+  function renderProgressRing(progress, size = 28) {
+    if (!progress || progress.empty || progress.geplant == null) {
+      return `<span class="tc-ring tc-ring--empty" title="Kein Fortschritt (Zielnote oder geplante Levels fehlen)" aria-label="Kein Fortschritt">–</span>`;
+    }
+    const done = Number(progress.erledigt) || 0;
+    const total = Number(progress.geplant) || 0;
+    const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+    const r = 10;
+    const c = 2 * Math.PI * r;
+    const dash = (pct / 100) * c;
+    return `
+      <span class="tc-ring" title="${done} von ${total} Levels erledigt" aria-label="${done} von ${total} Levels erledigt">
+        <svg width="${size}" height="${size}" viewBox="0 0 28 28" aria-hidden="true">
+          <circle cx="14" cy="14" r="${r}" class="tc-ring-bg" />
+          <circle cx="14" cy="14" r="${r}" class="tc-ring-fg" stroke-dasharray="${dash} ${c}" transform="rotate(-90 14 14)" />
+        </svg>
+        <span class="tc-ring-label">${done}/${total}</span>
+      </span>`;
+  }
+
+  function renderLevelBadge(student) {
+    const badge = student.currentLevelBadge || "–";
+    const label = student.currentLevelLabel || "kein Level";
+    return `<span class="tc-lvl" title="${escapeHtml(label)}" aria-label="Level ${escapeHtml(label)}"><span aria-hidden="true">${escapeHtml(badge)}</span><span class="sr-only">${escapeHtml(label)}</span></span>`;
   }
 
   function renderHqPicker(data) {
@@ -210,177 +257,266 @@
       )
       .join("");
     return `
-      <div class="hq-picker">
-        <label for="lcSelect">Unterrichtseinheit / Klassenarbeit (Levelcheck)</label>
+      <div class="tc-picker">
+        <label for="lcSelect">Unterrichtseinheit / Klassenarbeit</label>
         <select id="lcSelect" aria-label="Levelcheck wählen">${options}</select>
       </div>`;
   }
 
-  function renderHqStats(city, data) {
-    const t = city?.stats || {};
+  function renderCockpitHeader(data) {
     const lc = data.levelCheck;
     const dateLabel = formatGermanDateUi(data.date) || data.date;
+    const termin = lc?.checkpointDateLabel
+      ? `${escapeHtml(lc.checkpointTypeLabel || "Termin")} ${escapeHtml(lc.checkpointDateLabel)}`
+      : "";
     return `
-      <section class="hq-head" aria-label="Klassen-Überblick">
-        <div class="hq-head-text">
-          <p class="tile-kicker">Classroom HQ · Lernstadt</p>
+      <header class="tc-head" aria-label="Themen-Cockpit">
+        <div class="tc-head-main">
+          <p class="tc-kicker">Themen-Cockpit</p>
           <h2>${escapeHtml(data.className || "Klasse")}${lc ? ` · ${escapeHtml(lc.name)}` : ""}</h2>
-          <p class="muted">${escapeHtml(dateLabel)}${lc?.subject ? ` · ${escapeHtml(lc.subject)}` : ""} · Position = aktuelles Tagesziel</p>
+          <p class="muted">${escapeHtml(dateLabel)}${lc?.subject ? ` · ${escapeHtml(lc.subject)}` : ""}${termin ? ` · ${termin}` : ""}</p>
         </div>
-        <div class="hq-stats" aria-label="Kennzahlen">
-          <span class="${t.withTagesziel ? "on" : ""}"><strong>${t.withTagesziel ?? 0}</strong> mit Tagesziel</span>
-          <span class="${t.openHelp ? "hot" : ""}"><strong>${t.openHelp ?? 0}</strong> offene Hilfe</span>
-          <span class="${t.reachedGoals ? "ok" : ""}"><strong>${t.reachedGoals ?? 0}</strong> Tagesziel erreicht</span>
+        <div class="tc-head-actions">
+          ${renderHqPicker(data)}
+          <button type="button" class="btn btn-ghost tc-clear-btn" data-clear-selection>Klassenblick</button>
         </div>
+      </header>`;
+  }
+
+  function renderStudentList(cockpit) {
+    const students = cockpit?.students || [];
+    const topicId = state.selectedTopicId;
+    if (!students.length) {
+      return `<div class="tc-panel tc-students"><p class="tc-empty-inline">Keine Schüler:innen in dieser Klasse.</p></div>`;
+    }
+    return `
+      <section class="tc-panel tc-students" aria-label="Klassenliste">
+        <header class="tc-panel-head">
+          <h3>Klasse</h3>
+          <span class="muted">${students.length}</span>
+        </header>
+        <ul class="tc-student-list">
+          ${students
+            .map((s) => {
+              const selected = Number(state.selectedStudentId) === Number(s.id);
+              const related = topicId && String(s.topicId) === String(topicId);
+              const dim =
+                (state.selectedStudentId && !selected && !(topicId && related)) ||
+                (topicId && !state.selectedStudentId && !related);
+              const helpMark = s.helpActive
+                ? `<span class="tc-help-dot" title="Offene Hilfe" aria-label="Offene Hilfe">!</span>`
+                : "";
+              const ziel = s.zielnote
+                ? `<span class="tc-ziel" title="Persönliche Zielnote">ZN ${escapeHtml(String(s.zielnote).replace(".", ","))}</span>`
+                : `<span class="tc-ziel tc-ziel--empty" title="Keine Zielnote">–</span>`;
+              return `
+                <li>
+                  <button type="button"
+                    class="tc-student-row ${selected ? "is-selected" : ""} ${related ? "is-related" : ""} ${dim ? "is-dim" : ""} ${s.helpActive ? "is-help" : ""}"
+                    data-select-student="${s.id}"
+                    aria-pressed="${selected ? "true" : "false"}">
+                    <span class="tc-student-name">${escapeHtml(s.name)}${helpMark}</span>
+                    <span class="tc-student-meta">
+                      ${ziel}
+                      ${renderProgressRing(s.progress)}
+                    </span>
+                  </button>
+                </li>`;
+            })
+            .join("")}
+        </ul>
       </section>`;
   }
 
-  function renderHqFilter() {
-    return `
-      <div class="hq-toolbar">
-        <label class="hq-filter">
-          <input type="checkbox" id="hqHelpOnly" ${state.hqFilterHelp ? "checked" : ""} />
-          <span>Nur Hilfe anzeigen</span>
-        </label>
-        <p class="hq-legend-inline" aria-hidden="true">
-          <span>◐ Ziel</span><span>! Hilfe</span><span>◆ Begleitung</span><span>✓ Erreicht</span><span>○ Kein Ziel</span>
-        </p>
-      </div>`;
-  }
-
-  function renderAvatar(student, opts = {}) {
+  function renderTopicChip(student) {
     const selected = Number(state.selectedStudentId) === Number(student.id);
-    const helpCls = student.helpActive ? "is-help" : "";
-    const statusCls = `st-${escapeHtml(student.statusId || "no_goal")}`;
-    const wait =
-      student.helpActive && student.waitLabel
-        ? `<span class="hq-av-wait">${escapeHtml(student.waitLabel)}</span>`
-        : "";
-    const img = student.avatarUrl
-      ? `<img src="${escapeHtml(student.avatarUrl)}" alt="" loading="lazy" decoding="async" />`
-      : `<span class="hq-av-initials" aria-hidden="true">${escapeHtml(student.initials || "?")}</span>`;
     return `
       <button type="button"
-        class="hq-avatar ${helpCls} ${statusCls} ${selected ? "selected" : ""}"
+        class="tc-chip ${selected ? "is-selected" : ""} ${student.helpActive ? "is-help" : ""}"
         data-select-student="${student.id}"
-        aria-pressed="${selected ? "true" : "false"}"
-        aria-label="${escapeHtml(student.name)} · ${escapeHtml(student.statusLabel || "")}${opts.station ? ` · ${escapeHtml(opts.station)}` : ""}">
-        <span class="hq-av-face">${img}</span>
-        <span class="hq-av-meta">
-          <span class="hq-av-name">${escapeHtml(student.name)}</span>
-          <span class="hq-av-status"><span aria-hidden="true">${escapeHtml(student.statusIcon || "○")}</span> ${escapeHtml(student.statusShort || "")}</span>
-          ${wait}
-        </span>
+        aria-label="${escapeHtml(student.name)} · ${escapeHtml(student.currentLevelLabel || "kein Level")}">
+        <span class="tc-chip-name">${escapeHtml(student.name)}</span>
+        ${renderLevelBadge(student)}
       </button>`;
   }
 
-  function renderStation(station) {
-    let list = station.students || [];
-    if (state.hqFilterHelp) list = list.filter((s) => s.helpActive);
-    if (!list.length && state.hqFilterHelp) return "";
-    const expanded = Boolean(state.expandedStations[station.id]);
-    const limit = station.previewLimit || 4;
-    const overflow = !expanded && list.length > limit;
-    const shown = overflow ? list.slice(0, limit) : list;
-    const rest = overflow ? list.length - limit : 0;
-    const helpBadge =
-      station.helpCount > 0
-        ? `<span class="hq-station-help">${station.helpCount} Hilfe</span>`
-        : "";
+  function renderTopicsCenter(cockpit) {
+    const topics = cockpit?.topics || [];
+    const noGoal = cockpit?.noGoal;
+    const unmapped = cockpit?.unmapped;
+    const legend = (cockpit?.legend?.tiers || [])
+      .map((t) => `<span><strong>${escapeHtml(t.badge)}</strong> ${escapeHtml(t.label)}</span>`)
+      .join("");
+
+    if (!topics.length) {
+      return `<section class="tc-panel tc-topics"><p class="tc-empty-inline">Keine Unterthemen für diesen Levelcheck.</p></section>`;
+    }
+
     return `
-      <article class="hq-station ${station.kind === "unassigned" ? "is-unassigned" : ""}" data-station="${escapeHtml(station.id)}">
-        <header class="hq-station-head">
-          <div>
-            <h3>${escapeHtml(station.name)}</h3>
-            <p class="muted">${list.length} Person${list.length === 1 ? "" : "en"}</p>
-          </div>
-          ${helpBadge}
+      <section class="tc-panel tc-topics" aria-label="Unterthemen">
+        <header class="tc-panel-head">
+          <h3>Unterthemen</h3>
+          <p class="tc-legend" aria-label="Level-Legende">${legend}</p>
         </header>
-        <div class="hq-station-people">
-          ${
-            shown.length
-              ? shown.map((s) => renderAvatar(s, { station: station.name })).join("")
-              : `<p class="hq-station-empty">Hier ist gerade niemand.</p>`
-          }
-          ${
-            rest
-              ? `<button type="button" class="hq-more" data-expand-station="${escapeHtml(station.id)}">+${rest} weitere</button>`
-              : ""
-          }
-          ${
-            expanded && list.length > limit
-              ? `<button type="button" class="hq-more" data-collapse-station="${escapeHtml(station.id)}">Weniger zeigen</button>`
-              : ""
-          }
+        <div class="tc-topic-grid">
+          ${topics
+            .map((topic) => {
+              const selected = String(state.selectedTopicId) === String(topic.id);
+              const selectedStudent = state.selectedStudentId
+                ? findHqStudent(state.selectedStudentId)
+                : null;
+              const studentHighlight =
+                selectedStudent?.topicId &&
+                String(selectedStudent.topicId) === String(topic.id);
+              const helpBadge =
+                topic.helpCount > 0
+                  ? `<span class="tc-topic-help" title="Offene Hilfe">! ${topic.helpCount}</span>`
+                  : "";
+              return `
+                <article class="tc-topic ${selected || studentHighlight ? "is-active" : ""} ${topic.studentCount ? "" : "is-empty"}">
+                  <button type="button" class="tc-topic-head" data-select-topic="${escapeHtml(topic.id)}" aria-pressed="${selected ? "true" : "false"}">
+                    <span>
+                      <strong>${escapeHtml(topic.name)}</strong>
+                      <span class="muted">${topic.studentCount} · heute</span>
+                    </span>
+                    ${helpBadge}
+                  </button>
+                  <div class="tc-topic-chips">
+                    ${
+                      topic.students?.length
+                        ? topic.students.map(renderTopicChip).join("")
+                        : `<span class="tc-topic-empty-hint">niemand</span>`
+                    }
+                  </div>
+                </article>`;
+            })
+            .join("")}
         </div>
-      </article>`;
+        ${
+          unmapped?.studentCount
+            ? `<div class="tc-unmapped">
+                <p><strong>Nicht zuordenbar</strong> · ${unmapped.studentCount}</p>
+                <div class="tc-topic-chips">${unmapped.students.map(renderTopicChip).join("")}</div>
+              </div>`
+            : ""
+        }
+        ${
+          noGoal?.studentCount
+            ? `<p class="tc-no-goal-line">Heute ohne Tagesziel: ${noGoal.students
+                .map((s) => escapeHtml(s.name))
+                .join(", ")}</p>`
+            : `<p class="tc-no-goal-line muted">Heute ohne Tagesziel: niemand</p>`
+        }
+      </section>`;
   }
 
-  function renderGroupHelp(city) {
-    const groups = city?.groupHelp || [];
-    if (!groups.length) return "";
-    return `
-      <div class="hq-group-hint" role="note">
-        <strong>Kurze Gruppenerklärung möglich</strong>
-        ${groups
-          .map(
-            (g) =>
-              `<span>${g.count}× Hilfe bei „${escapeHtml(g.stationName)}“ (${escapeHtml(g.studentNames.slice(0, 4).join(", "))}${g.studentNames.length > 4 ? "…" : ""})</span>`
-          )
-          .join("")}
-      </div>`;
-  }
-
-  function renderLernstadtCity(data) {
-    const city = data.lernstadt || data.matrix;
-    if (!city) return "";
-    const stations = (city.stations || []).filter((st) => {
-      if (!state.hqFilterHelp) return true;
-      return (st.students || []).some((s) => s.helpActive);
-    });
-    if (!stations.length) {
-      return `<div class="empty"><strong>Keine Treffer</strong><p>${state.hqFilterHelp ? "Aktuell keine offenen Hilfe-Anfragen." : "Noch keine Stationen."}</p></div>`;
-    }
-    return `
-      <div class="hq-city" role="region" aria-label="Lernstadt">
-        <div class="hq-city-sky" aria-hidden="true"></div>
-        ${renderGroupHelp(city)}
-        <div class="hq-stations">${stations.map(renderStation).join("")}</div>
-      </div>`;
-  }
-
-  function renderPersonDetailPanel(student) {
-    if (!student) {
+  function renderHelpList(cockpit) {
+    const queue = cockpit?.helpQueue || [];
+    if (!queue.length) {
       return `
-        <aside class="hq-detail" aria-label="Personendetail">
-          <div class="hq-detail-empty">
-            <strong>Person wählen</strong>
-            <p>Tippe auf einen Avatar in der Lernstadt, um Tagesziel, Hilfe und Levelcheck zu sehen.</p>
-          </div>
-        </aside>`;
+        <section class="tc-help" aria-label="Hilfeanfragen">
+          <header class="tc-panel-head"><h3>Hilfe</h3></header>
+          <p class="tc-empty-inline">Keine offenen Hilfeanfragen.</p>
+        </section>`;
     }
+    return `
+      <section class="tc-help" aria-label="Hilfeanfragen">
+        <header class="tc-panel-head">
+          <h3>Hilfe</h3>
+          <span class="tc-help-count">${queue.length}</span>
+        </header>
+        <ul class="tc-help-list">
+          ${queue
+            .map((h) => {
+              const selected = Number(state.selectedStudentId) === Number(h.studentId);
+              return `
+                <li>
+                  <button type="button" class="tc-help-row ${selected ? "is-selected" : ""} ${h.takenOver ? "is-taken" : ""}"
+                    data-select-student="${h.studentId}">
+                    <span class="tc-help-top">
+                      <strong>${escapeHtml(h.name)}</strong>
+                      <span class="muted">${escapeHtml(h.waitLabel || "–")}</span>
+                    </span>
+                    <span class="tc-help-concern">${escapeHtml(h.concern || "Anliegen nicht näher angegeben")}</span>
+                    <span class="tc-help-flag">${
+                      h.takenOver
+                        ? `◆ übernommen${h.takenOverByName ? ` · ${escapeHtml(h.takenOverByName)}` : ""}`
+                        : "! offen"
+                    }</span>
+                  </button>
+                </li>`;
+            })
+            .join("")}
+        </ul>
+      </section>`;
+  }
 
+  function renderSelfAssessment(cockpit) {
+    const sa = cockpit?.selfAssessment;
+    if (!sa?.hasExplicitData) {
+      return `
+        <div class="tc-detail-body">
+          <strong>Selbsteinschätzung Tagesziel</strong>
+          <p class="muted">${escapeHtml(sa?.note || "Noch keine Selbsteinschätzungen vorhanden.")}</p>
+        </div>`;
+    }
+    return `
+      <div class="tc-detail-body">
+        <strong>Selbsteinschätzung Tagesziel</strong>
+        <p class="muted">Nur explizite Angaben beim Planen (Sicherheitsgefühl).</p>
+        <ul class="tc-sa-counts">
+          <li><span aria-hidden="true">●</span> Sicher <strong>${sa.sicher}</strong></li>
+          <li><span aria-hidden="true">◐</span> Teilweise <strong>${sa.teilweise}</strong></li>
+          <li><span aria-hidden="true">○</span> Unsicher <strong>${sa.unsicher}</strong></li>
+          <li><span aria-hidden="true">–</span> Keine Angabe <strong>${sa.keineAngabe}</strong></li>
+        </ul>
+      </div>`;
+  }
+
+  function renderPersonDetail(student) {
     const lc = student.levelcheck || {};
     const levelcheckLine =
       lc.empty || (lc.percent == null && !lc.date)
         ? "Noch kein Levelcheck"
         : [
             lc.percent != null ? `${lc.percent} %` : null,
-            lc.date ? formatGermanDateUi(lc.date) : null,
-            lc.levelLabel || null
+            lc.topic || null,
+            lc.levelLabel || null,
+            lc.date ? formatGermanDateUi(lc.date) : null
           ]
             .filter(Boolean)
             .join(" · ");
 
-    const zielnote = student.zielnote
-      ? `Zielnote ${escapeHtml(student.zielnote)}`
-      : "Keine Zielnote hinterlegt";
+    const progressLine =
+      student.progress && !student.progress.empty
+        ? `${student.progress.erledigt}/${student.progress.geplant} Levels (sicher / geplant für Zielnote)`
+        : student.zielnote
+          ? "Noch keine geplanten Levels berechenbar"
+          : "Keine Zielnote – Fortschritt nicht ableitbar";
+
+    const topicLevels =
+      student.topicLevels?.length
+        ? student.topicLevels
+            .map(
+              (l) =>
+                `${escapeHtml(l.badge)} ${escapeHtml(l.label)}${l.erledigt ? " ✓" : l.status === "in_arbeit" ? " ◐" : ""}`
+            )
+            .join(" · ")
+        : "–";
+
+    const pastBlock =
+      !student.tagesziel && student.pastStand
+        ? `<div class="tc-past-stand">
+            <strong>${escapeHtml(student.pastStand.label)}</strong>
+            <p>${escapeHtml(formatGermanDateUi(student.pastStand.date) || student.pastStand.date)} · ${escapeHtml(student.pastStand.unterthema || student.pastStand.tagesziel || "–")}${student.pastStand.levelLabel ? ` · ${escapeHtml(student.pastStand.levelLabel)}` : ""}</p>
+          </div>`
+        : "";
 
     const helpBlock = student.help
       ? `
-        <div class="hq-detail-help">
-          <p><span aria-hidden="true">!</span> <strong>Hilfe angefragt</strong>${student.help.waitLabel ? ` · wartet ${escapeHtml(student.help.waitLabel)}` : ""}</p>
-          <p class="hq-concern">${escapeHtml(student.help.concern || "Anliegen nicht näher angegeben")}</p>
+        <div class="tc-detail-help">
+          <p><span aria-hidden="true">!</span> <strong>Hilfe</strong>${student.help.waitLabel ? ` · ${escapeHtml(student.help.waitLabel)}` : ""}</p>
+          <p class="tc-concern">${escapeHtml(student.help.concern || "Anliegen nicht näher angegeben")}</p>
           ${student.help.takenOver ? `<p class="muted">Begleitung übernommen${student.help.takenOverByName ? ` von ${escapeHtml(student.help.takenOverByName)}` : ""}</p>` : ""}
         </div>`
       : "";
@@ -396,45 +532,93 @@
         `<button type="button" class="btn btn-ghost" data-coach-action="close_help">Hilfe abschließen</button>`
       );
     }
+    actions.push(`<button type="button" class="btn btn-ghost" data-coach-action="save_note">Notiz</button>`);
     actions.push(
-      `<button type="button" class="btn btn-ghost" data-coach-action="save_note">Begleitnotiz</button>`
-    );
-    actions.push(
-      `<button type="button" class="btn btn-ghost" data-coach-action="save_next_step">Nächsten Schritt</button>`
+      `<button type="button" class="btn btn-ghost" data-coach-action="save_next_step">Nächster Schritt</button>`
     );
 
     return `
-      <aside class="hq-detail" aria-label="Detail ${escapeHtml(student.name)}">
-        <button type="button" class="hq-detail-close" data-clear-student aria-label="Detail schließen">×</button>
-        <div class="hq-detail-hero">
-          <div class="hq-detail-av">
-            ${
-              student.avatarUrl
-                ? `<img src="${escapeHtml(student.avatarUrl)}" alt="" />`
-                : `<span>${escapeHtml(student.initials || "?")}</span>`
-            }
-          </div>
+      <div class="tc-detail-body" aria-label="Person ${escapeHtml(student.name)}">
+        <div class="tc-detail-hero">
           <div>
-            <h2>${escapeHtml(student.name)}</h2>
+            <h4>${escapeHtml(student.name)}${student.zielnote ? ` · ZN ${escapeHtml(String(student.zielnote).replace(".", ","))}` : ""}</h4>
             <p class="hq-status-pill st-${escapeHtml(student.statusId)}">
               <span aria-hidden="true">${escapeHtml(student.statusIcon)}</span>
               ${escapeHtml(student.statusLabel)}
             </p>
           </div>
+          <button type="button" class="tc-detail-close" data-clear-selection aria-label="Auswahl löschen">×</button>
         </div>
         <dl class="hq-dl">
-          <div><dt>Tagesziel</dt><dd>${escapeHtml(student.tagesziel || "Kein Tagesziel")}</dd></div>
-          <div><dt>Unterthema</dt><dd>${escapeHtml(student.unterthema || "Noch nicht zugeordnet")}</dd></div>
-          <div><dt>Aktuelles Level</dt><dd>${escapeHtml(student.currentLevelLabel || "–")}</dd></div>
-          <div><dt>Geplantes Level</dt><dd>${escapeHtml(student.plannedLevelLabel || "–")}</dd></div>
-          <div><dt>Letzter Levelcheck</dt><dd>${escapeHtml(levelcheckLine)}</dd></div>
-          <div><dt>Persönliche Zielnote</dt><dd>${zielnote}</dd></div>
-          <div><dt>Begleitnotiz</dt><dd>${escapeHtml(student.coaching?.note || "–")}</dd></div>
-          <div><dt>Nächster Lernschritt</dt><dd>${escapeHtml(student.nextStepSuggestion || student.coaching?.nextStep || "–")}</dd></div>
+          <div><dt>Tagesziel</dt><dd>${escapeHtml(student.tagesziel || "Kein Tagesziel")}${student.topicUnmapped ? `<br><span class="muted">${escapeHtml(student.unmappedLabel)}</span>` : ""}</dd></div>
+          <div><dt>Unterthema · Level</dt><dd>${escapeHtml(student.unterthema || "–")} · ${escapeHtml(student.currentLevelLabel || "–")}</dd></div>
+          <div><dt>Geplante Levels (Thema)</dt><dd>${topicLevels}</dd></div>
+          <div><dt>Klassenarbeit erledigt/geplant</dt><dd>${escapeHtml(progressLine)}</dd></div>
+          <div><dt>Letzter Levelcheck</dt><dd>${escapeHtml(levelcheckLine)}<br><span class="muted">≠ Tagesziel-Fortschritt ≠ Notenprognose</span></dd></div>
+          <div><dt>Selbsteinschätzung</dt><dd>${escapeHtml(student.selbsteinschaetzung?.label || "–")}</dd></div>
+          <div><dt>Notiz</dt><dd>${escapeHtml(student.coaching?.note || "–")}</dd></div>
+          <div><dt>Nächster Schritt</dt><dd>${escapeHtml(student.nextStepSuggestion || student.coaching?.nextStep || "–")}</dd></div>
         </dl>
+        ${pastBlock}
         ${helpBlock}
         <div class="hq-actions">${actions.join("")}</div>
-        <button type="button" class="btn btn-ghost hq-full-link" data-open-student="${student.id}">Vollständiges Coaching-Detail</button>
+      </div>`;
+  }
+
+  function renderTopicDetail(topic) {
+    const list = topic.students || [];
+    return `
+      <div class="tc-detail-body" aria-label="Thema ${escapeHtml(topic.name)}">
+        <div class="tc-detail-hero">
+          <div>
+            <h4>${escapeHtml(topic.name)}</h4>
+            <p class="muted">${list.length} Person${list.length === 1 ? "" : "en"} mit Tagesziel hier</p>
+          </div>
+          <button type="button" class="tc-detail-close" data-clear-selection aria-label="Auswahl löschen">×</button>
+        </div>
+        ${
+          !list.length
+            ? `<p class="tc-empty-inline">Niemand arbeitet heute an diesem Unterthema.</p>`
+            : `<ul class="tc-topic-people">${list
+                .map((s) => {
+                  const last = s.lastTopicLevelcheck;
+                  const lastLine = last
+                    ? `${escapeHtml(last.levelLabel || "–")}${last.date ? ` · ${escapeHtml(formatGermanDateUi(last.date))}` : ""}`
+                    : "kein Levelcheck-Stand";
+                  const coach = s.helpActive
+                    ? s.help?.takenOver
+                      ? "Begleitung übernommen"
+                      : "Hilfe offen"
+                    : "–";
+                  return `
+                    <li>
+                      <button type="button" class="tc-topic-person" data-select-student="${s.id}">
+                        <strong>${escapeHtml(s.name)}</strong>
+                        <span>Tagesziel: ${escapeHtml(s.tagesziel || "–")}</span>
+                        <span>Level: ${escapeHtml(s.currentLevelLabel || "–")} (${escapeHtml(s.currentLevelBadge || "–")})</span>
+                        <span>Levelcheck-Stand: ${lastLine}</span>
+                        <span>Hilfe/Begleitung: ${escapeHtml(coach)}</span>
+                      </button>
+                    </li>`;
+                })
+                .join("")}</ul>`
+        }
+      </div>`;
+  }
+
+  function renderRightColumn(cockpit) {
+    const student = findHqStudent(state.selectedStudentId);
+    const topic =
+      !student && state.selectedTopicId ? findTopic(state.selectedTopicId) : null;
+    let bottom;
+    if (student) bottom = renderPersonDetail(student);
+    else if (topic) bottom = renderTopicDetail(topic);
+    else bottom = renderSelfAssessment(cockpit);
+
+    return `
+      <aside class="tc-panel tc-right" aria-label="Hilfe und Detail">
+        ${renderHelpList(cockpit)}
+        <div class="tc-detail-slot">${bottom}</div>
       </aside>`;
   }
 
@@ -446,7 +630,7 @@
   function renderHeute() {
     const data = state.hq;
     if (state.loading && !data) {
-      return `<div class="empty"><strong>Lade Lernstadt…</strong><p>Klassenstand und Tagesziele werden geladen.</p></div>`;
+      return `<div class="empty"><strong>Lade Themen-Cockpit…</strong><p>Klassenstand und Tagesziele werden geladen.</p></div>`;
     }
     if (!state.classId || !state.classes.length) {
       return `<div class="empty">
@@ -456,12 +640,12 @@
       </div>`;
     }
     if (!data) {
-      return `<div class="empty"><strong>Keine Daten</strong><p>Lernstadt konnte nicht geladen werden.</p></div>`;
+      return `<div class="empty"><strong>Keine Daten</strong><p>Themen-Cockpit konnte nicht geladen werden.</p></div>`;
     }
     if (!data.levelCheck) {
       return `
         ${renderToast()}
-        ${renderHqPicker(data)}
+        ${renderCockpitHeader(data)}
         <div class="empty">
           <strong>${escapeHtml(data.message || "Kein Levelcheck gewählt.")}</strong>
           <p>Levelchecks mit Unterthemen legst du unter Lernbegleitung → Levelchecks an.</p>
@@ -469,17 +653,16 @@
         </div>`;
     }
 
-    const selected = findHqStudent(state.selectedStudentId);
+    const cockpit = getCockpit();
     return `
       ${renderToast()}
-      ${renderHqPicker(data)}
-      ${renderHqStats(getHqCity(), data)}
-      ${renderHqFilter()}
-      <div class="hq-layout ${selected ? "has-selection" : ""}">
-        ${renderLernstadtCity(data)}
-        ${renderPersonDetailPanel(selected)}
+      ${renderCockpitHeader(data)}
+      <div class="tc-layout">
+        ${renderStudentList(cockpit)}
+        ${renderTopicsCenter(cockpit)}
+        ${renderRightColumn(cockpit)}
       </div>
-      <p class="hq-footnote muted">${escapeHtml(getHqCity()?.legend?.note || "")}</p>`;
+      <p class="hq-footnote muted">${escapeHtml(cockpit?.legend?.note || "")}</p>`;
   }
 
   function renderKlassen() {
@@ -743,7 +926,10 @@
 
   function render() {
     const name = state.me?.name || "";
-    if (state.studentDetail && location.pathname.startsWith("/teacher/schueler")) {
+    const onStudentDetail =
+      Boolean(state.studentDetail) && location.pathname.startsWith("/teacher/schueler");
+    document.body.classList.toggle("teacher-heute", state.tab === "heute" && !onStudentDetail);
+    if (onStudentDetail) {
       greetingEl.textContent = state.studentDetail.student?.name || "Schülerdetail";
       sublineEl.textContent = "Heute · Verlauf · Feedback";
       document.getElementById("toolbar").classList.add("hidden");
@@ -754,7 +940,7 @@
     document.getElementById("toolbar").classList.remove("hidden");
     if (state.tab === "heute") {
       greetingEl.textContent = name ? `Hallo ${name}` : "Heute";
-      sublineEl.textContent = "Classroom HQ · Lernstadt – wer arbeitet woran, wer braucht Begleitung?";
+      sublineEl.textContent = "Themen-Cockpit – wer arbeitet woran, wer braucht Begleitung?";
       appEl.innerHTML = renderHeute();
     } else if (state.tab === "klassen") {
       greetingEl.textContent = "Klassen";
@@ -879,6 +1065,9 @@
     if (state.selectedStudentId && !findHqStudent(state.selectedStudentId)) {
       state.selectedStudentId = null;
     }
+    if (state.selectedTopicId && !findTopic(state.selectedTopicId)) {
+      state.selectedTopicId = null;
+    }
   }
 
   async function loadToday() {
@@ -900,11 +1089,11 @@
       try {
         await loadHq();
       } catch (err) {
-        console.error("Lernstadt nicht geladen:", err);
+        console.error("Themen-Cockpit nicht geladen:", err);
         state.hq = {
           levelChecks: [],
           levelCheck: null,
-          message: err?.message || "Lernstadt konnte nicht geladen werden."
+          message: err?.message || "Themen-Cockpit konnte nicht geladen werden."
         };
       }
       const today = await todayReq;
@@ -1010,24 +1199,18 @@
   appEl.addEventListener("click", async (ev) => {
     const selectBtn = ev.target.closest("[data-select-student]");
     if (selectBtn) {
-      state.selectedStudentId = Number(selectBtn.getAttribute("data-select-student"));
+      selectStudent(selectBtn.getAttribute("data-select-student"));
       render();
       return;
     }
-    if (ev.target.closest("[data-clear-student]")) {
-      state.selectedStudentId = null;
+    const topicBtn = ev.target.closest("[data-select-topic]");
+    if (topicBtn) {
+      selectTopic(topicBtn.getAttribute("data-select-topic"));
       render();
       return;
     }
-    const expand = ev.target.closest("[data-expand-station]");
-    if (expand) {
-      state.expandedStations[expand.getAttribute("data-expand-station")] = true;
-      render();
-      return;
-    }
-    const collapse = ev.target.closest("[data-collapse-station]");
-    if (collapse) {
-      delete state.expandedStations[collapse.getAttribute("data-collapse-station")];
+    if (ev.target.closest("[data-clear-selection]") || ev.target.closest("[data-clear-student]")) {
+      clearCockpitSelection();
       render();
       return;
     }
@@ -1052,7 +1235,7 @@
     if (gc) {
       state.classId = Number(gc.getAttribute("data-goto-class"));
       state.levelCheckId = null;
-      state.selectedStudentId = null;
+      clearCockpitSelection();
       fillClassSelect(state.classes);
       if (classSelect) classSelect.value = String(state.classId);
       if (state.tab === "klassen") {
@@ -1084,18 +1267,13 @@
   appEl.addEventListener("change", (ev) => {
     if (ev.target.id === "lcSelect") {
       state.levelCheckId = ev.target.value || null;
-      state.selectedStudentId = null;
+      clearCockpitSelection();
       try {
         if (state.levelCheckId) localStorage.setItem(hqStorageKey(), state.levelCheckId);
       } catch (_) {
         /* ignore */
       }
       loadToday().catch((err) => alert(err.message || "Fehler"));
-      return;
-    }
-    if (ev.target.id === "hqHelpOnly") {
-      state.hqFilterHelp = Boolean(ev.target.checked);
-      render();
     }
   });
 
@@ -1168,12 +1346,12 @@
   classSelect.addEventListener("change", () => {
     state.classId = Number(classSelect.value) || null;
     state.levelCheckId = null;
-    state.selectedStudentId = null;
-    state.expandedStations = {};
+    clearCockpitSelection();
     loadTabData();
   });
   dateInput.addEventListener("change", () => {
     state.date = dateInput.value || todayIso();
+    clearCockpitSelection();
     loadTabData();
   });
 
