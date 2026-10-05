@@ -120,6 +120,21 @@
     render();
   }
 
+  function teardownHwModal() {
+    document.querySelectorAll("body > .hw-modal-backdrop").forEach((el) => el.remove());
+  }
+
+  function portalHwModal(root) {
+    teardownHwModal();
+    root?.querySelectorAll(".hw-modal-backdrop").forEach((modal) => {
+      document.body.appendChild(modal);
+    });
+  }
+
+  function hwModalScope(root) {
+    return document.querySelector("body > .hw-modal-backdrop") || root;
+  }
+
   function allHomeworkItems() {
     const hw = state.data?.homework;
     const raw =
@@ -310,8 +325,10 @@
             </div>
             <button type="button" class="hw-modal__close" id="hwModalClose">Schließen</button>
           </div>
-          ${body}
-          ${state.hwError ? `<p class="hw-msg hw-msg--err">${ui.escapeHtml(state.hwError)}</p>` : ""}
+          <div class="hw-modal__body">
+            ${body}
+            ${state.hwError ? `<p class="hw-msg hw-msg--err">${ui.escapeHtml(state.hwError)}</p>` : ""}
+          </div>
           <div class="hw-modal__foot">
             ${
               step > 0
@@ -384,35 +401,41 @@
     if (!ui) return;
 
     if (state.loading && !state.data) {
+      teardownHwModal();
       root.innerHTML = `<div class="logbuch-loading">Lade Hausaufgaben…</div>`;
       return;
     }
 
     if (!state.data) {
+      teardownHwModal();
       root.innerHTML = ui.msg("Hausaufgaben konnten nicht geladen werden.");
       return;
     }
 
     const editable = isEditableDate(state.date);
     root.innerHTML = `<div class="hw-page">${renderHomeworkPanel(editable)}</div>`;
+    portalHwModal(root);
     bindHandlers(root);
     if (state.modalOpen && state.modalStep === 2) {
-      root.querySelector("#hwTitleInput")?.focus();
+      hwModalScope(root).querySelector("#hwTitleInput")?.focus();
     }
   }
 
   function bindHandlers(root) {
+    const modal = hwModalScope(root);
     root.querySelector("#hwOpenModalBtn")?.addEventListener("click", () => openModal());
-    root.querySelector("#hwModalClose")?.addEventListener("click", () => closeModal());
-    root.querySelector("#hwModalBackdrop")?.addEventListener("click", (e) => {
-      if (e.target.id === "hwModalBackdrop") closeModal();
+    modal.querySelector("#hwModalClose")?.addEventListener("click", () => closeModal());
+    const backdrop =
+      modal.id === "hwModalBackdrop" ? modal : modal.querySelector("#hwModalBackdrop");
+    backdrop?.addEventListener("click", (e) => {
+      if (e.target === backdrop) closeModal();
     });
-    root.querySelector("#hwModalBack")?.addEventListener("click", () => {
+    modal.querySelector("#hwModalBack")?.addEventListener("click", () => {
       state.modalStep = Math.max(0, state.modalStep - 1);
       state.hwError = "";
       render();
     });
-    root.querySelector("#hwModalNext")?.addEventListener("click", () => {
+    modal.querySelector("#hwModalNext")?.addEventListener("click", () => {
       if (state.modalStep === 0 && !state.hwSubject) return;
       if (state.modalStep === 1 && !state.hwDueDate) return;
       if (state.modalStep === 2 && String(state.hwTitle || "").trim().length < 2) {
@@ -425,7 +448,7 @@
       render();
     });
 
-    root.querySelectorAll("[data-hw-subject]").forEach((btn) => {
+    modal.querySelectorAll("[data-hw-subject]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.hwSubject = btn.dataset.hwSubject || "";
         state.modalStep = 1;
@@ -434,7 +457,7 @@
       });
     });
 
-    root.querySelectorAll("[data-hw-due]").forEach((btn) => {
+    modal.querySelectorAll("[data-hw-due]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.hwDueDate = btn.dataset.hwDue || "";
         state.modalStep = 2;
@@ -443,20 +466,20 @@
       });
     });
 
-    root.querySelector("#hwTitleInput")?.addEventListener("input", (e) => {
+    modal.querySelector("#hwTitleInput")?.addEventListener("input", (e) => {
       state.hwTitle = e.target.value;
     });
-    root.querySelector("#hwClassDoneInput")?.addEventListener("input", (e) => {
+    modal.querySelector("#hwClassDoneInput")?.addEventListener("input", (e) => {
       state.hwClassDone = e.target.value;
     });
-    root.querySelector("#hwRemindInput")?.addEventListener("change", (e) => {
+    modal.querySelector("#hwRemindInput")?.addEventListener("change", (e) => {
       state.hwRemind = !!e.target.checked;
     });
-    root.querySelector("[data-hw-partner-alone]")?.addEventListener("click", () => {
+    modal.querySelector("[data-hw-partner-alone]")?.addEventListener("click", () => {
       state.hwPartnerIds = [];
       render();
     });
-    root.querySelectorAll("[data-hw-partner]").forEach((btn) => {
+    modal.querySelectorAll("[data-hw-partner]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = Number(btn.dataset.hwPartner);
         if (!Number.isFinite(id)) return;
@@ -467,7 +490,7 @@
         render();
       });
     });
-    root.querySelector("#hwAddBtn")?.addEventListener("click", () => addHomework());
+    modal.querySelector("#hwAddBtn")?.addEventListener("click", () => addHomework());
 
     root.querySelectorAll("[data-hw-toggle]").forEach((btn) => {
       btn.addEventListener("click", () => {

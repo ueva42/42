@@ -574,8 +574,13 @@ function showTab(id, ev) {
 
 /* Logout */
 async function logout() {
-  await fetch("/api/logout", { method: "POST" });
-  location.href = "/login.html";
+  try {
+    window.SolAuth?.clear();
+  } catch (_err) {}
+  try {
+    await fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" });
+  } catch (_err) {}
+  window.location.replace("/login");
 }
 
 /* Helper: Slug automatisch aus Namen */

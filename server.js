@@ -4469,7 +4469,30 @@ app.post("/api/demo/reset", async (req, res) => {
 });
 
 app.post("/api/logout", (req, res) => {
-  req.session.destroy(() => res.json({ success: true }));
+  const clearSessionCookie = () => {
+    // express-session lässt die Cookie-SID sonst oft stehen → Redirect auf /login
+    // bounce zurück in die App (Admin/Teacher), sobald parallele Requests die Session neu speichern.
+    res.clearCookie("connect.sid", {
+      path: "/",
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax"
+    });
+  };
+
+  if (!req.session) {
+    clearSessionCookie();
+    return res.json({ success: true });
+  }
+
+  req.session.destroy((err) => {
+    clearSessionCookie();
+    if (err) {
+      console.error("❌ /api/logout destroy:", err);
+      return res.status(500).json({ success: false, message: "Logout fehlgeschlagen." });
+    }
+    res.json({ success: true });
+  });
 });
 
 app.get("/api/auth/session", async (req, res) => {

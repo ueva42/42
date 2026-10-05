@@ -1246,9 +1246,22 @@
       return;
     }
     if (ev.target.closest("#logoutBtn")) {
-      await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
-      if (window.SolAuth) window.SolAuth.clear();
-      location.href = "/login";
+      try {
+        window.SolAuth?.clear();
+      } catch (_err) {}
+      try {
+        await fetch("/api/logout", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store"
+        });
+      } catch (_err) {}
+      try {
+        if (window.__purgeTeacherClientCaches) {
+          await window.__purgeTeacherClientCaches();
+        }
+      } catch (_err) {}
+      window.location.replace("/login");
       return;
     }
     if (ev.target.closest("#backFromStudent")) {
