@@ -13062,7 +13062,8 @@ h2 {
 
 <script src="/js/xp-burst.js?v=1"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=14"></script>
+<script src="/js/client-cache-reset.js?v=3"></script>
+<script src="/js/auth-fetch.js?v=15"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
@@ -13125,13 +13126,20 @@ function showSection(ev, name, options = {}) {
    LOGOUT
 ============================================ */
 async function logout() {
+  if (window.SolAuth?.logoutAndRedirect) {
+    await window.SolAuth.logoutAndRedirect();
+    return;
+  }
   try {
     window.SolAuth?.clear();
   } catch (_err) {}
   try {
     await fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" });
   } catch (_err) {}
-  window.location.replace("/login?loggedout=1");
+  try {
+    if (window.__purgeClientCaches) await window.__purgeClientCaches();
+  } catch (_err) {}
+  window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
 }
 
 /* ============================================
@@ -13397,7 +13405,8 @@ function updateStudentProfile(u, levels, character, traits) {
 window.loadMe = async function loadMe() {
   const r = await fetch("/api/student/me", { credentials: "same-origin" });
   if (r.status === 401 || r.status === 403) {
-    window.location.href = "/login";
+    if (window.SolAuth?.goLogin) window.SolAuth.goLogin();
+    else window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
     return;
   }
   if (!r.ok) {
@@ -14020,41 +14029,38 @@ window.refreshStatusSection = () => {
 
 window.refreshTodayStatus = window.refreshStatusSection;
 
-function rememberedStudent() {
-  return window.SolAuth?.is("student") === true;
-}
-
 async function bootStudentApp() {
   if (window.__studentBooted || window.__studentBooting) return;
   window.__studentBooting = true;
   window.__authBootstrap = true;
   try {
-    let ready = false;
-    const attempts = 4;
-    for (let attempt = 0; attempt < attempts; attempt++) {
+    if (window.SolAuth?.enforceShell) {
+      const session = await window.SolAuth.enforceShell(["student"]);
+      if (!session) {
+        if (!window.__authFetchRedirecting) {
+          window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
+        }
+        return;
+      }
+    } else {
       const sessionRes = await fetch("/api/auth/session", {
         credentials: "same-origin",
         cache: "no-store"
       });
-      if (sessionRes.ok) {
-        const data = await sessionRes.json();
-        if (data.authenticated && data.role === "student") {
-          ready = true;
-          break;
-        }
-        if (data.authenticated && data.role && data.role !== "student") {
-          window.location.href = "/login";
-          return;
-        }
+      if (!sessionRes.ok) {
+        window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
+        return;
       }
-      if (sessionRes.status === 401 && !rememberedStudent()) break;
-      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
-    }
-    if (!ready) {
-      if (rememberedStudent()) {
-        ready = true;
-      } else {
-        window.location.href = "/login";
+      const data = await sessionRes.json();
+      if (!data.authenticated || data.role !== "student") {
+        const target =
+          data?.redirectTo ||
+          (data?.role === "admin" || data?.role === "teacher"
+            ? "/teacher"
+            : data?.role === "superadmin"
+              ? "/superadmin"
+              : `/login?loggedout=1&t=${Date.now()}`);
+        window.location.replace(target);
         return;
       }
     }
@@ -14072,27 +14078,18 @@ async function bootStudentApp() {
     loadClassProgress();
   } catch (err) {
     console.error(err);
-    try {
-      const sessionRes = await fetch("/api/auth/session", {
-        credentials: "same-origin",
-        cache: "no-store"
-      });
-      if (sessionRes.status === 401 && !rememberedStudent()) {
-        window.location.href = "/login";
-        return;
-      }
-      const data = sessionRes.ok ? await sessionRes.json().catch(() => null) : null;
-      if (data && data.authenticated === false && !rememberedStudent()) {
-        window.location.href = "/login";
-      }
-    } catch (_) {}
+    window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
   } finally {
     window.__authBootstrap = false;
     window.__studentBooting = false;
   }
 }
 
-window.addEventListener("pageshow", () => {
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted) {
+    window.__studentBooted = false;
+    window.__studentBooting = false;
+  }
   if (window.__studentBooted || window.__studentBooting) return;
   bootStudentApp();
 });

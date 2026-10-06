@@ -1,6 +1,6 @@
 /**
- * Lehrer-Admin: Service Worker + Cache leeren (verhindert stale JS/403 aus altem SW).
- * Nicht bei jedem Tab-Reload – sonst fliegt man nach einem Tab-Wechsel raus.
+ * Service Worker + Cache leeren (verhindert stale SPA-Shells aus SW/HTTP-Cache).
+ * Auf Login und nach Logout – nicht bei jedem App-Tab-Reload.
  */
 (function () {
   async function purgeTeacherClientCaches() {
@@ -19,10 +19,18 @@
   }
 
   window.__purgeTeacherClientCaches = purgeTeacherClientCaches;
+  window.__purgeClientCaches = purgeTeacherClientCaches;
 
   const path = window.location.pathname || "";
+  const params = new URLSearchParams(window.location.search || "");
   const onLogin = path === "/login" || path === "/login.html";
-  if (onLogin) {
+  const forcedLogout =
+    params.get("loggedout") === "1" || params.get("logout") === "1";
+
+  if (onLogin || forcedLogout) {
+    try {
+      window.SolAuth?.clear?.();
+    } catch (_err) {}
     purgeTeacherClientCaches();
   }
 })();

@@ -62,7 +62,8 @@
     if (res.status === 401 || res.status === 403) {
       const data = await res.json().catch(() => ({}));
       if (res.status === 401 || data?.error === "Forbidden") {
-        window.location.href = "/login?loggedout=1";
+        if (window.SolAuth?.goLogin) window.SolAuth.goLogin();
+        else window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
         throw new Error("Nicht angemeldet");
       }
     }
@@ -1246,6 +1247,10 @@
       return;
     }
     if (ev.target.closest("#logoutBtn")) {
+      if (window.SolAuth?.logoutAndRedirect) {
+        await window.SolAuth.logoutAndRedirect();
+        return;
+      }
       try {
         window.SolAuth?.clear();
       } catch (_err) {}
@@ -1261,7 +1266,7 @@
           await window.__purgeTeacherClientCaches();
         }
       } catch (_err) {}
-      window.location.replace("/login?loggedout=1");
+      window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
       return;
     }
     if (ev.target.closest("#backFromStudent")) {
@@ -1370,10 +1375,21 @@
 
   async function boot() {
     dateInput.value = state.date;
-    const session = await api("/api/auth/session");
-    if (!session.authenticated || !session.canTeacher) {
-      location.href = session.redirectTo || "/login";
-      return;
+    let session = null;
+    if (window.SolAuth?.enforceShell) {
+      session = await window.SolAuth.enforceShell(["teacher", "admin"]);
+      if (!session) {
+        if (!window.__authFetchRedirecting) {
+          location.replace(`/login?loggedout=1&t=${Date.now()}`);
+        }
+        return;
+      }
+    } else {
+      session = await api("/api/auth/session");
+      if (!session.authenticated || !session.canTeacher) {
+        location.replace(session.redirectTo || `/login?loggedout=1&t=${Date.now()}`);
+        return;
+      }
     }
     if (window.SolAuth) window.SolAuth.set(session.role === "teacher" ? "teacher" : "admin");
 
@@ -1402,5 +1418,14 @@
   boot().catch((err) => {
     console.error(err);
     appEl.innerHTML = `<div class="empty"><strong>Laden fehlgeschlagen</strong><p>Lehrerbereich konnte nicht geladen werden. Bitte neu anmelden.</p></div>`;
+  });
+
+  window.addEventListener("pageshow", (e) => {
+    if (!e.persisted || !window.SolAuth?.enforceShell) return;
+    window.SolAuth.enforceShell(["teacher", "admin"]).then((session) => {
+      if (!session && !window.__authFetchRedirecting) {
+        location.replace(`/login?loggedout=1&t=${Date.now()}`);
+      }
+    });
   });
 })();

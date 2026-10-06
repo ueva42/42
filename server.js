@@ -2799,12 +2799,34 @@ app.use(async (req, _res, next) => {
   next();
 });
 
+// Direkte SPA-Shell-HTML nicht ohne Rollen-Gate ausliefern (sonst History/SW-Restore)
+app.get(
+  ["/student.html", "/teacher.html", "/admin.html", "/superadmin.html"],
+  (req, res) => {
+    const user = req.session?.user;
+    if (user?.role) {
+      return res.redirect(302, defaultPostLoginPath(user));
+    }
+    return res.redirect(302, "/login");
+  }
+);
+
 // Static-Files
 app.use(
   express.static(path.join(__dirname, "public"), {
     setHeaders: (res, filePath) => {
       if (filePath.endsWith("sw.js")) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+      if (
+        filePath.endsWith("student.html") ||
+        filePath.endsWith("teacher.html") ||
+        filePath.endsWith("admin.html") ||
+        filePath.endsWith("superadmin.html") ||
+        filePath.endsWith("login.html")
+      ) {
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
       }
     }
   })
@@ -4392,6 +4414,7 @@ function loginUserSession(req, res, user, options = {}) {
       const payload = {
         success: true,
         role: user.role,
+        redirectTo: defaultPostLoginPath(user),
         firstLogin: user.role === "student" ? !!user.first_login : false
       };
       if (options.isDemo) payload.isDemo = true;
@@ -4496,6 +4519,9 @@ app.post("/api/demo/reset", async (req, res) => {
 app.post("/api/logout", (req, res) => {
   const finish = (ok = true) => {
     clearSessionCookie(res);
+    // Chrome: Cache/Storage der Site leeren, damit alte SPA-Shells nicht wiederhergestellt werden
+    res.setHeader("Clear-Site-Data", '"cache", "storage"');
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     if (!ok) {
       return res.status(500).json({ success: false, message: "Logout fehlgeschlagen." });
     }
@@ -4936,6 +4962,11 @@ function isHtmlPageRequest(req) {
 
 function denyAccess(req, res) {
   if (isHtmlPageRequest(req)) {
+    const user = req.session?.user;
+    // Eingeloggt, aber falsche Shell → Rollen-Home (nicht /login, sonst Chrome-History-Bounce)
+    if (user?.role) {
+      return res.redirect(302, defaultPostLoginPath(user));
+    }
     return res.redirect(302, "/login");
   }
   return res.status(403).json({
@@ -5012,7 +5043,7 @@ function isTeacher(req, res, next) {
 }
 
 function isStudent(req, res, next) {
-  if (!req.session.user || req.session.user.role !== "student")
+  if (!req.session?.user || req.session.user.role !== "student")
     return denyAccess(req, res);
   next();
 }
@@ -14221,7 +14252,7 @@ const studentSpaPaths = [
 ];
 
 for (const route of studentSpaPaths) {
-  app.get(route, (_req, res) => {
+  app.get(route, isStudent, (_req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.sendFile(path.join(__dirname, "public", "student.html"));

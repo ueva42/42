@@ -553,8 +553,23 @@
   </div>
 </div>
 
+<script src="/js/client-cache-reset.js?v=3"></script>
+<script src="/js/auth-fetch.js?v=15"></script>
 <script>
 let schoolsCache = [];
+
+(async function bootSuperadminShell() {
+  if (!window.SolAuth?.enforceShell) return;
+  window.__authBootstrap = true;
+  try {
+    const session = await window.SolAuth.enforceShell(["superadmin"]);
+    if (!session && !window.__authFetchRedirecting) {
+      window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
+    }
+  } finally {
+    window.__authBootstrap = false;
+  }
+})();
 
 /* Tabs */
 function showTab(id, ev) {
@@ -574,13 +589,17 @@ function showTab(id, ev) {
 
 /* Logout */
 async function logout() {
+  if (window.SolAuth?.logoutAndRedirect) {
+    await window.SolAuth.logoutAndRedirect();
+    return;
+  }
   try {
     window.SolAuth?.clear();
   } catch (_err) {}
   try {
     await fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" });
   } catch (_err) {}
-  window.location.replace("/login?loggedout=1");
+  window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
 }
 
 /* Helper: Slug automatisch aus Namen */

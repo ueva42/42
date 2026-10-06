@@ -2129,9 +2129,9 @@
   </div>
 </div>
 
-<script src="/js/client-cache-reset.js?v=2"></script>
+<script src="/js/client-cache-reset.js?v=3"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=14"></script>
+<script src="/js/auth-fetch.js?v=15"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=5"></script>
@@ -2367,6 +2367,10 @@ window.addEventListener("popstate", (e) => {
 
 /* ---------------------------- LOGOUT ---------------------------- */
 async function logout() {
+  if (window.SolAuth?.logoutAndRedirect) {
+    await window.SolAuth.logoutAndRedirect();
+    return;
+  }
   try {
     window.SolAuth?.clear();
   } catch (_err) {}
@@ -2379,7 +2383,7 @@ async function logout() {
     }
   } catch (_err) {}
   // loggedout=1 verhindert Bounce zurück zum Lehrer-Dashboard
-  window.location.replace("/login?loggedout=1");
+  window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
 }
 
 document.querySelector(".nav-item-logout")?.addEventListener("keydown", (e) => {
@@ -3820,15 +3824,6 @@ async function fixClassRewardOption(optionId) {
   await loadAdminClassProgress();
 }
 
-function rememberedStaff() {
-  const role = window.SolAuth?.get?.() || "";
-  return role === "admin" || role === "teacher";
-}
-
-function rememberedAdmin() {
-  return window.SolAuth?.is("admin") === true;
-}
-
 function markAdminAuthed(role = "admin") {
   window.SolAuth?.set(role === "teacher" ? "teacher" : "admin");
 }
@@ -3844,64 +3839,6 @@ function applyStaffNavPermissions(session) {
       section.style.display = "none";
     }
   });
-  // Lehrerverwaltung nur Admin
-  if (!canAdmin && location.pathname === "/admin") {
-    // pure teacher should not be on /admin (server guard), but keep safe
-  }
-}
-
-async function ensureAdminSessionReady() {
-  const attempts = 4;
-  const needsAdmin = location.pathname === "/admin" || String(location.hash || "").includes("teachers");
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    try {
-      const sessionRes = await fetch("/api/auth/session", {
-        credentials: "same-origin",
-        cache: "no-store"
-      });
-      if (sessionRes.status === 401) {
-        if (rememberedStaff() && attempt < attempts - 1) {
-          await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
-          continue;
-        }
-        return false;
-      }
-      if (!sessionRes.ok) {
-        await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
-        continue;
-      }
-
-      const data = await sessionRes.json();
-      if (data.authenticated === false) {
-        if (rememberedStaff() && attempt < attempts - 1) {
-          await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
-          continue;
-        }
-        return false;
-      }
-      if (needsAdmin) {
-        if (data.canAdmin || data.role === "admin") {
-          if (data.ready !== false) {
-            window.__staffSession = data;
-            return true;
-          }
-        } else {
-          return false;
-        }
-      } else if (data.canTeacher || data.role === "admin" || data.role === "teacher") {
-        if (data.ready !== false) {
-          window.__staffSession = data;
-          return true;
-        }
-      } else if (data.role && data.role !== "admin" && data.role !== "teacher") {
-        return false;
-      }
-    } catch (err) {
-      console.error("ensureAdminSessionReady", err);
-    }
-    await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
-  }
-  return rememberedStaff();
 }
 
 function startAdminShell() {
@@ -3915,26 +3852,52 @@ async function bootAdminApp() {
   if (window.__adminBooted || window.__adminBooting) return;
   window.__adminBooting = true;
   window.__authBootstrap = true;
-  const remembered = rememberedStaff();
-  if (remembered) startAdminShell();
   try {
-    const ready = await ensureAdminSessionReady();
-    if (!ready) {
-      if (remembered) return;
-      window.location.href = "/login";
-      return;
+    const needsAdmin =
+      location.pathname === "/admin" || String(location.hash || "").includes("teachers");
+    let session = null;
+    if (window.SolAuth?.enforceShell) {
+      session = await window.SolAuth.enforceShell(["admin", "teacher"], {
+        requireAdmin: needsAdmin
+      });
+      if (!session) {
+        if (!window.__authFetchRedirecting) {
+          window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
+        }
+        return;
+      }
+    } else {
+      const sessionRes = await fetch("/api/auth/session", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      if (!sessionRes.ok) {
+        window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
+        return;
+      }
+      session = await sessionRes.json();
+      if (!session.authenticated) {
+        window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
+        return;
+      }
+      if (needsAdmin && !(session.canAdmin || session.role === "admin")) {
+        window.location.replace(session.redirectTo || "/teacher");
+        return;
+      }
+      if (!(session.canTeacher || session.role === "admin" || session.role === "teacher")) {
+        window.location.replace(session.redirectTo || "/student/hub");
+        return;
+      }
     }
-    const session = window.__staffSession;
-    markAdminAuthed(session?.role || "admin");
+    if (!session) return;
+
+    window.__staffSession = session;
+    markAdminAuthed(session.role || "admin");
     applyStaffNavPermissions(session);
     startAdminShell();
   } catch (err) {
     console.error(err);
-    if (remembered) {
-      startAdminShell();
-      return;
-    }
-    window.location.href = "/login";
+    window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
   } finally {
     window.__authBootstrap = false;
     window.__adminBooting = false;
@@ -4090,7 +4053,11 @@ async function toggleTeacherActive(id, nextActive) {
 }
 
 window.addEventListener("pageshow", (e) => {
-  if (e.persisted && window.__adminBooted) return;
+  // bfcache: Rolle neu prüfen (Chrome „letzte Seite“ / Zurück)
+  if (e.persisted) {
+    window.__adminBooted = false;
+    window.__adminBooting = false;
+  }
   if (window.__adminBooted || window.__adminBooting) return;
   bootAdminApp();
 });

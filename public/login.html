@@ -10,8 +10,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <script src="/js/client-cache-reset.js?v=2"></script>
-  <script src="/js/auth-fetch.js?v=14"></script>
+  <script src="/js/client-cache-reset.js?v=3"></script>
+  <script src="/js/auth-fetch.js?v=15"></script>
   <title>Streets of Logic – Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -549,6 +549,14 @@
     const demoAdminBtn = document.getElementById("demoAdminBtn");
     const demoStudentBtn = document.getElementById("demoStudentBtn");
 
+    function homeForRole(role) {
+      if (window.SolAuth?.homeFor) return window.SolAuth.homeFor(role);
+      if (role === "superadmin") return "/superadmin";
+      if (role === "student") return "/student/hub";
+      if (role === "teacher" || role === "admin") return "/teacher";
+      return "/login";
+    }
+
     function markAuthed(role) {
       if (window.SolAuth) {
         window.SolAuth.set(role);
@@ -562,29 +570,29 @@
       } catch (_err) {}
     }
 
-    (async function resumeExistingSession() {
+    const loginParams = new URLSearchParams(window.location.search || "");
+    const forceLoginPage =
+      loginParams.get("loggedout") === "1" || loginParams.get("logout") === "1";
+
+    if (forceLoginPage) {
       try {
-        const sessionRes = await fetch("/api/auth/session", {
-          credentials: "same-origin",
-          cache: "no-store"
-        });
-        if (!sessionRes.ok) return;
-        const data = await sessionRes.json();
-        if (!data.authenticated || !data.role) return;
-        markAuthed(data.role);
-        if (data.role === "superadmin") {
-          window.location.replace("/superadmin");
-          return;
-        }
-        if (data.role === "admin" || data.role === "teacher") {
-          window.location.replace(data.redirectTo || "/teacher");
-          return;
-        }
-        if (data.role === "student") {
-          window.location.replace("/student/hub");
-        }
+        window.SolAuth?.clear?.();
       } catch (_err) {}
-    })();
+    } else {
+      (async function resumeExistingSession() {
+        try {
+          const sessionRes = await fetch("/api/auth/session", {
+            credentials: "same-origin",
+            cache: "no-store"
+          });
+          if (!sessionRes.ok) return;
+          const data = await sessionRes.json();
+          if (!data.authenticated || !data.role) return;
+          markAuthed(data.role);
+          window.location.replace(data.redirectTo || homeForRole(data.role));
+        } catch (_err) {}
+      })();
+    }
 
     async function waitForSession(role) {
       for (let i = 0; i < 8; i++) {
@@ -600,41 +608,30 @@
                 (role !== "admin" && role !== "teacher") ||
                 sessionData.ready !== false
               )
-                return true;
+                return sessionData;
             }
           }
         } catch (_err) {}
         await new Promise((r) => setTimeout(r, 150 * (i + 1)));
       }
-      return false;
+      return null;
     }
 
-    async function redirectAfterLogin(role) {
-      const ok = await waitForSession(role);
-      if (!ok) {
+    async function redirectAfterLogin(role, redirectTo) {
+      const sessionData = await waitForSession(role);
+      if (!sessionData) {
         showError("Session noch nicht bereit – bitte erneut versuchen.");
         return;
       }
 
       markAuthed(role);
 
-      if (role === "superadmin") {
-        if (window.__purgeTeacherClientCaches) {
-          await window.__purgeTeacherClientCaches();
-        }
-        window.location.href = "/superadmin";
-        return;
+      const target = redirectTo || sessionData.redirectTo || homeForRole(role);
+      if (window.__purgeTeacherClientCaches) {
+        await window.__purgeTeacherClientCaches();
       }
-
-      if (role === "admin" || role === "teacher") {
-        if (window.__purgeTeacherClientCaches) {
-          await window.__purgeTeacherClientCaches();
-        }
-        window.location.href = "/teacher";
-        return;
-      }
-
-      window.location.href = "/student/hub";
+      // replace: Chrome-History springt nicht zur vorherigen App-Shell zurück
+      window.location.replace(target);
     }
 
     async function doDemoLogin(role) {
@@ -658,11 +655,11 @@
         }
 
         if (data.firstLogin) {
-          window.location.href = "/first-login";
+          window.location.replace("/first-login");
           return;
         }
 
-        await redirectAfterLogin(data.role);
+        await redirectAfterLogin(data.role, data.redirectTo);
       } catch (err) {
         console.error(err);
         showError("Demo-Login fehlgeschlagen. Bitte erneut versuchen.");
@@ -735,12 +732,12 @@
         }
 
         if (data.firstLogin) {
-          window.location.href = "/first-login";
+          window.location.replace("/first-login");
           return;
         }
 
         // Session kurz bestätigen, bevor wir weiterleiten (PG-Store-Lag nach Login)
-        await redirectAfterLogin(data.role);
+        await redirectAfterLogin(data.role, data.redirectTo);
       } catch (err) {
         console.error(err);
         loginButton.disabled = false;

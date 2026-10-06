@@ -1,5 +1,5 @@
 /**
- * Session-aware fetch: cookies, kurzes Timeout, wenige Retries.
+ * Session-aware fetch + Rollen-Landing.
  * Logout nur wenn die Session nachweislich tot ist (401 / authenticated:false).
  * Ein 403 bei gültiger Session darf niemanden aus dem Tab werfen.
  */
@@ -30,20 +30,136 @@
     } catch (_err) {}
   }
 
+  function clearStorageKeys(store) {
+    if (!store) return;
+    const keys = [];
+    for (let i = 0; i < store.length; i++) {
+      const key = store.key(i);
+      if (!key) continue;
+      if (
+        key === AUTH_KEY ||
+        key.startsWith("sol.") ||
+        key.startsWith("sol_") ||
+        key === "sol-admin-nav-collapsed"
+      ) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => {
+      try {
+        store.removeItem(key);
+      } catch (_err) {}
+    });
+  }
+
   function authClear() {
     try {
-      sessionStorage.removeItem(AUTH_KEY);
+      clearStorageKeys(sessionStorage);
     } catch (_err) {}
     try {
-      localStorage.removeItem(AUTH_KEY);
+      clearStorageKeys(localStorage);
     } catch (_err) {}
+  }
+
+  function homeFor(role) {
+    if (role === "superadmin") return "/superadmin";
+    if (role === "student") return "/student/hub";
+    if (role === "teacher" || role === "admin") return "/teacher";
+    return "/login";
+  }
+
+  function loginUrl() {
+    return `/login?loggedout=1&t=${Date.now()}`;
+  }
+
+  function goLogin() {
+    if (window.__authBootstrap) return;
+    if (window.__authFetchRedirecting) return;
+    window.__authFetchRedirecting = true;
+    authClear();
+    window.location.replace(loginUrl());
+  }
+
+  function goHome(roleOrPath) {
+    if (window.__authFetchRedirecting) return;
+    window.__authFetchRedirecting = true;
+    const target =
+      typeof roleOrPath === "string" && roleOrPath.startsWith("/")
+        ? roleOrPath
+        : homeFor(roleOrPath);
+    window.location.replace(target || "/login");
+  }
+
+  /**
+   * Prüft Session gegen erlaubte Rollen der aktuellen Shell.
+   * Bei Mismatch → role home; bei fehlender Session → Login.
+   * @returns {Promise<object|null>} Session-Payload oder null bei Redirect
+   */
+  async function enforceShell(allowedRoles, options = {}) {
+    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+    const requireAdmin = options.requireAdmin === true;
+    try {
+      const sessionRes = await fetchWithTimeout(
+        "/api/auth/session",
+        { credentials: "same-origin", cache: "no-store" },
+        FETCH_TIMEOUT_MS
+      );
+      if (sessionRes.status === 401) {
+        goLogin();
+        return null;
+      }
+      if (!sessionRes.ok) return null;
+      const data = await sessionRes.json().catch(() => null);
+      if (!data || data.authenticated === false || !data.role) {
+        goLogin();
+        return null;
+      }
+
+      const roleOk = roles.includes(data.role);
+      const adminOk = !requireAdmin || data.canAdmin === true || data.role === "admin";
+      if (!roleOk || !adminOk) {
+        authSet(data.role);
+        goHome(data.redirectTo || homeFor(data.role));
+        return null;
+      }
+
+      authSet(data.role);
+      return data;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  async function logoutAndRedirect() {
+    if (window.__authFetchRedirecting) return;
+    window.__authFetchRedirecting = true;
+    authClear();
+    try {
+      await fetchWithTimeout(
+        "/api/logout",
+        { method: "POST", credentials: "same-origin", cache: "no-store" },
+        FETCH_TIMEOUT_MS
+      );
+    } catch (_err) {}
+    try {
+      if (window.__purgeTeacherClientCaches) {
+        await window.__purgeTeacherClientCaches();
+      }
+    } catch (_err) {}
+    window.location.replace(loginUrl());
   }
 
   window.SolAuth = {
     get: authGet,
     set: authSet,
     clear: authClear,
-    is: (role) => authGet() === role
+    is: (role) => authGet() === role,
+    homeFor,
+    loginUrl,
+    goLogin,
+    goHome,
+    enforceShell,
+    logoutAndRedirect
   };
 
   function resolvePath(input) {
@@ -78,14 +194,6 @@
       loc.startsWith("/admin") ||
       loc.startsWith("/superadmin")
     );
-  }
-
-  function goLogin() {
-    if (window.__authBootstrap) return;
-    if (window.__authFetchRedirecting) return;
-    if (authGet()) return;
-    window.__authFetchRedirecting = true;
-    window.location.href = "/login?loggedout=1";
   }
 
   function fetchWithTimeout(input, init, timeoutMs) {
@@ -156,6 +264,31 @@
         if (sessionData && sessionData.authenticated === false) {
           goLogin();
           return lastRes;
+        }
+        // Falsche Rolle für diese Shell → sofort auf Rollen-Home
+        if (sessionData?.authenticated && sessionData.role) {
+          const loc = window.location.pathname || "";
+          const role = sessionData.role;
+          const onStudent = loc.startsWith("/student");
+          const onTeacher = loc.startsWith("/teacher");
+          const onAdmin = loc === "/admin" || loc.startsWith("/admin/");
+          const onSuper = loc.startsWith("/superadmin");
+          if (onStudent && role !== "student") {
+            goHome(sessionData.redirectTo || homeFor(role));
+            return lastRes;
+          }
+          if (onTeacher && role !== "teacher" && role !== "admin") {
+            goHome(sessionData.redirectTo || homeFor(role));
+            return lastRes;
+          }
+          if (onAdmin && role !== "admin") {
+            goHome(sessionData.redirectTo || homeFor(role));
+            return lastRes;
+          }
+          if (onSuper && role !== "superadmin") {
+            goHome(sessionData.redirectTo || homeFor(role));
+            return lastRes;
+          }
         }
         return fetchWithTimeout(input, mergedInit, FETCH_TIMEOUT_MS);
       } catch (_err) {
