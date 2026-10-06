@@ -360,7 +360,7 @@
           state.bundle.topics = prevTopics;
         }
       }
-      if (Array.isArray(data.members) && data.members.length) {
+      if (Array.isArray(data.members)) {
         state.selectedMembers = data.members
           .filter((m) => String(m.inviteStatus || "accepted") !== "pending")
           .map((m) => Number(m.userId));
@@ -470,14 +470,16 @@
     }
     const step = session.setupStep;
     let status = "";
-    if (session.status === "setup") {
+    if (session.status === "standing") status = "Stammgruppe bereit";
+    else if (session.status === "setup") {
       if (step === "members") status = "Mitglieder wählen";
       else if (step === "roles") status = "Rollen verteilen";
+      else if (step === "ready") status = "Stammgruppe bereit";
       else if (step === "shared_goal") status = "Gemeinsames Vorhaben";
       else if (step === "personal_goals") status = "Persönliche Ziele";
       else if (step === "overview") status = "Bereit zum Start";
       else status = "Wird eingerichtet";
-    }     else if (session.status === "active" || session.status === "midcheck") status = "In Arbeit";
+    } else if (session.status === "active" || session.status === "midcheck") status = "In Arbeit";
     else if (session.status === "reflecting") status = "Abschluss";
     else if (session.status === "closed") status = "Fertig";
     else status = session.status || "";
@@ -485,7 +487,7 @@
   }
 
   function shell(stepLabel, title, body, footer, opts = {}) {
-    const meta = opts.meta || "Feste Gruppe · jede Stunde ein neues Ziel aus dem Levelplan.";
+    const meta = opts.meta || "Einrichtungsbereich · Gruppenmodus am Gerät";
     const chips = (opts.chips || []).filter(Boolean);
     return `
       <div class="gm-app plan-app plan-app--accordion">
@@ -744,15 +746,30 @@
   function renderHome() {
     const enabled = state.bootstrap?.enabledSubjects || [];
     const active = state.bootstrap?.activeSessions || [];
-    const mine = active.filter((s) => s.isMine !== false && (s.isMine || s.deviceMode !== "personal"));
+    const mine = active.filter((s) => !!s.isMine);
     const joinable = state.bootstrap?.joinableGroups || [];
     const invites = state.bootstrap?.pendingInvites || [];
+    const standing = state.bootstrap?.standingGroups || [];
+    const setupRosters = (state.bootstrap?.setupRosters || []).filter((s) => !!s.isMine);
     const fixed = state.bootstrap?.fixedGroups || [];
+    const standingOrFixed = standing.length
+      ? standing
+      : fixed.map((s) => ({ ...s, isMine: true }));
+    const subjectsWithStanding = new Set(
+      standingOrFixed.map((s) => String(s.subject || "").toLowerCase().trim())
+    );
+    const subjectsWithSetup = new Set(
+      setupRosters.map((s) => String(s.subject || "").toLowerCase().trim())
+    );
+    const canCreate = enabled.filter((s) => {
+      const key = String(s.subject || "").toLowerCase().trim();
+      return !subjectsWithStanding.has(key) && !subjectsWithSetup.has(key);
+    });
     const body = `
-      <p class="gm-lead">Zuerst bildet ihr eine <strong>feste Gruppe</strong> (Personen + Rollen). In jeder Stunde wählt ihr dann ein <strong>neues Ziel</strong> aus dem Levelplan – die Gruppe bleibt.</p>
+      <p class="gm-lead"><strong>Einrichtungsbereich:</strong> feste Stammgruppe (Personen). <strong>Gruppenmodus am Gerät:</strong> heute mit eurer Gruppe Ziele und Rollen bearbeiten.</p>
       ${
         invites.length
-          ? `<h3 class="gm-h3">Einladungen</h3>
+          ? `<h3 class="gm-h3">Einladungen zur Stammgruppe</h3>
              <div class="gm-cards">
                ${invites
                  .map(
@@ -765,7 +782,7 @@
                      <span class="gm-card-sub">${esc(
                        (s.memberNames || []).join(", ") || "Gruppe"
                      )}</span>
-                     <span class="gm-card-meta">${esc(s.topicName || "Noch kein Ziel")} · ${s.memberCount || 0}/${s.maxMembers || 4}</span>
+                     <span class="gm-card-meta">${s.memberCount || 0}/${s.maxMembers || 4} Personen</span>
                    </div>
                    <div class="gm-footer-row">
                      <button type="button" class="gm-primary" data-invite-accept="${esc(s.id)}">Annehmen</button>
@@ -779,7 +796,7 @@
       }
       ${
         mine.length
-          ? `<h3 class="gm-h3">Offene Stunde</h3>
+          ? `<h3 class="gm-h3">Gruppenmodus am Gerät – offene Stunde</h3>
              <div class="gm-cards">
                ${mine
                  .map(
@@ -798,7 +815,56 @@
                          : "Noch kein Ziel für heute gewählt"
                      )}</span>
                    </button>
-                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe auflösen">Gruppe auflösen</button>
+                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Stunde beenden">Stunde schließen</button>
+                 </div>`
+                 )
+                 .join("")}
+             </div>`
+          : ""
+      }
+      ${
+        standingOrFixed.length
+          ? `<h3 class="gm-h3">Gruppenmodus am Gerät starten</h3>
+             <p class="gm-muted">Eure Stammgruppe steht – tippt, um heute zu arbeiten (Ziele, Rollen, Reflexion).</p>
+             <div class="gm-cards">
+               ${standingOrFixed
+                 .map(
+                   (s) => `
+                 <div class="gm-card-wrap">
+                   <button type="button" class="gm-card" data-start-work="${esc(s.id)}">
+                     <span class="gm-card-title">${esc(s.subject)}${
+                       s.groupName ? `: ${esc(s.groupName)}` : ""
+                     }</span>
+                     <span class="gm-card-sub">${esc((s.memberNames || []).join(", ") || "Gruppe")}</span>
+                     <span class="gm-card-meta">Heute starten</span>
+                   </button>
+                   <button type="button" class="gm-ghost" data-resume="${esc(s.id)}">Stammgruppe ansehen</button>
+                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Stammgruppe auflösen">Stammgruppe auflösen</button>
+                 </div>`
+                 )
+                 .join("")}
+             </div>`
+          : ""
+      }
+      ${
+        setupRosters.length
+          ? `<h3 class="gm-h3">Einrichtungsbereich – Entwurf</h3>
+             <p class="gm-muted">Stammgruppe noch nicht fertig (Personen/Rollen).</p>
+             <div class="gm-cards">
+               ${setupRosters
+                 .map(
+                   (s) => `
+                 <div class="gm-card-wrap">
+                   <button type="button" class="gm-card" data-resume="${esc(s.id)}">
+                     <span class="gm-card-title">${esc(s.subject)}${
+                       s.groupName ? `: ${esc(s.groupName)}` : ""
+                     }</span>
+                     <span class="gm-card-sub">${esc(
+                       (s.memberNames || []).join(", ") || "Personen wählen"
+                     )}</span>
+                     <span class="gm-card-meta">Einrichtung fortsetzen</span>
+                   </button>
+                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Entwurf löschen">Entwurf löschen</button>
                  </div>`
                  )
                  .join("")}
@@ -807,8 +873,8 @@
       }
       ${
         joinable.length
-          ? `<h3 class="gm-h3">Gruppe beitreten</h3>
-             <p class="gm-muted">Offene Gruppen für eure Tabletklasse – tippe, wenn du mitmachen willst.</p>
+          ? `<h3 class="gm-h3">Stammgruppe beitreten</h3>
+             <p class="gm-muted">Offene Einrichtung in der Tabletklasse – tippe, wenn du mitmachen willst.</p>
              <div class="gm-cards">
                ${joinable
                  .map(
@@ -821,9 +887,7 @@
                      <span class="gm-card-sub">${esc(
                        (s.memberNames || []).join(", ") || "Noch frei"
                      )}</span>
-                     <span class="gm-card-meta">${s.memberCount || 0} von ${s.maxMembers || 4} · ${esc(
-                       s.topicName || "Thema folgt"
-                     )}</span>
+                     <span class="gm-card-meta">${s.memberCount || 0} von ${s.maxMembers || 4}</span>
                    </button>
                  </div>`
                  )
@@ -832,34 +896,11 @@
           : ""
       }
       ${
-        fixed.length
-          ? `<h3 class="gm-h3">Eure festen Gruppen</h3>
-             <p class="gm-muted">Gruppe bleibt – wählt für die nächste Stunde ein neues Levelplan-Ziel.</p>
-             <div class="gm-cards">
-               ${fixed
-                 .map(
-                   (s) => `
-                 <div class="gm-card-wrap">
-                   <button type="button" class="gm-card" data-new-lesson="${esc(s.id)}">
-                     <span class="gm-card-title">${esc(s.subject)}${
-                       s.groupName ? `: ${esc(s.groupName)}` : ""
-                     }</span>
-                     <span class="gm-card-sub">${esc((s.memberNames || []).join(", ") || "Gruppe")}</span>
-                     <span class="gm-card-meta">Letztes Ziel: ${esc(s.topicName || "–")} · Heute neues Ziel wählen</span>
-                   </button>
-                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe auflösen">Gruppe auflösen</button>
-                 </div>`
-                 )
-                 .join("")}
-             </div>`
-          : ""
-      }
-      ${
-        enabled.length
-          ? `<h3 class="gm-h3">Neue Gruppe anlegen</h3>
-             <p class="gm-muted">Nur nötig, wenn noch keine feste Gruppe für dieses Fach existiert.</p>
+        canCreate.length
+          ? `<h3 class="gm-h3">Einrichtungsbereich – neue Stammgruppe</h3>
+             <p class="gm-muted">Personen festlegen. Die tägliche Arbeit startet danach unter „am Gerät“.</p>
              ${cardGrid(
-               enabled.map((s) => ({
+               canCreate.map((s) => ({
                  id: s.subject,
                  title: s.subject,
                  sub:
@@ -870,10 +911,12 @@
                null,
                "subject"
              )}`
-          : `<div class="gm-empty">Eure Lehrkraft hat den Gruppenmodus noch nicht freigeschaltet.</div>`
+          : enabled.length
+            ? `<p class="gm-muted">Für freigeschaltete Fächer gibt es schon eine Stammgruppe oder einen Entwurf.</p>`
+            : `<div class="gm-empty">Eure Lehrkraft hat den Gruppenmodus noch nicht freigeschaltet.</div>`
       }`;
     return shell(null, "Gruppenarbeit", body, "", {
-      meta: "Feste Gruppe wählen oder neu anlegen – dann Ziel für heute."
+      meta: "Einrichten getrennt von der Arbeit am Gerät."
     });
   }
 
@@ -2597,17 +2640,20 @@
       });
     });
 
-    document.querySelectorAll("[data-new-lesson]").forEach((btn) => {
+    document.querySelectorAll("[data-new-lesson], [data-start-work]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         clearFlash();
         try {
-          const id = btn.getAttribute("data-new-lesson");
-          const data = await api(`/api/student/group-sessions/${id}/new-lesson`, {
-            method: "POST"
+          const id =
+            btn.getAttribute("data-start-work") || btn.getAttribute("data-new-lesson");
+          const data = await api(`/api/student/group-sessions/${id}/start-work`, {
+            method: "POST",
+            body: "{}"
           });
           applyBundle(data);
-          state.screen = "pick-topic";
-          state.message = "Gruppe bleibt – wählt jetzt das Ziel für heute.";
+          state.selectedMembers = members().map((m) => Number(m.userId));
+          resumeScreenFromBundle();
+          state.message = "Gruppenmodus am Gerät – wählt Ziele für heute.";
           render();
         } catch (err) {
           state.error = err.message;
@@ -2759,7 +2805,15 @@
           body: JSON.stringify({ assignments })
         });
         applyBundle(data);
-        state.screen = "pick-topic";
+        if (data.rosterReady || data.session?.status === "standing") {
+          state.message = "Stammgruppe fertig. Startet jetzt den Gruppenmodus am Gerät.";
+          await loadBootstrap();
+          state.screen = "home";
+          state.sessionId = null;
+          state.bundle = null;
+        } else {
+          state.screen = "pick-topic";
+        }
         render();
       } catch (err) {
         state.error = err.message;
@@ -3309,18 +3363,38 @@
       state.screen = "done";
       return;
     }
+    if (s.status === "standing") {
+      // Stammgruppe ansehen/nachpflegen
+      state.screen = members().every((m) => (m.roles || []).length) ? "roles" : "members";
+      return;
+    }
     if (s.status === "active" || s.status === "midcheck" || s.status === "reflecting") {
       state.screen = "work";
       return;
     }
     const mems = members();
     const hasMembers = mems.length > 0;
-    const hasRoles = mems.some((m) => (m.roles || []).length);
+    const hasRoles = mems.every((m) => (m.roles || []).length > 0);
     const step = s.setupStep;
+    const kind = String(s.sessionKind || "roster");
 
-    // Feste Gruppe zuerst: Personen → Rollen → Ziel der Stunde → Vorhaben → persönliche Ziele
-    if (!hasMembers || step === "members") {
-      state.screen = "members";
+    // Einrichtungsbereich (Stammgruppe): nur Personen + Rollen
+    if (kind === "roster") {
+      if (!hasMembers || step === "members") {
+        state.screen = "members";
+        return;
+      }
+      if (!hasRoles || step === "roles" || step === "ready") {
+        state.screen = "roles";
+        return;
+      }
+      state.screen = "home";
+      return;
+    }
+
+    // Gruppenmodus am Gerät (work)
+    if (!hasMembers) {
+      state.screen = "home";
       return;
     }
     if (!hasRoles || step === "roles") {
@@ -3410,36 +3484,69 @@
 
   async function startSubject(subject, date) {
     clearFlash();
-    const existing = (state.bootstrap?.activeSessions || []).find((s) => {
-      const same =
-        String(s.subject || "").toLowerCase() === String(subject || "").toLowerCase();
-      if (!same) return false;
-      if (s.deviceMode === "personal") return !!s.isMine;
-      return true;
-    });
-    if (existing?.id) {
-      state.selectedMembers = [];
-      state.roleAssignments = {};
+    state.selectedMembers = [];
+    state.roleAssignments = {};
+    const subj = String(subject || "").toLowerCase();
+
+    // Eigene offene Arbeits-Session dieses Fachs fortsetzen
+    const myWork = (state.bootstrap?.activeSessions || []).find(
+      (s) =>
+        !!s.isMine &&
+        String(s.subject || "").toLowerCase() === subj
+    );
+    if (myWork?.id) {
       try {
-        const full = await api(`/api/student/group-sessions/${existing.id}`);
+        const full = await api(`/api/student/group-sessions/${myWork.id}`);
         applyBundle(full);
         resumeScreenFromBundle();
         render();
         return;
-      } catch (err) {
-        // Kaputte/alte Session: löschen und neu starten
-        try {
-          await api(`/api/student/group-sessions/${existing.id}/delete`, { method: "POST" });
-        } catch (_) {}
-        state.bootstrap.activeSessions = (state.bootstrap.activeSessions || []).filter(
-          (s) => String(s.id) !== String(existing.id)
-        );
-      }
+      } catch (_) {}
     }
+
+    // Eigene Stammgruppe → Arbeit starten
+    const standing =
+      (state.bootstrap?.standingGroups || []).find(
+        (s) => !!s.isMine && String(s.subject || "").toLowerCase() === subj
+      ) ||
+      (state.bootstrap?.fixedGroups || []).find(
+        (s) => String(s.subject || "").toLowerCase() === subj
+      );
+    if (standing?.id) {
+      const data = await api(`/api/student/group-sessions/${standing.id}/start-work`, {
+        method: "POST",
+        body: JSON.stringify({ date: date || undefined })
+      });
+      applyBundle(data);
+      state.selectedMembers = members().map((m) => Number(m.userId));
+      resumeScreenFromBundle();
+      render();
+      return;
+    }
+
+    // Offenen Einrichtungs-Entwurf fortsetzen
+    const setup = (state.bootstrap?.setupRosters || []).find(
+      (s) => !!s.isMine && String(s.subject || "").toLowerCase() === subj
+    );
+    if (setup?.id) {
+      const full = await api(`/api/student/group-sessions/${setup.id}`);
+      applyBundle(full);
+      resumeScreenFromBundle();
+      render();
+      return;
+    }
+
     const data = await api("/api/student/group-sessions", {
       method: "POST",
       body: JSON.stringify({ subject, date: date || undefined })
     });
+    if (data.alreadyStanding && data.session?.id) {
+      state.message = data.message || "Stammgruppe existiert bereits.";
+      await loadBootstrap();
+      state.screen = "home";
+      render();
+      return;
+    }
     applyBundle(data);
     try {
       const full = await api(`/api/student/group-sessions/${data.session.id}`);
@@ -3455,7 +3562,6 @@
       } catch (_) {}
       console.warn("group session reload:", loadErr);
     }
-    state.screen = "members";
     if (data.resumed) resumeScreenFromBundle();
     else state.screen = "members";
     render();
@@ -3495,18 +3601,6 @@
             (s) => s.subject === subjectFromQuery
           );
           if (enabled) {
-            const existing = (state.bootstrap?.activeSessions || []).find((s) => {
-              if (s.subject !== subjectFromQuery) return false;
-              if (s.deviceMode === "personal") return !!s.isMine;
-              return true;
-            });
-            if (existing) {
-              const full = await api(`/api/student/group-sessions/${existing.id}`);
-              applyBundle(full);
-              resumeScreenFromBundle();
-              render();
-              return;
-            }
             await startSubject(subjectFromQuery, dateFromQuery || state.bootstrap?.date);
             return;
           }

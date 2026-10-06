@@ -51,12 +51,17 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
   }
 
   const state = {
-    view: "overview", // overview | settings | roles | import
+    view: "overview", // overview | rosters | settings | roles | import
     classes: [],
     classId: null,
     subject: "Physik",
     settings: null,
     sessions: [],
+    rosters: [],
+    classmates: [],
+    rosterDraftIds: [],
+    rosterName: "",
+    editingRosterId: null,
     expandedId: null,
     expandedRoleId: null,
     loading: false,
@@ -86,6 +91,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
   function statusLabel(status) {
     const map = {
       setup: "Einrichtung",
+      standing: "Stammgruppe",
       active: "In Arbeit",
       midcheck: "In Arbeit",
       reflecting: "Abschluss",
@@ -128,7 +134,28 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     const r = await fetch(`/api/teacher/group-sessions?${q}`);
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || "Gruppen laden fehlgeschlagen");
-    state.sessions = data.sessions || [];
+    state.sessions = (data.sessions || []).filter((b) => {
+      const s = b.session || {};
+      if (s.status === "standing") return false;
+      const kind = String(s.sessionKind || "roster");
+      if (kind === "roster" && ["members", "roles", "ready"].includes(String(s.setupStep || ""))) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  async function loadRosters() {
+    if (!state.classId) return;
+    const q = new URLSearchParams({
+      classId: String(state.classId),
+      subject: state.subject || ""
+    });
+    const r = await fetch(`/api/teacher/group-rosters?${q}`);
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Stammgruppen laden fehlgeschlagen");
+    state.rosters = data.rosters || [];
+    state.classmates = data.classmates || [];
   }
 
   async function saveSettings() {
@@ -221,8 +248,9 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
         </div>
       </div>
       <nav class="gm-tabs" aria-label="Gruppenmodus">
-        <button type="button" class="gm-tab ${view === "overview" ? "is-on" : ""}" id="gmViewOverview">Gruppen</button>
-        <button type="button" class="gm-tab ${view === "settings" ? "is-on" : ""}" id="gmViewSettings">Einrichten</button>
+        <button type="button" class="gm-tab ${view === "overview" ? "is-on" : ""}" id="gmViewOverview">Stunden</button>
+        <button type="button" class="gm-tab ${state.view === "rosters" ? "is-on" : ""}" id="gmViewRosters">Stammgruppen</button>
+        <button type="button" class="gm-tab ${view === "settings" ? "is-on" : ""}" id="gmViewSettings">Einstellungen</button>
         <button type="button" class="gm-tab ${view === "roles" ? "is-on" : ""}" id="gmViewRoles">Rollen</button>
       </nav>`;
   }
@@ -616,6 +644,84 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
       }`;
   }
 
+  function renderRosters() {
+    const min = state.settings?.minMembers || 2;
+    const max = state.settings?.maxMembers || 4;
+    const busy = new Set();
+    for (const b of state.rosters) {
+      for (const m of b.members || []) {
+        if (state.editingRosterId && String(b.session?.id) === String(state.editingRosterId)) continue;
+        busy.add(Number(m.userId));
+      }
+    }
+    const picked = new Set(state.rosterDraftIds.map(Number));
+    const cards = (state.classmates || [])
+      .map((c) => {
+        const id = Number(c.id);
+        const on = picked.has(id);
+        const locked = busy.has(id) && !on;
+        return `<button type="button" class="gm-choice ${on ? "is-on" : ""}" data-roster-pick="${id}" ${
+          locked ? "disabled" : ""
+        }>
+          <strong>${escapeHtml(c.displayName || c.name)}</strong>
+          <span>${locked ? "schon in Gruppe" : on ? "ausgewählt" : "tippen"}</span>
+        </button>`;
+      })
+      .join("");
+
+    return `
+      <div class="panel gm-panel">
+        <h3>Einrichtungsbereich – Stammgruppen</h3>
+        <p class="hint">Hier legst du fest, wer in welcher Gruppe ist. Die tägliche Arbeit läuft bei den Schüler:innen unter „Gruppenmodus am Gerät“.</p>
+        <div class="gm-sec">
+          <label class="gm-num">Gruppenname (optional)
+            <input type="text" id="gmRosterName" maxlength="80" value="${escapeHtml(state.rosterName || "")}" placeholder="z. B. Gruppe A"/>
+          </label>
+          <p class="hint">${state.rosterDraftIds.length} gewählt (${min}–${max})</p>
+          <div class="gm-choices">${cards || "<p class='hint'>Keine Schüler in der Klasse.</p>"}</div>
+          <div class="gm-save-row">
+            <button type="button" class="action" id="gmRosterSave" ${
+              state.rosterDraftIds.length < min || state.rosterDraftIds.length > max ? "disabled" : ""
+            }>${state.editingRosterId ? "Stammgruppe speichern" : "Stammgruppe anlegen"}</button>
+            ${
+              state.editingRosterId
+                ? `<button type="button" class="action" id="gmRosterCancelEdit">Abbrechen</button>`
+                : ""
+            }
+            ${
+              state.editingRosterId
+                ? `<button type="button" class="action" id="gmRosterReady">Als bereit markieren</button>`
+                : ""
+            }
+          </div>
+          ${state.message ? `<p class="gm-ok">${escapeHtml(state.message)}</p>` : ""}
+          ${state.error ? `<p class="gm-err">${escapeHtml(state.error)}</p>` : ""}
+        </div>
+        <h3>Bestehende Stammgruppen</h3>
+        ${
+          state.rosters.length
+            ? `<div class="gm-session-list">${state.rosters
+                .map((b) => {
+                  const s = b.session;
+                  const names = (b.members || []).map((m) => m.displayName).join(", ");
+                  return `<article class="gm-session-card">
+                    <div class="gm-session-head__row" style="padding:14px 16px">
+                      <strong>${escapeHtml(s.groupName || names || s.subject)}</strong>
+                      <span class="gm-status ${statusClass(s.status)}">${escapeHtml(statusLabel(s.status))}</span>
+                    </div>
+                    <p style="padding:0 16px;color:#94a3b8">${escapeHtml(names || "Keine Mitglieder")}</p>
+                    <div class="gm-session-actions" style="padding:12px 16px">
+                      <button type="button" class="action" data-roster-edit="${s.id}">Bearbeiten</button>
+                      <button type="button" class="action gm-delete-session" data-delete="${s.id}">Auflösen</button>
+                    </div>
+                  </article>`;
+                })
+                .join("")}</div>`
+            : `<p class="hint">Noch keine Stammgruppen – oben Personen wählen und anlegen.</p>`
+        }
+      </div>`;
+  }
+
   function renderOverview() {
     const enabled = !!state.settings?.enabled;
     const setupBanner = !enabled
@@ -626,21 +732,27 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
            </div>
            <button type="button" class="action" id="gmGotoSetup">Jetzt einrichten</button>
          </div>`
-      : "";
+      : `<div class="gm-banner">
+           <div>
+             <strong>Stammgruppen zuerst</strong>
+             <p>Mitglieder im Tab „Stammgruppen“ festlegen – die Stunde erscheint hier, sobald am Gerät gestartet wird.</p>
+           </div>
+           <button type="button" class="action" id="gmGotoRosters">Zu Stammgruppen</button>
+         </div>`;
 
     if (!state.sessions.length) {
       return `
         <div class="panel gm-panel">
           ${setupBanner}
-          <h3>Gruppen in dieser Stunde</h3>
-          <p class="hint">Sobald Schüler eine Gruppe starten, erscheint sie hier – mit Rollen, Zielen und Fortschritt.</p>
+          <h3>Gruppenmodus am Gerät – laufende Stunden</h3>
+          <p class="hint">Sobald eine Stammgruppe die Arbeit startet, erscheint sie hier.</p>
         </div>`;
     }
 
     return `
       <div class="panel gm-panel">
         ${setupBanner}
-        <h3>Gruppen in dieser Stunde</h3>
+        <h3>Gruppenmodus am Gerät – laufende Stunden</h3>
         <div class="gm-session-list">
           ${state.sessions
             .map((bundle) => {
@@ -701,7 +813,9 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
           ? renderRoles()
           : state.view === "import"
             ? renderImport()
-            : renderOverview();
+            : state.view === "rosters"
+              ? renderRosters()
+              : renderOverview();
     el.innerHTML = `
       <style>
         .gm-head{display:flex;flex-wrap:wrap;gap:16px 24px;justify-content:space-between;align-items:flex-end;margin:0 0 14px}
@@ -818,6 +932,12 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
       state.view = "overview";
       await refresh();
     });
+    document.getElementById("gmViewRosters")?.addEventListener("click", async () => {
+      state.view = "rosters";
+      state.message = "";
+      state.error = "";
+      await refresh();
+    });
     document.getElementById("gmViewSettings")?.addEventListener("click", async () => {
       state.view = "settings";
       await refresh();
@@ -835,6 +955,106 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     document.getElementById("gmGotoSetup")?.addEventListener("click", async () => {
       state.view = "settings";
       await refresh();
+    });
+    document.getElementById("gmGotoRosters")?.addEventListener("click", async () => {
+      state.view = "rosters";
+      await refresh();
+    });
+    document.querySelectorAll("[data-roster-pick]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = Number(btn.getAttribute("data-roster-pick"));
+        const max = state.settings?.maxMembers || 4;
+        if (state.rosterDraftIds.some((x) => Number(x) === id)) {
+          state.rosterDraftIds = state.rosterDraftIds.filter((x) => Number(x) !== id);
+        } else if (state.rosterDraftIds.length < max) {
+          state.rosterDraftIds = [...state.rosterDraftIds, id];
+        }
+        state.rosterName = document.getElementById("gmRosterName")?.value || state.rosterName;
+        render();
+      });
+    });
+    document.getElementById("gmRosterCancelEdit")?.addEventListener("click", () => {
+      state.editingRosterId = null;
+      state.rosterDraftIds = [];
+      state.rosterName = "";
+      render();
+    });
+    document.getElementById("gmRosterSave")?.addEventListener("click", async () => {
+      state.message = "";
+      state.error = "";
+      state.rosterName = document.getElementById("gmRosterName")?.value || "";
+      try {
+        const payload = {
+          classId: state.classId,
+          subject: state.subject,
+          groupName: state.rosterName,
+          memberIds: state.rosterDraftIds
+        };
+        let r;
+        if (state.editingRosterId) {
+          r = await fetch(`/api/teacher/group-rosters/${state.editingRosterId}/members`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+        } else {
+          r = await fetch("/api/teacher/group-rosters", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+        }
+        const data = await r.json();
+        if (!r.ok || data.success === false) {
+          throw new Error(data.message || data.error || "Speichern fehlgeschlagen");
+        }
+        state.editingRosterId = data.session?.id || state.editingRosterId;
+        state.message = "Stammgruppe gespeichert.";
+        state.rosterDraftIds = (data.members || [])
+          .filter((m) => String(m.inviteStatus || "accepted") !== "pending")
+          .map((m) => Number(m.userId));
+        await loadRosters();
+        render();
+      } catch (err) {
+        state.error = err.message || "Speichern fehlgeschlagen.";
+        render();
+      }
+    });
+    document.getElementById("gmRosterReady")?.addEventListener("click", async () => {
+      if (!state.editingRosterId) return;
+      try {
+        const r = await fetch(`/api/teacher/group-rosters/${state.editingRosterId}/ready`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}"
+        });
+        const data = await r.json();
+        if (!r.ok || data.success === false) {
+          throw new Error(data.message || data.error || "Markieren fehlgeschlagen");
+        }
+        state.message = "Stammgruppe ist bereit für den Gruppenmodus am Gerät.";
+        state.editingRosterId = null;
+        state.rosterDraftIds = [];
+        state.rosterName = "";
+        await loadRosters();
+        render();
+      } catch (err) {
+        state.error = err.message || "Markieren fehlgeschlagen.";
+        render();
+      }
+    });
+    document.querySelectorAll("[data-roster-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-roster-edit");
+        const bundle = state.rosters.find((b) => String(b.session?.id) === String(id));
+        if (!bundle) return;
+        state.editingRosterId = id;
+        state.rosterName = bundle.session?.groupName || "";
+        state.rosterDraftIds = (bundle.members || []).map((m) => Number(m.userId));
+        state.message = "";
+        state.error = "";
+        render();
+      });
     });
     document.getElementById("gmSaveSettings")?.addEventListener("click", async () => {
       readSettingsFromForm();
@@ -1151,6 +1371,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     try {
       await loadSettings();
       if (state.view === "overview") await loadSessions();
+      if (state.view === "rosters") await loadRosters();
     } catch (err) {
       state.error = err.message || "Laden fehlgeschlagen.";
     } finally {

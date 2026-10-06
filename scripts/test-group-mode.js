@@ -5,9 +5,12 @@
 import {
   allRolesCovered,
   clampGroupSize,
+  isEmptyMembershipShell,
   joinGoalTexts,
   memberGoalsComplete,
+  membershipLocksStudent,
   normalizeGoalList,
+  normalizeSessionKind,
   parseRoleGoalsCsv,
   roleGoalDedupeKey,
   sessionProgress,
@@ -170,7 +173,37 @@ testMultiGoals();
 testDeviceMode();
 testPulseRollover();
 testMidCheckDisabledProgress();
+testSessionKindBusy();
 console.log("OK – group-mode helper tests passed");
+
+function testSessionKindBusy() {
+  assert(normalizeSessionKind("work") === "work", "work kind");
+  assert(normalizeSessionKind("roster") === "roster", "roster kind");
+  assert(
+    !membershipLocksStudent({ status: "setup", setup_step: "members", session_kind: "roster" }, 1),
+    "solo host not busy"
+  );
+  assert(
+    membershipLocksStudent({ status: "setup", setup_step: "members", session_kind: "roster" }, 2),
+    "two members lock"
+  );
+  assert(
+    membershipLocksStudent({ status: "standing", setup_step: "ready", session_kind: "roster" }, 1),
+    "standing locks"
+  );
+  assert(
+    membershipLocksStudent({ status: "active", setup_step: "topic", session_kind: "work" }, 1),
+    "work locks"
+  );
+  assert(
+    isEmptyMembershipShell({ status: "setup", setup_step: "members", session_kind: "roster" }, 1),
+    "solo shell"
+  );
+  assert(
+    !isEmptyMembershipShell({ status: "setup", setup_step: "members", session_kind: "roster" }, 2),
+    "two not shell"
+  );
+}
 
 function testDeviceMode() {
   assert(normalizeDeviceMode("personal") === "personal", "personal");
