@@ -40,6 +40,7 @@ import {
   teacherCanAccessStudent,
   userCanAccessAdminArea,
   userCanAccessTeacherArea,
+  userCanAccessTeacherShell,
   listAccessibleClasses,
   defaultPostLoginPath
 } from "./lib/teacher-auth.js";
@@ -5077,6 +5078,41 @@ function isTeacher(req, res, next) {
       next();
     } catch (err) {
       console.error("❌ isTeacher:", err);
+      return denyAccess(req, res);
+    }
+  })();
+}
+
+/** HTML /teacher* – nur role=teacher (Admin bleibt unter /admin). */
+function isTeacherShell(req, res, next) {
+  const sessionUser = req.session?.user;
+  if (!sessionUser?.id || !userCanAccessTeacherShell(sessionUser)) {
+    return denyAccess(req, res);
+  }
+  if (sessionUser.school_id != null) {
+    return next();
+  }
+  (async () => {
+    try {
+      const refreshed = await refreshSessionUserFromDb(req);
+      if (refreshed.inactive) {
+        req.session.user = null;
+        return denyAccess(req, res);
+      }
+      const liveUser = refreshed.user;
+      if (!liveUser || !userCanAccessTeacherShell(liveUser)) {
+        return denyAccess(req, res);
+      }
+      if (refreshed.changed) {
+        try {
+          await saveSession(req);
+        } catch (err) {
+          console.error("❌ isTeacherShell save:", err);
+        }
+      }
+      next();
+    } catch (err) {
+      console.error("❌ isTeacherShell:", err);
       return denyAccess(req, res);
     }
   })();
@@ -14387,7 +14423,7 @@ app.get("/admin", isAdmin, (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "admin.html"));
 });
 
-app.get("/teacher", isTeacher, (_req, res) => {
+app.get("/teacher", isTeacherShell, (_req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.sendFile(path.join(__dirname, "public", "teacher.html"));
 });
@@ -14402,7 +14438,7 @@ const teacherAppPaths = [
 ];
 
 for (const route of teacherAppPaths) {
-  app.get(route, isTeacher, (_req, res) => {
+  app.get(route, isTeacherShell, (_req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.sendFile(path.join(__dirname, "public", "teacher.html"));
   });
@@ -14429,7 +14465,7 @@ const teacherSpaPaths = [
 ];
 
 for (const route of teacherSpaPaths) {
-  app.get(route, isTeacher, (_req, res) => {
+  app.get(route, isTeacherShell, (_req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.sendFile(path.join(__dirname, "public", "admin.html"));

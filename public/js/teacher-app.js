@@ -30,16 +30,6 @@
   const sheet = document.getElementById("sheet");
   const sheetBody = document.getElementById("sheetBody");
   const sheetBackdrop = document.getElementById("sheetBackdrop");
-  const adminSwitchEl = document.getElementById("adminSwitch");
-
-  function isAdminUser(me = state.me) {
-    return me?.canAdmin === true || me?.role === "admin";
-  }
-
-  function updateAdminSwitch() {
-    if (!adminSwitchEl) return;
-    adminSwitchEl.classList.toggle("hidden", !isAdminUser());
-  }
 
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
@@ -636,8 +626,7 @@
     if (!state.classId || !state.classes.length) {
       return `<div class="empty">
         <strong>Keine Klasse zugewiesen.</strong>
-        <p>Zuweisung erfolgt in der Administration. Admins wechseln oben rechts.</p>
-        ${isAdminUser() ? `<a class="btn btn-primary" href="/admin#class">Zur Administration</a>` : ""}
+        <p>Bitte die Schulleitung / Administration – die Klassenzuweisung erfolgt im Admin-Bereich mit einem eigenen Admin-Konto.</p>
       </div>`;
     }
     if (!data) {
@@ -674,8 +663,7 @@
     if (!cards.length) {
       return `<div class="empty">
         <strong>Keine zugewiesenen Klassen</strong>
-        <p>Sobald dir Klassen zugewiesen sind, siehst du hier den Schnellüberblick.</p>
-        ${isAdminUser() ? `<a class="btn btn-primary" href="/admin#class">Klassen zuweisen</a>` : ""}
+        <p>Sobald dir Klassen zugewiesen sind, siehst du hier den Schnellüberblick. Zuweisung nur über ein Admin-Konto.</p>
       </div>`;
     }
 
@@ -763,17 +751,6 @@
         <h2 class="section-title">Konto</h2>
       </div>
       <div class="tile-grid tile-grid--tools">
-        ${
-          isAdminUser()
-            ? `<a class="tile tile--tool tile--admin accent-violet" href="/admin#class">
-                <span class="tile-admin-badge">Admin</span>
-                <p class="tile-kicker">Verwaltung</p>
-                <h3>Administration</h3>
-                <p>Klassen, Schüler, XP, Lehrerverwaltung</p>
-                <span class="tile-cta">Zur Admin-Oberfläche →</span>
-              </a>`
-            : ""
-        }
         <button type="button" class="tile tile--tool tile--danger" id="logoutBtn">
           <p class="tile-kicker">Session</p>
           <h3>Abmelden</h3>
@@ -1377,7 +1354,7 @@
     dateInput.value = state.date;
     let session = null;
     if (window.SolAuth?.enforceShell) {
-      session = await window.SolAuth.enforceShell(["teacher", "admin"]);
+      session = await window.SolAuth.enforceShell(["teacher"]);
       if (!session) {
         if (!window.__authFetchRedirecting) {
           location.replace(`/login?loggedout=1&t=${Date.now()}`);
@@ -1386,18 +1363,17 @@
       }
     } else {
       session = await api("/api/auth/session");
-      if (!session.authenticated || !session.canTeacher) {
+      if (!session.authenticated || session.role !== "teacher") {
         location.replace(session.redirectTo || `/login?loggedout=1&t=${Date.now()}`);
         return;
       }
     }
-    if (window.SolAuth) window.SolAuth.set(session.role === "teacher" ? "teacher" : "admin");
+    if (window.SolAuth) window.SolAuth.set("teacher");
 
     state.me = await api("/api/teacher/me");
     state.classes = state.me.classes || [];
     state.classId = state.classes[0]?.id || null;
     fillClassSelect(state.classes);
-    updateAdminSwitch();
 
     const path = location.pathname;
     if (path.startsWith("/teacher/schueler")) {
@@ -1422,7 +1398,7 @@
 
   window.addEventListener("pageshow", (e) => {
     if (!e.persisted || !window.SolAuth?.enforceShell) return;
-    window.SolAuth.enforceShell(["teacher", "admin"]).then((session) => {
+    window.SolAuth.enforceShell(["teacher"]).then((session) => {
       if (!session && !window.__authFetchRedirecting) {
         location.replace(`/login?loggedout=1&t=${Date.now()}`);
       }

@@ -278,7 +278,7 @@
             goHome(sessionData.redirectTo || homeFor(role));
             return lastRes;
           }
-          if (onTeacher && role !== "teacher" && role !== "admin") {
+          if (onTeacher && role !== "teacher") {
             goHome(sessionData.redirectTo || homeFor(role));
             return lastRes;
           }

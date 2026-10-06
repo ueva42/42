@@ -21,13 +21,15 @@ German SRL logbook + GTA-themed XP platform for schools (classes 5–9+).
 | Role | After login | UI |
 |------|-------------|-----|
 | `student` | `/student/today` (or `/first-login`) | `public/student.html` SPA |
-| `teacher` | `/teacher` (Lehrer-App) | `public/teacher.html` |
-| `admin` (often also teaching) | `/teacher` → Admin via Profil/„Administration“ | `teacher.html` + `admin.html` |
+| `teacher` | `/teacher` only (Lehrer-Dashboard) | `public/teacher.html` (+ Lern-Tools via `/teacher/*` → `admin.html` shell) |
+| `admin` | `/admin` only (Administration) | `public/admin.html` |
 | `superadmin` | `/superadmin` | `public/superadmin.html` |
+
+**Strict separation:** one role per account; no Admin↔Lehrer in-app switch. Admins manage teacher accounts (start password) in `/admin`; teachers log in with their own credentials to `/teacher`. Wrong-role URLs bounce to that role’s home.
 
 Session: `req.session.user = { id, role, class_id, school_id }`. Multi-tenant via `school_id`.
 Teacher class scope: `teacher_class_assignments` (admins see all school classes).
-Auth helpers: `isTeacher` (teacher|admin), `isAdmin` (admin only). Insights: `lib/teacher-insights.js`.
+Auth helpers: `isTeacher` APIs (teacher\|admin for admin-shell tools), `isTeacherShell` HTML `/teacher*` (teacher only), `isAdmin` (admin only). Insights: `lib/teacher-insights.js`.
 
 ## What the app does (feature map)
 
