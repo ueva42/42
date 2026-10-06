@@ -580,7 +580,7 @@ async function logout() {
   try {
     await fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" });
   } catch (_err) {}
-  window.location.replace("/login");
+  window.location.replace("/login?loggedout=1");
 }
 
 /* Helper: Slug automatisch aus Namen */

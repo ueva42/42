@@ -62,7 +62,7 @@
     if (res.status === 401 || res.status === 403) {
       const data = await res.json().catch(() => ({}));
       if (res.status === 401 || data?.error === "Forbidden") {
-        window.location.href = "/login";
+        window.location.href = "/login?loggedout=1";
         throw new Error("Nicht angemeldet");
       }
     }
@@ -1261,7 +1261,7 @@
           await window.__purgeTeacherClientCaches();
         }
       } catch (_err) {}
-      window.location.replace("/login");
+      window.location.replace("/login?loggedout=1");
       return;
     }
     if (ev.target.closest("#backFromStudent")) {

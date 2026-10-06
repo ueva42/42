@@ -249,6 +249,30 @@
       text-transform: uppercase;
     }
 
+    .admin-logout-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(248, 113, 113, 0.55);
+      background: linear-gradient(120deg, #dc2626, #b91c1c);
+      color: #fef2f2;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .admin-logout-btn:hover,
+    .admin-logout-btn:focus-visible {
+      outline: none;
+      border-color: rgba(254, 202, 202, 0.9);
+      box-shadow: 0 0 16px rgba(248, 113, 113, 0.45);
+    }
+
     .nav-item:hover {
       transform: translateX(4px);
       background: linear-gradient(120deg, rgba(248,250,252,0.08), rgba(15,23,42,0.97));
@@ -280,6 +304,9 @@
       margin-top: auto;
       background: linear-gradient(120deg, #dc2626, #b91c1c);
       border-color: #fecaca;
+      position: relative;
+      z-index: 5;
+      cursor: pointer;
     }
 
     .nav-item-logout svg {
@@ -1665,11 +1692,14 @@
         <h1>STREETS OF LOGIC</h1>
         <div class="page-subtitle">XP EDITION – ADMIN CONTROL</div>
       </div>
-      <div class="page-header-actions admin-only-nav">
-        <a class="admin-teacher-switch" href="/teacher" aria-label="Zur Lehrer-App">
+      <div class="page-header-actions">
+        <a class="admin-teacher-switch admin-only-nav" href="/teacher" aria-label="Zur Lehrer-App">
           <span class="admin-badge">Admin</span>
           Zur Lehrer-App
         </a>
+        <button type="button" class="admin-logout-btn" id="adminLogoutBtn" onclick="logout()">
+          Logout
+        </button>
       </div>
     </div>
 
@@ -2101,7 +2131,7 @@
 
 <script src="/js/client-cache-reset.js?v=2"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=13"></script>
+<script src="/js/auth-fetch.js?v=14"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=5"></script>
@@ -2162,6 +2192,7 @@ const ROUTE_TABS = {
 };
 
 const HASH_TABS = {
+  // Admin-Bereich unter /admin#…
   xp: "xpTab",
   classProgress: "classProgressTab",
   class: "classTab",
@@ -2170,7 +2201,22 @@ const HASH_TABS = {
   bonus: "bonusTab",
   character: "characterTab",
   level: "levelTab",
-  profile: "profileTab"
+  profile: "profileTab",
+  // Lernsteuerung ebenfalls unter /admin halten (kein Bounce auf /teacher/*)
+  dashboard: "dashboardTab",
+  week: "teacherWeekTab",
+  timetable: "timetableTab",
+  levelplan: "levelplanTab",
+  "levelplan-zuordnung": "levelplanZuordnungTab",
+  "lesson-goals": "lessonGoalsTab",
+  "was-goals": "wasGoalsTab",
+  "levelplan-import": "levelplanImportTab",
+  termine: "termineTab",
+  gruppenmodus: "gruppenmodusTab",
+  materialschrank: "materialschrankTab",
+  "levelcheck-planen": "competenciesTab",
+  competencies: "competenciesTab",
+  levelchecks: "competenciesTab"
 };
 
 const TAB_NAV_SECTIONS = {
@@ -2259,18 +2305,25 @@ function showTab(id, ev, options = {}) {
     navItem.classList.add("active");
   }
 
-  if (!options.skipHistory && TEACHER_TAB_ROUTES[id]?.startsWith("/teacher")) {
-    const url = TEACHER_TAB_ROUTES[id];
-    if (location.pathname !== url) {
-      history.pushState({ tab: id }, "", url);
-    }
-  } else if (!options.skipHistory) {
+  if (!options.skipHistory) {
     const hashEntry = Object.entries(HASH_TABS).find(([, tabId]) => tabId === id);
-    if (hashEntry) {
-      const next = `#${hashEntry[0]}`;
-      if (location.hash !== next) {
+    const onAdminPath = location.pathname === "/admin";
+    if (onAdminPath && hashEntry) {
+      // Im Admin bleiben – nicht nach /teacher/dashboard o. ä. pushen
+      const next = `/admin#${hashEntry[0]}`;
+      const current = `${location.pathname}${location.hash || ""}`;
+      if (current !== next) {
         history.replaceState({ tab: id }, "", next);
       }
+    } else if (TEACHER_TAB_ROUTES[id]?.startsWith("/teacher")) {
+      const url = TEACHER_TAB_ROUTES[id];
+      if (location.pathname !== url) {
+        history.pushState({ tab: id }, "", url);
+      }
+    } else if (hashEntry) {
+      // Admin-Tab von /teacher/*-SPA aus → sauber nach /admin#…
+      const next = `/admin#${hashEntry[0]}`;
+      history.pushState({ tab: id }, "", next);
     }
   }
 
@@ -2306,7 +2359,9 @@ function initAdminRoute() {
 }
 
 window.addEventListener("popstate", (e) => {
-  const tab = e.state?.tab || ROUTE_TABS[location.pathname] || "dashboardTab";
+  const hash = String(location.hash || "").replace(/^#/, "");
+  const tab =
+    e.state?.tab || HASH_TABS[hash] || ROUTE_TABS[location.pathname] || "dashboardTab";
   showTab(tab, null, { skipHistory: true });
 });
 
@@ -2323,10 +2378,17 @@ async function logout() {
       await window.__purgeTeacherClientCaches();
     }
   } catch (_err) {}
-  window.location.replace("/login");
+  // loggedout=1 verhindert Bounce zurück zum Lehrer-Dashboard
+  window.location.replace("/login?loggedout=1");
 }
 
 document.querySelector(".nav-item-logout")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    logout();
+  }
+});
+document.getElementById("adminLogoutBtn")?.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") {
     e.preventDefault();
     logout();

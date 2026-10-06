@@ -1,4 +1,4 @@
-const CACHE_VERSION = "sol-logbuch-v26";
+const CACHE_VERSION = "sol-logbuch-v27";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -38,6 +38,7 @@ self.addEventListener("activate", (event) => {
 
 function shouldBypassCache(pathname) {
   return (
+    pathname === "/teacher" ||
     pathname.startsWith("/teacher/") ||
     pathname.startsWith("/student/") ||
     pathname.startsWith("/admin") ||
@@ -95,6 +96,7 @@ function staleWhileRevalidate(request, cacheName, maxItems = 80) {
 
 function isPrivateAppPath(pathname) {
   return (
+    pathname === "/teacher" ||
     pathname.startsWith("/teacher/") ||
     pathname.startsWith("/student/") ||
     pathname.startsWith("/admin") ||

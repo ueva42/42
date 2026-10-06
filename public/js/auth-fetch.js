@@ -85,7 +85,7 @@
     if (window.__authFetchRedirecting) return;
     if (authGet()) return;
     window.__authFetchRedirecting = true;
-    window.location.href = "/login";
+    window.location.href = "/login?loggedout=1";
   }
 
   function fetchWithTimeout(input, init, timeoutMs) {

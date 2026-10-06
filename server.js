@@ -2745,7 +2745,33 @@ app.use((req, res, next) => {
   next();
 });
 
+function clearSessionCookie(res) {
+  res.clearCookie("connect.sid", {
+    path: "/",
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax"
+  });
+}
+
+function sendLoginPage(res) {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  clearSessionCookie(res);
+  return res.sendFile(path.join(__dirname, "public", "login.html"));
+}
+
 function sendToAppOrLogin(req, res) {
+  // Expliziter Logout: Login immer zeigen und Rest-Session verwerfen,
+  // sonst bounce Admin/Teacher wegen sendToAppOrLogin zurück in die App.
+  const forceLogin =
+    String(req.query?.loggedout || "") === "1" || String(req.query?.logout || "") === "1";
+  if (forceLogin) {
+    if (req.session) {
+      return req.session.destroy(() => sendLoginPage(res));
+    }
+    return sendLoginPage(res);
+  }
+
   const user = req.session?.user;
   const role = user?.role;
   if (role === "admin" || role === "teacher") {
@@ -2753,8 +2779,7 @@ function sendToAppOrLogin(req, res) {
   }
   if (role === "student") return res.redirect(302, "/student/hub");
   if (role === "superadmin") return res.redirect(302, "/superadmin");
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  return res.sendFile(path.join(__dirname, "public", "login.html"));
+  return sendLoginPage(res);
 }
 
 app.get("/", sendToAppOrLogin);
@@ -4469,29 +4494,27 @@ app.post("/api/demo/reset", async (req, res) => {
 });
 
 app.post("/api/logout", (req, res) => {
-  const clearSessionCookie = () => {
-    // express-session lässt die Cookie-SID sonst oft stehen → Redirect auf /login
-    // bounce zurück in die App (Admin/Teacher), sobald parallele Requests die Session neu speichern.
-    res.clearCookie("connect.sid", {
-      path: "/",
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "lax"
-    });
-  };
-
-  if (!req.session) {
-    clearSessionCookie();
-    return res.json({ success: true });
-  }
-
-  req.session.destroy((err) => {
-    clearSessionCookie();
-    if (err) {
-      console.error("❌ /api/logout destroy:", err);
+  const finish = (ok = true) => {
+    clearSessionCookie(res);
+    if (!ok) {
       return res.status(500).json({ success: false, message: "Logout fehlgeschlagen." });
     }
-    res.json({ success: true });
+    return res.json({ success: true, loggedOut: true });
+  };
+
+  if (!req.session) return finish(true);
+
+  try {
+    // User sofort entfernen, falls destroy mit parallelen Saves raced.
+    if (req.session.user) req.session.user = null;
+  } catch (_err) {}
+
+  req.session.destroy((err) => {
+    if (err) {
+      console.error("❌ /api/logout destroy:", err);
+      return finish(false);
+    }
+    finish(true);
   });
 });
 

@@ -13062,7 +13062,7 @@ h2 {
 
 <script src="/js/xp-burst.js?v=1"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=12"></script>
+<script src="/js/auth-fetch.js?v=14"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
@@ -13131,7 +13131,7 @@ async function logout() {
   try {
     await fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" });
   } catch (_err) {}
-  window.location.replace("/login");
+  window.location.replace("/login?loggedout=1");
 }
 
 /* ============================================
