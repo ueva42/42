@@ -5365,9 +5365,11 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       goalSource = picked.goalSource;
     }
 
-    const howGoals = activeSubject
-      ? lessonGoalsForSubject(customLessonGoals, activeSubject)
-      : LOG_HOW_GOALS;
+    let howGoals = [
+      ...(activeSubject
+        ? lessonGoalsForSubject(customLessonGoals, activeSubject)
+        : LOG_HOW_GOALS)
+    ];
 
     let previousSuggestion = null;
     if (activeSubject && !existingEntry) {
@@ -5376,6 +5378,191 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
         activeSubject,
         date
       );
+    }
+
+    // Gruppenmodus: Kontext für Plan (Rollen/Mitglieder) – Ziele bleiben im Plan
+    let groupContext = null;
+    if (classId && activeSubject) {
+      try {
+        const gmEnabled = await pool.query(
+          `
+          SELECT id, device_mode, min_members, max_members
+          FROM group_mode_settings
+          WHERE class_id = $1
+            AND enabled = TRUE
+            AND lower(trim(subject)) = lower(trim($2))
+            AND ($3::int IS NULL OR school_id = $3 OR school_id IS NULL)
+          LIMIT 1
+        `,
+          [classId, activeSubject, schoolId]
+        );
+        if (gmEnabled.rows[0]) {
+          const settingsId = gmEnabled.rows[0].id;
+          const sess = await pool.query(
+            `
+            SELECT gs.id, gs.status, gs.session_kind, gs.setup_step, gs.group_name
+            FROM group_sessions gs
+            LEFT JOIN group_session_members gsm
+              ON gsm.session_id = gs.id AND gsm.user_id = $2
+            WHERE gs.class_id = $1
+              AND gs.status <> 'closed'
+              AND lower(trim(gs.subject)) = lower(trim($3))
+              AND (gs.host_user_id = $2 OR gsm.user_id IS NOT NULL)
+            ORDER BY
+              CASE gs.status WHEN 'standing' THEN 0 WHEN 'setup' THEN 1 ELSE 2 END,
+              CASE COALESCE(gs.session_kind, 'roster') WHEN 'roster' THEN 0 ELSE 1 END,
+              gs.updated_at DESC NULLS LAST
+            LIMIT 1
+          `,
+            [classId, studentId, activeSubject]
+          );
+          const session = sess.rows[0] || null;
+          let members = [];
+          let myRoles = [];
+          let roleWasGoals = [];
+          let roleHowGoals = [];
+          if (session) {
+            const memRes = await pool.query(
+              `
+              SELECT id, user_id, display_name_snapshot, invite_status
+              FROM group_session_members
+              WHERE session_id = $1
+              ORDER BY sort_order ASC, id ASC
+            `,
+              [session.id]
+            );
+            members = memRes.rows
+              .filter((m) => String(m.invite_status || "accepted") !== "pending")
+              .map((m) => ({
+                userId: m.user_id,
+                displayName: m.display_name_snapshot,
+                isMe: Number(m.user_id) === Number(studentId),
+                memberId: m.id,
+                roles: []
+              }));
+            const myMember = members.find((m) => m.isMe);
+            if (myMember) {
+              const roleRes = await pool.query(
+                `
+                SELECT role_id, role_name_snapshot, role_description_snapshot
+                FROM group_session_member_roles
+                WHERE member_id = $1
+              `,
+                [myMember.memberId]
+              );
+              myRoles = roleRes.rows.map((r) => ({
+                id: r.role_id,
+                name: r.role_name_snapshot,
+                description: r.role_description_snapshot || ""
+              }));
+              const roleIds = myRoles.map((r) => r.id).filter(Boolean);
+              if (roleIds.length) {
+                const goalsRes = await pool.query(
+                  `
+                  SELECT id, role_id, goal_type, text, active
+                  FROM group_mode_role_goals
+                  WHERE role_id = ANY($1::uuid[])
+                    AND active IS DISTINCT FROM FALSE
+                  ORDER BY sort_order ASC, id ASC
+                `,
+                  [roleIds]
+                );
+                const roleNameById = new Map(myRoles.map((r) => [String(r.id), r.name]));
+                for (const g of goalsRes.rows) {
+                  const item = {
+                    id: g.id,
+                    text: g.text,
+                    roleId: g.role_id,
+                    roleName: roleNameById.get(String(g.role_id)) || "",
+                    source: "group_role"
+                  };
+                  if (String(g.goal_type).toUpperCase() === "WIE") roleHowGoals.push(item);
+                  else roleWasGoals.push(item);
+                }
+              }
+            }
+            // Rollennamen an alle Mitglieder
+            if (members.length) {
+              const allIds = members.map((m) => m.memberId);
+              const allRoles = await pool.query(
+                `
+                SELECT member_id, role_name_snapshot
+                FROM group_session_member_roles
+                WHERE member_id = ANY($1::uuid[])
+              `,
+                [allIds]
+              );
+              const byMember = {};
+              for (const r of allRoles.rows) {
+                const k = String(r.member_id);
+                if (!byMember[k]) byMember[k] = [];
+                if (r.role_name_snapshot) byMember[k].push(r.role_name_snapshot);
+              }
+              for (const m of members) {
+                m.roles = byMember[String(m.memberId)] || [];
+                delete m.memberId;
+              }
+            }
+          }
+          const status = session ? String(session.status || "") : null;
+          const kind = session?.session_kind === "work" ? "work" : "roster";
+          const ready =
+            !!session &&
+            (status === "standing" ||
+              (kind === "work" && status !== "setup") ||
+              (status === "setup" &&
+                myRoles.length > 0 &&
+                !["members"].includes(String(session.setup_step || "members"))));
+          groupContext = {
+            enabled: true,
+            hasGroup: !!session && members.some((m) => m.isMe),
+            needsSetup: !ready,
+            ready,
+            subject: activeSubject,
+            deviceMode:
+              gmEnabled.rows[0].device_mode === "personal" ? "personal" : "shared",
+            sessionId: session?.id || null,
+            status,
+            sessionKind: session ? kind : null,
+            groupName: session?.group_name || null,
+            members,
+            myRoles,
+            roleWasGoals,
+            roleHowGoals,
+            allowMultiRoles: true
+          };
+          // Rollenziele zusätzlich – gleiches Unterthema/Rolle für mehrere Personen erlaubt
+          if (roleWasGoals.length) {
+            const existingIds = new Set(whatGoalOptions.map((g) => String(g.id)));
+            for (const g of roleWasGoals) {
+              if (!g.id || existingIds.has(String(g.id))) continue;
+              existingIds.add(String(g.id));
+              whatGoalOptions.push({
+                id: g.id,
+                text: `${g.text}${g.roleName ? ` (${g.roleName})` : ""}`,
+                roleName: g.roleName,
+                source: "group_role",
+                rookieGoalText: g.text,
+                operatorGoalText: g.text,
+                streetLegendGoalText: g.text
+              });
+            }
+            if (goalSource === "none") goalSource = "group_role";
+          }
+          if (roleHowGoals.length) {
+            const howSet = new Set((howGoals || []).map((h) => String(h).trim()));
+            for (const g of roleHowGoals) {
+              const t = String(g.text || "").trim();
+              if (t && !howSet.has(t)) {
+                howSet.add(t);
+                howGoals.push(t);
+              }
+            }
+          }
+        }
+      } catch (gmCtxErr) {
+        console.error("⚠️ group context in plan-context:", gmCtxErr);
+      }
     }
 
     res.json({
@@ -5400,7 +5587,8 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       nextCheckpoint: selectedCheckpoint,
       whatGoalOptions,
       subjectLocked,
-      lockedSubject
+      lockedSubject,
+      groupContext
     });
   } catch (err) {
     console.error("❌ /api/student/log/plan-context:", err);
@@ -5460,7 +5648,35 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     const normalizedHowGoal = joinMultiSelectValue(howGoals);
     const { classId, schoolId: classSchoolId } = await getStudentClassContext(studentId);
     const effectiveSchoolId = classSchoolId || schoolId;
-    const allowedHowGoals = await getLessonGoalsForSubject(effectiveSchoolId, subject);
+    const allowedHowGoals = [
+      ...((await getLessonGoalsForSubject(effectiveSchoolId, subject)) || [])
+    ];
+    // Rollenziele aus Gruppenmodus zusätzlich erlauben (gleiche Rolle/Thema in der Gruppe OK)
+    if (classId) {
+      try {
+        const roleHow = await pool.query(
+          `
+          SELECT g.text
+          FROM group_session_members gsm
+          JOIN group_sessions gs ON gs.id = gsm.session_id
+          JOIN group_session_member_roles r ON r.member_id = gsm.id
+          JOIN group_mode_role_goals g ON g.role_id = r.role_id
+          WHERE gsm.user_id = $1
+            AND gs.class_id = $2
+            AND lower(trim(gs.subject)) = lower(trim($3))
+            AND gs.status <> 'closed'
+            AND COALESCE(gsm.invite_status, 'accepted') = 'accepted'
+            AND g.goal_type = 'WIE'
+            AND g.active IS DISTINCT FROM FALSE
+        `,
+          [studentId, classId, subject]
+        );
+        for (const row of roleHow.rows) {
+          const t = String(row.text || "").trim();
+          if (t && !allowedHowGoals.includes(t)) allowedHowGoals.push(t);
+        }
+      } catch (_) {}
+    }
     if (!areAllowedHowGoals(howGoals, allowedHowGoals)) {
       return res.json({
         success: false,
@@ -5489,6 +5705,41 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       validWhatGoalOptions = picked.options;
       nextCheckpoint = picked.checkpoint;
       goalSource = picked.goalSource;
+      try {
+        const roleWas = await pool.query(
+          `
+          SELECT g.id, g.text, r.role_name_snapshot AS role_name
+          FROM group_session_members gsm
+          JOIN group_sessions gs ON gs.id = gsm.session_id
+          JOIN group_session_member_roles r ON r.member_id = gsm.id
+          JOIN group_mode_role_goals g ON g.role_id = r.role_id
+          WHERE gsm.user_id = $1
+            AND gs.class_id = $2
+            AND lower(trim(gs.subject)) = lower(trim($3))
+            AND gs.status <> 'closed'
+            AND COALESCE(gsm.invite_status, 'accepted') = 'accepted'
+            AND g.goal_type = 'WAS'
+            AND g.active IS DISTINCT FROM FALSE
+        `,
+          [studentId, classId, subject]
+        );
+        const seen = new Set(validWhatGoalOptions.map((g) => String(g.id)));
+        for (const row of roleWas.rows) {
+          const id = String(row.id);
+          if (seen.has(id)) continue;
+          seen.add(id);
+          validWhatGoalOptions.push({
+            id: row.id,
+            text: row.text,
+            roleName: row.role_name || "",
+            source: "group_role",
+            rookieGoalText: row.text,
+            operatorGoalText: row.text,
+            streetLegendGoalText: row.text
+          });
+        }
+        if (roleWas.rows.length && goalSource === "none") goalSource = "group_role";
+      } catch (_) {}
     }
 
     const whatById = new Map(validWhatGoalOptions.map((g) => [String(g.id), g]));
@@ -5518,14 +5769,18 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
 
     const goalOption = whatById.get(cleanWhatGoalId);
     const finalWhatGoalId = cleanWhatGoalId;
-    const finalWhatGoalText = goalOption.text;
+    const finalWhatGoalText = String(goalOption.text || "")
+      .replace(/\s*\([^)]*\)\s*$/, "")
+      .trim() || goalOption.text;
 
     const normalizedLevel = String(selectedLevel || "").toLowerCase();
     if (!LEVEL_CHECK_TIERS.includes(normalizedLevel)) {
       return res.json({ success: false, message: "Bitte ein Level wählen." });
     }
 
-    const finalLevelGoalText = levelGoalTextForOption(goalOption, normalizedLevel);
+    const finalLevelGoalText =
+      levelGoalTextForOption(goalOption, normalizedLevel) ||
+      (goalOption.source === "group_role" ? finalWhatGoalText : null);
     if (!finalLevelGoalText) {
       return res.json({
         success: false,
@@ -6379,7 +6634,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       try {
         const gmSettings = await pool.query(
           `
-          SELECT subject
+          SELECT subject, device_mode
           FROM group_mode_settings
           WHERE class_id = $1
             AND enabled = TRUE
@@ -6393,14 +6648,19 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
           groupModeBySubject[key] = {
             enabled: true,
             activeSessionId: null,
-            status: null
+            status: null,
+            sessionKind: null,
+            ready: false,
+            needsSetup: true,
+            deviceMode: row.device_mode === "personal" ? "personal" : "shared",
+            memberNames: []
           };
         }
         // Fallbacks ohne school_id-Filter, falls Einstellungen mit anderer school_id gespeichert wurden
         if (!Object.keys(groupModeBySubject).length) {
           const gmAny = await pool.query(
             `
-            SELECT subject
+            SELECT subject, device_mode
             FROM group_mode_settings
             WHERE class_id = $1 AND enabled = TRUE
           `,
@@ -6412,21 +6672,39 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
             groupModeBySubject[key] = {
               enabled: true,
               activeSessionId: null,
-              status: null
+              status: null,
+              sessionKind: null,
+              ready: false,
+              needsSetup: true,
+              deviceMode: row.device_mode === "personal" ? "personal" : "shared",
+              memberNames: []
             };
           }
         }
         if (Object.keys(groupModeBySubject).length) {
+          // Stammgruppen zuerst (standing), dann Setup, dann Legacy-Work
           const gmSessions = await pool.query(
             `
-            SELECT gs.id, gs.subject, gs.status
+            SELECT gs.id, gs.subject, gs.status, gs.session_kind, gs.setup_step,
+                   COALESCE(gsm.invite_status, 'accepted') AS invite_status
             FROM group_sessions gs
             LEFT JOIN group_session_members gsm
               ON gsm.session_id = gs.id AND gsm.user_id = $2
             WHERE gs.class_id = $1
               AND gs.status <> 'closed'
               AND (gs.host_user_id = $2 OR gsm.user_id IS NOT NULL)
-            ORDER BY gs.updated_at DESC NULLS LAST, gs.created_at DESC
+            ORDER BY
+              CASE gs.status
+                WHEN 'standing' THEN 0
+                WHEN 'setup' THEN 1
+                WHEN 'active' THEN 2
+                ELSE 3
+              END,
+              CASE COALESCE(gs.session_kind, 'roster')
+                WHEN 'roster' THEN 0
+                ELSE 1
+              END,
+              gs.updated_at DESC NULLS LAST
           `,
             [classId, studentId]
           );
@@ -6434,9 +6712,33 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
             const key = Object.keys(groupModeBySubject).find(
               (s) => s.toLowerCase() === String(row.subject || "").toLowerCase()
             );
-            if (key && !groupModeBySubject[key].activeSessionId) {
-              groupModeBySubject[key].activeSessionId = row.id;
-              groupModeBySubject[key].status = row.status;
+            if (!key || groupModeBySubject[key].activeSessionId) continue;
+            const kind = row.session_kind === "work" ? "work" : "roster";
+            const status = String(row.status || "");
+            const ready =
+              status === "standing" ||
+              (kind === "work" && status !== "setup") ||
+              (status === "setup" &&
+                !["members", "roles"].includes(String(row.setup_step || "members")));
+            groupModeBySubject[key].activeSessionId = row.id;
+            groupModeBySubject[key].status = status;
+            groupModeBySubject[key].sessionKind = kind;
+            groupModeBySubject[key].ready = ready;
+            groupModeBySubject[key].needsSetup = !ready;
+            if (ready) {
+              const mems = await pool.query(
+                `
+                SELECT display_name_snapshot
+                FROM group_session_members
+                WHERE session_id = $1
+                  AND COALESCE(invite_status, 'accepted') = 'accepted'
+                ORDER BY sort_order ASC, id ASC
+              `,
+                [row.id]
+              );
+              groupModeBySubject[key].memberNames = mems.rows
+                .map((m) => m.display_name_snapshot)
+                .filter(Boolean);
             }
           }
         }

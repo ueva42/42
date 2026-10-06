@@ -290,7 +290,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
             <input type="checkbox" id="gmEnabled" ${s.enabled ? "checked" : ""}/>
             <span>
               <strong>Gruppenmodus für dieses Fach nutzen</strong>
-              <em>Ohne diesen Schalter sehen die Schüler das Fach im Gruppenmodus nicht.</em>
+              <em>Schüler bilden Gruppen – Unterthema & Ziele setzen sie in Mein Tag.</em>
             </span>
           </label>
         </section>
@@ -672,7 +672,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     return `
       <div class="panel gm-panel">
         <h3>Einrichtungsbereich – Stammgruppen</h3>
-        <p class="hint">Hier legst du fest, wer in welcher Gruppe ist. Die tägliche Arbeit läuft bei den Schüler:innen unter „Gruppenmodus am Gerät“.</p>
+        <p class="hint">Hier legst du fest, wer in welcher Gruppe ist. Unterthema, Was- und Wie-Ziele setzen die Schüler danach in <strong>Mein Tag</strong> – gleiches Thema und gleiche Rolle sind erlaubt.</p>
         <div class="gm-sec">
           <label class="gm-num">Gruppenname (optional)
             <input type="text" id="gmRosterName" maxlength="80" value="${escapeHtml(state.rosterName || "")}" placeholder="z. B. Gruppe A"/>
@@ -734,8 +734,8 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
          </div>`
       : `<div class="gm-banner">
            <div>
-             <strong>Stammgruppen zuerst</strong>
-             <p>Mitglieder im Tab „Stammgruppen“ festlegen – die Stunde erscheint hier, sobald am Gerät gestartet wird.</p>
+             <strong>Gruppen bilden → Lernen in Mein Tag</strong>
+             <p>Stammgruppen hier oder von Schüler:innen anlegen. Planen/Check/Reflect läuft im normalen Mein-Tag-Flow.</p>
            </div>
            <button type="button" class="action" id="gmGotoRosters">Zu Stammgruppen</button>
          </div>`;
@@ -744,15 +744,15 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
       return `
         <div class="panel gm-panel">
           ${setupBanner}
-          <h3>Gruppenmodus am Gerät – laufende Stunden</h3>
-          <p class="hint">Sobald eine Stammgruppe die Arbeit startet, erscheint sie hier.</p>
+          <h3>Übersicht Gruppen</h3>
+          <p class="hint">Stammgruppen im Tab „Stammgruppen“. Offene Legacy-Sessions erscheinen hier zum Aufräumen.</p>
         </div>`;
     }
 
     return `
       <div class="panel gm-panel">
         ${setupBanner}
-        <h3>Gruppenmodus am Gerät – laufende Stunden</h3>
+        <h3>Übersicht Gruppen / Legacy-Sessions</h3>
         <div class="gm-session-list">
           ${state.sessions
             .map((bundle) => {
@@ -1032,7 +1032,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
         if (!r.ok || data.success === false) {
           throw new Error(data.message || data.error || "Markieren fehlgeschlagen");
         }
-        state.message = "Stammgruppe ist bereit für den Gruppenmodus am Gerät.";
+        state.message = "Stammgruppe ist bereit – Schüler planen in Mein Tag.";
         state.editingRosterId = null;
         state.rosterDraftIds = [];
         state.rosterName = "";

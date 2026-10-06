@@ -195,7 +195,10 @@
     for (const block of blockList) {
       const subject = block.entry?.subject || block.slot?.subject || "deiner Stunde";
       if (groupModeForSubject(subject)) {
-        return `Als Nächstes: Gruppenarbeit in ${subject} starten oder fortsetzen.`;
+        const gm = groupModeForSubject(subject);
+        return gm?.ready
+          ? `Als Nächstes: In ${subject} mit deiner Gruppe das Tagesziel setzen.`
+          : `Als Nächstes: In ${subject} zuerst die Gruppe bilden.`;
       }
       if (!block.entry) return `Setze als Nächstes dein Tagesziel in ${subject}.`;
       if (blockNeedsMidCheck(block, block.entry) && !block.entry.hasCheck) {
@@ -350,20 +353,56 @@
       const key = String(s.subject || "").trim();
       if (!key || !s.enabled) continue;
       if (!map[key]) {
-        map[key] = { enabled: true, activeSessionId: null, status: null };
+        map[key] = {
+          enabled: true,
+          activeSessionId: null,
+          status: null,
+          ready: false,
+          needsSetup: true,
+          memberNames: []
+        };
       } else {
         map[key].enabled = true;
       }
+      if (s.deviceMode) map[key].deviceMode = s.deviceMode;
     }
-    for (const s of bootstrap?.activeSessions || []) {
-      const key = Object.keys(map).find(
-        (k) => k.toLowerCase() === String(s.subject || "").toLowerCase()
-      ) || String(s.subject || "").trim();
+    const prefer = [
+      ...(bootstrap?.standingGroups || []),
+      ...(bootstrap?.setupRosters || []).filter((s) => s.isMine),
+      ...(bootstrap?.fixedGroups || []),
+      ...(bootstrap?.activeSessions || []).filter((s) => s.isMine)
+    ];
+    for (const s of prefer) {
+      const key =
+        Object.keys(map).find(
+          (k) => k.toLowerCase() === String(s.subject || "").toLowerCase()
+        ) || String(s.subject || "").trim();
       if (!key) continue;
-      if (!map[key]) map[key] = { enabled: true, activeSessionId: null, status: null };
+      if (!map[key]) {
+        map[key] = {
+          enabled: true,
+          activeSessionId: null,
+          status: null,
+          ready: false,
+          needsSetup: true,
+          memberNames: []
+        };
+      }
+      if (map[key].ready && map[key].activeSessionId) continue;
       map[key].enabled = true;
       map[key].activeSessionId = s.id;
       map[key].status = s.status;
+      map[key].sessionKind = s.sessionKind || null;
+      map[key].memberNames = s.memberNames || map[key].memberNames || [];
+      const ready =
+        s.status === "standing" ||
+        s.status === "closed" ||
+        (s.sessionKind === "work" && s.status !== "setup") ||
+        (s.isMine &&
+          (s.memberCount || 0) >= (s.minMembers || 2) &&
+          !["members"].includes(String(s.setupStep || "")));
+      map[key].ready = !!ready;
+      map[key].needsSetup = !ready;
     }
     todayData.groupModeBySubject = map;
     return todayData;
@@ -410,21 +449,38 @@
     const slot = block.slot;
     const subject = slot?.subject || "";
     const gm = groupModeForSubject(subject);
+    const names = (gm?.memberNames || []).filter(Boolean).join(", ");
+    const ready = !!gm?.ready && !gm?.needsSetup;
+
+    // Lernen in Mein Tag (Plan) – Gruppenmodus nur für Gruppenbildung
+    if (ready) {
+      const params = new URLSearchParams({ date: state.date || "" });
+      if (subject) params.set("subject", subject);
+      if (slot?.timeslot) params.set("timeslot", slot.timeslot);
+      return renderSubjectTile({
+        subject,
+        time: slot?.timeslot,
+        hint: names
+          ? `Gruppe: ${names} – Unterthema & Ziele wie gewohnt setzen (gleiche Themen/Rollen ok).`
+          : "In der Gruppe – Unterthema & Ziele in Mein Tag setzen.",
+        cta: editable ? "Tagesziel setzen" : "",
+        nav: editable ? "plan" : "",
+        query: params.toString(),
+        group: true
+      });
+    }
+
     const params = new URLSearchParams({ subject });
     if (state.date) params.set("date", state.date);
     if (gm?.activeSessionId) params.set("sessionId", gm.activeSessionId);
 
-    const hint = gm?.activeSessionId
-      ? gm.status === "setup"
-        ? "Gruppe einrichten"
-        : "Gruppe läuft – gemeinsam weiterarbeiten."
-      : "Gemeinsam in der Gruppe arbeiten.";
-
     return renderSubjectTile({
       subject,
       time: slot?.timeslot,
-      hint,
-      cta: editable ? (gm?.activeSessionId ? "Weiter" : "Starten") : "",
+      hint: gm?.activeSessionId
+        ? "Gruppe noch nicht fertig – Personen (und Rollen) festlegen."
+        : "Zuerst Gruppe bilden – danach planen in Mein Tag.",
+      cta: editable ? (gm?.activeSessionId ? "Gruppe fertigmachen" : "Gruppe bilden") : "",
       nav: editable ? "gruppenmodus" : "",
       query: params.toString(),
       group: true

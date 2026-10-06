@@ -203,6 +203,11 @@ function testSessionKindBusy() {
     !isEmptyMembershipShell({ status: "setup", setup_step: "members", session_kind: "roster" }, 2),
     "two not shell"
   );
+  // Gleiche Rolle / standing ohne Themen-Pipeline
+  assert(
+    membershipLocksStudent({ status: "standing", setup_step: "ready", session_kind: "roster" }, 3),
+    "standing group locks members"
+  );
 }
 
 function testDeviceMode() {

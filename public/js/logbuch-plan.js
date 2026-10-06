@@ -84,7 +84,8 @@
     planBAcknowledged: false,
     suggestion: null,
     suggestionApplied: false,
-    afterSaveOpen: false
+    afterSaveOpen: false,
+    groupContext: null
   };
 
   const ARBEIT_TILE_META = {
@@ -1360,6 +1361,40 @@
     );
   }
 
+  function renderGroupContextBanner(ui) {
+    const gc = state.groupContext;
+    if (!gc?.enabled) return "";
+    if (gc.needsSetup || !gc.hasGroup) {
+      const params = new URLSearchParams({ subject: state.subject || gc.subject || "" });
+      if (state.date) params.set("date", state.date);
+      return `<div class="logbuch-msg logbuch-msg-info">
+        Für dieses Fach ist Gruppenmodus an – bitte zuerst die <strong>Gruppe bilden</strong>.
+        <button type="button" class="logbuch-link-btn" id="planGoGruppenmodus" data-query="${ui.escapeHtml(
+          params.toString()
+        )}">Zur Gruppenbildung</button>
+      </div>`;
+    }
+    const names = (gc.members || [])
+      .map((m) => m.displayName)
+      .filter(Boolean)
+      .join(", ");
+    const roles = (gc.myRoles || []).map((r) => r.name).filter(Boolean).join(", ");
+    const roleGoals = (gc.roleWasGoals || [])
+      .slice(0, 4)
+      .map((g) => ui.escapeHtml(g.text))
+      .join(" · ");
+    return `<div class="logbuch-msg logbuch-msg-info">
+      <strong>Deine Gruppe</strong>${names ? `: ${ui.escapeHtml(names)}` : ""}.
+      ${roles ? ` Deine Rolle: <strong>${ui.escapeHtml(roles)}</strong>.` : ""}
+      Gleiches Unterthema und gleiche Rolle sind in der Gruppe erlaubt.
+      ${
+        roleGoals
+          ? `<div class="plan-group-role-goals">Rollen-Ziele: ${roleGoals}</div>`
+          : ""
+      }
+    </div>`;
+  }
+
   function whatGoalMessage(ui) {
     if (state.whatGoalOptions.length) return "";
     if (state.goalSource === "checkpoint_empty") {
@@ -1538,7 +1573,9 @@
           ? renderStepPopup({
               step: 1,
               title: "Was will ich heute können?",
-              hint: "Wähle Fach und Unterthema.",
+              hint: state.groupContext?.hasGroup
+                ? "Unterthema wählen – dasselbe Thema dürfen mehrere in der Gruppe nehmen."
+                : "Wähle Fach und Unterthema.",
               body: whatBody,
               showBack: false
             })
@@ -1587,6 +1624,7 @@
     root.innerHTML = `
       <div class="plan-app plan-app--ask">
         ${renderPlanHero(ui, dateLabel)}
+        ${renderGroupContextBanner(ui)}
         ${
           state.editingEntryId
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest dein Tagesziel – beim Speichern gibt es kein zusätzliches XP.</div>`
@@ -1604,6 +1642,12 @@
   function bindStaticHandlers(root) {
     root.querySelector("#planBackBtn")?.addEventListener("click", () => {
       window.StudentRouter?.navigateToSection("today");
+    });
+    root.querySelector("#planGoGruppenmodus")?.addEventListener("click", () => {
+      const q = new URLSearchParams(
+        root.querySelector("#planGoGruppenmodus")?.dataset?.query || ""
+      );
+      window.StudentRouter?.navigateToSection("gruppenmodus", { query: q });
     });
   }
 
@@ -1727,6 +1771,11 @@
 
   function bindHandlers(root) {
     const scope = planModalScope(root);
+    document.getElementById("planGoGruppenmodus")?.addEventListener("click", () => {
+      const btn = document.getElementById("planGoGruppenmodus");
+      const q = new URLSearchParams(btn?.dataset?.query || "");
+      window.StudentRouter?.navigateToSection("gruppenmodus", { query: q });
+    });
     UI().bindSelects(scope, state, async (field) => {
       if (field === "subject") {
         state.whatGoalId = null;
@@ -2016,6 +2065,7 @@
       (state.checkpoints.length === 1 ? state.checkpoints[0].id : null);
     state.goalSource = data.goalSource || "none";
     state.subjectLocked = !!data.subjectLocked;
+    state.groupContext = data.groupContext || null;
 
     if (data.lockedSubject) {
       state.subject = data.lockedSubject;
@@ -2086,6 +2136,7 @@
     state.suggestion = null;
     state.suggestionApplied = false;
     state.afterSaveOpen = false;
+    state.groupContext = null;
     teardownPlanNextModal();
 
     const root = document.getElementById("plan-screen-root");

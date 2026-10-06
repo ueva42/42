@@ -425,15 +425,7 @@
       );
       return;
     }
-    if (!settings().allowMultiRoles) {
-      for (const [rid] of Object.entries(state.roleAssignments)) {
-        if (rid === String(roleId)) continue;
-        setRoleHolders(
-          rid,
-          holdersForRole(rid).filter((id) => id !== uid)
-        );
-      }
-    }
+    // Gleiche Rolle für mehrere Personen ist immer erlaubt
     setRoleHolders(roleId, [...cur, uid]);
   }
 
@@ -766,7 +758,7 @@
       return !subjectsWithStanding.has(key) && !subjectsWithSetup.has(key);
     });
     const body = `
-      <p class="gm-lead"><strong>Einrichtungsbereich:</strong> feste Stammgruppe (Personen). <strong>Gruppenmodus am Gerät:</strong> heute mit eurer Gruppe Ziele und Rollen bearbeiten.</p>
+      <p class="gm-lead"><strong>Gruppenmodus = Gruppe bilden.</strong> Danach plant ihr Unterthema, Was- und Wie-Ziele in <strong>Mein Tag</strong> – gleiches Thema und gleiche Rolle sind erlaubt.</p>
       ${
         invites.length
           ? `<h3 class="gm-h3">Einladungen zur Stammgruppe</h3>
@@ -795,27 +787,23 @@
           : ""
       }
       ${
-        mine.length
-          ? `<h3 class="gm-h3">Gruppenmodus am Gerät – offene Stunde</h3>
+        standingOrFixed.length
+          ? `<h3 class="gm-h3">Eure Gruppen</h3>
+             <p class="gm-muted">Gruppe steht – weiter in Mein Tag planen. Hier nur Mitglieder ändern oder auflösen.</p>
              <div class="gm-cards">
-               ${mine
+               ${standingOrFixed
                  .map(
                    (s) => `
                  <div class="gm-card-wrap">
-                   <button type="button" class="gm-card" data-resume="${esc(s.id)}">
+                   <button type="button" class="gm-card" data-goto-today="${esc(s.subject || "")}">
                      <span class="gm-card-title">${esc(s.subject)}${
                        s.groupName ? `: ${esc(s.groupName)}` : ""
                      }</span>
-                     <span class="gm-card-sub">${esc(
-                       (s.memberNames || []).join(", ") || sessionStatusLabel(s)
-                     )}</span>
-                     <span class="gm-card-meta">${esc(
-                       s.topicName
-                         ? `Heute: ${s.topicName}`
-                         : "Noch kein Ziel für heute gewählt"
-                     )}</span>
+                     <span class="gm-card-sub">${esc((s.memberNames || []).join(", ") || "Gruppe")}</span>
+                     <span class="gm-card-meta">Weiter zu Mein Tag</span>
                    </button>
-                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Stunde beenden">Stunde schließen</button>
+                   <button type="button" class="gm-ghost" data-resume="${esc(s.id)}">Mitglieder/Rollen</button>
+                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Gruppe auflösen">Gruppe auflösen</button>
                  </div>`
                  )
                  .join("")}
@@ -823,23 +811,24 @@
           : ""
       }
       ${
-        standingOrFixed.length
-          ? `<h3 class="gm-h3">Gruppenmodus am Gerät starten</h3>
-             <p class="gm-muted">Eure Stammgruppe steht – tippt, um heute zu arbeiten (Ziele, Rollen, Reflexion).</p>
+        mine.length
+          ? `<h3 class="gm-h3">Alte Arbeits-Sessions</h3>
+             <p class="gm-muted">Nur noch zum Aufräumen – neues Lernen läuft über Mein Tag.</p>
              <div class="gm-cards">
-               ${standingOrFixed
+               ${mine
                  .map(
                    (s) => `
                  <div class="gm-card-wrap">
-                   <button type="button" class="gm-card" data-start-work="${esc(s.id)}">
+                   <button type="button" class="gm-card" data-goto-today="${esc(s.subject || "")}">
                      <span class="gm-card-title">${esc(s.subject)}${
                        s.groupName ? `: ${esc(s.groupName)}` : ""
                      }</span>
-                     <span class="gm-card-sub">${esc((s.memberNames || []).join(", ") || "Gruppe")}</span>
-                     <span class="gm-card-meta">Heute starten</span>
+                     <span class="gm-card-sub">${esc(
+                       (s.memberNames || []).join(", ") || sessionStatusLabel(s)
+                     )}</span>
+                     <span class="gm-card-meta">Zu Mein Tag</span>
                    </button>
-                   <button type="button" class="gm-ghost" data-resume="${esc(s.id)}">Stammgruppe ansehen</button>
-                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Stammgruppe auflösen">Stammgruppe auflösen</button>
+                   <button type="button" class="gm-delete" data-delete="${esc(s.id)}" aria-label="Session löschen">Löschen</button>
                  </div>`
                  )
                  .join("")}
@@ -915,8 +904,8 @@
             ? `<p class="gm-muted">Für freigeschaltete Fächer gibt es schon eine Stammgruppe oder einen Entwurf.</p>`
             : `<div class="gm-empty">Eure Lehrkraft hat den Gruppenmodus noch nicht freigeschaltet.</div>`
       }`;
-    return shell(null, "Gruppenarbeit", body, "", {
-      meta: "Einrichten getrennt von der Arbeit am Gerät."
+    return shell(null, "Gruppe bilden", body, "", {
+      meta: "Nur Gruppenbildung – Ziele setzt ihr in Mein Tag."
     });
   }
 
@@ -1041,7 +1030,7 @@
             : ""
         }`;
       return shell(
-        "Schritt 1 von 5",
+        "Schritt 1 von 2",
         "Wer arbeitet mit dir?",
         body,
         `<div class="gm-footer-row gm-footer-row--stack">
@@ -1069,8 +1058,8 @@
       )}`;
     const okShared = state.selectedMembers.length >= min && state.selectedMembers.length <= max;
     return shell(
-      "Schritt 1 von 5",
-      "Wer arbeitet heute zusammen?",
+      "Schritt 1 von 2",
+      "Wer arbeitet zusammen?",
       body,
       `<div class="gm-footer-row gm-footer-row--stack">
         <button type="button" class="gm-primary" id="gmMembersNext" ${okShared ? "" : "disabled"}>Weiter</button>
@@ -1099,7 +1088,7 @@
       const allAssigned = everyMemberHasRole(mems);
       const iHaveRole = roleAssignmentsList().some((a) => Number(a.userId) === uid);
       const body = `
-        <p class="gm-lead">Übernimm eine Aufgabe – dieselbe Rolle dürfen mehrere Personen wählen und danach an unterschiedlichen Unterthemen arbeiten.</p>
+        <p class="gm-lead">Optional: Übernimm eine Aufgabe – dieselbe Rolle dürfen mehrere wählen. Unterthema und Ziele setzt ihr danach in Mein Tag.</p>
         <div class="gm-role-board">
           ${roles
             .map((role, idx) => {
@@ -1142,16 +1131,19 @@
             .join("")}
         </div>`;
       return shell(
-        "Schritt 2 von 5",
+        "Schritt 2 von 2",
         "Welche Aufgabe übernimmst du?",
         body,
-        `<button type="button" class="gm-primary" id="gmRolesNext" ${
-          allAssigned && iHaveRole ? "" : "disabled"
-        }">Rollen bestätigen</button>`
+        `<div class="gm-footer-row gm-footer-row--stack">
+          <button type="button" class="gm-primary" id="gmRolesNext" ${
+            iHaveRole ? "" : "disabled"
+          }>Rollen speichern · zu Mein Tag</button>
+          <button type="button" class="gm-ghost" id="gmSkipRoles">Ohne Rollen zu Mein Tag</button>
+        </div>`
       );
     }
     const body = `
-      <p class="gm-lead">Tippt Personen zu den Aufgaben – dieselbe Rolle darf mehrfach vergeben werden.</p>
+      <p class="gm-lead">Optional: Tippt Personen zu den Aufgaben – dieselbe Rolle darf mehrfach vergeben werden. Lernen danach in Mein Tag.</p>
       <div class="gm-role-board">
         ${roles
           .map((role, idx) => {
@@ -1209,10 +1201,15 @@
       <button type="button" class="gm-ghost" id="gmSuggestRoles">Vorschlag übernehmen</button>`;
     const allAssigned = everyMemberHasRole(mems);
     return shell(
-      "Schritt 2 von 5",
+      "Schritt 2 von 2",
       "Wer übernimmt welche Aufgabe?",
       body,
-      `<button type="button" class="gm-primary" id="gmRolesNext" ${allAssigned ? "" : "disabled"}>Rollen bestätigen</button>`
+      `<div class="gm-footer-row gm-footer-row--stack">
+        <button type="button" class="gm-primary" id="gmRolesNext" ${
+          allAssigned ? "" : "disabled"
+        }>Rollen speichern · zu Mein Tag</button>
+        <button type="button" class="gm-ghost" id="gmSkipRoles">Ohne Rollen zu Mein Tag</button>
+      </div>`
     );
   }
 
@@ -2640,25 +2637,45 @@
       });
     });
 
+    document.querySelectorAll("[data-goto-today]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const subject = btn.getAttribute("data-goto-today") || "";
+        const q = new URLSearchParams();
+        if (subject) q.set("subject", subject);
+        if (state.bootstrap?.date) q.set("date", state.bootstrap.date);
+        window.StudentRouter?.navigateToSection("today", { query: q });
+      });
+    });
+
+    document.getElementById("gmSkipRoles")?.addEventListener("click", async () => {
+      clearFlash();
+      try {
+        const data = await api(`/api/student/group-sessions/${state.sessionId}/members/ready`, {
+          method: "POST",
+          body: JSON.stringify({ finalize: true })
+        });
+        applyBundle(data);
+        state.message = "Gruppe fertig – weiter in Mein Tag.";
+        await loadBootstrap();
+        state.screen = "home";
+        state.sessionId = null;
+        state.bundle = null;
+        render();
+      } catch (err) {
+        state.error = err.message;
+        render();
+      }
+    });
+
     document.querySelectorAll("[data-new-lesson], [data-start-work]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        clearFlash();
-        try {
-          const id =
-            btn.getAttribute("data-start-work") || btn.getAttribute("data-new-lesson");
-          const data = await api(`/api/student/group-sessions/${id}/start-work`, {
-            method: "POST",
-            body: "{}"
-          });
-          applyBundle(data);
-          state.selectedMembers = members().map((m) => Number(m.userId));
-          resumeScreenFromBundle();
-          state.message = "Gruppenmodus am Gerät – wählt Ziele für heute.";
-          render();
-        } catch (err) {
-          state.error = err.message;
-          render();
-        }
+      btn.addEventListener("click", () => {
+        const subject =
+          state.bundle?.session?.subject ||
+          btn.closest(".gm-card-wrap")?.querySelector(".gm-card-title")?.textContent ||
+          "";
+        const q = new URLSearchParams();
+        if (subject) q.set("subject", String(subject).split(":")[0].trim());
+        window.StudentRouter?.navigateToSection("today", { query: q });
       });
     });
 
@@ -2799,20 +2816,34 @@
     document.getElementById("gmRolesNext")?.addEventListener("click", async () => {
       clearFlash();
       try {
-        const assignments = roleAssignmentsList();
-        const data = await api(`/api/student/group-sessions/${state.sessionId}/roles`, {
-          method: "PATCH",
-          body: JSON.stringify({ assignments })
-        });
+        let data;
+        if (isPersonal()) {
+          // Tabletklasse: eigene Rolle reicht; Gruppe freigeben für Mein Tag
+          data = await api(`/api/student/group-sessions/${state.sessionId}/members/ready`, {
+            method: "POST",
+            body: JSON.stringify({ finalize: true })
+          });
+        } else {
+          const assignments = roleAssignmentsList();
+          data = await api(`/api/student/group-sessions/${state.sessionId}/roles`, {
+            method: "PATCH",
+            body: JSON.stringify({ assignments })
+          });
+        }
         applyBundle(data);
         if (data.rosterReady || data.session?.status === "standing") {
-          state.message = "Stammgruppe fertig. Startet jetzt den Gruppenmodus am Gerät.";
+          state.message = "Gruppe fertig. Weiter in Mein Tag: Unterthema und Ziele setzen.";
           await loadBootstrap();
           state.screen = "home";
           state.sessionId = null;
           state.bundle = null;
+        } else if (String(data.session?.sessionKind || "") === "work") {
+          // Legacy-Work: nicht mehr im Wizard halten → Mein Tag
+          state.message = "Bitte Ziele in Mein Tag setzen.";
+          state.screen = "home";
         } else {
-          state.screen = "pick-topic";
+          state.screen = "home";
+          state.message = "Gruppe gespeichert – weiter in Mein Tag.";
         }
         render();
       } catch (err) {
