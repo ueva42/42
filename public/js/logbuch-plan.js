@@ -1648,8 +1648,8 @@
       ${
         shared
           ? handoff
-            ? ` Jetzt: <strong>${ui.escapeHtml(handoff.displayName || "jemand")}</strong> – Rolle wählen.`
-            : " Nacheinander planen."
+            ? ` Nacheinander am Tablet – jetzt: <strong>${ui.escapeHtml(handoff.displayName || "jemand")}</strong>.`
+            : " Nacheinander am Tablet planen."
           : roles
             ? ` Rolle: <strong>${ui.escapeHtml(roles)}</strong>.`
             : " Als Nächstes: <strong>Rolle wählen</strong>."
@@ -1669,77 +1669,116 @@
       : new Set((gc.myRoles || []).map((r) => String(r.id)));
     const members = groupMembers();
     const handoffName = handoff?.displayName || "jemand";
+    const doneCount = members.filter((m) => memberHasRole(m)).length;
     return `
       <style>
-        .plan-group-roles{margin:0 0 14px}
-        .plan-group-handoff{display:flex;flex-direction:column;gap:8px;margin:0 0 12px;padding:12px 14px;border-radius:14px;border:1px solid rgba(34,211,238,.35);background:linear-gradient(135deg,rgba(8,47,73,.75),rgba(15,23,42,.65))}
-        .plan-group-handoff__now{margin:0;font-size:1.05rem;font-weight:700;color:#e2e8f0}
-        .plan-group-handoff__now strong{color:#67e8f9}
-        .plan-group-handoff__hint{margin:0;font-size:0.82rem;color:#94a3b8}
-        .plan-group-member-row{display:flex;flex-wrap:wrap;gap:6px}
-        .plan-group-member-chip{border:1px solid rgba(148,163,184,.35);background:rgba(15,23,42,.55);color:#cbd5e1;border-radius:999px;padding:6px 10px;font-size:0.78rem;cursor:pointer}
-        .plan-group-member-chip.is-active{border-color:rgba(34,211,238,.85);color:#ecfeff;background:rgba(8,47,73,.9)}
-        .plan-group-member-chip.is-done{border-color:rgba(52,211,153,.45);color:#a7f3d0}
-        .plan-group-role-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-top:8px}
-        .plan-group-role-tile{display:grid;gap:4px;text-align:left;padding:12px;border-radius:12px;border:1px solid rgba(56,189,248,.35);background:rgba(8,47,73,.45);color:inherit;cursor:pointer}
-        .plan-group-role-tile strong{font-size:0.95rem}
-        .plan-group-role-tile span,.plan-group-role-tile em{font-size:0.8rem;color:#94a3b8;font-style:normal}
-        .plan-group-role-tile.is-active{border-color:rgba(34,211,238,.9);box-shadow:0 0 0 1px rgba(34,211,238,.4);background:rgba(8,47,73,.75)}
+        .plan-group-roles{display:flex;flex-direction:column;gap:16px;margin:0 0 18px}
+        .plan-group-nowbar{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 2px;padding:10px 12px;border-radius:12px;border:2px solid rgba(34,211,238,.75);background:rgba(8,47,73,.96);box-shadow:0 8px 20px rgba(0,0,0,.35)}
+        .plan-group-nowbar__label{margin:0;font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#67e8f9}
+        .plan-group-nowbar__name{margin:2px 0 0;font-size:1.15rem;font-weight:800;color:#f8fafc;line-height:1.2}
+        .plan-group-nowbar__meta{margin:0;font-size:.75rem;color:#94a3b8;white-space:nowrap}
+        .plan-group-section{display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:16px;border:1px solid rgba(148,163,184,.28);background:rgba(15,23,42,.55)}
+        .plan-group-section--roles{border-color:rgba(56,189,248,.4);background:linear-gradient(160deg,rgba(8,47,73,.55),rgba(15,23,42,.5))}
+        .plan-group-section__title{margin:0;font-size:.95rem;font-weight:800;color:#e2e8f0}
+        .plan-group-section__hint{margin:0;font-size:.8rem;line-height:1.35;color:#94a3b8}
+        .plan-group-member-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(148px,1fr))}
+        .plan-group-member-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:72px;padding:14px 14px 12px;border-radius:14px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.35);color:#94a3b8;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+        .plan-group-member-card__name{font-size:1rem;font-weight:800;color:#cbd5e1;line-height:1.2}
+        .plan-group-member-card__role{font-size:.75rem;color:#64748b;line-height:1.25}
+        .plan-group-member-card__badge{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:999px;display:grid;place-items:center;font-size:.75rem;font-weight:800;background:rgba(15,23,42,.7);border:1px solid rgba(148,163,184,.35);color:#94a3b8}
+        .plan-group-member-card:not(.is-active){opacity:.72}
+        .plan-group-member-card.is-active{opacity:1;border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#ecfeff;box-shadow:0 0 0 2px rgba(34,211,238,.35),0 10px 24px rgba(0,0,0,.35);transform:scale(1.02)}
+        .plan-group-member-card.is-active .plan-group-member-card__name{color:#fff;font-size:1.08rem}
+        .plan-group-member-card.is-active .plan-group-member-card__role{color:#a5f3fc}
+        .plan-group-member-card.is-active .plan-group-member-card__badge{background:#22d3ee;border-color:#67e8f9;color:#082f49}
+        .plan-group-member-card.is-done:not(.is-active){border-color:rgba(52,211,153,.55);background:rgba(6,78,59,.28)}
+        .plan-group-member-card.is-done:not(.is-active) .plan-group-member-card__name{color:#a7f3d0}
+        .plan-group-member-card.is-done:not(.is-active) .plan-group-member-card__badge{border-color:rgba(52,211,153,.55);color:#6ee7b7}
+        .plan-group-role-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-top:2px}
+        .plan-group-role-tile{display:grid;gap:4px;text-align:left;padding:12px;border-radius:12px;border:2px solid rgba(56,189,248,.35);background:rgba(8,47,73,.45);color:inherit;cursor:pointer}
+        .plan-group-role-tile strong{font-size:.95rem}
+        .plan-group-role-tile span,.plan-group-role-tile em{font-size:.8rem;color:#94a3b8;font-style:normal}
+        .plan-group-role-tile.is-active{border-color:#22d3ee;box-shadow:0 0 0 2px rgba(34,211,238,.35);background:rgba(8,47,73,.85);color:#ecfeff}
         .plan-group-role-tile:disabled{opacity:.6;cursor:wait}
+        .plan-group-topic-section{margin-top:4px;padding-top:14px;border-top:1px solid rgba(148,163,184,.22)}
       </style>
       <div class="plan-group-roles">
         ${
           shared
-            ? `<div class="plan-group-handoff">
-                <p class="plan-group-handoff__now">Jetzt: <strong>${ui.escapeHtml(handoffName)}</strong></p>
-                <p class="plan-group-handoff__hint">Rolle tippen · Tablet weiterreichen · gleiche Rolle ok</p>
-                <div class="plan-group-member-row">
+            ? `<div class="plan-group-nowbar" role="status" aria-live="polite">
+                <div>
+                  <p class="plan-group-nowbar__label">Wer ist jetzt dran?</p>
+                  <p class="plan-group-nowbar__name">${ui.escapeHtml(handoffName)}</p>
+                </div>
+                <p class="plan-group-nowbar__meta">${doneCount}/${members.length} mit Rolle</p>
+              </div>
+              <section class="plan-group-section" aria-label="Person wählen">
+                <p class="plan-group-section__title">1. Person wählen</p>
+                <p class="plan-group-section__hint">Tippe auf die Person, die jetzt ausfüllt — danach Tablet weitergeben. Zusammen ausfüllen geht auch: einfach jeweils die passende Person tippen.</p>
+                <div class="plan-group-member-grid" role="group" aria-label="Gruppenteilnehmer">
                   ${members
                     .map((m) => {
                       const done = memberHasRole(m);
                       const active = Number(m.userId) === Number(state.handoffUserId);
                       const roleLabel = memberRoleNames(m).join(", ");
-                      return `<button type="button" class="plan-group-member-chip ${active ? "is-active" : ""} ${done ? "is-done" : ""}" data-plan-handoff="${ui.escapeHtml(String(m.userId))}">
-                        ${ui.escapeHtml(m.displayName || "Person")}${roleLabel ? ` · ${ui.escapeHtml(roleLabel)}` : ""}
+                      const name = m.displayName || "Person";
+                      return `<button type="button"
+                        class="plan-group-member-card ${active ? "is-active" : ""} ${done ? "is-done" : ""}"
+                        data-plan-handoff="${ui.escapeHtml(String(m.userId))}"
+                        aria-pressed="${active ? "true" : "false"}"
+                        aria-label="${ui.escapeHtml(name)}${active ? " – jetzt dran" : ""}${done ? " – Rolle gewählt" : ""}">
+                        <span class="plan-group-member-card__badge" aria-hidden="true">${active ? "✓" : done ? "●" : ""}</span>
+                        <span class="plan-group-member-card__name">${ui.escapeHtml(name)}</span>
+                        <span class="plan-group-member-card__role">${
+                          active
+                            ? "Jetzt am Tablet"
+                            : roleLabel
+                              ? ui.escapeHtml(roleLabel)
+                              : "Noch keine Rolle"
+                        }</span>
                       </button>`;
                     })
                     .join("")}
                 </div>
-              </div>`
+              </section>`
             : ""
         }
-        <p class="field-label">${shared ? `Rolle · ${ui.escapeHtml(handoffName)}` : "Gruppenrolle"} <span class="req">*</span></p>
-        <p class="field-hint">Gleiche Rolle für mehrere ok.</p>
-        <div class="plan-group-role-grid">
-          ${roles
-            .map((role) => {
-              const active = activeIds.has(String(role.id));
-              const holders = (role.holders || [])
-                .map((h) => h.displayName)
-                .filter(Boolean)
-                .join(", ");
-              const desc = shortRoleDescription(role.description || role.name);
-              return `
-              <button type="button"
-                class="plan-group-role-tile ${active ? "is-active" : ""}"
-                data-plan-role-pick="${ui.escapeHtml(String(role.id))}"
-                data-claim="${active ? "0" : "1"}"
-                ${state.roleSaving ? "disabled" : ""}>
-                <strong>${ui.escapeHtml(role.name)}</strong>
-                ${desc ? `<span>${ui.escapeHtml(desc)}</span>` : ""}
-                <em>${
-                  holders
-                    ? ui.escapeHtml(holders)
-                    : active
-                      ? shared
-                        ? "Gewählt"
-                        : "Du"
-                      : "Tippen"
-                }</em>
-              </button>`;
-            })
-            .join("")}
-        </div>
+        <section class="plan-group-section plan-group-section--roles" aria-label="Rolle wählen">
+          <p class="plan-group-section__title">${
+            shared ? `2. Rolle für ${ui.escapeHtml(handoffName)}` : "Gruppenrolle"
+          } <span class="req">*</span></p>
+          <p class="plan-group-section__hint">Gleiche Rolle für mehrere Personen ist ok.</p>
+          <div class="plan-group-role-grid">
+            ${roles
+              .map((role) => {
+                const active = activeIds.has(String(role.id));
+                const holders = (role.holders || [])
+                  .map((h) => h.displayName)
+                  .filter(Boolean)
+                  .join(", ");
+                const desc = shortRoleDescription(role.description || role.name);
+                return `
+                <button type="button"
+                  class="plan-group-role-tile ${active ? "is-active" : ""}"
+                  data-plan-role-pick="${ui.escapeHtml(String(role.id))}"
+                  data-claim="${active ? "0" : "1"}"
+                  ${state.roleSaving ? "disabled" : ""}>
+                  <strong>${ui.escapeHtml(role.name)}</strong>
+                  ${desc ? `<span>${ui.escapeHtml(desc)}</span>` : ""}
+                  <em>${
+                    holders
+                      ? ui.escapeHtml(holders)
+                      : active
+                        ? shared
+                          ? "Gewählt"
+                          : "Du"
+                        : "Tippen"
+                  }</em>
+                </button>`;
+              })
+              .join("")}
+          </div>
+        </section>
       </div>`;
   }
 
@@ -1822,6 +1861,11 @@
     const sConf = confidenceStepComplete();
     const missionReady = sWhat && sLevel && sStart && sWork && sControl && sPlanB;
 
+    const sharedGroup = isSharedGroupDevice() && state.groupContext?.hasGroup && !state.groupContext?.needsSetup;
+    const handoffForTopic = sharedGroup ? currentHandoffMember() : null;
+    const topicLabel = handoffForTopic
+      ? `3. Unterthema · ${handoffForTopic.displayName || "Person"}`
+      : "Unterthema";
     const whatBody = `
       <div class="goal-step-card__stack">
         ${
@@ -1842,20 +1886,26 @@
               )
         }
         ${renderGroupRolePicker(ui)}
-        ${renderCheckpointField(ui)}
-        ${ui.fieldWrap(
-          ui.fieldLabel("Unterthema", { required: true }),
-          !groupRoleComplete()
-            ? `<div class="logbuch-msg logbuch-msg-info">Zuerst Rolle wählen.</div>`
-            : state.whatGoalOptions.length
-              ? ui.select(
-                  "whatGoalId",
-                  state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
-                  state.whatGoalId,
-                  { phase: "plan", placeholder: "Unterthema wählen…" }
-                )
-              : whatGoalMessage(ui)
-        )}
+        <div class="${sharedGroup ? "plan-group-topic-section" : ""}">
+          ${renderCheckpointField(ui)}
+          ${ui.fieldWrap(
+            ui.fieldLabel(topicLabel, { required: true }),
+            !groupRoleComplete()
+              ? `<div class="logbuch-msg logbuch-msg-info">${
+                  sharedGroup
+                    ? "Zuerst Person und Rolle wählen — dann Unterthema."
+                    : "Zuerst Rolle wählen."
+                }</div>`
+              : state.whatGoalOptions.length
+                ? ui.select(
+                    "whatGoalId",
+                    state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
+                    state.whatGoalId,
+                    { phase: "plan", placeholder: "Unterthema wählen…" }
+                  )
+                : whatGoalMessage(ui)
+          )}
+        </div>
       </div>`;
 
     const levelBody = `
@@ -1926,7 +1976,7 @@
               title: "Was will ich heute können?",
               hint: state.groupContext?.hasGroup
                 ? isSharedGroupDevice()
-                  ? "Rolle → Unterthema → Ziele. Gleiche Wahl ok."
+                  ? "Person tippen → Rolle → Unterthema. Tablet weitergeben."
                   : "Rolle, dann Unterthema. Gleiche Wahl ok."
                 : "Fach und Unterthema wählen.",
               body: whatBody,
