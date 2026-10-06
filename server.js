@@ -5320,6 +5320,58 @@ app.post("/api/student/start-briefing/complete", isStudent, async (req, res) => 
 // -------------------------------------------------------
 // STUDENT: SRL-Logbuch – Planen
 // -------------------------------------------------------
+/** Shared-Tablet: Host darf für Gruppenmitglied planen, wenn device_mode=shared. */
+async function resolveSharedPlanTargetUserId(actorId, classId, schoolId, subject, forUserIdRaw) {
+  const actor = Number(actorId);
+  const requested = Number(forUserIdRaw);
+  if (!Number.isFinite(requested) || requested <= 0 || requested === actor) {
+    return { ok: true, planningUserId: actor, shared: false };
+  }
+  if (!classId || !subject) {
+    return { ok: false, message: "Für diese Planung fehlt der Gruppenkontext." };
+  }
+  const gm = await pool.query(
+    `
+    SELECT gs.id, gms.device_mode
+    FROM group_sessions gs
+    JOIN group_mode_settings gms
+      ON gms.class_id = gs.class_id
+     AND lower(trim(gms.subject)) = lower(trim(gs.subject))
+     AND gms.enabled = TRUE
+     AND ($3::int IS NULL OR gms.school_id = $3 OR gms.school_id IS NULL)
+    JOIN group_session_members target
+      ON target.session_id = gs.id
+     AND target.user_id = $4
+     AND COALESCE(target.invite_status, 'accepted') = 'accepted'
+    WHERE gs.class_id = $2
+      AND gs.status <> 'closed'
+      AND lower(trim(gs.subject)) = lower(trim($5))
+      AND (
+        gs.host_user_id = $1
+        OR EXISTS (
+          SELECT 1 FROM group_session_members actor
+          WHERE actor.session_id = gs.id
+            AND actor.user_id = $1
+            AND COALESCE(actor.invite_status, 'accepted') = 'accepted'
+        )
+      )
+    ORDER BY
+      CASE gs.status WHEN 'standing' THEN 0 WHEN 'setup' THEN 1 ELSE 2 END,
+      gs.updated_at DESC NULLS LAST
+    LIMIT 1
+  `,
+    [actor, classId, schoolId, requested, subject]
+  );
+  const row = gm.rows[0];
+  if (!row) {
+    return { ok: false, message: "Diese Person gehört nicht zu eurer Gruppe." };
+  }
+  if (String(row.device_mode || "shared") === "personal") {
+    return { ok: false, message: "In der Tabletklasse plant jede Person selbst." };
+  }
+  return { ok: true, planningUserId: requested, shared: true, sessionId: row.id };
+}
+
 app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
@@ -5338,18 +5390,42 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       timetable = await fetchTimetableForClassDay(classId, weekday);
     }
 
+    const lockedSubjectEarly = timetableSubjectForSlot(timetable, timeslot);
+    const subjectForTarget =
+      lockedSubjectEarly ||
+      (subjectQuery && LOG_SUBJECTS.includes(subjectQuery) ? subjectQuery : null);
+    const targetResolve = await resolveSharedPlanTargetUserId(
+      studentId,
+      classId,
+      schoolId,
+      subjectForTarget,
+      req.query.forUserId
+    );
+    if (!targetResolve.ok) {
+      return res.status(403).json({ error: targetResolve.message || "Keine Berechtigung." });
+    }
+    const planningUserId = targetResolve.planningUserId;
+
     let existingEntry = null;
     if (entryId) {
-      existingEntry = await findPlanLogEntry(studentId, { date, entryId });
+      existingEntry = await findPlanLogEntry(planningUserId, { date, entryId });
     } else if (subjectQuery && LOG_SUBJECTS.includes(subjectQuery)) {
-      existingEntry = await findPlanLogEntry(studentId, {
+      existingEntry = await findPlanLogEntry(planningUserId, {
         date,
         subject: subjectQuery,
         timeslot
       });
     }
     if (existingEntry) {
-      existingEntry = await enrichPlanEntryForStudent(studentId, existingEntry, date);
+      existingEntry = await enrichPlanEntryForStudent(planningUserId, existingEntry, date);
+      // Fremdplan am Shared-Tablet: nur lesen/übernehmen wenn bearbeitbar
+      if (
+        Number(planningUserId) !== Number(studentId) &&
+        existingEntry &&
+        existingEntry.canEdit === false
+      ) {
+        existingEntry = { ...existingEntry, canEdit: false, sharedReadOnly: true };
+      }
     }
 
     const timetableSubjects = timetableSubjectsFromRows(timetable);
@@ -5468,18 +5544,21 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
                 userId: m.user_id,
                 displayName: m.display_name_snapshot,
                 isMe: Number(m.user_id) === Number(studentId),
+                isPlanningTarget: Number(m.user_id) === Number(planningUserId),
                 memberId: m.id,
                 roles: []
               }));
-            const myMember = members.find((m) => m.isMe);
-            if (myMember) {
+            const planMember =
+              members.find((m) => Number(m.userId) === Number(planningUserId)) ||
+              members.find((m) => m.isMe);
+            if (planMember) {
               const roleRes = await pool.query(
                 `
                 SELECT role_id, role_name_snapshot, role_description_snapshot
                 FROM group_session_member_roles
                 WHERE member_id = $1
               `,
-                [myMember.memberId]
+                [planMember.memberId]
               );
               myRoles = roleRes.rows.map((r) => ({
                 id: r.role_id,
@@ -5512,12 +5591,12 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
                 }
               }
             }
-            // Rollennamen an alle Mitglieder
+            // Rollen an alle Mitglieder (id + Name für Shared-Handoff)
             if (members.length) {
               const allIds = members.map((m) => m.memberId);
               const allRoles = await pool.query(
                 `
-                SELECT member_id, role_name_snapshot
+                SELECT member_id, role_id, role_name_snapshot
                 FROM group_session_member_roles
                 WHERE member_id = ANY($1::uuid[])
               `,
@@ -5527,7 +5606,10 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
               for (const r of allRoles.rows) {
                 const k = String(r.member_id);
                 if (!byMember[k]) byMember[k] = [];
-                if (r.role_name_snapshot) byMember[k].push(r.role_name_snapshot);
+                byMember[k].push({
+                  id: r.role_id,
+                  name: r.role_name_snapshot || ""
+                });
               }
               for (const m of members) {
                 m.roles = byMember[String(m.memberId)] || [];
@@ -5630,7 +5712,8 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
             availableRoles,
             roleWasGoals,
             roleHowGoals,
-            allowMultiRoles: true
+            allowMultiRoles: true,
+            planningUserId
           };
           // Rollenziele zusätzlich – gleiches Unterthema/Rolle für mehrere Personen erlaubt
           if (roleWasGoals.length) {
@@ -5689,7 +5772,9 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       whatGoalOptions,
       subjectLocked,
       lockedSubject,
-      groupContext
+      groupContext,
+      actorUserId: studentId,
+      planningUserId
     });
   } catch (err) {
     console.error("❌ /api/student/log/plan-context:", err);
@@ -5699,7 +5784,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
 
 app.post("/api/student/log/plan", isStudent, async (req, res) => {
   try {
-    const studentId = req.session.user.id;
+    const actorId = req.session.user.id;
     const schoolId = req.session.user.school_id;
 
     const date = await resolveSchoolDate(req, req.body.date);
@@ -5723,15 +5808,30 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       strategy = null,
       confidenceBefore = null,
       freitext = null,
-      planBStrategyText = null
+      planBStrategyText = null,
+      forUserId = null
     } = req.body;
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
       return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
     }
 
+    const { classId, schoolId: classSchoolId } = await getStudentClassContext(actorId);
+    const targetResolve = await resolveSharedPlanTargetUserId(
+      actorId,
+      classId,
+      classSchoolId || schoolId,
+      subject,
+      forUserId
+    );
+    if (!targetResolve.ok) {
+      return res.json({ success: false, message: targetResolve.message || "Keine Berechtigung." });
+    }
+    const studentId = targetResolve.planningUserId;
+    const targetCtx = await getStudentClassContext(studentId);
+    const targetSchoolId = targetCtx.schoolId || classSchoolId || schoolId;
+
     if (timeslot) {
-      const { classId } = await getStudentClassContext(studentId);
       const weekday = weekdayFromIsoDate(date);
       if (classId && weekday) {
         const timetable = await fetchTimetableForClassDay(classId, weekday);
@@ -5747,8 +5847,7 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
 
     const howGoals = normalizeHowGoalsInput(howGoalText, goal);
     const normalizedHowGoal = joinMultiSelectValue(howGoals);
-    const { classId, schoolId: classSchoolId } = await getStudentClassContext(studentId);
-    const effectiveSchoolId = classSchoolId || schoolId;
+    const effectiveSchoolId = targetSchoolId || schoolId;
     const allowedHowGoals = [
       ...((await getLessonGoalsForSubject(effectiveSchoolId, subject)) || [])
     ];
@@ -5898,7 +5997,7 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     }
 
     if (socialForm === "gruppe" || socialForm === "frei") {
-      const unlock = await getSocialFormUnlock(studentId, schoolId);
+      const unlock = await getSocialFormUnlock(studentId, targetSchoolId);
       if (socialForm === "gruppe" && !unlock.gruppe) {
         return res.json({
           success: false,
@@ -5981,7 +6080,7 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     `,
       [
         studentId,
-        schoolId,
+        targetSchoolId,
         date,
         timeslot || null,
         subject,
@@ -6003,12 +6102,14 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       ]
     );
 
-    await awardLogbuchXP(studentId, LOGBUCH_XP.plan, "logbuch_plan", schoolId);
+    await awardLogbuchXP(studentId, LOGBUCH_XP.plan, "logbuch_plan", targetSchoolId);
 
     res.json({
       success: true,
       entry: insertRes.rows[0],
-      xpAwarded: LOGBUCH_XP.plan
+      xpAwarded: LOGBUCH_XP.plan,
+      planningUserId: studentId,
+      sharedHandoff: Number(studentId) !== Number(actorId)
     });
   } catch (err) {
     console.error("❌ /api/student/log/plan:", err);

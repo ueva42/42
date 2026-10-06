@@ -85,7 +85,9 @@
     suggestion: null,
     suggestionApplied: false,
     afterSaveOpen: false,
-    groupContext: null
+    groupContext: null,
+    handoffUserId: null,
+    roleSaving: false
   };
 
   const ARBEIT_TILE_META = {
@@ -653,11 +655,87 @@
     return !!state.selectedCheckpointId;
   }
 
+  function isSharedGroupDevice() {
+    const gc = state.groupContext;
+    return !!(gc?.enabled && gc.hasGroup && String(gc.deviceMode || "shared") !== "personal");
+  }
+
+  function groupMembers() {
+    return (state.groupContext?.members || []).filter((m) => m && m.userId != null);
+  }
+
+  function memberRoleNames(member) {
+    return (member?.roles || [])
+      .map((r) => (typeof r === "string" ? r : r?.name))
+      .filter(Boolean);
+  }
+
+  function memberRoleIds(member) {
+    return new Set(
+      (member?.roles || [])
+        .map((r) => (typeof r === "string" ? null : r?.id))
+        .filter(Boolean)
+        .map(String)
+    );
+  }
+
+  function memberHasRole(member) {
+    return memberRoleNames(member).length > 0 || memberRoleIds(member).size > 0;
+  }
+
+  function syncHandoffMember() {
+    const gc = state.groupContext;
+    if (!gc?.enabled || !gc.hasGroup || !isSharedGroupDevice()) {
+      state.handoffUserId = null;
+      return null;
+    }
+    const members = groupMembers();
+    if (!members.length) {
+      state.handoffUserId = null;
+      return null;
+    }
+    const current = members.find((m) => Number(m.userId) === Number(state.handoffUserId));
+    if (current && !memberHasRole(current)) return current;
+    const pending = members.find((m) => !memberHasRole(m));
+    if (pending) {
+      state.handoffUserId = Number(pending.userId);
+      return pending;
+    }
+    const me = members.find((m) => m.isMe) || members[0];
+    state.handoffUserId = me ? Number(me.userId) : null;
+    return me || null;
+  }
+
+  function currentHandoffMember() {
+    if (!isSharedGroupDevice()) {
+      return groupMembers().find((m) => m.isMe) || null;
+    }
+    return syncHandoffMember();
+  }
+
+  function planningTargetRoles() {
+    if (isSharedGroupDevice()) {
+      const handoff = currentHandoffMember();
+      if (handoff) {
+        const ids = [...memberRoleIds(handoff)];
+        const names = memberRoleNames(handoff);
+        if (ids.length || names.length) {
+          return ids.map((id, i) => ({ id, name: names[i] || "" }));
+        }
+      }
+    }
+    return state.groupContext?.myRoles || [];
+  }
+
   function groupRoleComplete() {
     const gc = state.groupContext;
     if (!gc?.enabled || !gc.hasGroup || gc.needsSetup) return true;
     const available = gc.availableRoles || [];
     if (!available.length) return true;
+    if (isSharedGroupDevice()) {
+      const handoff = currentHandoffMember();
+      return !!(handoff && memberHasRole(handoff));
+    }
     return (gc.myRoles || []).length > 0;
   }
 
@@ -1387,15 +1465,24 @@
       .map((m) => m.displayName)
       .filter(Boolean)
       .join(", ");
-    const roles = (gc.myRoles || []).map((r) => r.name).filter(Boolean).join(", ");
+    const shared = isSharedGroupDevice();
+    const handoff = currentHandoffMember();
+    const roles = planningTargetRoles()
+      .map((r) => r.name)
+      .filter(Boolean)
+      .join(", ");
     return `<div class="logbuch-msg logbuch-msg-info">
       <strong>Deine Gruppe</strong>${names ? `: ${ui.escapeHtml(names)}` : ""}.
       ${
-        roles
-          ? ` Deine Rolle: <strong>${ui.escapeHtml(roles)}</strong>.`
-          : " Als Nächstes: <strong>Rolle wählen</strong> (gleiche Rolle für mehrere ok)."
+        shared
+          ? handoff
+            ? ` Am gemeinsamen Tablet: <strong>Jetzt ${ui.escapeHtml(handoff.displayName || "jemand")}</strong> – Rolle, Unterthema, Ziele.`
+            : " Am gemeinsamen Tablet nacheinander planen."
+          : roles
+            ? ` Deine Rolle: <strong>${ui.escapeHtml(roles)}</strong>.`
+            : " Als Nächstes: <strong>Rolle wählen</strong> (gleiche Rolle für mehrere ok)."
       }
-      Dann Unterthema & Ziele – gleiches Thema in der Gruppe ist erlaubt.
+      Gleiches Thema und gleiche Rolle in der Gruppe sind erlaubt.
     </div>`;
   }
 
@@ -1404,40 +1491,82 @@
     if (!gc?.enabled || !gc.hasGroup || gc.needsSetup) return "";
     const roles = gc.availableRoles || [];
     if (!roles.length) return "";
-    const myIds = new Set((gc.myRoles || []).map((r) => String(r.id)));
+    const shared = isSharedGroupDevice();
+    const handoff = currentHandoffMember();
+    const activeIds = shared
+      ? memberRoleIds(handoff)
+      : new Set((gc.myRoles || []).map((r) => String(r.id)));
+    const members = groupMembers();
+    const handoffName = handoff?.displayName || "jemand";
     return `
       <style>
         .plan-group-roles{margin:0 0 14px}
+        .plan-group-handoff{display:flex;flex-direction:column;gap:8px;margin:0 0 12px;padding:12px 14px;border-radius:14px;border:1px solid rgba(34,211,238,.35);background:linear-gradient(135deg,rgba(8,47,73,.75),rgba(15,23,42,.65))}
+        .plan-group-handoff__now{margin:0;font-size:1.05rem;font-weight:700;color:#e2e8f0}
+        .plan-group-handoff__now strong{color:#67e8f9}
+        .plan-group-handoff__hint{margin:0;font-size:0.82rem;color:#94a3b8}
+        .plan-group-member-row{display:flex;flex-wrap:wrap;gap:6px}
+        .plan-group-member-chip{border:1px solid rgba(148,163,184,.35);background:rgba(15,23,42,.55);color:#cbd5e1;border-radius:999px;padding:6px 10px;font-size:0.78rem;cursor:pointer}
+        .plan-group-member-chip.is-active{border-color:rgba(34,211,238,.85);color:#ecfeff;background:rgba(8,47,73,.9)}
+        .plan-group-member-chip.is-done{border-color:rgba(52,211,153,.45);color:#a7f3d0}
         .plan-group-role-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-top:8px}
         .plan-group-role-tile{display:grid;gap:4px;text-align:left;padding:12px;border-radius:12px;border:1px solid rgba(56,189,248,.35);background:rgba(8,47,73,.45);color:inherit;cursor:pointer}
         .plan-group-role-tile strong{font-size:0.95rem}
         .plan-group-role-tile span,.plan-group-role-tile em{font-size:0.8rem;color:#94a3b8;font-style:normal}
         .plan-group-role-tile.is-active{border-color:rgba(34,211,238,.9);box-shadow:0 0 0 1px rgba(34,211,238,.4);background:rgba(8,47,73,.75)}
+        .plan-group-role-tile:disabled{opacity:.6;cursor:wait}
       </style>
       <div class="plan-group-roles">
-        <p class="field-label">Deine Gruppenrolle <span class="req">*</span></p>
-        <p class="field-hint">Mehrere dürfen dieselbe Rolle wählen. Am Shared-Tablet: jede Person wählt ihre Rolle, wenn sie dran ist.</p>
+        ${
+          shared
+            ? `<div class="plan-group-handoff">
+                <p class="plan-group-handoff__now">Jetzt: <strong>${ui.escapeHtml(handoffName)}</strong></p>
+                <p class="plan-group-handoff__hint">Tablet weitergeben oder gemeinsam ausfüllen – zuerst Rolle, dann Unterthema &amp; Ziele. Gleiche Rolle für mehrere ok.</p>
+                <div class="plan-group-member-row">
+                  ${members
+                    .map((m) => {
+                      const done = memberHasRole(m);
+                      const active = Number(m.userId) === Number(state.handoffUserId);
+                      const roleLabel = memberRoleNames(m).join(", ");
+                      return `<button type="button" class="plan-group-member-chip ${active ? "is-active" : ""} ${done ? "is-done" : ""}" data-plan-handoff="${ui.escapeHtml(String(m.userId))}">
+                        ${ui.escapeHtml(m.displayName || "Person")}${roleLabel ? ` · ${ui.escapeHtml(roleLabel)}` : ""}
+                      </button>`;
+                    })
+                    .join("")}
+                </div>
+              </div>`
+            : ""
+        }
+        <p class="field-label">${shared ? `Rolle für ${ui.escapeHtml(handoffName)}` : "Deine Gruppenrolle"} <span class="req">*</span></p>
+        <p class="field-hint">${
+          shared
+            ? "Tippe eine Rolle – mehrere dürfen dieselbe wählen."
+            : "Mehrere dürfen dieselbe Rolle wählen. Tippe, um deine Rolle zu übernehmen."
+        }</p>
         <div class="plan-group-role-grid">
           ${roles
             .map((role) => {
-              const mine = myIds.has(String(role.id));
+              const active = activeIds.has(String(role.id));
               const holders = (role.holders || [])
                 .map((h) => h.displayName)
                 .filter(Boolean)
                 .join(", ");
               return `
               <button type="button"
-                class="plan-group-role-tile ${mine ? "is-active" : ""}"
-                data-plan-role-claim="${ui.escapeHtml(String(role.id))}"
-                data-claim="${mine ? "0" : "1"}">
+                class="plan-group-role-tile ${active ? "is-active" : ""}"
+                data-plan-role-pick="${ui.escapeHtml(String(role.id))}"
+                data-claim="${active ? "0" : "1"}"
+                ${state.roleSaving ? "disabled" : ""}>
                 <strong>${ui.escapeHtml(role.name)}</strong>
                 <span>${ui.escapeHtml(role.description || "Gruppenaufgabe")}</span>
                 <em>${
                   holders
                     ? ui.escapeHtml(holders)
-                    : mine
-                      ? "Du"
-                      : "Noch frei – tippen"
+                    : active
+                      ? shared
+                        ? "Gewählt"
+                        : "Du"
+                      : "Tippen zum Wählen"
                 }</em>
               </button>`;
             })
@@ -1628,7 +1757,9 @@
               step: 1,
               title: "Was will ich heute können?",
               hint: state.groupContext?.hasGroup
-                ? "Zuerst Rolle, dann Unterthema – beides dürfen mehrere in der Gruppe gleich wählen."
+                ? isSharedGroupDevice()
+                  ? "Gemeinsames Tablet: Jetzt → Rolle → Unterthema → Ziele, dann nächste Person. Gleiche Rolle/Thema ok."
+                  : "Zuerst Rolle, dann Unterthema – beides dürfen mehrere in der Gruppe gleich wählen."
                 : "Wähle Fach und Unterthema.",
               body: whatBody,
               showBack: false
@@ -1830,26 +1961,65 @@
       const q = new URLSearchParams(btn?.dataset?.query || "");
       window.StudentRouter?.navigateToSection("gruppenmodus", { query: q });
     });
-    scope.querySelectorAll("[data-plan-role-claim]").forEach((btn) => {
+    scope.querySelectorAll("[data-plan-handoff]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const uid = Number(btn.getAttribute("data-plan-handoff"));
+        if (!Number.isFinite(uid) || uid <= 0) return;
+        state.handoffUserId = uid;
+        state.errorMsg = "";
+        state.whatGoalId = null;
+        state.whatGoalText = "";
+        state.selectedLevel = null;
+        state.levelGoalText = "";
+        state.startGoals = [];
+        state.howGoalText = null;
+        state.controlGoals = [];
+        state.workGoals = [];
+        state.activeStep = 1;
+        loadContext().then(render).catch(() => render());
+      });
+    });
+    scope.querySelectorAll("[data-plan-role-pick]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const sessionId = state.groupContext?.sessionId;
-        const roleId = btn.getAttribute("data-plan-role-claim");
+        const roleId = btn.getAttribute("data-plan-role-pick");
         const claim = btn.getAttribute("data-claim") !== "0";
-        if (!sessionId || !roleId) return;
+        if (!sessionId || !roleId || state.roleSaving) return;
+        const shared = isSharedGroupDevice();
+        const handoff = currentHandoffMember();
+        const targetUserId = shared
+          ? Number(handoff?.userId || state.handoffUserId)
+          : null;
+        if (shared && (!Number.isFinite(targetUserId) || targetUserId <= 0)) {
+          state.errorMsg = "Bitte zuerst eine Person wählen.";
+          render();
+          return;
+        }
+        state.roleSaving = true;
+        state.errorMsg = "";
         try {
-          const r = await fetch(`/api/student/group-sessions/${sessionId}/roles/claim`, {
+          const url = shared
+            ? `/api/student/group-sessions/${sessionId}/roles/assign`
+            : `/api/student/group-sessions/${sessionId}/roles/claim`;
+          const body = shared
+            ? { userId: targetUserId, roleId, claim }
+            : { roleId, claim };
+          const r = await fetch(url, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ roleId, claim })
+            body: JSON.stringify(body)
           });
           const data = await r.json().catch(() => ({}));
           if (!r.ok || data.success === false) {
             throw new Error(data.message || data.error || "Rolle konnte nicht gespeichert werden.");
           }
+          if (shared && targetUserId) state.handoffUserId = targetUserId;
           await loadContext();
+          state.roleSaving = false;
           render();
         } catch (err) {
+          state.roleSaving = false;
           state.errorMsg = err.message || "Rolle speichern fehlgeschlagen.";
           render();
         }
@@ -2075,7 +2245,11 @@
           confidenceBefore:
             state.confidenceBefore != null ? Number(state.confidenceBefore) : null,
           planBStrategyText: planBJoined,
-          freitext: state.detailsText.trim() || null
+          freitext: state.detailsText.trim() || null,
+          forUserId:
+            isSharedGroupDevice() && state.handoffUserId
+              ? Number(state.handoffUserId)
+              : undefined
         })
       });
 
@@ -2099,6 +2273,47 @@
       }
 
       state.submitting = false;
+      // Shared-Tablet: nach Speichern zur nächsten Person in der Gruppe
+      if (isSharedGroupDevice()) {
+        const members = groupMembers();
+        const cur = Number(state.handoffUserId);
+        const idx = members.findIndex((m) => Number(m.userId) === cur);
+        const ordered =
+          idx >= 0
+            ? members.slice(idx + 1).concat(members.slice(0, idx))
+            : members.filter((m) => Number(m.userId) !== cur);
+        const next = ordered[0];
+        if (next) {
+          state.handoffUserId = Number(next.userId);
+          state.afterSaveOpen = false;
+          state.editingEntryId = null;
+          state.entryId = null;
+          state.existingEntry = null;
+          state.whatGoalId = null;
+          state.whatGoalText = "";
+          state.selectedLevel = null;
+          state.levelGoalText = "";
+          state.startGoals = [];
+          state.howGoalText = null;
+          state.controlGoals = [];
+          state.workGoals = [];
+          state.planBStrategies = [];
+          state.confidenceBefore = null;
+          state.detailsText = "";
+          state.activeStep = 1;
+          state.planBAcknowledged = false;
+          state.errorMsg = "";
+          await loadContext();
+          if (state.existingEntry?.canEdit) {
+            state.afterSaveOpen = true;
+            state.errorMsg = `${next.displayName || "Nächste Person"} hat schon ein Tagesziel.`;
+          } else {
+            state.errorMsg = `Gespeichert. Jetzt: ${next.displayName || "nächste Person"} – Rolle, Unterthema, Ziele.`;
+          }
+          render();
+          return;
+        }
+      }
       state.afterSaveOpen = true;
       render();
     } catch (err) {
@@ -2117,6 +2332,13 @@
     if (state.selectedCheckpointId) {
       params.set("checkpointId", state.selectedCheckpointId);
     }
+    if (
+      state.handoffUserId &&
+      state.groupContext &&
+      String(state.groupContext.deviceMode || "") === "shared"
+    ) {
+      params.set("forUserId", String(state.handoffUserId));
+    }
 
     const res = await fetch(`/api/student/log/plan-context?${params}`);
     if (!res.ok) {
@@ -2130,6 +2352,14 @@
       applyEntryToForm(data.existingEntry);
       state.planBAcknowledged = true;
       state.activeStep = 8;
+    } else if (
+      data.existingEntry &&
+      data.groupContext &&
+      String(data.groupContext.deviceMode || "") === "shared" &&
+      Number(data.planningUserId) !== Number(data.actorUserId)
+    ) {
+      // Andere Person hat schon ein Ziel – Formular nicht überschreiben, nur Hinweis
+      state.existingEntry = null;
     }
     state.hasClass = data.hasClass !== false;
     state.howGoalsBase = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
@@ -2145,6 +2375,11 @@
     state.goalSource = data.goalSource || "none";
     state.subjectLocked = !!data.subjectLocked;
     state.groupContext = data.groupContext || null;
+    if (data.planningUserId) {
+      state.handoffUserId = Number(data.planningUserId);
+    } else if (state.groupContext) {
+      syncHandoffMember();
+    }
 
     if (data.lockedSubject) {
       state.subject = data.lockedSubject;
@@ -2174,6 +2409,37 @@
       }
     }
     if (!state.editingEntryId) syncActiveStep();
+
+    // Shared: nach erstem Kontext die aktuelle Handoff-Person nachladen (Rollen-/Zielkontext)
+    const shared = isSharedGroupDevice();
+    const wantFor = shared ? Number(state.handoffUserId) : null;
+    const gotFor = data.planningUserId != null ? Number(data.planningUserId) : null;
+    if (
+      shared &&
+      wantFor &&
+      gotFor !== wantFor &&
+      !params.has("forUserId")
+    ) {
+      params.set("forUserId", String(wantFor));
+      const res2 = await fetch(`/api/student/log/plan-context?${params}`);
+      if (res2.ok) {
+        const data2 = await res2.json();
+        state.groupContext = data2.groupContext || state.groupContext;
+        state.whatGoalOptions = Array.isArray(data2.whatGoalOptions)
+          ? data2.whatGoalOptions
+          : state.whatGoalOptions;
+        state.howGoalsBase = Array.isArray(data2.howGoals) ? data2.howGoals : state.howGoalsBase;
+        refreshHowGoals();
+        if (data2.planningUserId) state.handoffUserId = Number(data2.planningUserId);
+        if (data2.existingEntry?.canEdit && Number(data2.planningUserId) === wantFor) {
+          state.existingEntry = data2.existingEntry;
+          applyEntryToForm(data2.existingEntry);
+          state.planBAcknowledged = true;
+          state.activeStep = 8;
+        }
+        if (!state.editingEntryId) syncActiveStep();
+      }
+    }
   }
 
   async function init(query) {
@@ -2216,6 +2482,8 @@
     state.suggestionApplied = false;
     state.afterSaveOpen = false;
     state.groupContext = null;
+    state.handoffUserId = null;
+    state.roleSaving = false;
     teardownPlanNextModal();
 
     const root = document.getElementById("plan-screen-root");
