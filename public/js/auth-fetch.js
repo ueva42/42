@@ -63,8 +63,9 @@
 
   function homeFor(role) {
     if (role === "superadmin") return "/superadmin";
-    if (role === "student") return "/student/hub";
-    if (role === "teacher" || role === "admin") return "/teacher";
+    if (role === "student") return "/student/today";
+    if (role === "teacher") return "/teacher";
+    if (role === "admin") return "/admin";
     return "/login";
   }
 

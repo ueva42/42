@@ -660,6 +660,25 @@
     return !!(gc?.enabled && gc.hasGroup && String(gc.deviceMode || "shared") !== "personal");
   }
 
+  /** Kurze Kartenzeile – DB-Texte können länger sein. */
+  function shortRoleDescription(text) {
+    const raw = String(text || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!raw) return "";
+    const known = {
+      "Du bereitest Versuche vor und führst sie sicher durch.": "Versuche vorbereiten & durchführen",
+      "Du hältst Aufbau, Beobachtungen, Bilder und Ergebnisse fest.": "Aufbau & Beobachtungen notieren",
+      "Du erklärst die physikalischen Zusammenhänge.": "Zusammenhänge erklären",
+      "Du planst, baust, prüfst und verbesserst das Produkt.": "Produkt planen & bauen"
+    };
+    if (known[raw]) return known[raw];
+    if (raw.length <= 42) return raw;
+    const cut = raw.slice(0, 40);
+    const sp = cut.lastIndexOf(" ");
+    return `${(sp > 20 ? cut.slice(0, sp) : cut).trim()}…`;
+  }
+
   function groupMembers() {
     return (state.groupContext?.members || []).filter((m) => m && m.userId != null);
   }
@@ -1472,17 +1491,16 @@
       .filter(Boolean)
       .join(", ");
     return `<div class="logbuch-msg logbuch-msg-info">
-      <strong>Deine Gruppe</strong>${names ? `: ${ui.escapeHtml(names)}` : ""}.
+      <strong>Gruppe</strong>${names ? `: ${ui.escapeHtml(names)}` : ""}.
       ${
         shared
           ? handoff
-            ? ` Am gemeinsamen Tablet: <strong>Jetzt ${ui.escapeHtml(handoff.displayName || "jemand")}</strong> – Rolle, Unterthema, Ziele.`
-            : " Am gemeinsamen Tablet nacheinander planen."
+            ? ` Jetzt: <strong>${ui.escapeHtml(handoff.displayName || "jemand")}</strong> – Rolle wählen.`
+            : " Nacheinander planen."
           : roles
-            ? ` Deine Rolle: <strong>${ui.escapeHtml(roles)}</strong>.`
-            : " Als Nächstes: <strong>Rolle wählen</strong> (gleiche Rolle für mehrere ok)."
+            ? ` Rolle: <strong>${ui.escapeHtml(roles)}</strong>.`
+            : " Als Nächstes: <strong>Rolle wählen</strong>."
       }
-      Gleiches Thema und gleiche Rolle in der Gruppe sind erlaubt.
     </div>`;
   }
 
@@ -1521,7 +1539,7 @@
           shared
             ? `<div class="plan-group-handoff">
                 <p class="plan-group-handoff__now">Jetzt: <strong>${ui.escapeHtml(handoffName)}</strong></p>
-                <p class="plan-group-handoff__hint">Tablet weitergeben oder gemeinsam ausfüllen – zuerst Rolle, dann Unterthema &amp; Ziele. Gleiche Rolle für mehrere ok.</p>
+                <p class="plan-group-handoff__hint">Rolle tippen · Tablet weiterreichen · gleiche Rolle ok</p>
                 <div class="plan-group-member-row">
                   ${members
                     .map((m) => {
@@ -1537,12 +1555,8 @@
               </div>`
             : ""
         }
-        <p class="field-label">${shared ? `Rolle für ${ui.escapeHtml(handoffName)}` : "Deine Gruppenrolle"} <span class="req">*</span></p>
-        <p class="field-hint">${
-          shared
-            ? "Tippe eine Rolle – mehrere dürfen dieselbe wählen."
-            : "Mehrere dürfen dieselbe Rolle wählen. Tippe, um deine Rolle zu übernehmen."
-        }</p>
+        <p class="field-label">${shared ? `Rolle · ${ui.escapeHtml(handoffName)}` : "Gruppenrolle"} <span class="req">*</span></p>
+        <p class="field-hint">Gleiche Rolle für mehrere ok.</p>
         <div class="plan-group-role-grid">
           ${roles
             .map((role) => {
@@ -1551,6 +1565,7 @@
                 .map((h) => h.displayName)
                 .filter(Boolean)
                 .join(", ");
+              const desc = shortRoleDescription(role.description || role.name);
               return `
               <button type="button"
                 class="plan-group-role-tile ${active ? "is-active" : ""}"
@@ -1558,7 +1573,7 @@
                 data-claim="${active ? "0" : "1"}"
                 ${state.roleSaving ? "disabled" : ""}>
                 <strong>${ui.escapeHtml(role.name)}</strong>
-                <span>${ui.escapeHtml(role.description || "Gruppenaufgabe")}</span>
+                ${desc ? `<span>${ui.escapeHtml(desc)}</span>` : ""}
                 <em>${
                   holders
                     ? ui.escapeHtml(holders)
@@ -1566,7 +1581,7 @@
                       ? shared
                         ? "Gewählt"
                         : "Du"
-                      : "Tippen zum Wählen"
+                      : "Tippen"
                 }</em>
               </button>`;
             })
@@ -1678,7 +1693,7 @@
         ${ui.fieldWrap(
           ui.fieldLabel("Unterthema", { required: true }),
           !groupRoleComplete()
-            ? `<div class="logbuch-msg logbuch-msg-info">Zuerst eine Gruppenrolle wählen – danach das Unterthema.</div>`
+            ? `<div class="logbuch-msg logbuch-msg-info">Zuerst Rolle wählen.</div>`
             : state.whatGoalOptions.length
               ? ui.select(
                   "whatGoalId",
@@ -1758,9 +1773,9 @@
               title: "Was will ich heute können?",
               hint: state.groupContext?.hasGroup
                 ? isSharedGroupDevice()
-                  ? "Gemeinsames Tablet: Jetzt → Rolle → Unterthema → Ziele, dann nächste Person. Gleiche Rolle/Thema ok."
-                  : "Zuerst Rolle, dann Unterthema – beides dürfen mehrere in der Gruppe gleich wählen."
-                : "Wähle Fach und Unterthema.",
+                  ? "Rolle → Unterthema → Ziele. Gleiche Wahl ok."
+                  : "Rolle, dann Unterthema. Gleiche Wahl ok."
+                : "Fach und Unterthema wählen.",
               body: whatBody,
               showBack: false
             })

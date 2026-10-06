@@ -2131,7 +2131,7 @@
 
 <script src="/js/client-cache-reset.js?v=3"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=15"></script>
+<script src="/js/auth-fetch.js?v=16"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=5"></script>
@@ -3885,7 +3885,7 @@ async function bootAdminApp() {
         return;
       }
       if (!(session.canTeacher || session.role === "admin" || session.role === "teacher")) {
-        window.location.replace(session.redirectTo || "/student/hub");
+        window.location.replace(session.redirectTo || "/student/today");
         return;
       }
     }

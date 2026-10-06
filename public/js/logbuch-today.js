@@ -461,8 +461,8 @@
         subject,
         time: slot?.timeslot,
         hint: names
-          ? `Gruppe: ${names} – Rolle, Unterthema & Ziele in Mein Tag (gleiche Themen/Rollen ok).`
-          : "In der Gruppe – Rolle, Unterthema & Ziele in Mein Tag setzen.",
+          ? `Gruppe: ${names} – Rolle & Ziele setzen.`
+          : "Gruppe bereit – Rolle & Ziele setzen.",
         cta: editable ? "Tagesziel setzen" : "",
         nav: editable ? "plan" : "",
         query: params.toString(),
@@ -478,8 +478,8 @@
       subject,
       time: slot?.timeslot,
       hint: gm?.activeSessionId
-        ? "Gruppe noch nicht fertig – Personen (und Rollen) festlegen."
-        : "Zuerst Gruppe bilden – danach planen in Mein Tag.",
+        ? "Gruppe noch nicht fertig."
+        : "Zuerst Gruppe bilden.",
       cta: editable ? (gm?.activeSessionId ? "Gruppe fertigmachen" : "Gruppe bilden") : "",
       nav: editable ? "gruppenmodus" : "",
       query: params.toString(),

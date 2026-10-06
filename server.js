@@ -2774,11 +2774,9 @@ function sendToAppOrLogin(req, res) {
 
   const user = req.session?.user;
   const role = user?.role;
-  if (role === "admin" || role === "teacher") {
+  if (role === "admin" || role === "teacher" || role === "student" || role === "superadmin") {
     return res.redirect(302, defaultPostLoginPath(user));
   }
-  if (role === "student") return res.redirect(302, "/student/hub");
-  if (role === "superadmin") return res.redirect(302, "/superadmin");
   return sendLoginPage(res);
 }
 
@@ -14397,7 +14395,7 @@ for (const route of teacherSpaPaths) {
 }
 
 app.get("/student", (_req, res) => {
-  res.redirect(302, "/student/hub");
+  res.redirect(302, "/student/today");
 });
 
 const studentSpaPaths = [

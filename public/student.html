@@ -13063,7 +13063,7 @@ h2 {
 <script src="/js/xp-burst.js?v=1"></script>
 <script src="/js/demo-banner.js?v=2"></script>
 <script src="/js/client-cache-reset.js?v=3"></script>
-<script src="/js/auth-fetch.js?v=15"></script>
+<script src="/js/auth-fetch.js?v=16"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=2"></script>
@@ -13073,10 +13073,10 @@ h2 {
 <script src="/js/logbuch-reminders.js?v=4"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=12"></script>
-<script src="/js/logbuch-plan.js?v=31"></script>
+<script src="/js/logbuch-plan.js?v=32"></script>
 <script src="/js/logbuch-check.js?v=14"></script>
 <script src="/js/logbuch-reflect.js?v=7"></script>
-<script src="/js/logbuch-today.js?v=45"></script>
+<script src="/js/logbuch-today.js?v=46"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
 <script src="/js/logbuch-levelplan.js?v=31"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
@@ -14055,11 +14055,13 @@ async function bootStudentApp() {
       if (!data.authenticated || data.role !== "student") {
         const target =
           data?.redirectTo ||
-          (data?.role === "admin" || data?.role === "teacher"
-            ? "/teacher"
-            : data?.role === "superadmin"
-              ? "/superadmin"
-              : `/login?loggedout=1&t=${Date.now()}`);
+          (data?.role === "admin"
+            ? "/admin"
+            : data?.role === "teacher"
+              ? "/teacher"
+              : data?.role === "superadmin"
+                ? "/superadmin"
+                : `/login?loggedout=1&t=${Date.now()}`);
         window.location.replace(target);
         return;
       }
