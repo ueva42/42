@@ -640,7 +640,11 @@ window.LogbuchVisuals = {
             ${isActive ? `<span class="strategy-tile__check" aria-hidden="true">✓</span>` : ""}
             <span class="strategy-tile__icon" aria-hidden="true">${this.escape(tile.icon || "◆")}</span>
             <span class="strategy-tile__title">${this.escape(tile.title)}</span>
-            <span class="strategy-tile__desc">${this.escape(tile.desc || "")}</span>
+            ${
+              tile.desc
+                ? `<span class="strategy-tile__desc">${this.escape(tile.desc)}</span>`
+                : ""
+            }
           </button>`;
           })
           .join("")}

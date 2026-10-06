@@ -8737,6 +8737,7 @@ body.student-app .card.section > h2 {
   padding: 12px;
   min-height: 92px;
   cursor: pointer;
+  white-space: normal;
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -8788,8 +8789,11 @@ body.student-app .card.section > h2 {
   display: block;
   font-size: 13px;
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.35;
   color: #f8fafc;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .strategy-tile__desc {
@@ -8798,6 +8802,9 @@ body.student-app .card.section > h2 {
   font-size: 11px;
   line-height: 1.35;
   color: #94a3b8;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .loadout-panel__label {
@@ -9293,6 +9300,59 @@ body.student-app .card.section > h2 {
 .plan-ask__body .strategy-tile-grid,
 .plan-ask__body .goal-step-card__stack {
   margin-top: 4px;
+}
+
+/* Plan-Wizard: volle Zieltexte als einspaltige App-Zeilen (kein 2-Col-Ellipsis) */
+.plan-ask__body .strategy-tile-grid {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.plan-ask__body .strategy-tile {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: center;
+  min-height: 0;
+  padding: 12px 40px 12px 14px;
+}
+
+.plan-ask__body .strategy-tile__icon {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  margin-bottom: 0;
+  align-self: center;
+}
+
+.plan-ask__body .strategy-tile__title,
+.plan-ask__body .strategy-tile__desc {
+  grid-column: 2;
+}
+
+.plan-ask__body .strategy-tile__check {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.plan-ask__body .level-tile-grid .strategy-tile-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.plan-ask__body .level-tile-grid .strategy-tile {
+  display: block;
+  min-height: 92px;
+  padding: 12px;
+}
+
+.plan-ask__body .level-tile-grid .strategy-tile__icon {
+  display: inline-flex;
+  margin-bottom: 8px;
+}
+
+.plan-ask__body .level-tile-grid .strategy-tile__check {
+  top: 10px;
+  transform: none;
 }
 
 .plan-ask__body .plan-acc__continue {
@@ -13069,11 +13129,11 @@ h2 {
 <script src="/js/logbuch-strategies.js?v=2"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=39"></script>
-<script src="/js/logbuch-visuals.js?v=16"></script>
+<script src="/js/logbuch-visuals.js?v=17"></script>
 <script src="/js/logbuch-reminders.js?v=4"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=12"></script>
-<script src="/js/logbuch-plan.js?v=33"></script>
+<script src="/js/logbuch-plan.js?v=34"></script>
 <script src="/js/logbuch-check.js?v=14"></script>
 <script src="/js/logbuch-reflect.js?v=7"></script>
 <script src="/js/logbuch-today.js?v=46"></script>

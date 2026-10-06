@@ -321,11 +321,12 @@
     const meta = HOW_GOAL_TILE_META[text];
     if (meta) return { value: text, ...meta };
     // Fach-eigene Wie-Ziele (Admin) → Startkarten, nicht „bearbeiten“ ausfiltern
+    // Volle Labels (kein Ellipsis) – Modal zeigt einspaltige Wrap-Zeilen
     return {
       value: text,
       cat: "starten",
-      title: text.length > 34 ? `${text.slice(0, 31)}…` : text,
-      desc: text,
+      title: text,
+      desc: "",
       icon: "◆",
       accent: "#22d3ee"
     };
@@ -337,8 +338,8 @@
     return {
       value: text,
       cat: "starten",
-      title: text.length > 30 ? `${text.slice(0, 27)}…` : text,
-      desc: text,
+      title: text,
+      desc: "",
       icon: "◆",
       accent: "#22d3ee"
     };
