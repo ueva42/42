@@ -1266,7 +1266,7 @@ async function fetchCustomSubjectLessonGoals(schoolId, subject = null) {
   const params = [schoolId];
   let subjectFilter = "";
   if (subject) {
-    subjectFilter = " AND subject = $2";
+    subjectFilter = " AND lower(trim(subject)) = lower(trim($2))";
     params.push(subject);
   }
 
@@ -1301,7 +1301,15 @@ async function fetchCustomSubjectLessonGoals(schoolId, subject = null) {
 }
 
 function lessonGoalsForSubject(customGoalsBySubject, subject) {
-  const custom = customGoalsBySubject?.[subject];
+  if (!subject || !customGoalsBySubject) return LOG_HOW_GOALS;
+  let custom = customGoalsBySubject[subject];
+  if (!Array.isArray(custom) || !custom.length) {
+    const key = normalizeSubjectKey(subject);
+    const matched = Object.keys(customGoalsBySubject).find(
+      (s) => normalizeSubjectKey(s) === key
+    );
+    custom = matched ? customGoalsBySubject[matched] : null;
+  }
   if (Array.isArray(custom) && custom.length) {
     return custom.map((g) => g.text);
   }
@@ -1309,6 +1317,7 @@ function lessonGoalsForSubject(customGoalsBySubject, subject) {
 }
 
 async function getLessonGoalsForSubject(schoolId, subject) {
+  if (!subject) return LOG_HOW_GOALS;
   const custom = await fetchCustomSubjectLessonGoals(schoolId, subject);
   if (custom.length) {
     return custom.map((g) => g.text);

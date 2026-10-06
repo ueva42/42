@@ -320,13 +320,14 @@
   function howGoalTile(text) {
     const meta = HOW_GOAL_TILE_META[text];
     if (meta) return { value: text, ...meta };
+    // Fach-eigene Wie-Ziele (Admin) → Startkarten, nicht „bearbeiten“ ausfiltern
     return {
       value: text,
-      cat: "bearbeiten",
+      cat: "starten",
       title: text.length > 34 ? `${text.slice(0, 31)}…` : text,
       desc: text,
       icon: "◆",
-      accent: "#a855f7"
+      accent: "#22d3ee"
     };
   }
 
@@ -393,19 +394,31 @@
   }
 
   function isAllowedStartGoal(text) {
-    return state.howGoals.includes(text) || defaultStartGoalTexts().includes(text);
+    if (!text) return false;
+    return startGoalTiles().some((t) => t.value === text);
   }
 
   function startGoalTiles() {
     const seen = new Set();
     const tiles = [];
-    // Fach-Ziele + Standard-Startkarten: eigene Wie-Ziele haben oft keine cat=starten
-    for (const text of [...state.howGoals, ...HOW_GOAL_OPTIONS]) {
+    // Nur API-Fach-Ziele (bzw. Defaults wenn keine eigenen). Keine globale
+    // Mathe-Standardliste mehr dazumischen – sonst verdecken sie Physik-Ziele.
+    const source =
+      Array.isArray(state.howGoals) && state.howGoals.length
+        ? state.howGoals
+        : HOW_GOAL_OPTIONS;
+
+    for (const text of source) {
+      const known = HOW_GOAL_TILE_META[text];
+      // Bekannte Arbeit-/Kontroll-Defaults gehören in andere Schritte
+      if (known && known.cat !== "starten") continue;
       const tile = howGoalTile(text);
-      if (tile.cat !== "starten" || seen.has(tile.value)) continue;
+      if (tile.cat !== "starten") continue;
+      if (seen.has(tile.value)) continue;
       seen.add(tile.value);
       tiles.push(tile);
     }
+
     return tiles.length ? tiles : defaultStartGoalTexts().map(howGoalTile);
   }
 
@@ -1617,11 +1630,11 @@
     state.levelGoalText = entry.level_goal_text || "";
 
     const how = entry.how_goal_text || entry.goal || null;
-    const startAllowed = HOW_GOAL_OPTIONS;
-    state.startGoals = parseMulti(how, startAllowed);
+    // Kein Allowlist-Filter auf HOW_GOAL_OPTIONS – sonst gehen Fach-Wie-Ziele verloren
+    state.startGoals = parseMulti(how, null);
     if (!state.startGoals.length && how) {
-      const howCat = howGoalTile(how).cat;
-      if (howCat === "starten" || !howCat) state.startGoals = [how];
+      const trimmed = String(how).trim();
+      if (trimmed) state.startGoals = [trimmed];
     }
     state.howGoalText = joinMulti(state.startGoals);
 
