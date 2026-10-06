@@ -197,7 +197,7 @@
       if (groupModeForSubject(subject)) {
         const gm = groupModeForSubject(subject);
         return gm?.ready
-          ? `Als Nächstes: In ${subject} mit deiner Gruppe das Tagesziel setzen.`
+          ? `Als Nächstes: In ${subject} Rolle und Tagesziel in Mein Tag setzen.`
           : `Als Nächstes: In ${subject} zuerst die Gruppe bilden.`;
       }
       if (!block.entry) return `Setze als Nächstes dein Tagesziel in ${subject}.`;
@@ -461,8 +461,8 @@
         subject,
         time: slot?.timeslot,
         hint: names
-          ? `Gruppe: ${names} – Unterthema & Ziele wie gewohnt setzen (gleiche Themen/Rollen ok).`
-          : "In der Gruppe – Unterthema & Ziele in Mein Tag setzen.",
+          ? `Gruppe: ${names} – Rolle, Unterthema & Ziele in Mein Tag (gleiche Themen/Rollen ok).`
+          : "In der Gruppe – Rolle, Unterthema & Ziele in Mein Tag setzen.",
         cta: editable ? "Tagesziel setzen" : "",
         nav: editable ? "plan" : "",
         query: params.toString(),

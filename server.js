@@ -5537,18 +5537,87 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
           }
           const status = session ? String(session.status || "") : null;
           const kind = session?.session_kind === "work" ? "work" : "roster";
+          // Gruppe fertig = Mitglieder stehen (Rollen kommen in Mein Tag)
           const ready =
             !!session &&
+            members.some((m) => m.isMe) &&
             (status === "standing" ||
+              status === "closed" ||
               (kind === "work" && status !== "setup") ||
               (status === "setup" &&
-                myRoles.length > 0 &&
                 !["members"].includes(String(session.setup_step || "members"))));
+          let availableRoles = [];
+          try {
+            const roleDefs = await pool.query(
+              `
+              SELECT id, name, description, sort_order, active
+              FROM group_mode_roles
+              WHERE settings_id = $1 AND active IS DISTINCT FROM FALSE
+              ORDER BY sort_order ASC, id ASC
+            `,
+              [settingsId]
+            );
+            const roleIds = roleDefs.rows.map((r) => r.id);
+            let goalsByRole = {};
+            if (roleIds.length) {
+              const gRes = await pool.query(
+                `
+                SELECT id, role_id, goal_type, text
+                FROM group_mode_role_goals
+                WHERE role_id = ANY($1::uuid[])
+                  AND active IS DISTINCT FROM FALSE
+                ORDER BY sort_order ASC, id ASC
+              `,
+                [roleIds]
+              );
+              for (const g of gRes.rows) {
+                const k = String(g.role_id);
+                if (!goalsByRole[k]) goalsByRole[k] = { was: [], how: [] };
+                const item = { id: g.id, text: g.text };
+                if (String(g.goal_type).toUpperCase() === "WIE") goalsByRole[k].how.push(item);
+                else goalsByRole[k].was.push(item);
+              }
+            }
+            // Wer hat welche Rolle schon (gleiche Rolle mehrfach ok)
+            const holdersByRole = {};
+            if (session && members.length) {
+              const holdRes = await pool.query(
+                `
+                SELECT r.role_id, m.user_id, m.display_name_snapshot
+                FROM group_session_member_roles r
+                JOIN group_session_members m ON m.id = r.member_id
+                WHERE m.session_id = $1
+                  AND COALESCE(m.invite_status, 'accepted') = 'accepted'
+              `,
+                [session.id]
+              );
+              for (const h of holdRes.rows) {
+                const k = String(h.role_id);
+                if (!holdersByRole[k]) holdersByRole[k] = [];
+                holdersByRole[k].push({
+                  userId: h.user_id,
+                  displayName: h.display_name_snapshot,
+                  isMe: Number(h.user_id) === Number(studentId)
+                });
+              }
+            }
+            availableRoles = roleDefs.rows.map((r) => ({
+              id: r.id,
+              name: r.name,
+              description: r.description || "",
+              wasGoals: (goalsByRole[String(r.id)] || {}).was || [],
+              howGoals: (goalsByRole[String(r.id)] || {}).how || [],
+              holders: holdersByRole[String(r.id)] || []
+            }));
+          } catch (roleListErr) {
+            console.error("⚠️ availableRoles:", roleListErr);
+          }
           groupContext = {
             enabled: true,
             hasGroup: !!session && members.some((m) => m.isMe),
             needsSetup: !ready,
             ready,
+            needsRole: ready && availableRoles.length > 0 && myRoles.length === 0,
             subject: activeSubject,
             deviceMode:
               gmEnabled.rows[0].device_mode === "personal" ? "personal" : "shared",
@@ -5558,6 +5627,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
             groupName: session?.group_name || null,
             members,
             myRoles,
+            availableRoles,
             roleWasGoals,
             roleHowGoals,
             allowMultiRoles: true
@@ -6746,11 +6816,12 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
             if (!key || groupModeBySubject[key].activeSessionId) continue;
             const kind = row.session_kind === "work" ? "work" : "roster";
             const status = String(row.status || "");
+            const step = String(row.setup_step || "members");
+            // Rollen gehören zu Mein Tag – Gruppe ready sobald Mitglieder stehen
             const ready =
               status === "standing" ||
               (kind === "work" && status !== "setup") ||
-              (status === "setup" &&
-                !["members", "roles"].includes(String(row.setup_step || "members")));
+              (status === "setup" && step !== "members");
             groupModeBySubject[key].activeSessionId = row.id;
             groupModeBySubject[key].status = status;
             groupModeBySubject[key].sessionKind = kind;

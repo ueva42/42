@@ -290,7 +290,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
             <input type="checkbox" id="gmEnabled" ${s.enabled ? "checked" : ""}/>
             <span>
               <strong>Gruppenmodus für dieses Fach nutzen</strong>
-              <em>Schüler bilden Gruppen – Unterthema & Ziele setzen sie in Mein Tag.</em>
+              <em>Schüler bilden nur Gruppen – Rolle, Unterthema & Ziele in Mein Tag.</em>
             </span>
           </label>
         </section>
@@ -672,7 +672,7 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
     return `
       <div class="panel gm-panel">
         <h3>Einrichtungsbereich – Stammgruppen</h3>
-        <p class="hint">Hier legst du fest, wer in welcher Gruppe ist. Unterthema, Was- und Wie-Ziele setzen die Schüler danach in <strong>Mein Tag</strong> – gleiches Thema und gleiche Rolle sind erlaubt.</p>
+        <p class="hint">Nur Mitglieder festlegen. <strong>Rollen, Unterthema und Ziele</strong> setzen die Schüler täglich in <strong>Mein Tag</strong> (gleiche Rolle/Thema in der Gruppe ok).</p>
         <div class="gm-sec">
           <label class="gm-num">Gruppenname (optional)
             <input type="text" id="gmRosterName" maxlength="80" value="${escapeHtml(state.rosterName || "")}" placeholder="z. B. Gruppe A"/>
@@ -734,8 +734,8 @@ Ergebnis;Erklärt Zusammenhänge;WIE;Ich nutze Fachbegriffe richtig.;1;ja`;
          </div>`
       : `<div class="gm-banner">
            <div>
-             <strong>Gruppen bilden → Lernen in Mein Tag</strong>
-             <p>Stammgruppen hier oder von Schüler:innen anlegen. Planen/Check/Reflect läuft im normalen Mein-Tag-Flow.</p>
+             <strong>Gruppe bilden → alles Weitere in Mein Tag</strong>
+             <p>Mitglieder hier oder bei Schüler:innen. Rolle, Unterthema, Was/Wie und Checks nur in Mein Tag.</p>
            </div>
            <button type="button" class="action" id="gmGotoRosters">Zu Stammgruppen</button>
          </div>`;

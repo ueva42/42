@@ -758,7 +758,7 @@
       return !subjectsWithStanding.has(key) && !subjectsWithSetup.has(key);
     });
     const body = `
-      <p class="gm-lead"><strong>Gruppenmodus = Gruppe bilden.</strong> Danach plant ihr Unterthema, Was- und Wie-Ziele in <strong>Mein Tag</strong> – gleiches Thema und gleiche Rolle sind erlaubt.</p>
+      <p class="gm-lead"><strong>Gruppenmodus = wer ist in welcher Gruppe.</strong> Rolle, Unterthema und Ziele setzt ihr jeden Tag nur in <strong>Mein Tag</strong> – gleiches Thema und gleiche Rolle sind erlaubt.</p>
       ${
         invites.length
           ? `<h3 class="gm-h3">Einladungen zur Stammgruppe</h3>
@@ -789,7 +789,7 @@
       ${
         standingOrFixed.length
           ? `<h3 class="gm-h3">Eure Gruppen</h3>
-             <p class="gm-muted">Gruppe steht – weiter in Mein Tag planen. Hier nur Mitglieder ändern oder auflösen.</p>
+             <p class="gm-muted">Gruppe steht – täglich in Mein Tag: Rolle → Unterthema → Ziele. Hier nur Mitglieder ändern.</p>
              <div class="gm-cards">
                ${standingOrFixed
                  .map(
@@ -905,7 +905,7 @@
             : `<div class="gm-empty">Eure Lehrkraft hat den Gruppenmodus noch nicht freigeschaltet.</div>`
       }`;
     return shell(null, "Gruppe bilden", body, "", {
-      meta: "Nur Gruppenbildung – Ziele setzt ihr in Mein Tag."
+      meta: "Nur Mitglieder – Rolle & Ziele in Mein Tag."
     });
   }
 
@@ -978,7 +978,7 @@
       const ok = accepted.length >= min && accepted.length <= max;
       const body = `
         <p class="gm-lead">Bildet eure Gruppe auf den eigenen Tablets. Lade Leute ein oder lass sie über „Gruppe beitreten“ dazukommen. (${accepted.length} dabei, ${min}–${max})</p>
-        <p class="gm-muted">Die Gruppe aktualisiert sich automatisch, sobald jemand zusagt.</p>
+        <p class="gm-muted">Danach: Rolle, Unterthema und Ziele in <strong>Mein Tag</strong>.</p>
         <h3 class="gm-h3">Dabei</h3>
         ${
           accepted.length
@@ -1030,11 +1030,11 @@
             : ""
         }`;
       return shell(
-        "Schritt 1 von 2",
+        "Schritt 1 von 1",
         "Wer arbeitet mit dir?",
         body,
         `<div class="gm-footer-row gm-footer-row--stack">
-          <button type="button" class="gm-primary" id="gmMembersReady" ${ok ? "" : "disabled"}>Weiter zu den Rollen</button>
+          <button type="button" class="gm-primary" id="gmMembersReady" ${ok ? "" : "disabled"}>Gruppe fertig · zu Mein Tag</button>
           <button type="button" class="gm-ghost" id="gmLeaveGroup">Gruppe verlassen</button>
           <button type="button" class="gm-ghost gm-danger-text" id="gmDissolveGroup">Gruppe auflösen</button>
         </div>`
@@ -1042,7 +1042,8 @@
     }
 
     const body = `
-      <p class="gm-lead">Tippt auf alle, die heute zusammenarbeiten. (${state.selectedMembers.length} gewählt, ${min}–${max})</p>
+      <p class="gm-lead">Tippt auf alle, die in der Gruppe sind. (${state.selectedMembers.length} gewählt, ${min}–${max})</p>
+      <p class="gm-muted">Rollen und Ziele folgen in Mein Tag.</p>
       ${cardGrid(
         classmates.map((c) => ({
           id: c.id,
@@ -1058,11 +1059,13 @@
       )}`;
     const okShared = state.selectedMembers.length >= min && state.selectedMembers.length <= max;
     return shell(
-      "Schritt 1 von 2",
+      "Schritt 1 von 1",
       "Wer arbeitet zusammen?",
       body,
       `<div class="gm-footer-row gm-footer-row--stack">
-        <button type="button" class="gm-primary" id="gmMembersNext" ${okShared ? "" : "disabled"}>Weiter</button>
+        <button type="button" class="gm-primary" id="gmMembersNext" ${
+          okShared ? "" : "disabled"
+        }>Gruppe speichern · zu Mein Tag</button>
         ${
           state.sessionId
             ? `<button type="button" class="gm-ghost gm-danger-text" id="gmDissolveGroup">Gruppe auflösen</button>`
@@ -2243,22 +2246,19 @@
         html = renderMembers();
         break;
       case "roles":
-        html = renderRoles();
-        break;
       case "shared":
-        html = renderShared();
-        break;
       case "handoff":
-        html = renderHandoff("goals");
-        break;
       case "what":
-        html = renderWhat();
-        break;
       case "how":
-        html = renderHow();
-        break;
       case "confirm":
-        html = renderConfirm();
+      case "pick-topic":
+      case "overview":
+      case "work":
+        // Lernen nur noch in Mein Tag
+        state.message =
+          state.message ||
+          "Rolle, Unterthema und Ziele setzt ihr in Mein Tag – hier nur die Gruppe.";
+        html = state.sessionId ? renderMembers() : renderHome();
         break;
       case "overview":
         html = renderOverview();
@@ -2516,13 +2516,15 @@
       try {
         const data = await api(`/api/student/group-sessions/${state.sessionId}/members/ready`, {
           method: "POST",
-          body: "{}"
+          body: JSON.stringify({ finalize: true })
         });
         applyBundle(data);
-        if (data.suggestedAssignments) {
-          /* Rollen werden in der Tabletklasse selbst übernommen */
-        }
-        state.screen = "roles";
+        state.message =
+          "Gruppe fertig. In Mein Tag: Rolle wählen, dann Unterthema und Ziele.";
+        await loadBootstrap();
+        state.screen = "home";
+        state.sessionId = null;
+        state.bundle = null;
         render();
       } catch (err) {
         state.error = err.message;
@@ -2758,14 +2760,12 @@
           body: JSON.stringify({ memberIds: state.selectedMembers })
         });
         applyBundle(data);
-        if (data.suggestedAssignments) {
-          state.roleAssignments = {};
-          for (const a of data.suggestedAssignments) {
-            if (a.roleId == null || a.userId == null) continue;
-            setRoleHolders(a.roleId, [...holdersForRole(a.roleId), Number(a.userId)]);
-          }
-        }
-        state.screen = "roles";
+        state.message =
+          "Gruppe gespeichert. In Mein Tag: Rolle, Unterthema und Ziele setzen.";
+        await loadBootstrap();
+        state.screen = "home";
+        state.sessionId = null;
+        state.bundle = null;
         render();
       } catch (err) {
         state.error = err.message;
@@ -3395,8 +3395,8 @@
       return;
     }
     if (s.status === "standing") {
-      // Stammgruppe ansehen/nachpflegen
-      state.screen = members().every((m) => (m.roles || []).length) ? "roles" : "members";
+      // Nur Mitglieder pflegen – Rollen in Mein Tag
+      state.screen = "members";
       return;
     }
     if (s.status === "active" || s.status === "midcheck" || s.status === "reflecting") {
@@ -3409,17 +3409,9 @@
     const step = s.setupStep;
     const kind = String(s.sessionKind || "roster");
 
-    // Einrichtungsbereich (Stammgruppe): nur Personen + Rollen
+    // Gruppenmodus: nur Mitglieder
     if (kind === "roster") {
-      if (!hasMembers || step === "members") {
-        state.screen = "members";
-        return;
-      }
-      if (!hasRoles || step === "roles" || step === "ready") {
-        state.screen = "roles";
-        return;
-      }
-      state.screen = "home";
+      state.screen = "members";
       return;
     }
 

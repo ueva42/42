@@ -653,9 +653,18 @@
     return !!state.selectedCheckpointId;
   }
 
-  /** Feine Abfolge: Was → Level → Start → Arbeit → Kontrolle → Plan B → Selbstcheck */
+  function groupRoleComplete() {
+    const gc = state.groupContext;
+    if (!gc?.enabled || !gc.hasGroup || gc.needsSetup) return true;
+    const available = gc.availableRoles || [];
+    if (!available.length) return true;
+    return (gc.myRoles || []).length > 0;
+  }
+
+  /** Feine Abfolge: (Gruppe: Rolle) → Was → Level → Start → Arbeit → Kontrolle → Plan B → Selbstcheck */
   function whatStepComplete() {
     return !!(
+      groupRoleComplete() &&
       state.subject &&
       state.whatGoalId &&
       checkpointSatisfied() &&
@@ -1379,20 +1388,62 @@
       .filter(Boolean)
       .join(", ");
     const roles = (gc.myRoles || []).map((r) => r.name).filter(Boolean).join(", ");
-    const roleGoals = (gc.roleWasGoals || [])
-      .slice(0, 4)
-      .map((g) => ui.escapeHtml(g.text))
-      .join(" · ");
     return `<div class="logbuch-msg logbuch-msg-info">
       <strong>Deine Gruppe</strong>${names ? `: ${ui.escapeHtml(names)}` : ""}.
-      ${roles ? ` Deine Rolle: <strong>${ui.escapeHtml(roles)}</strong>.` : ""}
-      Gleiches Unterthema und gleiche Rolle sind in der Gruppe erlaubt.
       ${
-        roleGoals
-          ? `<div class="plan-group-role-goals">Rollen-Ziele: ${roleGoals}</div>`
-          : ""
+        roles
+          ? ` Deine Rolle: <strong>${ui.escapeHtml(roles)}</strong>.`
+          : " Als Nächstes: <strong>Rolle wählen</strong> (gleiche Rolle für mehrere ok)."
       }
+      Dann Unterthema & Ziele – gleiches Thema in der Gruppe ist erlaubt.
     </div>`;
+  }
+
+  function renderGroupRolePicker(ui) {
+    const gc = state.groupContext;
+    if (!gc?.enabled || !gc.hasGroup || gc.needsSetup) return "";
+    const roles = gc.availableRoles || [];
+    if (!roles.length) return "";
+    const myIds = new Set((gc.myRoles || []).map((r) => String(r.id)));
+    return `
+      <style>
+        .plan-group-roles{margin:0 0 14px}
+        .plan-group-role-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-top:8px}
+        .plan-group-role-tile{display:grid;gap:4px;text-align:left;padding:12px;border-radius:12px;border:1px solid rgba(56,189,248,.35);background:rgba(8,47,73,.45);color:inherit;cursor:pointer}
+        .plan-group-role-tile strong{font-size:0.95rem}
+        .plan-group-role-tile span,.plan-group-role-tile em{font-size:0.8rem;color:#94a3b8;font-style:normal}
+        .plan-group-role-tile.is-active{border-color:rgba(34,211,238,.9);box-shadow:0 0 0 1px rgba(34,211,238,.4);background:rgba(8,47,73,.75)}
+      </style>
+      <div class="plan-group-roles">
+        <p class="field-label">Deine Gruppenrolle <span class="req">*</span></p>
+        <p class="field-hint">Mehrere dürfen dieselbe Rolle wählen. Am Shared-Tablet: jede Person wählt ihre Rolle, wenn sie dran ist.</p>
+        <div class="plan-group-role-grid">
+          ${roles
+            .map((role) => {
+              const mine = myIds.has(String(role.id));
+              const holders = (role.holders || [])
+                .map((h) => h.displayName)
+                .filter(Boolean)
+                .join(", ");
+              return `
+              <button type="button"
+                class="plan-group-role-tile ${mine ? "is-active" : ""}"
+                data-plan-role-claim="${ui.escapeHtml(String(role.id))}"
+                data-claim="${mine ? "0" : "1"}">
+                <strong>${ui.escapeHtml(role.name)}</strong>
+                <span>${ui.escapeHtml(role.description || "Gruppenaufgabe")}</span>
+                <em>${
+                  holders
+                    ? ui.escapeHtml(holders)
+                    : mine
+                      ? "Du"
+                      : "Noch frei – tippen"
+                }</em>
+              </button>`;
+            })
+            .join("")}
+        </div>
+      </div>`;
   }
 
   function whatGoalMessage(ui) {
@@ -1493,17 +1544,20 @@
                 )
               )
         }
+        ${renderGroupRolePicker(ui)}
         ${renderCheckpointField(ui)}
         ${ui.fieldWrap(
           ui.fieldLabel("Unterthema", { required: true }),
-          state.whatGoalOptions.length
-            ? ui.select(
-                "whatGoalId",
-                state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
-                state.whatGoalId,
-                { phase: "plan", placeholder: "Unterthema wählen…" }
-              )
-            : whatGoalMessage(ui)
+          !groupRoleComplete()
+            ? `<div class="logbuch-msg logbuch-msg-info">Zuerst eine Gruppenrolle wählen – danach das Unterthema.</div>`
+            : state.whatGoalOptions.length
+              ? ui.select(
+                  "whatGoalId",
+                  state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
+                  state.whatGoalId,
+                  { phase: "plan", placeholder: "Unterthema wählen…" }
+                )
+              : whatGoalMessage(ui)
         )}
       </div>`;
 
@@ -1574,7 +1628,7 @@
               step: 1,
               title: "Was will ich heute können?",
               hint: state.groupContext?.hasGroup
-                ? "Unterthema wählen – dasselbe Thema dürfen mehrere in der Gruppe nehmen."
+                ? "Zuerst Rolle, dann Unterthema – beides dürfen mehrere in der Gruppe gleich wählen."
                 : "Wähle Fach und Unterthema.",
               body: whatBody,
               showBack: false
@@ -1775,6 +1829,31 @@
       const btn = document.getElementById("planGoGruppenmodus");
       const q = new URLSearchParams(btn?.dataset?.query || "");
       window.StudentRouter?.navigateToSection("gruppenmodus", { query: q });
+    });
+    scope.querySelectorAll("[data-plan-role-claim]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const sessionId = state.groupContext?.sessionId;
+        const roleId = btn.getAttribute("data-plan-role-claim");
+        const claim = btn.getAttribute("data-claim") !== "0";
+        if (!sessionId || !roleId) return;
+        try {
+          const r = await fetch(`/api/student/group-sessions/${sessionId}/roles/claim`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ roleId, claim })
+          });
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok || data.success === false) {
+            throw new Error(data.message || data.error || "Rolle konnte nicht gespeichert werden.");
+          }
+          await loadContext();
+          render();
+        } catch (err) {
+          state.errorMsg = err.message || "Rolle speichern fehlgeschlagen.";
+          render();
+        }
+      });
     });
     UI().bindSelects(scope, state, async (field) => {
       if (field === "subject") {
