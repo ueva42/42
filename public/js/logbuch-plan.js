@@ -4,7 +4,12 @@
 (function () {
   const C = () => window.LOGBUCH;
   const UI = () => window.LogbuchUI;
-  const PLAN_B = () => window.LogbuchStrategies?.planBOptions() || window.LOGBUCH_PLAN_B_OPTIONS || [];
+  const PLAN_B = (subject) =>
+    window.LogbuchStrategies?.planBOptions(subject ?? state.subject) ||
+    window.LOGBUCH_PLAN_B_OPTIONS ||
+    [];
+  const PLAN_B_ALL = () =>
+    window.LogbuchStrategies?.allPlanBOptions?.() || PLAN_B(null);
   const HOW_GOAL_OPTIONS = [
     "Ich schaue mir zuerst ein Beispiel an.",
     "Ich starte mit Rookie-Aufgaben.",
@@ -167,10 +172,78 @@
     }
   ];
 
+  /** Fach-Packs für „Ich kontrolliere so“ – Keys = Fach lowercase. */
+  const SUBJECT_CONTROL_PACKS = {
+    physik: [
+      {
+        value: "Vermutung prüfen",
+        title: "Vermutung prüfen",
+        desc: "Passt das Ergebnis zu meiner Hypothese?",
+        icon: "◎",
+        accent: "#22d3ee"
+      },
+      {
+        value: "Versuchsplan checken",
+        title: "Versuchsplan checken",
+        desc: "Ist Aufbau und Ablauf klar?",
+        icon: "▦",
+        accent: "#22d3ee"
+      },
+      {
+        value: "Beobachtung vs. Vermutung",
+        title: "Beobachtung vergleichen",
+        desc: "Beobachtungen mit der Vermutung abgleichen.",
+        icon: "⇄",
+        accent: "#22d3ee"
+      },
+      {
+        value: "Ergebnis erklären",
+        title: "Ergebnis erklären",
+        desc: "Kann ich das Ergebnis verständlich sagen?",
+        icon: "💬",
+        accent: "#22d3ee"
+      },
+      {
+        value: "Sicherheit und Aufbau prüfen",
+        title: "Sicherheit & Aufbau",
+        desc: "Ist der Versuch sicher und korrekt aufgebaut?",
+        icon: "⚠",
+        accent: "#22d3ee"
+      },
+      {
+        value: "Recherche oder KI kritisch prüfen",
+        title: "Recherche/KI prüfen",
+        desc: "Quellen oder KI-Ergebnis kritisch prüfen.",
+        icon: "⌕",
+        accent: "#22d3ee"
+      }
+    ]
+  };
+
   const HOW_TO_CONTROL_STRATEGY = {
     "Ich vergleiche meinen Lösungsweg mit der Musterlösung.": "Mit Partner vergleichen",
     "Ich suche gezielt meine Fehler.": "Aufgaben Schritt für Schritt"
   };
+
+  function subjectKey(subject = state.subject) {
+    return String(subject || "")
+      .trim()
+      .toLowerCase();
+  }
+
+  function controlTilesForSubject(subject = state.subject) {
+    const pack = SUBJECT_CONTROL_PACKS[subjectKey(subject)];
+    return Array.isArray(pack) && pack.length ? pack : CONTROL_STRATEGY_TILES;
+  }
+
+  function allControlTiles() {
+    const map = new Map();
+    for (const t of CONTROL_STRATEGY_TILES) map.set(t.value, t);
+    for (const pack of Object.values(SUBJECT_CONTROL_PACKS)) {
+      for (const t of pack) map.set(t.value, t);
+    }
+    return [...map.values()];
+  }
 
   const HOW_GOAL_TILE_META = {
     "Ich schaue mir zuerst ein Beispiel an.": {
@@ -308,6 +381,55 @@
       desc: "Prüfe dein Ergebnis rückwärts.",
       icon: "↩",
       accent: "#22d3ee"
+    },
+    "Ich nutze Hilfekarte Stufe 1 (Denkanstoß).": {
+      cat: "starten",
+      title: "Hilfekarte Stufe 1",
+      desc: "Denkanstoß – ohne Lösung.",
+      icon: "1",
+      accent: "#22d3ee"
+    },
+    "Ich nutze Hilfekarte Stufe 2 (Hinweis zum Versuch).": {
+      cat: "starten",
+      title: "Hilfekarte Stufe 2",
+      desc: "Hinweis in Richtung Versuch.",
+      icon: "2",
+      accent: "#22d3ee"
+    },
+    "Ich nutze Hilfekarte Stufe 3 (konkreter Versuch).": {
+      cat: "starten",
+      title: "Hilfekarte Stufe 3",
+      desc: "Konkreter Versuch vorgegeben.",
+      icon: "3",
+      accent: "#a855f7"
+    },
+    "Ich formuliere meine Vermutung neu.": {
+      cat: "bearbeiten",
+      title: "Vermutung neu",
+      desc: "Hypothese überdenken und neu fassen.",
+      icon: "↺",
+      accent: "#a855f7"
+    },
+    "Ich vereinfache den Versuch.": {
+      cat: "bearbeiten",
+      title: "Versuch vereinfachen",
+      desc: "Weniger Variablen, klarer Aufbau.",
+      icon: "▦",
+      accent: "#a855f7"
+    },
+    "Ich recherchiere oder nutze KI.": {
+      cat: "kontrollieren",
+      title: "Recherchieren / KI",
+      desc: "Gezielt nachschlagen oder KI nutzen.",
+      icon: "⌕",
+      accent: "#22d3ee"
+    },
+    "Ich prüfe nochmal die Problemstellung.": {
+      cat: "starten",
+      title: "Problemstellung checken",
+      desc: "Aufgabe und Frage nochmal lesen.",
+      icon: "◫",
+      accent: "#22d3ee"
     }
   };
 
@@ -374,7 +496,7 @@
   }
 
   function controlLabel(value) {
-    const tile = CONTROL_STRATEGY_TILES.find((t) => t.value === value);
+    const tile = allControlTiles().find((t) => t.value === value);
     if (tile) return tile.title;
     return value || "–";
   }
@@ -424,7 +546,7 @@
   }
 
   function controlGoalTiles() {
-    return CONTROL_STRATEGY_TILES;
+    return controlTilesForSubject();
   }
 
   function arbeitGoalTiles() {
@@ -432,7 +554,14 @@
   }
 
   function planBTilesAll() {
-    return PLAN_B().map(planBTile);
+    return PLAN_B(state.subject).map(planBTile);
+  }
+
+  function syncSubjectScopedSelections() {
+    const allowedControl = new Set(controlGoalTiles().map((t) => t.value));
+    state.controlGoals = state.controlGoals.filter((g) => allowedControl.has(g));
+    const allowedPlanB = new Set(PLAN_B(state.subject));
+    state.planBStrategies = state.planBStrategies.filter((g) => allowedPlanB.has(g));
   }
 
   function todayIso() {
@@ -1090,13 +1219,18 @@
   function renderControlSection(ui) {
     const V = window.LogbuchVisuals;
     if (!V) return "";
+    const isPhysik = subjectKey() === "physik";
     return `
       <section class="way-section way-section--control">
         <header class="way-section__head">
           <h4 class="way-section__title">Ich kontrolliere so</h4>
           <p class="way-section__hint">1 bis 3 Auswahlen</p>
         </header>
-        <p class="way-to-goal__intro">Woran merkst du, dass du auf dem Weg bist?</p>
+        <p class="way-to-goal__intro">${
+          isPhysik
+            ? "Woran merkst du, dass Versuch und Vermutung zusammenpassen?"
+            : "Woran merkst du, dass du auf dem Weg bist?"
+        }</p>
         ${V.strategyTileGrid(controlGoalTiles(), state.controlGoals, "data-control-goal", { multi: true })}
       </section>`;
   }
@@ -1104,13 +1238,18 @@
   function renderPlanBSection(ui) {
     const V = window.LogbuchVisuals;
     if (!V) return "";
+    const isPhysik = subjectKey() === "physik";
     return `
       <section class="way-section way-section--planb">
         <header class="way-section__head">
           <h4 class="way-section__title">Plan B, wenn ich hänge</h4>
           <p class="way-section__hint">bis 3 Auswahlen · optional</p>
         </header>
-        <p class="way-to-goal__intro">Was machst du, wenn du feststeckst?</p>
+        <p class="way-to-goal__intro">${
+          isPhysik
+            ? "Hilfekarten, Partner oder Versuch neu ansetzen?"
+            : "Was machst du, wenn du feststeckst?"
+        }</p>
         ${V.strategyTileGrid(planBTilesAll(), state.planBStrategies, "data-plan-b", { multi: true })}
       </section>`;
   }
@@ -1232,10 +1371,10 @@
     const workGoals = Array.isArray(e.work_goals) ? e.work_goals : [];
     const startTitles = overviewTitles(e.how_goal_text || e.goal, HOW_GOAL_OPTIONS, howGoalTile);
     const workTitles = workGoals.map((g) => arbeitTile(g).title);
-    const planBTitles = overviewTitles(e.plan_b_strategy_text, PLAN_B(), planBTile);
-    const controlAllowed = CONTROL_STRATEGY_TILES.map((t) => t.value);
+    const planBTitles = overviewTitles(e.plan_b_strategy_text, PLAN_B_ALL(), planBTile);
+    const controlAllowed = allControlTiles().map((t) => t.value);
     const controlTitles = overviewTitles(e.strategy, controlAllowed, (value) => {
-      const tile = CONTROL_STRATEGY_TILES.find((t) => t.value === value);
+      const tile = allControlTiles().find((t) => t.value === value);
       return tile || { title: controlLabel(value) };
     });
     const details = String(e.details_text || e.freitext || "").trim();
@@ -1352,7 +1491,7 @@
     });
 
     const controlLines = state.controlGoals.map((g) => {
-      const tile = CONTROL_STRATEGY_TILES.find((t) => t.value === g);
+      const tile = allControlTiles().find((t) => t.value === g);
       return tile?.desc || `Ich kontrolliere: ${controlLabel(g)}`;
     });
 
@@ -1639,14 +1778,14 @@
     }
     state.howGoalText = joinMulti(state.startGoals);
 
-    const controlAllowed = CONTROL_STRATEGY_TILES.map((t) => t.value);
+    const controlAllowed = allControlTiles().map((t) => t.value);
     state.controlGoals = parseMulti(entry.strategy, controlAllowed);
     if (!state.controlGoals.length && how) {
       const mapped = HOW_TO_CONTROL_STRATEGY[how];
       if (mapped) state.controlGoals = [mapped];
     }
 
-    state.planBStrategies = parseMulti(entry.plan_b_strategy_text, PLAN_B());
+    state.planBStrategies = parseMulti(entry.plan_b_strategy_text, PLAN_B_ALL());
     state.detailsText = entry.details_text || entry.freitext || "";
     state.workGoals = Array.isArray(entry.work_goals) ? entry.work_goals : [];
     state.socialForm = entry.social_form || null;
@@ -1818,14 +1957,20 @@
                   ? renderStepPopup({
                       step: 5,
                       title: "Ich kontrolliere so",
-                      hint: "1 bis 3 Karten – so merkst du, ob du’s kannst.",
+                      hint:
+                        subjectKey() === "physik"
+                          ? "1 bis 3 Karten – Vermutung, Versuch, Ergebnis."
+                          : "1 bis 3 Karten – so merkst du, ob du’s kannst.",
                       body: controlBody
                     })
                   : state.activeStep === 6
                     ? renderStepPopup({
                         step: 6,
                         title: "Plan B, wenn ich hänge",
-                        hint: "Optional – falls du feststeckst.",
+                        hint:
+                          subjectKey() === "physik"
+                            ? "Optional – Hilfekarten, Partner oder neu ansetzen."
+                            : "Optional – falls du feststeckst.",
                         body: planBBody
                       })
                     : renderStepPopup({
@@ -2422,6 +2567,8 @@
       state.suggestion = null;
     }
 
+    syncSubjectScopedSelections();
+
     if (state.startGoals.length) {
       state.startGoals = state.startGoals.filter((g) => isAllowedStartGoal(g));
       state.howGoalText = joinMulti(state.startGoals);
@@ -2487,8 +2634,9 @@
     state.controlGoals = [];
     state.planBStrategies = parseMulti(
       window.LogbuchStrategies?.rememberedPlanB() || null,
-      PLAN_B()
+      PLAN_B(state.subject)
     );
+    syncSubjectScopedSelections();
     state.workGoals = [];
     state.socialForm = null;
     state.confidenceBefore = null;

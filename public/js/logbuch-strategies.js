@@ -105,13 +105,44 @@ window.LOGBUCH_PLAN_B_OPTIONS = [
   "Ich arbeite 5 Minuten konzentriert an einer kleinen Aufgabe."
 ];
 
+/** Fach-Packs für Plan B (forschender Unterricht). Keys = Fach lowercase. */
+window.LOGBUCH_PLAN_B_BY_SUBJECT = {
+  physik: [
+    "Ich nutze Hilfekarte Stufe 1 (Denkanstoß).",
+    "Ich nutze Hilfekarte Stufe 2 (Hinweis zum Versuch).",
+    "Ich nutze Hilfekarte Stufe 3 (konkreter Versuch).",
+    "Ich formuliere meine Vermutung neu.",
+    "Ich vereinfache den Versuch.",
+    "Ich frage eine Partnerin oder einen Partner.",
+    "Ich recherchiere oder nutze KI.",
+    "Ich prüfe nochmal die Problemstellung."
+  ]
+};
+
 window.LogbuchStrategies = {
   list() {
     return window.LOGBUCH_STRATEGIES || [];
   },
 
-  planBOptions() {
+  subjectKey(subject) {
+    return String(subject || "")
+      .trim()
+      .toLowerCase();
+  },
+
+  planBOptions(subject) {
+    const key = this.subjectKey(subject);
+    const bySubject = window.LOGBUCH_PLAN_B_BY_SUBJECT || {};
+    if (key && Array.isArray(bySubject[key]) && bySubject[key].length) {
+      return bySubject[key];
+    }
     return window.LOGBUCH_PLAN_B_OPTIONS || [];
+  },
+
+  allPlanBOptions() {
+    const base = window.LOGBUCH_PLAN_B_OPTIONS || [];
+    const extra = Object.values(window.LOGBUCH_PLAN_B_BY_SUBJECT || {}).flat();
+    return [...new Set([...base, ...extra])];
   },
 
   byId(id) {

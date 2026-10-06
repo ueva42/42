@@ -1397,6 +1397,22 @@ const LOG_STRATEGIES = [
   "Lösungsweg erklären"
 ];
 
+/** Fach-Packs für Kontroll-Strategien (Union wird in areAllowedStrategies genutzt). */
+const LOG_STRATEGIES_BY_SUBJECT = {
+  physik: [
+    "Vermutung prüfen",
+    "Versuchsplan checken",
+    "Beobachtung vs. Vermutung",
+    "Ergebnis erklären",
+    "Sicherheit und Aufbau prüfen",
+    "Recherche oder KI kritisch prüfen"
+  ]
+};
+
+const LOG_STRATEGIES_ALL = [
+  ...new Set([...LOG_STRATEGIES, ...Object.values(LOG_STRATEGIES_BY_SUBJECT).flat()])
+];
+
 function localIsoDate(value) {
   const d = value instanceof Date ? value : value ? new Date(value) : new Date();
   if (Number.isNaN(d.getTime())) return null;
@@ -1756,7 +1772,7 @@ function normalizeStrategiesInput(strategy) {
 
 function areAllowedStrategies(strategies) {
   if (!strategies.length || strategies.length > 3) return false;
-  return strategies.every((s) => LOG_STRATEGIES.includes(s));
+  return strategies.every((s) => LOG_STRATEGIES_ALL.includes(s));
 }
 
 function parsePlanBStrategyText(value) {
@@ -1765,7 +1781,7 @@ function parsePlanBStrategyText(value) {
   if (!items.length) return null;
   if (items.length > 3) return { error: "Bitte höchstens 3 Plan-B-Auswahlen." };
   for (const item of items) {
-    if (!LOG_PLAN_B_OPTIONS.includes(item)) {
+    if (!LOG_PLAN_B_OPTIONS_ALL.includes(item)) {
       return { error: "Ungültiger Plan B." };
     }
   }
@@ -1980,6 +1996,23 @@ const LOG_PLAN_B_OPTIONS = [
   "Ich frage eine Partnerin oder einen Partner.",
   "Ich starte mit einer einfachen Rookie-Aufgabe.",
   "Ich arbeite 5 Minuten konzentriert an einer kleinen Aufgabe."
+];
+
+const LOG_PLAN_B_BY_SUBJECT = {
+  physik: [
+    "Ich nutze Hilfekarte Stufe 1 (Denkanstoß).",
+    "Ich nutze Hilfekarte Stufe 2 (Hinweis zum Versuch).",
+    "Ich nutze Hilfekarte Stufe 3 (konkreter Versuch).",
+    "Ich formuliere meine Vermutung neu.",
+    "Ich vereinfache den Versuch.",
+    "Ich frage eine Partnerin oder einen Partner.",
+    "Ich recherchiere oder nutze KI.",
+    "Ich prüfe nochmal die Problemstellung."
+  ]
+};
+
+const LOG_PLAN_B_OPTIONS_ALL = [
+  ...new Set([...LOG_PLAN_B_OPTIONS, ...Object.values(LOG_PLAN_B_BY_SUBJECT).flat()])
 ];
 
 const LOG_WEEK_STRATEGIES = [
