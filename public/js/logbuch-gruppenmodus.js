@@ -2239,9 +2239,6 @@
       case "home":
         html = renderHome();
         break;
-      case "pick-topic":
-        html = renderPickTopic();
-        break;
       case "members":
         html = renderMembers();
         break;
@@ -2254,26 +2251,16 @@
       case "pick-topic":
       case "overview":
       case "work":
+      case "mid":
+      case "mid-handoff":
+      case "reflect-handoff":
+      case "reflect":
+      case "done":
         // Lernen nur noch in Mein Tag
         state.message =
           state.message ||
           "Rolle, Unterthema und Ziele setzt ihr in Mein Tag – hier nur die Gruppe.";
         html = state.sessionId ? renderMembers() : renderHome();
-        break;
-      case "overview":
-        html = renderOverview();
-        break;
-      case "work":
-        html = renderWork();
-        break;
-      case "reflect-handoff":
-        html = renderHandoff("reflect");
-        break;
-      case "reflect":
-        html = renderReflect();
-        break;
-      case "done":
-        html = renderDone();
         break;
       default:
         html = renderHome();
