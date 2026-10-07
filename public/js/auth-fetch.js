@@ -9,6 +9,15 @@
 
   const nativeFetch = window.fetch.bind(window);
   const AUTH_KEY = "sol.authed";
+  // Pro Tab: "role:userId" der Session, mit der diese Shell gebootet hat.
+  // Cookies teilen sich alle Tabs – loggt sich woanders ein anderes Konto ein,
+  // darf dieser Tab nicht still unter fremder Identität weiterlaufen.
+  const TAB_IDENTITY_KEY = "sol.tabIdentity";
+  const IDENTITY_HEADER = "X-Sol-User";
+  // Pro Tab nach Logout/Kontowechsel: erst nach echtem Login darf der Tab wieder
+  // eine Session übernehmen (sonst holt „Zurück“ fremde Shells zurück).
+  // Bewusst ohne "sol."-Präfix, damit authClear() den Marker nicht löscht.
+  const NEEDS_LOGIN_KEY = "solTabNeedsLogin";
   const RETRY_MS = [250, 700];
   const FETCH_TIMEOUT_MS = 8000;
 
@@ -40,7 +49,7 @@
         key === AUTH_KEY ||
         key.startsWith("sol.") ||
         key.startsWith("sol_") ||
-        key === "sol-admin-nav-collapsed"
+        key.startsWith("sol-")
       ) {
         keys.push(key);
       }
@@ -59,6 +68,49 @@
     try {
       clearStorageKeys(localStorage);
     } catch (_err) {}
+    try {
+      sessionStorage.setItem(NEEDS_LOGIN_KEY, "1");
+    } catch (_err) {}
+  }
+
+  function loginDone() {
+    try {
+      sessionStorage.removeItem(NEEDS_LOGIN_KEY);
+    } catch (_err) {}
+  }
+
+  function tabNeedsLogin() {
+    try {
+      return sessionStorage.getItem(NEEDS_LOGIN_KEY) === "1";
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function identityOf(data) {
+    if (!data?.role || data.id == null) return "";
+    return `${data.role}:${data.id}`;
+  }
+
+  function tabIdentityGet() {
+    try {
+      return sessionStorage.getItem(TAB_IDENTITY_KEY) || "";
+    } catch (_err) {
+      return "";
+    }
+  }
+
+  function tabIdentitySet(identity) {
+    if (!identity) return;
+    try {
+      sessionStorage.setItem(TAB_IDENTITY_KEY, identity);
+    } catch (_err) {}
+  }
+
+  function tabUserId() {
+    const identity = tabIdentityGet();
+    const idx = identity.lastIndexOf(":");
+    return idx > 0 ? identity.slice(idx + 1) : "";
   }
 
   function homeFor(role) {
@@ -108,6 +160,19 @@
     window.location.replace(loginUrl());
   }
 
+  /** Anderes Konto hat in diesem Browser die Session übernommen → Login, ohne die fremde Session zu zerstören. */
+  function goSwitched(reason = "switched") {
+    if (window.__authFetchSwitching) return;
+    window.__authFetchSwitching = true;
+    window.__authFetchRedirecting = true;
+    try {
+      document.documentElement.style.visibility = "hidden";
+    } catch (_err) {}
+    authClear();
+    const param = reason === "relogin" ? "relogin" : "switched";
+    window.location.replace(`/login?${param}=1&t=${Date.now()}`);
+  }
+
   function goHome(roleOrPath) {
     if (window.__authFetchRedirecting) return;
     window.__authFetchRedirecting = true;
@@ -143,6 +208,16 @@
         return null;
       }
 
+      const pinned = tabIdentityGet();
+      if (pinned && pinned !== identityOf(data)) {
+        goSwitched();
+        return null;
+      }
+      if (!pinned && tabNeedsLogin()) {
+        goSwitched("relogin");
+        return null;
+      }
+
       const roleOk = roles.includes(data.role);
       const adminOk = !requireAdmin || data.canAdmin === true || data.role === "admin";
       if (!roleOk || !adminOk) {
@@ -152,6 +227,7 @@
       }
 
       authSet(data.role);
+      tabIdentitySet(identityOf(data));
       return data;
     } catch (_err) {
       return null;
@@ -199,6 +275,9 @@
     loginUrl,
     goLogin,
     goHome,
+    goSwitched,
+    loginDone,
+    tabIdentity: tabIdentityGet,
     enforceShell,
     logoutAndRedirect
   };
@@ -259,6 +338,14 @@
       cache: "no-store",
       ...init
     };
+    const expectUser = tabUserId();
+    if (expectUser) {
+      const headers = new Headers(
+        init?.headers || (input instanceof Request ? input.headers : undefined)
+      );
+      headers.set(IDENTITY_HEADER, expectUser);
+      mergedInit.headers = headers;
+    }
 
     if (
       path === "/api/login" ||
@@ -281,6 +368,10 @@
         throw _err;
       }
 
+      if (lastRes.status === 409 && lastRes.headers.get("X-Sol-Identity-Mismatch") === "1") {
+        goSwitched();
+        return lastRes;
+      }
       if (lastRes.status !== 401 && lastRes.status !== 403) return lastRes;
       if (attempt < retries && lastRes.status === 401) {
         await new Promise((r) => setTimeout(r, RETRY_MS[attempt]));
@@ -304,6 +395,11 @@
         const sessionData = await sessionRes.json().catch(() => null);
         if (sessionData && sessionData.authenticated === false) {
           goLogin();
+          return lastRes;
+        }
+        const pinned = tabIdentityGet();
+        if (sessionData?.authenticated && pinned && pinned !== identityOf(sessionData)) {
+          goSwitched();
           return lastRes;
         }
         // Falsche Rolle für diese Shell → sofort auf Rollen-Home
@@ -340,4 +436,72 @@
     }
     return lastRes;
   };
+
+  function onAppShellPath() {
+    const loc = window.location.pathname || "";
+    return (
+      loc.startsWith("/teacher") ||
+      loc.startsWith("/student") ||
+      loc === "/admin" ||
+      loc.startsWith("/admin/") ||
+      loc.startsWith("/superadmin")
+    );
+  }
+
+  function onLoginPath() {
+    const loc = window.location.pathname || "";
+    return loc === "/" || loc === "/login" || loc === "/login.html";
+  }
+
+  // bfcache (Zurück/Vor): eingefrorene Shell nie wiederverwenden – JS-State
+  // (Redirect-Flags, User, Daten) stammt evtl. von einer anderen Session.
+  // Neu laden → Server-Rollen-Gate + enforceShell mit Tab-Identität.
+  window.addEventListener("pageshow", (e) => {
+    if (!e.persisted) return;
+    if (!onAppShellPath() && !onLoginPath()) return;
+    try {
+      document.documentElement.style.visibility = "hidden";
+    } catch (_err) {}
+    window.location.reload();
+  });
+
+  // Tab kommt zurück in den Vordergrund / anderer Tab hat Login-Status geändert:
+  // Session gegen Tab-Identität prüfen.
+  let lastRevalidate = 0;
+  async function revalidateTabSession(force = false) {
+    if (!onAppShellPath()) return;
+    if (window.__authBootstrap || window.__authFetchRedirecting) return;
+    const pinned = tabIdentityGet();
+    if (!pinned) return;
+    const now = Date.now();
+    if (!force && now - lastRevalidate < 2000) return;
+    lastRevalidate = now;
+    try {
+      const res = await fetchWithTimeout(
+        "/api/auth/session",
+        { credentials: "same-origin", cache: "no-store" },
+        FETCH_TIMEOUT_MS
+      );
+      if (res.status === 401) {
+        goSwitched();
+        return;
+      }
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      if (!data || data.authenticated === false || identityOf(data) !== pinned) {
+        goSwitched();
+      }
+    } catch (_err) {}
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") revalidateTabSession();
+  });
+  window.addEventListener("focus", () => revalidateTabSession());
+  window.addEventListener("popstate", () => revalidateTabSession(true));
+  window.addEventListener("storage", (e) => {
+    if (e.key === AUTH_KEY || e.key === null) revalidateTabSession(true);
+  });
+
+  window.SolAuth.revalidate = revalidateTabSession;
 })();

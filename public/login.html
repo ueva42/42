@@ -11,7 +11,7 @@
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <script src="/js/client-cache-reset.js?v=3"></script>
-  <script src="/js/auth-fetch.js?v=19"></script>
+  <script src="/js/auth-fetch.js?v=20"></script>
   <title>Streets of Logic – Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -574,8 +574,12 @@
     const loginParams = new URLSearchParams(window.location.search || "");
     const forceLoginPage =
       loginParams.get("loggedout") === "1" || loginParams.get("logout") === "1";
+    // Kontowechsel in anderem Tab / Zurück nach Logout: Login zeigen, aber
+    // nie automatisch in die (fremde) Session weiterleiten.
+    const switchedAccount = loginParams.get("switched") === "1";
+    const reloginRequired = switchedAccount || loginParams.get("relogin") === "1";
 
-    if (forceLoginPage) {
+    if (forceLoginPage || reloginRequired) {
       try {
         window.SolAuth?.clear?.();
       } catch (_err) {}
@@ -626,6 +630,7 @@
       }
 
       markAuthed(role);
+      window.SolAuth?.loginDone?.();
 
       const target = redirectTo || sessionData.redirectTo || homeForRole(role);
       if (window.__purgeTeacherClientCaches) {
@@ -656,6 +661,7 @@
         }
 
         if (data.firstLogin) {
+          window.SolAuth?.loginDone?.();
           window.location.replace("/first-login");
           return;
         }
@@ -691,6 +697,12 @@
 
     function hideError() {
       errorBox.classList.remove("is-visible");
+    }
+
+    if (switchedAccount) {
+      showError(
+        "In diesem Browser wurde ein anderes Konto angemeldet oder die Sitzung ist abgelaufen. Bitte melde dich erneut an."
+      );
     }
 
     togglePassword.addEventListener("click", () => {
@@ -733,6 +745,7 @@
         }
 
         if (data.firstLogin) {
+          window.SolAuth?.loginDone?.();
           window.location.replace("/first-login");
           return;
         }

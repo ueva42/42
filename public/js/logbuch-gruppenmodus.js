@@ -278,6 +278,7 @@
       localStorage.setItem(
         LS_KEY,
         JSON.stringify({
+          userId: myUserId(),
           sessionId: state.sessionId,
           screen: state.screen,
           currentMemberIdx: state.currentMemberIdx,
@@ -296,7 +297,13 @@
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (!raw) return null;
-      return JSON.parse(raw);
+      const draft = JSON.parse(raw);
+      // Entwurf gehört evtl. einem anderen Konto auf demselben Gerät
+      if (!draft || !myUserId() || Number(draft.userId) !== myUserId()) {
+        localStorage.removeItem(LS_KEY);
+        return null;
+      }
+      return draft;
     } catch {
       return null;
     }

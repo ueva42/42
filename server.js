@@ -2788,6 +2788,32 @@ app.use((req, res, next) => {
   next();
 });
 
+// Tab-Identität (X-Sol-User aus auth-fetch.js): Alle Tabs teilen ein Cookie.
+// Hat sich in einem anderen Tab ein anderes Konto angemeldet, darf ein alter
+// Tab keine Daten unter der fremden Identität lesen oder schreiben.
+const IDENTITY_EXEMPT_API = new Set([
+  "/api/login",
+  "/api/logout",
+  "/api/auth/session",
+  "/api/demo/login",
+  "/api/demo/status"
+]);
+app.use((req, res, next) => {
+  const p = String(req.path || "");
+  if (!p.startsWith("/api/") || IDENTITY_EXEMPT_API.has(p)) return next();
+  const expected = req.get("X-Sol-User");
+  const actual = req.session?.user?.id;
+  if (!expected || actual == null) return next();
+  if (String(expected) === String(actual)) return next();
+  res.setHeader("X-Sol-Identity-Mismatch", "1");
+  res.setHeader("Cache-Control", "no-store");
+  return res.status(409).json({
+    success: false,
+    error: "IdentityMismatch",
+    message: "In diesem Browser ist inzwischen ein anderes Konto angemeldet. Bitte neu einloggen."
+  });
+});
+
 function clearSessionCookie(res) {
   res.clearCookie("connect.sid", {
     path: "/",
@@ -2823,9 +2849,9 @@ function destroySession(req, res, done) {
   });
 }
 
-function sendLoginPage(res) {
+function sendLoginPage(res, { keepSession = false } = {}) {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  clearSessionCookie(res);
+  if (!keepSession) clearSessionCookie(res);
   return res.sendFile(path.join(__dirname, "public", "login.html"));
 }
 
@@ -2839,6 +2865,14 @@ function sendToAppOrLogin(req, res) {
       return req.session.destroy(() => sendLoginPage(res));
     }
     return sendLoginPage(res);
+  }
+
+  // Tab mit anderer/abgemeldeter Identität: Login zeigen, ohne die Session
+  // des anderen Tabs zu zerstören und ohne in dessen Bereich weiterzuleiten.
+  const relogin =
+    String(req.query?.switched || "") === "1" || String(req.query?.relogin || "") === "1";
+  if (relogin) {
+    return sendLoginPage(res, { keepSession: true });
   }
 
   const user = req.session?.user;
@@ -14522,6 +14556,7 @@ for (const route of studentSpaPaths) {
 }
 
 app.get("/superadmin", isSuperadmin, (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.sendFile(path.join(__dirname, "public", "superadmin.html"));
 });
 

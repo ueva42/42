@@ -1405,13 +1405,4 @@
     console.error(err);
     appEl.innerHTML = `<div class="empty"><strong>Laden fehlgeschlagen</strong><p>Lehrerbereich konnte nicht geladen werden. Bitte neu anmelden.</p></div>`;
   });
-
-  window.addEventListener("pageshow", (e) => {
-    if (!e.persisted || !window.SolAuth?.enforceShell) return;
-    window.SolAuth.enforceShell(["teacher"]).then((session) => {
-      if (!session && !window.__authFetchRedirecting) {
-        location.replace(`/login?loggedout=1&t=${Date.now()}`);
-      }
-    });
-  });
 })();

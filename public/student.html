@@ -13125,7 +13125,7 @@ h2 {
 <script src="/js/xp-burst.js?v=1"></script>
 <script src="/js/demo-banner.js?v=2"></script>
 <script src="/js/client-cache-reset.js?v=3"></script>
-<script src="/js/auth-fetch.js?v=19"></script>
+<script src="/js/auth-fetch.js?v=20"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-constants.js?v=11"></script>
 <script src="/js/logbuch-strategies.js?v=3"></script>
@@ -13148,7 +13148,7 @@ h2 {
 <script src="/js/logbuch-checkpoint-plan.js?v=12"></script>
 <script src="/js/logbuch-materialschrank.js?v=8"></script>
 <script src="/js/logbuch-homework.js?v=6"></script>
-<script src="/js/logbuch-gruppenmodus.js?v=33"></script>
+<script src="/js/logbuch-gruppenmodus.js?v=34"></script>
 <script src="/js/logbuch-screens.js?v=9"></script>
 
 <script>
@@ -14163,14 +14163,7 @@ async function bootStudentApp() {
   }
 }
 
-window.addEventListener("pageshow", (e) => {
-  if (e.persisted) {
-    window.__studentBooted = false;
-    window.__studentBooting = false;
-  }
-  if (window.__studentBooted || window.__studentBooting) return;
-  bootStudentApp();
-});
+// bfcache-Restore: auth-fetch.js lädt die Seite neu (Server-Gate + Tab-Identität)
 if (!window.__studentBooted) bootStudentApp();
 </script>
 

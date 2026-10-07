@@ -2131,7 +2131,7 @@
 
 <script src="/js/client-cache-reset.js?v=3"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=19"></script>
+<script src="/js/auth-fetch.js?v=20"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=5"></script>
@@ -4129,15 +4129,7 @@ async function toggleTeacherActive(id, nextActive) {
   await loadTeachersAdmin();
 }
 
-window.addEventListener("pageshow", (e) => {
-  // bfcache: Rolle neu prüfen (Chrome „letzte Seite“ / Zurück)
-  if (e.persisted) {
-    window.__adminBooted = false;
-    window.__adminBooting = false;
-  }
-  if (window.__adminBooted || window.__adminBooting) return;
-  bootAdminApp();
-});
+// bfcache-Restore: auth-fetch.js lädt die Seite neu (Server-Gate + Tab-Identität)
 if (!window.__adminBooted) bootAdminApp();
 </script>
 
