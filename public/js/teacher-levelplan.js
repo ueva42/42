@@ -16,6 +16,7 @@
     assigning: false,
     deleting: false,
     deletingTopicId: null,
+    deletingGoalId: null,
     message: "",
     error: ""
   };
@@ -99,6 +100,11 @@
             <td>${escapeHtml(g.rookieGoalText || "–")}</td>
             <td>${escapeHtml(g.operatorGoalText || "–")}</td>
             <td>${escapeHtml(g.streetLegendGoalText || "–")}</td>
+            <td style="white-space:nowrap;text-align:right">
+              <button type="button" class="tc-delete-btn" data-lp-del-goal="${escapeHtml(g.id)}" title="Dieses Unterthema löschen" ${
+                state.deletingGoalId === String(g.id) ? "disabled" : ""
+              }>${state.deletingGoalId === String(g.id) ? "Löschen…" : "Löschen"}</button>
+            </td>
           </tr>`
           )
           .join("");
@@ -126,6 +132,7 @@
                   <th>Rookie</th>
                   <th>Operator</th>
                   <th>Street Legend</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>${rows}</tbody>
@@ -286,6 +293,10 @@
     root.querySelectorAll("[data-lp-del-topic]").forEach((btn) => {
       btn.addEventListener("click", () => deleteTopic(btn.dataset.lpDelTopic));
     });
+
+    root.querySelectorAll("[data-lp-del-goal]").forEach((btn) => {
+      btn.addEventListener("click", () => deleteGoal(btn.dataset.lpDelGoal));
+    });
   }
 
   async function saveAssignment(assign) {
@@ -394,6 +405,60 @@
     } catch (err) {
       console.error(err);
       state.deletingTopicId = null;
+      state.error = "Netzwerkfehler.";
+      render();
+    }
+  }
+
+  function findGoal(goalId) {
+    for (const topic of state.detail?.levelChecks || []) {
+      const goal = (topic.goals || []).find((g) => sameId(g.id, goalId));
+      if (goal) return { goal, topic };
+    }
+    return null;
+  }
+
+  async function deleteGoal(goalId) {
+    if (!goalId || state.deletingGoalId) return;
+    const found = findGoal(goalId);
+    const label = found?.goal?.text ? `„${found.goal.text}“` : "dieses Unterthema";
+    if (
+      !confirm(
+        `Unterthema ${label} wirklich löschen?\n\n` +
+          "Schüler-Markierungen (Rookie/Operator/Street Legend), Übungsstand und Freischaltungen " +
+          "zu diesem Unterthema werden entfernt. Das Thema und die übrigen Unterthemen bleiben erhalten."
+      )
+    ) {
+      return;
+    }
+
+    state.deletingGoalId = String(goalId);
+    state.message = "";
+    state.error = "";
+    render();
+
+    try {
+      const encodedId = encodeURIComponent(goalId);
+      let res = await fetch(`/api/teacher/levelcheck-goals/${encodedId}?keepTopic=1`, {
+        method: "DELETE"
+      });
+      if (res.status === 404 || res.status === 405) {
+        res = await fetch(`/api/teacher/levelcheck-goals/${encodedId}/delete?keepTopic=1`, {
+          method: "POST"
+        });
+      }
+      const data = await res.json().catch(() => ({}));
+      state.deletingGoalId = null;
+      if (!res.ok || !data.success) {
+        state.error = data.message || data.error || "Unterthema konnte nicht gelöscht werden.";
+        render();
+        return;
+      }
+      state.message = "Unterthema gelöscht.";
+      await loadDetail();
+    } catch (err) {
+      console.error(err);
+      state.deletingGoalId = null;
       state.error = "Netzwerkfehler.";
       render();
     }

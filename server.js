@@ -8286,27 +8286,81 @@ async function deleteLevelCheckForSchool(levelCheckId, schoolId) {
   }
 }
 
-async function deleteLevelCheckGoalForSchool(goalId, schoolId) {
-  const del = await pool.query(
-    `
-    DELETE FROM level_check_goals g
-    WHERE g.id = $1
-      AND EXISTS (
-        SELECT 1
-        FROM level_checks lc
-        LEFT JOIN classes c ON c.id = lc.class_id
-        WHERE g.level_check_id = lc.id
-          AND (lc.school_id = $2 OR c.school_id = $2)
-      )
-    RETURNING g.id, g.level_check_id
-  `,
-    [goalId, schoolId]
-  );
-  if (!del.rowCount) return { deleted: false, levelCheckId: null };
+/**
+ * Einzelnes Unterthema (level_check_goals) löschen.
+ * - Schülermarkierungen / Übungsstand / Freischaltungen: ON DELETE CASCADE
+ * - Verknüpfungen in Terminen (linked_subtopic_ids, JSONB ohne FK): ID wird entfernt
+ * - Tagesziel-/Gruppenmodus-Einträge speichern Text-Snapshots → bleiben als Verlauf erhalten
+ * - keepTopic=true: leeres Thema bleibt bestehen (Levelplan-Editor); sonst wie bisher entfernen
+ */
+async function deleteLevelCheckGoalForSchool(goalId, schoolId, opts = {}) {
+  const keepTopic = !!opts.keepTopic;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const del = await client.query(
+      `
+      DELETE FROM level_check_goals g
+      WHERE g.id = $1
+        AND EXISTS (
+          SELECT 1
+          FROM level_checks lc
+          LEFT JOIN classes c ON c.id = lc.class_id
+          WHERE g.level_check_id = lc.id
+            AND (lc.school_id = $2 OR c.school_id = $2)
+        )
+      RETURNING g.id, g.level_check_id
+    `,
+      [goalId, schoolId]
+    );
+    if (!del.rowCount) {
+      await client.query("ROLLBACK");
+      return { deleted: false, levelCheckId: null };
+    }
 
-  const levelCheckId = del.rows[0].level_check_id;
-  const topicRemoved = await cleanupEmptyLevelCheckIfNeeded(levelCheckId);
-  return { deleted: true, topicRemoved };
+    const levelCheckId = del.rows[0].level_check_id;
+    const goalKey = String(del.rows[0].id);
+
+    for (const table of ["level_check_checkpoints", "level_checks"]) {
+      await client.query(
+        `
+        UPDATE ${table}
+        SET linked_subtopic_ids = COALESCE((
+          SELECT jsonb_agg(e)
+          FROM jsonb_array_elements(linked_subtopic_ids) e
+          WHERE (e #>> '{}') <> $1
+        ), '[]'::jsonb)
+        WHERE linked_subtopic_ids @> to_jsonb($1::text)
+      `,
+        [goalKey]
+      );
+    }
+
+    let topicRemoved = false;
+    if (!keepTopic) {
+      const emptied = await client.query(
+        `
+        DELETE FROM level_checks lc
+        WHERE lc.id = $1
+          AND NOT EXISTS (
+            SELECT 1 FROM level_check_goals g
+            WHERE g.level_check_id = lc.id AND COALESCE(g.active, true) = true
+          )
+        RETURNING lc.id
+      `,
+        [levelCheckId]
+      );
+      topicRemoved = emptied.rowCount > 0;
+    }
+
+    await client.query("COMMIT");
+    return { deleted: true, levelCheckId, topicRemoved };
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function cleanupEmptyLevelCheckIfNeeded(levelCheckId) {
@@ -11632,7 +11686,9 @@ app.patch("/api/teacher/classes/:classId/active-levels", isTeacher, async (req, 
 app.delete("/api/teacher/levelcheck-goals/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const result = await deleteLevelCheckGoalForSchool(req.params.id, schoolId);
+    const result = await deleteLevelCheckGoalForSchool(req.params.id, schoolId, {
+      keepTopic: ["1", "true"].includes(String(req.query.keepTopic || ""))
+    });
     if (!result.deleted) {
       return res.json({ success: false, message: "Unterthema nicht gefunden." });
     }
@@ -11646,7 +11702,9 @@ app.delete("/api/teacher/levelcheck-goals/:id", isTeacher, async (req, res) => {
 app.post("/api/teacher/levelcheck-goals/:id/delete", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
-    const result = await deleteLevelCheckGoalForSchool(req.params.id, schoolId);
+    const result = await deleteLevelCheckGoalForSchool(req.params.id, schoolId, {
+      keepTopic: ["1", "true"].includes(String(req.query.keepTopic || ""))
+    });
     if (!result.deleted) {
       return res.json({ success: false, message: "Unterthema nicht gefunden." });
     }
