@@ -109,7 +109,7 @@
     if (!t.checkpointDate) return false;
     if (t.hasGradedCheckpoint !== true && t.requiresTargetGrade !== true) return false;
     const type = String(t.checkpointType || "").toLowerCase();
-    return !type || type === "klassenarbeit" || type === "test";
+    return !type || type === "klassenarbeit" || type === "test" || type === "projektabgabe";
   }
 
   function isDeepLinkedThema(thema) {

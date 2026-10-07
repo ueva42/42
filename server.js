@@ -201,15 +201,16 @@ const LEGACY_TARGET_GRADE_MAP = {
 const CHECKPOINT_TYPES = {
   klassenarbeit: "Klassenarbeit",
   test: "Test",
+  projektabgabe: "Projektabgabe",
   levelcheck: "Levelcheck",
   praesentation: "Präsentation",
   custom: "Eigene Angabe"
 };
 
 /** Nachweise mit Zielnote (Zielpfad). Levelcheck bewusst ausgenommen. */
-const GRADED_CHECKPOINT_TYPES = new Set(["klassenarbeit", "test"]);
+const GRADED_CHECKPOINT_TYPES = new Set(["klassenarbeit", "test", "projektabgabe"]);
 
-const PLAN_CHECKPOINT_TYPES = new Set(["klassenarbeit", "test", "levelcheck"]);
+const PLAN_CHECKPOINT_TYPES = new Set(["klassenarbeit", "test", "projektabgabe", "levelcheck"]);
 
 const CHECKPOINT_TYPE_OPTIONS = Object.entries(CHECKPOINT_TYPES).map(([value, label]) => ({
   value,
@@ -232,6 +233,21 @@ function normalizeCheckpointType(raw) {
   return CHECKPOINT_TYPES[key] ? key : "klassenarbeit";
 }
 
+/** Alte „Eigene Angabe“-Termine mit Bezeichnung „Projektabgabe“ → echter Typ projektabgabe. */
+function isProjektabgabeLabel(label) {
+  const t = String(label ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+  return t === "projektabgabe" || t === "projekt" || t === "projektarbeit";
+}
+
+function resolveCheckpointTypeFromInput(rawType, rawLabel) {
+  const type = normalizeCheckpointType(rawType);
+  if (type === "custom" && isProjektabgabeLabel(rawLabel)) return "projektabgabe";
+  return type;
+}
+
 function resolveCheckpointTypeLabel(typeKey, customLabel) {
   const key = normalizeCheckpointType(typeKey);
   if (key === "custom") {
@@ -245,6 +261,7 @@ function checkpointTypeShortLabel(typeKey, typeLabel) {
   const key = normalizeCheckpointType(typeKey);
   if (key === "klassenarbeit") return "KA";
   if (key === "test") return "Test";
+  if (key === "projektabgabe") return "PA";
   if (key === "levelcheck") return "LC";
   if (key === "praesentation") return "Präs.";
   const label = String(typeLabel || CHECKPOINT_TYPES[key] || "").trim();
@@ -1464,6 +1481,7 @@ function isPlanCheckpointType(typeKey, typeLabel = null) {
   return (
     label.includes("levelcheck") ||
     label.includes("klassenarbeit") ||
+    label.includes("projekt") ||
     label === "ka" ||
     label.includes("test")
   );
@@ -3837,6 +3855,19 @@ async function migrate() {
     END
     WHERE selectable_as_day_goal IS NULL
   `).catch(() => {});
+  // Alte „Eigene Angabe: Projektabgabe“ → echter Typ (zählt wie Klassenarbeit/Zielnote)
+  await pool.query(`
+    UPDATE level_check_checkpoints
+    SET checkpoint_type = 'projektabgabe',
+        checkpoint_type_label = NULL,
+        selectable_as_day_goal = COALESCE(selectable_as_day_goal, TRUE)
+    WHERE LOWER(COALESCE(checkpoint_type, '')) = 'custom'
+      AND regexp_replace(LOWER(TRIM(COALESCE(checkpoint_type_label, ''))), '[\\s_-]+', '', 'g')
+          IN ('projektabgabe', 'projekt', 'projektarbeit')
+  `).catch((err) => {
+    console.warn("⚠️ Migration Projektabgabe-Typ:", err.message);
+  });
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_level_check_checkpoints_topic_date
     ON level_check_checkpoints (level_check_id, checkpoint_date DESC)
@@ -4019,6 +4050,27 @@ async function migrate() {
       ADD PRIMARY KEY (class_id, subject, catalog_id)
   `).catch(() => {});
   await ensureColumn("level_checks", "catalog_id", "UUID");
+  // Reparatur: Zuordnungen mit falschem Fach (Levelplan hat keine Themen dafür) wirken nie –
+  // Mein Tag zeigte dann den alten Klassenplan (alle Unterthemen). Auf die echten Fächer umstellen.
+  await pool.query(`
+    INSERT INTO class_level_plan_assignments (class_id, subject, catalog_id)
+    SELECT DISTINCT a.class_id, lc.subject, a.catalog_id
+    FROM class_level_plan_assignments a
+    JOIN level_checks lc ON lc.catalog_id = a.catalog_id AND lc.subject IS NOT NULL
+    WHERE NOT EXISTS (
+      SELECT 1 FROM level_checks x
+      WHERE x.catalog_id = a.catalog_id AND x.subject = a.subject
+    )
+    ON CONFLICT (class_id, subject, catalog_id) DO NOTHING
+  `).catch((err) => console.warn("⚠️ Reparatur Levelplan-Zuordnung (insert):", err.message));
+  await pool.query(`
+    DELETE FROM class_level_plan_assignments a
+    WHERE EXISTS (SELECT 1 FROM level_checks x WHERE x.catalog_id = a.catalog_id)
+      AND NOT EXISTS (
+        SELECT 1 FROM level_checks x
+        WHERE x.catalog_id = a.catalog_id AND x.subject = a.subject
+      )
+  `).catch((err) => console.warn("⚠️ Reparatur Levelplan-Zuordnung (delete):", err.message));
   // Katalog-Themen haben keine Klasse – class_id muss NULL erlauben
   await pool.query(`ALTER TABLE level_checks ALTER COLUMN class_id DROP NOT NULL`).catch((err) => {
     console.warn("⚠️ level_checks.class_id DROP NOT NULL:", err.message);
@@ -8045,9 +8097,14 @@ async function validateLinkedSubtopicIdsForClass(classId, schoolId, subject, lin
   };
 }
 
-async function firstLevelCheckIdForClassSubject(classId, schoolId, subject) {
+async function firstLevelCheckIdForClassSubject(classId, schoolId, subject, catalogId = null) {
   const checks = await getLevelChecksForClass(classId, schoolId);
-  const match = checks.find((c) => c.subject === subject);
+  const wantCatalog = catalogId ? String(catalogId) : null;
+  const match = checks.find(
+    (c) =>
+      c.subject === subject &&
+      (!wantCatalog || (c.catalogId && String(c.catalogId) === wantCatalog))
+  );
   return match?.id || null;
 }
 
@@ -9460,7 +9517,10 @@ app.post("/api/teacher/levelchecks", isTeacher, async (req, res) => {
           ? null
           : normalizeIsoDate(req.body.checkpointDate))
       : null;
-    const checkpointType = normalizeCheckpointType(req.body.checkpointType || "klassenarbeit");
+    const checkpointType = resolveCheckpointTypeFromInput(
+      req.body.checkpointType || "klassenarbeit",
+      req.body.checkpointTypeLabel
+    );
     const checkpointTypeLabel =
       checkpointType === "custom" ? normalizeFeedbackText(req.body.checkpointTypeLabel) : null;
 
@@ -9654,7 +9714,10 @@ app.patch("/api/teacher/levelchecks/:id", isTeacher, async (req, res) => {
     }
 
     if (hasType) {
-      checkpointType = normalizeCheckpointType(req.body.checkpointType);
+      checkpointType = resolveCheckpointTypeFromInput(
+        req.body.checkpointType,
+        req.body.checkpointTypeLabel
+      );
     }
 
     if (hasTypeLabel || hasType) {
@@ -9729,8 +9792,12 @@ app.post("/api/teacher/levelcheck-checkpoints", isTeacher, async (req, res) => {
     const classId = Number(req.body.classId);
     const subject = String(req.body.subject || "").trim();
     let levelCheckId = String(req.body.levelCheckId || "").trim();
+    const catalogId = String(req.body.catalogId || "").trim() || null;
     const checkpointDate = normalizeIsoDate(req.body.checkpointDate);
-    const checkpointType = normalizeCheckpointType(req.body.checkpointType || "klassenarbeit");
+    const checkpointType = resolveCheckpointTypeFromInput(
+      req.body.checkpointType || "klassenarbeit",
+      req.body.checkpointTypeLabel
+    );
     const checkpointTypeLabel =
       checkpointType === "custom" ? normalizeFeedbackText(req.body.checkpointTypeLabel) : null;
 
@@ -9761,6 +9828,15 @@ app.post("/api/teacher/levelcheck-checkpoints", isTeacher, async (req, res) => {
 
     if (primaryLevelCheckId) {
       levelCheckId = primaryLevelCheckId;
+    } else if (catalogId) {
+      // Nur Levelplan gewählt (z. B. Projektabgabe ohne einzelne Was-Ziele)
+      levelCheckId = await firstLevelCheckIdForClassSubject(classId, schoolId, subject, catalogId);
+      if (!levelCheckId) {
+        return res.json({
+          success: false,
+          message: "Dieser Levelplan ist der Klasse für dieses Fach nicht zugewiesen."
+        });
+      }
     } else if (!levelCheckId) {
       levelCheckId = await firstLevelCheckIdForClassSubject(classId, schoolId, subject);
     }
@@ -9857,7 +9933,10 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isTeacher, async (req, res)
     }
 
     if (hasType) {
-      checkpointType = normalizeCheckpointType(req.body.checkpointType);
+      checkpointType = resolveCheckpointTypeFromInput(
+        req.body.checkpointType,
+        req.body.checkpointTypeLabel
+      );
     }
 
     if (hasTypeLabel || hasType) {
@@ -9899,6 +9978,22 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isTeacher, async (req, res)
       if (validated.primaryLevelCheckId) {
         levelCheckId = validated.primaryLevelCheckId;
       }
+    }
+    const patchCatalogId = String(req.body.catalogId || "").trim() || null;
+    if (patchCatalogId && !linkedSubtopicIds.length) {
+      const topicId = await firstLevelCheckIdForClassSubject(
+        existing.class_id,
+        schoolId,
+        existing.subject,
+        patchCatalogId
+      );
+      if (!topicId) {
+        return res.json({
+          success: false,
+          message: "Dieser Levelplan ist der Klasse für dieses Fach nicht zugewiesen."
+        });
+      }
+      levelCheckId = topicId;
     }
 
     const levelcheckLinkError = requireLinkedGoalsForLevelcheck(
@@ -11278,7 +11373,24 @@ app.put("/api/teacher/level-plan-assignment", isTeacher, async (req, res) => {
       return res.json({ success: false, message: "Levelplan nicht gefunden." });
     }
 
-    if (req.body.remove === true || req.body.unassign === true) {
+    const isUnassign = req.body.remove === true || req.body.unassign === true;
+    if (!isUnassign) {
+      // Zuordnung nur für Fächer, die der Levelplan wirklich enthält – sonst bleibt Mein Tag
+      // beim alten klassengebundenen Plan (alle Unterthemen) statt beim zugewiesenen Levelplan.
+      const catalogSubjectsRes = await pool.query(
+        `SELECT DISTINCT subject FROM level_checks WHERE catalog_id = $1 AND subject IS NOT NULL`,
+        [catalogId]
+      );
+      const catalogSubjects = catalogSubjectsRes.rows.map((r) => r.subject).filter(Boolean);
+      if (catalogSubjects.length && !catalogSubjects.includes(subject)) {
+        return res.json({
+          success: false,
+          message: `Dieser Levelplan enthält keine Themen für ${subject} (enthält: ${catalogSubjects.join(", ")}). Bitte das passende Fach wählen.`
+        });
+      }
+    }
+
+    if (isUnassign) {
       await pool.query(
         `
         DELETE FROM class_level_plan_assignments

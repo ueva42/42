@@ -26,6 +26,7 @@
   const DEFAULT_CHECKPOINT_TYPES = [
     { value: "klassenarbeit", label: "Klassenarbeit" },
     { value: "test", label: "Test" },
+    { value: "projektabgabe", label: "Projektabgabe" },
     { value: "levelcheck", label: "Levelcheck (ohne Note)" },
     { value: "praesentation", label: "Präsentation" },
     { value: "custom", label: "Eigene Bezeichnung" }
@@ -35,6 +36,7 @@
     classId: null,
     subject: null,
     themaId: null,
+    catalogFilterId: "",
     editCheckpointId: null,
     formDraft: {
       date: "",
@@ -162,6 +164,9 @@
     if (type === "klassenarbeit" || type === "test") {
       return "Klassenarbeit oder Test: Schüler:innen legen eine Zielnote fest. Markierte Was-Ziele erscheinen im Kalender.";
     }
+    if (type === "projektabgabe") {
+      return "Projektabgabe zählt wie eine Klassenarbeit (Zielnote, Vergangene Arbeiten). Levelplan wählen und Was-Ziele markieren – oder alle Ziele des Levelplans auf einmal.";
+    }
     return "Themen und Unterthemen aus dem Levelplan markieren – auch über mehrere Themen hinweg.";
   }
 
@@ -175,6 +180,7 @@
     const type = String(cp?.checkpointType || "klassenarbeit").trim().toLowerCase();
     if (
       type === "test" ||
+      type === "projektabgabe" ||
       type === "praesentation" ||
       type === "custom" ||
       type === "levelcheck" ||
@@ -183,6 +189,39 @@
       return type;
     }
     return "klassenarbeit";
+  }
+
+  /** Levelpläne (Kataloge), die der Klasse für das gewählte Fach zugewiesen sind. */
+  function levelplansForSubject() {
+    const byId = new Map();
+    const assignmentNames = new Map();
+    for (const a of state.data?.assignments || []) {
+      if (a.subject !== state.subject) continue;
+      assignmentNames.set(String(a.catalogId), a.catalogDisplayName || a.catalogName || "Levelplan");
+    }
+    for (const topic of topicsForSubject()) {
+      const key = topic.catalogId ? String(topic.catalogId) : "";
+      if (byId.has(key)) continue;
+      const label = key
+        ? assignmentNames.get(key) || topic.catalogName || "Levelplan"
+        : "Klassenplan (ohne Levelplan-Zuordnung)";
+      byId.set(key, { id: key, label });
+    }
+    return [...byId.values()];
+  }
+
+  function effectiveCatalogFilter(topicIdHint) {
+    const plans = levelplansForSubject();
+    if (plans.length === 1) return plans[0].id;
+    if (topicIdHint) {
+      const topic = topicById(topicIdHint);
+      const key = topic?.catalogId ? String(topic.catalogId) : "";
+      if (plans.some((p) => p.id === key)) return key;
+    }
+    if (state.catalogFilterId && plans.some((p) => p.id === state.catalogFilterId)) {
+      return state.catalogFilterId;
+    }
+    return "";
   }
 
   function checkpointById(id) {
@@ -225,13 +264,15 @@
     return (goals || []).some((goal) => linked.has(String(goal.id)));
   }
 
-  function renderGoalsByTopic(linked) {
+  function renderGoalsByTopic(linked, catalogFilter = "") {
     const topics = topicsForSubject();
     const sections = topics
       .map((topic) => {
         const goals = topic.goals || [];
         if (!goals.length) return "";
         const open = isTopicExpanded(topic.id, linked, goals);
+        const topicCatalog = topic.catalogId ? String(topic.catalogId) : "";
+        const hiddenByPlan = catalogFilter && topicCatalog !== catalogFilter;
         const goalChecks = goals
           .map(
             (goal) => `
@@ -242,7 +283,7 @@
           )
           .join("");
         return `
-        <details class="tc-topic-goal-group" data-topic-id="${escapeHtml(topic.id)}" ${open ? "open" : ""}>
+        <details class="tc-topic-goal-group" data-topic-id="${escapeHtml(topic.id)}" data-catalog-id="${escapeHtml(topicCatalog)}" ${open ? "open" : ""} ${hiddenByPlan ? "hidden" : ""}>
           <summary class="tc-topic-goal-title">
             <span class="tc-topic-goal-name">${escapeHtml(topic.name)}</span>
           </summary>
@@ -391,7 +432,28 @@
       .join("");
 
     const linked = values.linked;
-    const goalSections = renderGoalsByTopic(linked);
+    const levelplans = levelplansForSubject();
+    const catalogFilter = effectiveCatalogFilter(values.topicId);
+    const goalSections = renderGoalsByTopic(linked, catalogFilter);
+    const levelplanOptions = [
+      `<option value="" ${catalogFilter === "" ? "selected" : ""}>${levelplans.length > 1 ? "Alle Levelpläne" : "–"}</option>`,
+      ...levelplans.map(
+        (p) =>
+          `<option value="${escapeHtml(p.id)}" ${p.id === catalogFilter ? "selected" : ""}>${escapeHtml(p.label)}</option>`
+      )
+    ].join("");
+    const levelplanBlock = levelplans.length
+      ? `
+          <div class="tc-levelplan-pick">
+            <label>
+              Levelplan
+              <select class="tc-levelplan-select">${levelplanOptions}</select>
+            </label>
+            <button type="button" class="tc-link-btn tc-mark-all-levelplan" ${catalogFilter ? "" : "hidden"}>
+              Alle Was-Ziele dieses Levelplans markieren
+            </button>
+          </div>`
+      : "";
 
     const saveLabel = typeLabelFor(
       values.type,
@@ -444,6 +506,7 @@
           </p>
 
           <div class="tc-linked-block">
+            ${levelplanBlock}
             <h4 class="tc-linked-title">Was-Ziele für diesen Nachweis</h4>
             <p class="tc-hint" id="tcLinkedHint">
               ${escapeHtml(checkpointTypeHint(values.type))}
@@ -557,6 +620,7 @@
     root.querySelector("#tcClassSelect")?.addEventListener("change", (e) => {
       state.classId = Number(e.target.value);
       state.editCheckpointId = null;
+      state.catalogFilterId = "";
       clearFormDraft();
       state.message = "";
       state.error = "";
@@ -566,6 +630,7 @@
     root.querySelector("#tcSubjectSelect")?.addEventListener("change", (e) => {
       state.subject = e.target.value;
       state.themaId = null;
+      state.catalogFilterId = "";
       state.editCheckpointId = null;
       clearFormDraft();
       state.message = "";
@@ -601,6 +666,31 @@
 
       card.querySelectorAll(".tc-was-goal-check").forEach((el) => {
         el.addEventListener("change", () => captureFormDraft(card));
+      });
+
+      const levelplanSelect = card.querySelector(".tc-levelplan-select");
+      const markAllBtn = card.querySelector(".tc-mark-all-levelplan");
+      const applyLevelplanFilter = () => {
+        const catalogId = levelplanSelect?.value || "";
+        state.catalogFilterId = catalogId;
+        card.querySelectorAll(".tc-topic-goal-group").forEach((details) => {
+          const match = !catalogId || (details.dataset.catalogId || "") === catalogId;
+          details.hidden = !match;
+        });
+        if (markAllBtn) markAllBtn.hidden = !catalogId;
+      };
+      levelplanSelect?.addEventListener("change", applyLevelplanFilter);
+      markAllBtn?.addEventListener("click", () => {
+        const catalogId = levelplanSelect?.value || "";
+        if (!catalogId) return;
+        card.querySelectorAll(".tc-topic-goal-group").forEach((details) => {
+          if ((details.dataset.catalogId || "") !== catalogId) return;
+          details.open = true;
+          details.querySelectorAll(".tc-was-goal-check").forEach((el) => {
+            el.checked = true;
+          });
+        });
+        captureFormDraft(card);
       });
 
       card.querySelectorAll(".tc-topic-goal-group").forEach((details) => {
@@ -657,8 +747,10 @@
       (el) => el.value
     );
     const selectableEl = card.querySelector(".tc-selectable-day-goal");
+    const catalogId = card.querySelector(".tc-levelplan-select")?.value || "";
 
     return {
+      catalogId,
       levelCheckId: primaryTopicIdFromLinked(linkedSubtopicIds),
       checkpointDate,
       dateRaw,
@@ -710,6 +802,7 @@
           classId: state.classId,
           subject: state.subject,
           levelCheckId: payload.levelCheckId,
+          catalogId: payload.catalogId || null,
           checkpointDate: payload.checkpointDate,
           checkpointType: payload.checkpointType,
           checkpointTypeLabel: payload.checkpointTypeLabel,

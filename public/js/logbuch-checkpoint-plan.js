@@ -8,6 +8,7 @@
   const TYPE_COLORS = {
     test: "#22d3ee",
     klassenarbeit: "#3b82f6",
+    projektabgabe: "#f59e0b",
     levelcheck: "#a855f7",
     praesentation: "#ec4899",
     custom: "#22c55e"

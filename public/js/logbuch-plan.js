@@ -1811,6 +1811,22 @@
       </div>`;
   }
 
+  /** Mehrere Themen im zugewiesenen Levelplan: Thema vor das Unterthema setzen. */
+  function whatGoalSelectOptions() {
+    const options = state.whatGoalOptions || [];
+    const topicIds = new Set(
+      options.map((g) => g.levelCheckId).filter((id) => id != null && id !== "")
+    );
+    const showTopic = topicIds.size > 1;
+    return options.map((g) => ({
+      value: g.id,
+      label:
+        showTopic && g.levelCheckName && g.source !== "group_role"
+          ? `${g.levelCheckName} · ${g.text}`
+          : g.text
+    }));
+  }
+
   function whatGoalMessage(ui) {
     if (state.whatGoalOptions.length) return "";
     if (state.goalSource === "checkpoint_empty") {
@@ -1928,7 +1944,7 @@
               : state.whatGoalOptions.length
                 ? ui.select(
                     "whatGoalId",
-                    state.whatGoalOptions.map((g) => ({ value: g.id, label: g.text })),
+                    whatGoalSelectOptions(),
                     state.whatGoalId,
                     { phase: "plan", placeholder: "Unterthema wählen…" }
                   )

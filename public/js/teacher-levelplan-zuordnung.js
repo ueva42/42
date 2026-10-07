@@ -52,10 +52,20 @@
       state.assignClassId = classes[0]?.id ? String(classes[0].id) : "";
     }
 
-    const subjects = state.data?.subjects || [];
+    const subjects = assignSubjects();
     if (!state.assignSubject || !subjects.includes(state.assignSubject)) {
       state.assignSubject = subjects[0] || "";
     }
+  }
+
+  /** Fächer, die der gewählte Levelplan wirklich enthält (sonst greift die Zuordnung nicht). */
+  function assignSubjects() {
+    const all = state.data?.subjects || [];
+    const catalog = (state.data?.catalogs || []).find((c) => sameId(c.id, state.assignCatalogId));
+    const own = Array.isArray(catalog?.subjects) ? catalog.subjects.filter(Boolean) : [];
+    if (!own.length) return all;
+    const ordered = all.filter((s) => own.includes(s));
+    return ordered.length ? ordered : own;
   }
 
   function filteredAssignments() {
@@ -112,7 +122,7 @@
       )
       .join("");
 
-    const subjectOptions = (state.data?.subjects || [])
+    const subjectOptions = assignSubjects()
       .map(
         (s) =>
           `<option value="${escapeHtml(s)}" ${s === state.assignSubject ? "selected" : ""}>${escapeHtml(s)}</option>`
@@ -289,6 +299,8 @@
     });
     root.querySelector("#lpzAssignCatalog")?.addEventListener("change", (e) => {
       state.assignCatalogId = e.target.value;
+      state.assignSubject = "";
+      render();
     });
     root.querySelector("#lpzAssignSubject")?.addEventListener("change", (e) => {
       state.assignSubject = e.target.value;

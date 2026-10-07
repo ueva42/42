@@ -2,7 +2,7 @@
  * Lehrkraft – Termine (anstehende Nachweise einsehen).
  */
 (function () {
-  const TYPE_ORDER = ["klassenarbeit", "test", "levelcheck", "praesentation", "custom"];
+  const TYPE_ORDER = ["klassenarbeit", "test", "projektabgabe", "levelcheck", "praesentation", "custom"];
 
   const state = {
     classId: null,
@@ -59,6 +59,7 @@
     const type = String(cp?.checkpointType || cp?.type || "klassenarbeit").trim().toLowerCase();
     if (
       type === "test" ||
+      type === "projektabgabe" ||
       type === "praesentation" ||
       type === "custom" ||
       type === "levelcheck" ||
