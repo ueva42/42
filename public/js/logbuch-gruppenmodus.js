@@ -321,6 +321,8 @@
     setSave("saving");
     try {
       const r = await fetch(url, {
+        credentials: "same-origin",
+        cache: "no-store",
         headers: { "Content-Type": "application/json", ...(options.headers || {}) },
         ...options
       });
@@ -2464,10 +2466,16 @@
             body: JSON.stringify({ accept: true })
           });
           await loadBootstrap();
+          window.dispatchEvent(
+            new CustomEvent("sol:group-invite-resolved", {
+              detail: { sessionId: id, accept: true, data }
+            })
+          );
+          window.LogbuchGroupInvites?.refresh?.({ force: true });
           if (data.session) {
             applyBundle(data);
             state.message = "Zusage gespeichert – du bist in der Gruppe.";
-            resumeScreenFromBundle();
+            state.screen = "members";
           } else {
             state.sessionId = null;
             state.bundle = null;
@@ -2498,6 +2506,12 @@
           state.sessionId = null;
           state.bundle = null;
           await loadBootstrap();
+          window.dispatchEvent(
+            new CustomEvent("sol:group-invite-resolved", {
+              detail: { sessionId: id, accept: false }
+            })
+          );
+          window.LogbuchGroupInvites?.refresh?.({ force: true });
           state.screen = "home";
           state.message = "Einladung abgelehnt.";
           render();
@@ -3648,7 +3662,9 @@
           state.error = `Gruppenmodus für ${subjectFromQuery} ist nicht freigeschaltet.`;
         }
 
-        const draft = restoreLocal();
+        // Offene Einladungen haben Vorrang vor LocalStorage-Draft
+        const hasPendingInvites = (state.bootstrap?.pendingInvites || []).length > 0;
+        const draft = hasPendingInvites ? null : restoreLocal();
         if (draft?.sessionId && !subjectFromQuery) {
           try {
             state.selectedMembers = [];

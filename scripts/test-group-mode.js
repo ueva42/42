@@ -5,6 +5,7 @@
 import {
   allRolesCovered,
   clampGroupSize,
+  isDisposableSoloHostSetup,
   isEmptyMembershipShell,
   joinGoalTexts,
   memberGoalsComplete,
@@ -202,6 +203,30 @@ function testSessionKindBusy() {
   assert(
     !isEmptyMembershipShell({ status: "setup", setup_step: "members", session_kind: "roster" }, 2),
     "two not shell"
+  );
+  assert(
+    !isEmptyMembershipShell(
+      { status: "setup", setup_step: "members", session_kind: "roster" },
+      1,
+      1
+    ),
+    "pending invites protect shell"
+  );
+  assert(
+    isDisposableSoloHostSetup(
+      { status: "setup", setup_step: "topic", session_kind: "roster" },
+      1,
+      0
+    ),
+    "solo host topic disposable on accept"
+  );
+  assert(
+    !isDisposableSoloHostSetup(
+      { status: "setup", setup_step: "members", session_kind: "roster" },
+      1,
+      2
+    ),
+    "host with pending not disposable"
   );
   // Gleiche Rolle / standing ohne Themen-Pipeline
   assert(

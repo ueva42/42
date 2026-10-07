@@ -13132,7 +13132,8 @@ h2 {
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=39"></script>
 <script src="/js/logbuch-visuals.js?v=17"></script>
-<script src="/js/logbuch-reminders.js?v=5"></script>
+<script src="/js/logbuch-reminders.js?v=6"></script>
+<script src="/js/logbuch-group-invites.js?v=1"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=12"></script>
 <script src="/js/logbuch-plan.js?v=36"></script>
@@ -13147,7 +13148,7 @@ h2 {
 <script src="/js/logbuch-checkpoint-plan.js?v=12"></script>
 <script src="/js/logbuch-materialschrank.js?v=8"></script>
 <script src="/js/logbuch-homework.js?v=6"></script>
-<script src="/js/logbuch-gruppenmodus.js?v=32"></script>
+<script src="/js/logbuch-gruppenmodus.js?v=33"></script>
 <script src="/js/logbuch-screens.js?v=9"></script>
 
 <script>
@@ -13335,7 +13336,7 @@ function openNotifPanel() {
 
   panel.style.display = "block";
   renderNotifListFromXpLog(__latestXpLog);
-  window.LogbuchReminders?.pollGroupInviteNotifications?.();
+  window.LogbuchGroupInvites?.refresh?.({ force: true });
 
   setLastSeenNow();
   renderNotifBadge(__latestXpLog);
@@ -13563,6 +13564,7 @@ window.loadMe = async function loadMe() {
   else if (window.LogbuchStartBriefing) window.LogbuchStartBriefing.openAuto();
 
   window.LogbuchReminders?.start?.();
+  window.LogbuchGroupInvites?.start?.();
 
   window.XpBurst?.noteXp?.(u.xp);
 
