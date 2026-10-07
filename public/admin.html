@@ -1066,6 +1066,20 @@
       padding: 2px 6px;
       border-radius: 4px;
     }
+    .otp-modal { max-width: 420px; text-align: center; }
+    .otp-modal__pw {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 28px;
+      letter-spacing: 0.12em;
+      padding: 14px;
+      margin: 6px 0 10px;
+      border-radius: 12px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      color: #f8fafc;
+      user-select: all;
+    }
+    .otp-modal__actions { display: flex; gap: 10px; justify-content: center; }
     .pw-active {
       color: #166534;
       font-weight: 600;
@@ -2708,7 +2722,7 @@ async function loadClassStudents() {
       </td>
       <td>${Number(s.xp || 0).toLocaleString("de-DE")}</td>
       <td id="login_${s.id}">${pwCell}</td>
-      <td><button class="action" onclick="resetStudentPassword(${s.id}, ${JSON.stringify(s.name)})">Neu setzen</button></td>
+      <td><button type="button" class="action" data-student-id="${s.id}" data-student-name="${escapeHtml(s.name)}" onclick="resetStudentPassword(Number(this.dataset.studentId), this.dataset.studentName, this)">Neu setzen</button></td>
       <td><button class="delete" onclick="deleteStudent(${s.id})">X</button></td>
     `;
     tbody.appendChild(tr);
@@ -2725,11 +2739,52 @@ function escapeHtml(value) {
 
 function showOneTimePassword(title, password, name) {
   const pw = String(password || "");
-  const who = name ? ` für ${name}` : "";
-  const msg =
-    `${title}${who}:\n\n${pw}\n\n` +
-    "Das Einmalpasswort bleibt in der Klassenliste sichtbar, bis ein eigenes Passwort gesetzt wurde.";
-  window.prompt(msg, pw);
+  document.getElementById("otpModalOverlay")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "otpModalOverlay";
+  overlay.className = "td-modal-overlay";
+  overlay.innerHTML = `
+    <div class="td-modal otp-modal" role="dialog" aria-modal="true" aria-labelledby="otpModalTitle">
+      <div class="td-modal-head">
+        <h3 id="otpModalTitle">${escapeHtml(title)}</h3>
+        <button type="button" class="td-modal-close" aria-label="Schließen">✕</button>
+      </div>
+      <p class="td-modal-sub">${name ? `für <strong>${escapeHtml(name)}</strong>` : ""}</p>
+      <div class="otp-modal__pw">${escapeHtml(pw)}</div>
+      <p class="td-modal-sub">Das Einmalpasswort bleibt in der Klassenliste sichtbar, bis ein eigenes Passwort gesetzt wurde.</p>
+      <div class="otp-modal__actions">
+        <button type="button" class="action otp-modal__copy">Kopieren</button>
+        <button type="button" class="action otp-modal__ok">OK</button>
+      </div>
+    </div>
+  `;
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener("keydown", onKey);
+  };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+  overlay.querySelector(".td-modal-close").onclick = close;
+  overlay.querySelector(".otp-modal__ok").onclick = close;
+  const copyBtn = overlay.querySelector(".otp-modal__copy");
+  copyBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(pw);
+      copyBtn.textContent = "Kopiert ✓";
+    } catch {
+      const range = document.createRange();
+      range.selectNodeContents(overlay.querySelector(".otp-modal__pw"));
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      copyBtn.textContent = "Markiert – Strg/Cmd+C";
+    }
+  };
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  overlay.querySelector(".otp-modal__ok").focus();
 }
 
 function setLoginCell(studentId, password) {
@@ -2823,27 +2878,33 @@ async function deleteStudent(id) {
 }
 
 /* Passwort neu setzen → wieder Einmalpasswort (in Liste sichtbar) */
-async function resetStudentPassword(id, name) {
+async function resetStudentPassword(id, name, btn) {
+  if (!id) return;
   if (!window.confirm(`Neues Einmalpasswort für ${name || "diese Person"} erzeugen? Das bisherige funktioniert danach nicht mehr.`)) {
     return;
   }
-  const r = await fetch("/api/student/resetPassword", {
-    method: "POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({ studentId: id })
-  });
-  const data = await r.json();
-  if (!data.success) {
-    alert(data.message || "Reset fehlgeschlagen.");
-    return;
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch("/api/student/resetPassword", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ studentId: id })
+    });
+    const data = await r.json().catch(() => ({}));
+    const pw = data.temporaryPassword || data.password;
+    if (!r.ok || !data.success || !pw) {
+      alert(data.message || `Reset fehlgeschlagen (HTTP ${r.status}).`);
+      return;
+    }
+    setLoginCell(id, pw);
+    showOneTimePassword("Neues Einmalpasswort", pw, data.studentName || name);
+  } catch (err) {
+    console.error(err);
+    alert("Netzwerkfehler beim Zurücksetzen des Passworts.");
+  } finally {
+    if (btn) btn.disabled = false;
   }
-  const pw = data.temporaryPassword || data.password;
-  setLoginCell(id, pw);
-  showOneTimePassword(
-    "Neues Einmalpasswort",
-    pw,
-    data.studentName || name
-  );
 }
 
 /* Offene Einmalpasswörter als Karten drucken (ohne Reset) */
