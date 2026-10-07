@@ -293,7 +293,10 @@
 
   function renderMissionCard(ui, entry) {
     const items = [
-      ["Was-Ziel", entry.what_goal_text || "–"],
+      ["Unterthema", entry.what_goal_text || "–"],
+      ...(entry.role_goal_text
+        ? [[entry.role_goal_role_name ? `Was-Ziel (${entry.role_goal_role_name})` : "Was-Ziel zur Rolle", entry.role_goal_text]]
+        : []),
       ["Level", levelLabel(entry.selected_level, entry)],
       ["Fachliches Ziel", entry.level_goal_text || "–"],
       ["Mein Weg zum Ziel", entry.how_goal_text || entry.goal || "–"],
@@ -318,7 +321,12 @@
       <section class="check-daily-goal">
         <h3 class="check-daily-goal-title">Heutiges Ziel</h3>
         <div class="check-daily-goal-card">
-          <p><strong>Was-Ziel:</strong><br>${ui.escapeHtml(entry.what_goal_text || "–")}</p>
+          <p><strong>Unterthema:</strong><br>${ui.escapeHtml(entry.what_goal_text || "–")}</p>
+          ${
+            entry.role_goal_text
+              ? `<p><strong>Was-Ziel zur Rolle${entry.role_goal_role_name ? ` (${ui.escapeHtml(entry.role_goal_role_name)})` : ""}:</strong><br>${ui.escapeHtml(entry.role_goal_text)}</p>`
+              : ""
+          }
           <p><strong>Level:</strong><br>${ui.escapeHtml(levelLabel(entry.selected_level, entry))}</p>
           <p><strong>Fachliches Ziel:</strong><br>${ui.escapeHtml(entry.level_goal_text || "–")}</p>
           <p><strong>Mein Weg zum Ziel:</strong><br>${ui.escapeHtml(entry.how_goal_text || entry.goal || "–")}</p>

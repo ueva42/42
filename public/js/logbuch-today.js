@@ -112,6 +112,11 @@
         <div class="today-focus-card">
           <p class="today-focus-card-title">Dein Tagesziel</p>
           ${meta.length ? `<p class="today-focus-meta">${ui.escapeHtml(meta.join(" · "))}</p>` : ""}
+          ${
+            entry.role_goal_text
+              ? `<p class="lesson-card__goal"><strong>Rollenziel${entry.role_goal_role_name ? ` (${ui.escapeHtml(entry.role_goal_role_name)})` : ""}:</strong> ${ui.escapeHtml(entry.role_goal_text)}</p>`
+              : ""
+          }
           <p class="lesson-card__goal"><strong>Ziel:</strong> ${ui.escapeHtml(entry.level_goal_text)}</p>
           ${
             entry.how_goal_text || entry.goal

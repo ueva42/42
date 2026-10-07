@@ -1132,8 +1132,57 @@ const PLAN_ENTRY_FIELDS = `
   strategy, confidence_before, freitext, created_at,
   checkpoint_id, checkpoint_title,
   what_goal_id, what_goal_text, how_goal_text, details_text,
-  selected_level, level_goal_text, plan_b_strategy_text
+  selected_level, level_goal_text, plan_b_strategy_text,
+  role_goal_id, role_goal_text, role_goal_role_name
 `;
+
+/** Aktive Was-Ziele der Gruppenrollen dieser Person (Gruppenmodus, offene Session, Fach). */
+async function fetchRoleWasGoalsForStudent(studentId, classId, subject) {
+  if (!studentId || !classId || !subject) return [];
+  try {
+    const r = await pool.query(
+      `
+      SELECT DISTINCT g.id, g.text, g.role_id, r.role_name_snapshot AS role_name, g.sort_order
+      FROM group_session_members gsm
+      JOIN group_sessions gs ON gs.id = gsm.session_id
+      JOIN group_session_member_roles r ON r.member_id = gsm.id
+      JOIN group_mode_role_goals g ON g.role_id = r.role_id
+      WHERE gsm.user_id = $1
+        AND gs.class_id = $2
+        AND lower(trim(gs.subject)) = lower(trim($3))
+        AND gs.status <> 'closed'
+        AND COALESCE(gsm.invite_status, 'accepted') = 'accepted'
+        AND g.goal_type = 'WAS'
+        AND g.active IS DISTINCT FROM FALSE
+      ORDER BY g.sort_order ASC NULLS LAST, g.id ASC
+    `,
+      [studentId, classId, subject]
+    );
+    return r.rows.map((row) => ({
+      id: String(row.id),
+      text: row.text,
+      roleId: row.role_id ? String(row.role_id) : null,
+      roleName: row.role_name || "",
+      source: "group_role"
+    }));
+  } catch (err) {
+    console.error("⚠️ fetchRoleWasGoalsForStudent:", err.message);
+    return [];
+  }
+}
+
+/** Validiert die Auswahl „Was-Ziel zur Rolle“. Gibt Fehlermeldung oder Speicherwerte zurück. */
+function resolveRoleGoalSelection(roleWasGoals, rawRoleGoalId, unterthemaIsRoleGoal) {
+  if (unterthemaIsRoleGoal || !roleWasGoals.length) {
+    return { ok: true, roleGoal: null };
+  }
+  const id = rawRoleGoalId == null ? "" : String(rawRoleGoalId).trim();
+  const match = roleWasGoals.find((g) => String(g.id) === id);
+  if (!match) {
+    return { ok: false, message: "Bitte ein Was-Ziel zu deiner Rolle wählen." };
+  }
+  return { ok: true, roleGoal: match };
+}
 
 async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId }) {
   if (entryId) {
@@ -1921,6 +1970,8 @@ function mapPlannedWorkFromEntry(row, extra = {}) {
   return {
     whatGoalId: row.what_goal_id || null,
     whatGoalText,
+    roleGoalText: row.role_goal_text || null,
+    roleGoalRoleName: row.role_goal_role_name || null,
     howGoalText,
     detailsText: row.details_text || null,
     selectedLevel: row.selected_level || null,
@@ -3677,6 +3728,10 @@ async function migrate() {
   await ensureColumn("log_entries", "selected_level", "TEXT");
   await ensureColumn("log_entries", "level_goal_text", "TEXT");
   await ensureColumn("log_entries", "plan_b_strategy_text", "TEXT");
+  // Gruppenarbeit: Unterthema (what_goal_*) + Was-Ziel zur Rolle
+  await ensureColumn("log_entries", "role_goal_id", "UUID");
+  await ensureColumn("log_entries", "role_goal_text", "TEXT");
+  await ensureColumn("log_entries", "role_goal_role_name", "TEXT");
 
   // LogCheck – Zwischen-Check (Performance)
   await pool.query(`
@@ -5750,6 +5805,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
 
     // Gruppenmodus: Kontext für Plan (Rollen/Mitglieder) – Ziele bleiben im Plan
     let groupContext = null;
+    let roleWasGoalOptions = [];
     if (classId && activeSubject) {
       try {
         const gmEnabled = await pool.query(
@@ -5976,23 +6032,33 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
             allowMultiRoles: true,
             planningUserId
           };
-          // Rollenziele zusätzlich – gleiches Unterthema/Rolle für mehrere Personen erlaubt
+          // Unterthema (Levelplan) und Was-Ziel zur Rolle sind getrennte Auswahlen.
+          // Nur wenn der Levelplan keine Unterthemen liefert, dienen Rollenziele als Tagesziel (Fallback).
           if (roleWasGoals.length) {
-            const existingIds = new Set(whatGoalOptions.map((g) => String(g.id)));
-            for (const g of roleWasGoals) {
-              if (!g.id || existingIds.has(String(g.id))) continue;
-              existingIds.add(String(g.id));
-              whatGoalOptions.push({
-                id: g.id,
-                text: `${g.text}${g.roleName ? ` (${g.roleName})` : ""}`,
-                roleName: g.roleName,
-                source: "group_role",
-                rookieGoalText: g.text,
-                operatorGoalText: g.text,
-                streetLegendGoalText: g.text
-              });
+            if (!whatGoalOptions.length) {
+              for (const g of roleWasGoals) {
+                if (!g.id) continue;
+                whatGoalOptions.push({
+                  id: g.id,
+                  text: `${g.text}${g.roleName ? ` (${g.roleName})` : ""}`,
+                  roleName: g.roleName,
+                  source: "group_role",
+                  rookieGoalText: g.text,
+                  operatorGoalText: g.text,
+                  streetLegendGoalText: g.text
+                });
+              }
+              goalSource = "group_role";
+            } else {
+              roleWasGoalOptions = roleWasGoals
+                .filter((g) => g.id)
+                .map((g) => ({
+                  id: g.id,
+                  text: g.text,
+                  roleId: g.roleId || null,
+                  roleName: g.roleName || ""
+                }));
             }
-            if (goalSource === "none") goalSource = "group_role";
           }
           if (roleHowGoals.length) {
             const howSet = new Set((howGoals || []).map((h) => String(h).trim()));
@@ -6031,6 +6097,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       selectedCheckpoint,
       nextCheckpoint: selectedCheckpoint,
       whatGoalOptions,
+      roleWasGoalOptions,
       subjectLocked,
       lockedSubject,
       groupContext,
@@ -6070,7 +6137,8 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       confidenceBefore = null,
       freitext = null,
       planBStrategyText = null,
-      forUserId = null
+      forUserId = null,
+      roleGoalId = null
     } = req.body;
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
@@ -6146,6 +6214,7 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     }
 
     let validWhatGoalOptions = [];
+    let roleWasGoals = [];
     let nextCheckpoint = null;
     let goalSource = "none";
     if (classId) {
@@ -6166,41 +6235,22 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       validWhatGoalOptions = picked.options;
       nextCheckpoint = picked.checkpoint;
       goalSource = picked.goalSource;
-      try {
-        const roleWas = await pool.query(
-          `
-          SELECT g.id, g.text, r.role_name_snapshot AS role_name
-          FROM group_session_members gsm
-          JOIN group_sessions gs ON gs.id = gsm.session_id
-          JOIN group_session_member_roles r ON r.member_id = gsm.id
-          JOIN group_mode_role_goals g ON g.role_id = r.role_id
-          WHERE gsm.user_id = $1
-            AND gs.class_id = $2
-            AND lower(trim(gs.subject)) = lower(trim($3))
-            AND gs.status <> 'closed'
-            AND COALESCE(gsm.invite_status, 'accepted') = 'accepted'
-            AND g.goal_type = 'WAS'
-            AND g.active IS DISTINCT FROM FALSE
-        `,
-          [studentId, classId, subject]
-        );
-        const seen = new Set(validWhatGoalOptions.map((g) => String(g.id)));
-        for (const row of roleWas.rows) {
-          const id = String(row.id);
-          if (seen.has(id)) continue;
-          seen.add(id);
+      roleWasGoals = await fetchRoleWasGoalsForStudent(studentId, classId, subject);
+      // Nur ohne Levelplan-Unterthemen: Rollenziele wie früher als Tagesziel erlauben
+      if (!validWhatGoalOptions.length && roleWasGoals.length) {
+        for (const g of roleWasGoals) {
           validWhatGoalOptions.push({
-            id: row.id,
-            text: row.text,
-            roleName: row.role_name || "",
+            id: g.id,
+            text: g.text,
+            roleName: g.roleName,
             source: "group_role",
-            rookieGoalText: row.text,
-            operatorGoalText: row.text,
-            streetLegendGoalText: row.text
+            rookieGoalText: g.text,
+            operatorGoalText: g.text,
+            streetLegendGoalText: g.text
           });
         }
-        if (roleWas.rows.length && goalSource === "none") goalSource = "group_role";
-      } catch (_) {}
+        goalSource = "group_role";
+      }
     }
 
     const whatById = new Map(validWhatGoalOptions.map((g) => [String(g.id), g]));
@@ -6233,6 +6283,16 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     const finalWhatGoalText = String(goalOption.text || "")
       .replace(/\s*\([^)]*\)\s*$/, "")
       .trim() || goalOption.text;
+
+    const roleGoalPick = resolveRoleGoalSelection(
+      roleWasGoals,
+      roleGoalId,
+      goalOption.source === "group_role"
+    );
+    if (!roleGoalPick.ok) {
+      return res.json({ success: false, message: roleGoalPick.message });
+    }
+    const chosenRoleGoal = roleGoalPick.roleGoal;
 
     const normalizedLevel = String(selectedLevel || "").toLowerCase();
     if (!LEVEL_CHECK_TIERS.includes(normalizedLevel)) {
@@ -6334,9 +6394,9 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         work_goals, social_form, strategy, confidence_before, freitext,
         checkpoint_id, checkpoint_title, what_goal_id, what_goal_text,
         how_goal_text, details_text, selected_level, level_goal_text,
-        plan_b_strategy_text
+        plan_b_strategy_text, role_goal_id, role_goal_text, role_goal_role_name
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
       RETURNING id, created_at
     `,
       [
@@ -6359,7 +6419,10 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         cleanDetailsText,
         normalizedLevel,
         finalLevelGoalText,
-        parsedPlanB
+        parsedPlanB,
+        chosenRoleGoal ? chosenRoleGoal.id : null,
+        chosenRoleGoal ? chosenRoleGoal.text : null,
+        chosenRoleGoal ? chosenRoleGoal.roleName || null : null
       ]
     );
 
@@ -6414,7 +6477,8 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       strategy = null,
       confidenceBefore = null,
       freitext = null,
-      planBStrategyText = null
+      planBStrategyText = null,
+      roleGoalId = null
     } = req.body;
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
@@ -6434,6 +6498,7 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
     }
 
     let validWhatGoalOptions = [];
+    let roleWasGoals = [];
     let nextCheckpoint = null;
     let goalSource = "none";
     if (classId) {
@@ -6454,6 +6519,7 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       validWhatGoalOptions = picked.options;
       nextCheckpoint = picked.checkpoint;
       goalSource = picked.goalSource;
+      roleWasGoals = await fetchRoleWasGoalsForStudent(studentId, classId, subject);
     }
 
     const whatById = new Map(validWhatGoalOptions.map((g) => [String(g.id), g]));
@@ -6482,6 +6548,11 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
     }
 
     const goalOption = whatById.get(cleanWhatGoalId);
+    const roleGoalPick = resolveRoleGoalSelection(roleWasGoals, roleGoalId, false);
+    if (!roleGoalPick.ok) {
+      return res.json({ success: false, message: roleGoalPick.message });
+    }
+    const chosenRoleGoal = roleGoalPick.roleGoal;
     const normalizedLevel = String(selectedLevel || "").toLowerCase();
     if (!LEVEL_CHECK_TIERS.includes(normalizedLevel)) {
       return res.json({ success: false, message: "Bitte ein Level wählen." });
@@ -6577,7 +6648,10 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
         details_text = $13,
         selected_level = $14,
         level_goal_text = $15,
-        plan_b_strategy_text = $16
+        plan_b_strategy_text = $16,
+        role_goal_id = $19,
+        role_goal_text = $20,
+        role_goal_role_name = $21
       WHERE id = $17 AND user_id = $18
       RETURNING id, created_at
     `,
@@ -6599,7 +6673,10 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
         finalLevelGoalText,
         parsedPlanB,
         entryId,
-        studentId
+        studentId,
+        chosenRoleGoal ? chosenRoleGoal.id : null,
+        chosenRoleGoal ? chosenRoleGoal.text : null,
+        chosenRoleGoal ? chosenRoleGoal.roleName || null : null
       ]
     );
 
@@ -6904,6 +6981,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         le.confidence_before, le.created_at,
         le.checkpoint_title, le.what_goal_text, le.how_goal_text, le.details_text,
         le.selected_level, le.level_goal_text, le.plan_b_strategy_text,
+        le.role_goal_text, le.role_goal_role_name,
         lc.id AS check_id,
         lc.on_track AS check_on_track,
         lc.understands AS check_understands,
@@ -6945,6 +7023,8 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         selected_level: row.selected_level,
         level_goal_text: row.level_goal_text || null,
         plan_b_strategy_text: row.plan_b_strategy_text || null,
+        role_goal_text: row.role_goal_text || null,
+        role_goal_role_name: row.role_goal_role_name || null,
         level_label: row.selected_level
           ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
           : null,
@@ -7401,6 +7481,7 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
         id, date, timeslot, subject, goal,
         what_goal_id, what_goal_text, how_goal_text, details_text,
         selected_level, level_goal_text, plan_b_strategy_text,
+        role_goal_id, role_goal_text, role_goal_role_name,
         created_at
       FROM log_entries
       WHERE id=$1 AND user_id=$2
@@ -7731,6 +7812,7 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
         le.id, le.date, le.timeslot, le.subject, le.goal,
         le.what_goal_text, le.how_goal_text, le.details_text,
         le.selected_level, le.level_goal_text, le.confidence_before,
+        le.role_goal_text, le.role_goal_role_name,
         le.created_at,
         lc.selected_strategy_name AS check_strategy_name
       FROM log_entries le

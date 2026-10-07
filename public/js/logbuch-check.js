@@ -380,6 +380,8 @@
     const entry = state.entry || {};
     return {
       whatGoalText: work.whatGoalText || entry.what_goal_text || "",
+      roleGoalText: work.roleGoalText || entry.role_goal_text || "",
+      roleGoalRoleName: work.roleGoalRoleName || entry.role_goal_role_name || "",
       howGoalText: work.howGoalText || entry.how_goal_text || entry.goal || "",
       levelGoalText: work.levelGoalText || entry.level_goal_text || "",
       detailsText: work.detailsText || entry.details_text || "",
@@ -392,7 +394,10 @@
   function missionFacts(entry) {
     const work = plannedWorkFromState();
     const facts = [
-      ["Was-Ziel", work.whatGoalText || "–"],
+      ["Unterthema", work.whatGoalText || "–"],
+      ...(work.roleGoalText
+        ? [[work.roleGoalRoleName ? `Was-Ziel (${work.roleGoalRoleName})` : "Was-Ziel zur Rolle", work.roleGoalText]]
+        : []),
       ["Level", work.levelLabel || "–"],
       ["Fachliches Ziel", work.levelGoalText || "–"],
       ["Mein Weg zum Ziel", work.howGoalText || "–"]
@@ -438,7 +443,12 @@
           ${
             empty
               ? `<p>Für ${ui.escapeHtml(work.subject || "dieses Fach")} ist noch kein Was-Ziel hinterlegt. Setze zuerst dein Tagesziel.</p>`
-              : `<p><strong>Was-Ziel:</strong><br>${ui.escapeHtml(work.whatGoalText || "–")}</p>
+              : `<p><strong>Unterthema:</strong><br>${ui.escapeHtml(work.whatGoalText || "–")}</p>
+                 ${
+                   work.roleGoalText
+                     ? `<p><strong>Was-Ziel zur Rolle${work.roleGoalRoleName ? ` (${ui.escapeHtml(work.roleGoalRoleName)})` : ""}:</strong><br>${ui.escapeHtml(work.roleGoalText)}</p>`
+                     : ""
+                 }
                  <p><strong>Level:</strong><br>${ui.escapeHtml(work.levelLabel || "–")}</p>
                  ${
                    work.levelGoalText

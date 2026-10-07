@@ -59,6 +59,8 @@
     subject: null,
     whatGoalId: null,
     whatGoalText: "",
+    roleGoalId: null,
+    roleWasGoalOptions: [],
     selectedLevel: null,
     levelGoalText: "",
     howGoalText: null,
@@ -930,12 +932,29 @@
     return (gc.myRoles || []).length > 0;
   }
 
-  /** Feine Abfolge: (Gruppe: Rolle) → Was → Level → Start → Arbeit → Kontrolle → Plan B → Selbstcheck */
+  /** Gruppenarbeit: nach Unterthema zusätzlich ein Was-Ziel zur eigenen Rolle. */
+  function roleGoalRequired() {
+    return (state.roleWasGoalOptions || []).length > 0;
+  }
+
+  function selectedRoleGoal() {
+    return (
+      (state.roleWasGoalOptions || []).find((g) => String(g.id) === String(state.roleGoalId)) ||
+      null
+    );
+  }
+
+  function roleGoalSatisfied() {
+    return !roleGoalRequired() || !!selectedRoleGoal();
+  }
+
+  /** Feine Abfolge: (Gruppe: Rolle) → Unterthema → Was-Ziel zur Rolle → Level → Start → Arbeit → Kontrolle → Plan B → Selbstcheck */
   function whatStepComplete() {
     return !!(
       groupRoleComplete() &&
       state.subject &&
       state.whatGoalId &&
+      roleGoalSatisfied() &&
       checkpointSatisfied() &&
       state.whatGoalOptions.length
     );
@@ -1017,6 +1036,8 @@
     const parts = [];
     if (state.subject) parts.push(state.subject);
     if (state.whatGoalText) parts.push(state.whatGoalText);
+    const rg = selectedRoleGoal();
+    if (rg) parts.push(`Rolle: ${rg.text}`);
     return parts.join(" · ") || "Noch offen";
   }
 
@@ -1417,6 +1438,15 @@
         accent: "#a855f7"
       }),
       overviewTileHtml(ui, { label: "Unterthema", value: e.what_goal_text, accent: "#38bdf8" }),
+      ...(e.role_goal_text
+        ? [
+            overviewTileHtml(ui, {
+              label: e.role_goal_role_name ? `Was-Ziel (${e.role_goal_role_name})` : "Was-Ziel zur Rolle",
+              value: e.role_goal_text,
+              accent: "#a78bfa"
+            })
+          ]
+        : []),
       overviewTileHtml(ui, {
         label: "Nachweis",
         value: e.checkpoint_title || "Kein kommender Nachweis",
@@ -1811,6 +1841,34 @@
       </div>`;
   }
 
+  function renderRoleGoalField(ui) {
+    if (!roleGoalRequired() || !groupRoleComplete()) return "";
+    const roles = planningTargetRoles()
+      .map((r) => r.name)
+      .filter(Boolean);
+    const multiRole = new Set(state.roleWasGoalOptions.map((g) => g.roleName).filter(Boolean)).size > 1;
+    const label = roles.length === 1 ? `Was-Ziel für ${roles[0]}` : "Was-Ziel zu deiner Rolle";
+    if (!state.whatGoalId) {
+      return ui.fieldWrap(
+        ui.fieldLabel(label, { required: true }),
+        `<div class="plan-subject-locked">Erst Unterthema wählen.</div>`
+      );
+    }
+    return ui.fieldWrap(
+      ui.fieldLabel(label, { required: true }),
+      ui.select(
+        "roleGoalId",
+        state.roleWasGoalOptions.map((g) => ({
+          value: g.id,
+          label: multiRole && g.roleName ? `${g.roleName}: ${g.text}` : g.text
+        })),
+        state.roleGoalId,
+        { phase: "plan", placeholder: "Was-Ziel zur Rolle wählen…" }
+      ),
+      "Was übernimmst du in deiner Rolle in dieser Stunde?"
+    );
+  }
+
   /** Mehrere Themen im zugewiesenen Levelplan: Thema vor das Unterthema setzen. */
   function whatGoalSelectOptions() {
     const options = state.whatGoalOptions || [];
@@ -1849,6 +1907,7 @@
     state.subject = entry.subject;
     if (entry.timeslot) state.timeslot = entry.timeslot;
     state.whatGoalId = entry.what_goal_id;
+    state.roleGoalId = entry.role_goal_id || null;
     state.whatGoalText = entry.what_goal_text || "";
     state.selectedLevel = entry.selected_level;
     state.levelGoalText = entry.level_goal_text || "";
@@ -1950,6 +2009,7 @@
                   )
                 : whatGoalMessage(ui)
           )}
+          ${renderRoleGoalField(ui)}
         </div>
       </div>`;
 
@@ -2231,6 +2291,7 @@
         state.handoffUserId = uid;
         state.errorMsg = "";
         state.whatGoalId = null;
+        state.roleGoalId = null;
         state.whatGoalText = "";
         state.selectedLevel = null;
         state.levelGoalText = "";
@@ -2291,6 +2352,7 @@
     UI().bindSelects(scope, state, async (field) => {
       if (field === "subject") {
         state.whatGoalId = null;
+        state.roleGoalId = null;
         state.whatGoalText = "";
         state.selectedLevel = null;
         state.levelGoalText = "";
@@ -2309,6 +2371,7 @@
       }
       if (field === "selectedCheckpointId") {
         state.whatGoalId = null;
+        state.roleGoalId = null;
         state.whatGoalText = "";
         state.selectedLevel = null;
         state.levelGoalText = "";
@@ -2317,6 +2380,11 @@
         state.controlGoals = [];
         state.activeStep = 1;
         await loadContext();
+        render();
+        return;
+      }
+      if (field === "roleGoalId") {
+        syncActiveStep();
         render();
         return;
       }
@@ -2435,6 +2503,10 @@
       fail("Bitte wähle ein Was-Ziel aus dem Levelplan.", 1);
       return;
     }
+    if (!roleGoalSatisfied()) {
+      fail("Bitte wähle ein Was-Ziel zu deiner Rolle.", 1);
+      return;
+    }
     if (state.checkpoints.length > 1 && !state.selectedCheckpointId) {
       fail("Bitte wähle den Nachweis, für den du arbeitest.", 1);
       return;
@@ -2497,6 +2569,7 @@
             ? `${checkpoint.typeLabel || "Nachweis"}: ${checkpoint.title}`
             : null,
           whatGoalId: state.whatGoalId,
+          roleGoalId: state.roleGoalId || null,
           whatGoalText: state.whatGoalText.trim(),
           selectedLevel: state.selectedLevel,
           howGoalText: state.startGoals,
@@ -2553,6 +2626,7 @@
           state.entryId = null;
           state.existingEntry = null;
           state.whatGoalId = null;
+          state.roleGoalId = null;
           state.whatGoalText = "";
           state.selectedLevel = null;
           state.levelGoalText = "";
@@ -2628,6 +2702,9 @@
     state.howGoalsBase = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
     refreshHowGoals();
     state.whatGoalOptions = Array.isArray(data.whatGoalOptions) ? data.whatGoalOptions : [];
+    state.roleWasGoalOptions = Array.isArray(data.roleWasGoalOptions)
+      ? data.roleWasGoalOptions
+      : [];
     state.levelOptions = Array.isArray(data.levelOptions) ? data.levelOptions : LEVEL_OPTIONS;
     state.checkpoints = Array.isArray(data.checkpoints) ? data.checkpoints : [];
     state.nextCheckpoint = data.selectedCheckpoint || data.nextCheckpoint || null;
@@ -2657,6 +2734,11 @@
     }
 
     syncSubjectScopedSelections();
+
+    if (state.roleGoalId && !selectedRoleGoal()) state.roleGoalId = null;
+    if (!state.roleGoalId && state.roleWasGoalOptions.length === 1) {
+      state.roleGoalId = state.roleWasGoalOptions[0].id;
+    }
 
     if (state.startGoals.length) {
       state.startGoals = state.startGoals.filter((g) => isAllowedStartGoal(g));
@@ -2693,6 +2775,10 @@
         state.whatGoalOptions = Array.isArray(data2.whatGoalOptions)
           ? data2.whatGoalOptions
           : state.whatGoalOptions;
+        state.roleWasGoalOptions = Array.isArray(data2.roleWasGoalOptions)
+          ? data2.roleWasGoalOptions
+          : [];
+        if (state.roleGoalId && !selectedRoleGoal()) state.roleGoalId = null;
         state.howGoalsBase = Array.isArray(data2.howGoals) ? data2.howGoals : state.howGoalsBase;
         refreshHowGoals();
         if (data2.planningUserId) state.handoffUserId = Number(data2.planningUserId);
@@ -2715,6 +2801,7 @@
     state.timeslot = q.get("timeslot") || null;
     state.subject = q.get("subject") || null;
     state.whatGoalId = null;
+    state.roleGoalId = null;
     state.whatGoalText = "";
     state.selectedLevel = null;
     state.levelGoalText = "";
@@ -2731,6 +2818,7 @@
     state.confidenceBefore = null;
     state.detailsText = "";
     state.whatGoalOptions = [];
+    state.roleWasGoalOptions = [];
     state.checkpoints = [];
     state.selectedCheckpointId = null;
     state.nextCheckpoint = null;
