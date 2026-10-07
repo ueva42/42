@@ -162,6 +162,7 @@
 
   /** Anderes Konto hat in diesem Browser die Session übernommen → Login, ohne die fremde Session zu zerstören. */
   function goSwitched(reason = "switched") {
+    if (window.__authFetchRedirecting) return;
     if (window.__authFetchSwitching) return;
     window.__authFetchSwitching = true;
     window.__authFetchRedirecting = true;
@@ -235,32 +236,34 @@
   }
 
   async function logoutAndRedirect() {
-    // Explizites Logout: immer navigieren (nicht an altem __authFetchRedirecting hängen).
+    // Explizites Logout: immer als Dokument-Navigation (GET /logout).
+    // Kein vorheriges POST /api/logout: dessen Clear-Site-Data hat Chrome die
+    // Admin-Shell neu laden lassen. Lag noch ein zweites Session-Cookie
+    // (Schüler) im Browser, wurde das dabei zur aktiven Session und /admin
+    // hat auf /student/today weitergeleitet.
     window.__authFetchRedirecting = true;
     authClear();
     try {
-      // keepalive: Request darf den Unload überleben; kurzes Timeout, dann sofort weg.
-      await Promise.race([
-        fetchWithTimeout(
-          "/api/logout",
-          {
-            method: "POST",
-            credentials: "same-origin",
-            cache: "no-store",
-            keepalive: true
-          },
-          2500
-        ),
-        new Promise((resolve) => setTimeout(resolve, 600))
-      ]);
-    } catch (_err) {}
-    try {
-      const purge = window.__purgeTeacherClientCaches?.();
-      if (purge && typeof purge.then === "function") {
-        await Promise.race([purge, new Promise((r) => setTimeout(r, 400))]);
+      const tasks = [];
+      if (navigator.serviceWorker?.getRegistrations) {
+        tasks.push(
+          navigator.serviceWorker.getRegistrations().then((regs) =>
+            Promise.all(regs.map((r) => r.unregister()))
+          )
+        );
+      }
+      if (window.caches?.keys) {
+        tasks.push(
+          caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+        );
+      }
+      if (tasks.length) {
+        await Promise.race([
+          Promise.all(tasks),
+          new Promise((resolve) => setTimeout(resolve, 800))
+        ]);
       }
     } catch (_err) {}
-    // Navigations-Logout als Fallback: Session serverseitig + Redirect mit loggedout=1
     window.location.replace(`/logout?t=${Date.now()}`);
   }
 
@@ -277,6 +280,7 @@
     goHome,
     goSwitched,
     loginDone,
+    needsLogin: tabNeedsLogin,
     tabIdentity: tabIdentityGet,
     enforceShell,
     logoutAndRedirect
@@ -457,6 +461,14 @@
   // (Redirect-Flags, User, Daten) stammt evtl. von einer anderen Session.
   // Neu laden → Server-Rollen-Gate + enforceShell mit Tab-Identität.
   window.addEventListener("pageshow", (e) => {
+    // Zurück nach Logout: diese Shell nicht als eingeloggt stehen lassen.
+    if (onAppShellPath() && tabNeedsLogin()) {
+      try {
+        document.documentElement.style.visibility = "hidden";
+      } catch (_err) {}
+      window.location.replace(`/login?relogin=1&t=${Date.now()}`);
+      return;
+    }
     if (!e.persisted) return;
     if (!onAppShellPath() && !onLoginPath()) return;
     try {

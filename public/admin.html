@@ -3,6 +3,23 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
+  <script>
+    /* Logout/Kontowechsel: diese Shell nie als eingeloggt anzeigen (auch Zurück). */
+    (function () {
+      var KEY = "solTabNeedsLogin";
+      function bounce() {
+        try {
+          if (sessionStorage.getItem(KEY) !== "1") return;
+          document.documentElement.style.visibility = "hidden";
+          location.replace("/login?relogin=1&t=" + Date.now());
+        } catch (e) {}
+      }
+      bounce();
+      window.addEventListener("pageshow", function (ev) {
+        if (ev.persisted) bounce();
+      });
+    })();
+  </script>
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <title>Streets of Logic – Control Center</title>
 
@@ -2129,9 +2146,9 @@
   </div>
 </div>
 
-<script src="/js/client-cache-reset.js?v=3"></script>
+<script src="/js/client-cache-reset.js?v=4"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=20"></script>
+<script src="/js/auth-fetch.js?v=21"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=5"></script>
@@ -2384,22 +2401,6 @@ async function logout() {
     await window.SolAuth.logoutAndRedirect();
     return;
   }
-  try {
-    window.SolAuth?.clear();
-  } catch (_err) {}
-  try {
-    await fetch("/api/logout", {
-      method: "POST",
-      credentials: "same-origin",
-      cache: "no-store",
-      keepalive: true
-    });
-  } catch (_err) {}
-  try {
-    if (window.__purgeTeacherClientCaches) {
-      await window.__purgeTeacherClientCaches();
-    }
-  } catch (_err) {}
   window.location.replace(`/logout?t=${Date.now()}`);
 }
 

@@ -1,4 +1,4 @@
-const CACHE_VERSION = "sol-logbuch-v39";
+const CACHE_VERSION = "sol-logbuch-v40";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -44,7 +44,8 @@ function shouldBypassCache(pathname) {
     pathname.startsWith("/admin") ||
     pathname.startsWith("/superadmin") ||
     pathname.startsWith("/api/") ||
-    pathname.startsWith("/js/")
+    pathname.startsWith("/js/") ||
+    pathname === "/logout"
   );
 }
 
@@ -103,6 +104,7 @@ function isPrivateAppPath(pathname) {
     pathname.startsWith("/superadmin") ||
     pathname === "/login" ||
     pathname === "/login.html" ||
+    pathname === "/logout" ||
     pathname === "/"
   );
 }

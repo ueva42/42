@@ -44,6 +44,13 @@ import {
   listAccessibleClasses,
   defaultPostLoginPath
 } from "./lib/teacher-auth.js";
+import {
+  parseAllSessionIds,
+  hasLogoutMarker,
+  sessionCookieClearVariants,
+  SESSION_COOKIE_NAME,
+  LOGOUT_MARKER_NAME
+} from "./lib/session-logout.js";
 import { registerTeacherCoachingRoutes } from "./lib/teacher-coaching-api.js";
 import {
   parseLevelplanImportText as parseLevelplanImportTextBase,
@@ -2814,39 +2821,74 @@ app.use((req, res, next) => {
   });
 });
 
-function clearSessionCookie(res) {
-  res.clearCookie("connect.sid", {
-    path: "/",
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: "lax"
-  });
+function sessionSecret() {
+  return process.env.SESSION_SECRET || "super-temp-secret";
 }
 
-/** Session zerstören + Cookie leeren. Clear-Site-Data ohne "cache" –
- *  "cache" in XHR-Antworten kann Chrome die aktuelle Shell neu laden lassen
- *  und Logout (location.replace) abbrechen / Session-Races provozieren. */
+function clearSessionCookie(res) {
+  for (const opts of sessionCookieClearVariants()) {
+    res.clearCookie(SESSION_COOKIE_NAME, opts);
+  }
+}
+
+function setLogoutMarker(res) {
+  const opts = {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    maxAge: 2 * 60 * 1000
+  };
+  res.cookie(LOGOUT_MARKER_NAME, "1", opts);
+}
+
+function clearLogoutMarker(res) {
+  for (const secure of [true, false]) {
+    res.clearCookie(LOGOUT_MARKER_NAME, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure
+    });
+  }
+}
+
+/**
+ * Alle Session-Cookies dieser Origin zerstören (nicht nur die eine ID,
+ * die cookie.parse übrig lässt). Kein Clear-Site-Data: das lässt Chrome
+ * die aktuelle Shell neu laden und kann dabei ein zweites Cookie einer
+ * anderen Rolle zur aktiven Session machen.
+ */
 function destroySession(req, res, done) {
   const finish = (ok = true) => {
+    try {
+      delete req.session;
+    } catch (_err) {}
     clearSessionCookie(res);
-    res.setHeader("Clear-Site-Data", '"cookies", "storage"');
+    setLogoutMarker(res);
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     done(ok);
   };
 
-  if (!req.session) return finish(true);
+  const ids = parseAllSessionIds(req.headers?.cookie || "", sessionSecret());
+  if (req.sessionID && !ids.includes(req.sessionID)) ids.push(req.sessionID);
 
-  try {
-    if (req.session.user) req.session.user = null;
-  } catch (_err) {}
+  const store = req.sessionStore;
+  if (!store || !ids.length) return finish(true);
 
-  req.session.destroy((err) => {
-    if (err) {
-      console.error("❌ session.destroy:", err);
-      return finish(false);
-    }
-    finish(true);
-  });
+  let pending = ids.length;
+  let failed = false;
+  for (const id of ids) {
+    store.destroy(id, (err) => {
+      if (err) {
+        console.error("❌ session.destroy:", err);
+        failed = true;
+      }
+      pending -= 1;
+      if (pending === 0) finish(!failed);
+    });
+  }
 }
 
 function sendLoginPage(res, { keepSession = false } = {}) {
@@ -2859,12 +2901,11 @@ function sendToAppOrLogin(req, res) {
   // Expliziter Logout: Login immer zeigen und Rest-Session verwerfen,
   // sonst bounce Admin/Teacher wegen sendToAppOrLogin zurück in die App.
   const forceLogin =
-    String(req.query?.loggedout || "") === "1" || String(req.query?.logout || "") === "1";
+    String(req.query?.loggedout || "") === "1" ||
+    String(req.query?.logout || "") === "1" ||
+    hasLogoutMarker(req.headers?.cookie || "");
   if (forceLogin) {
-    if (req.session) {
-      return req.session.destroy(() => sendLoginPage(res));
-    }
-    return sendLoginPage(res);
+    return destroySession(req, res, () => sendLoginPage(res));
   }
 
   // Tab mit anderer/abgemeldeter Identität: Login zeigen, ohne die Session
@@ -2882,6 +2923,46 @@ function sendToAppOrLogin(req, res) {
   }
   return sendLoginPage(res);
 }
+
+// Kurz nach Logout: keine fremde Rolle mehr ausliefern, auch wenn noch ein
+// zweites Session-Cookie ankommt. Login selbst bleibt erreichbar.
+const LOGOUT_MARKER_ALLOW = new Set([
+  "/",
+  "/login",
+  "/login.html",
+  "/logout",
+  "/api/login",
+  "/api/logout",
+  "/api/auth/session",
+  "/api/demo/login",
+  "/api/demo/status",
+  "/health",
+  "/health/db"
+]);
+app.use((req, res, next) => {
+  if (!hasLogoutMarker(req.headers?.cookie || "")) return next();
+  const p = String(req.path || "");
+  if (LOGOUT_MARKER_ALLOW.has(p)) return next();
+  if (
+    p.startsWith("/js/") ||
+    p.startsWith("/icons/") ||
+    p.startsWith("/css/") ||
+    p.startsWith("/characters/") ||
+    p === "/manifest.json" ||
+    p === "/sw.js" ||
+    p === "/offline.html" ||
+    p === "/pwa-init.js" ||
+    /\.(?:png|jpe?g|gif|webp|svg|ico|css|js|map|woff2?|ttf|json)$/i.test(p)
+  ) {
+    return next();
+  }
+  if (p.startsWith("/api/") || req.method !== "GET") {
+    return res.status(401).json({ authenticated: false, loggedOut: true });
+  }
+  return destroySession(req, res, () => {
+    res.redirect(303, `/login?loggedout=1&t=${Date.now()}`);
+  });
+});
 
 app.get("/", sendToAppOrLogin);
 app.get("/login", sendToAppOrLogin);
@@ -4519,6 +4600,10 @@ function loginUserSession(req, res, user, options = {}) {
         firstLogin: user.role === "student" ? !!user.first_login : false
       };
       if (options.isDemo) payload.isDemo = true;
+      // Alte connect.sid (andere Rolle / secure-Flag) und Logout-Sperre entfernen,
+      // danach setzt express-session das neue Cookie.
+      clearSessionCookie(res);
+      clearLogoutMarker(res);
       res.json(payload);
     });
   });

@@ -10,8 +10,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <script src="/js/client-cache-reset.js?v=3"></script>
-  <script src="/js/auth-fetch.js?v=20"></script>
+  <script src="/js/client-cache-reset.js?v=4"></script>
+  <script src="/js/auth-fetch.js?v=21"></script>
   <title>Streets of Logic – Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -578,8 +578,9 @@
     // nie automatisch in die (fremde) Session weiterleiten.
     const switchedAccount = loginParams.get("switched") === "1";
     const reloginRequired = switchedAccount || loginParams.get("relogin") === "1";
+    const tabMustLogin = window.SolAuth?.needsLogin?.() === true;
 
-    if (forceLoginPage || reloginRequired) {
+    if (forceLoginPage || reloginRequired || tabMustLogin) {
       try {
         window.SolAuth?.clear?.();
       } catch (_err) {}

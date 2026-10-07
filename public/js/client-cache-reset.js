@@ -24,6 +24,12 @@
   const path = window.location.pathname || "";
   const params = new URLSearchParams(window.location.search || "");
   const onLogin = path === "/login" || path === "/login.html";
+  const onStaffShell =
+    path === "/admin" ||
+    path.startsWith("/admin/") ||
+    path === "/teacher" ||
+    path.startsWith("/teacher/") ||
+    path.startsWith("/superadmin");
   const forcedLogout =
     params.get("loggedout") === "1" || params.get("logout") === "1";
 
@@ -32,5 +38,10 @@
       window.SolAuth?.clear?.();
     } catch (_err) {}
     purgeTeacherClientCaches();
+  } else if (onStaffShell && "serviceWorker" in navigator) {
+    // Schüler-SW bleibt sonst Controller und fängt Admin-Logout ab.
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      regs.forEach((r) => r.unregister());
+    }).catch(() => {});
   }
 })();
