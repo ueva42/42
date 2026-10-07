@@ -15,6 +15,7 @@ window.LogbuchReminders = (function () {
   const STORAGE_KEY = "sol_lesson_reminders_v1";
   const OPTIN_KEY = "sol_reminders_optin";
   const BELL_KEY = "sol_reminder_bell_v1";
+  const SEEN_INVITE_KEY = "sol_group_invite_seen_v1";
 
   let timerId = null;
   let started = false;
@@ -135,6 +136,34 @@ window.LogbuchReminders = (function () {
     }
   }
 
+  function reminderHref(r) {
+    if (r.type === "group_invite" || r.href?.includes("gruppenmodus")) {
+      return r.href || "/student/gruppenmodus";
+    }
+    if (r.type === "check") {
+      return `/student/check?entryId=${encodeURIComponent(r.entryId || "")}`;
+    }
+    if (r.type === "homework") return "/student/hausaufgaben";
+    if (r.href) return r.href;
+    return `/student/reflect?entryId=${encodeURIComponent(r.entryId || "")}`;
+  }
+
+  function navigateReminderHref(href) {
+    const url = new URL(href, location.origin);
+    let section = "today";
+    if (url.pathname.includes("/gruppenmodus")) section = "gruppenmodus";
+    else if (url.pathname.includes("/hausaufgaben")) section = "hausaufgaben";
+    else if (url.pathname.includes("/check")) section = "check";
+    else if (url.pathname.includes("/reflect")) section = "reflect";
+    const query = url.searchParams;
+    window.StudentRouter?.navigateToSection(
+      section,
+      query.toString() ? { query } : {}
+    );
+    const panel = document.getElementById("notifPanel");
+    if (panel) panel.style.display = "none";
+  }
+
   function mergeBellIntoNotifPanel() {
     const list = document.getElementById("notifList");
     if (!list) return;
@@ -142,16 +171,13 @@ window.LogbuchReminders = (function () {
     if (!reminders.length) return;
 
     const block = reminders
-      .slice(0, 8)
+      .slice(0, 12)
       .map((r) => {
-        const href =
-          r.type === "check"
-            ? `/student/check?entryId=${encodeURIComponent(r.entryId)}`
-            : r.type === "homework"
-              ? "/student/hausaufgaben"
-              : `/student/reflect?entryId=${encodeURIComponent(r.entryId)}`;
+        const href = reminderHref(r);
         return `
-        <button type="button" class="notif-item notif-item--reminder" data-reminder-nav="${href}">
+        <button type="button" class="notif-item notif-item--reminder" data-reminder-nav="${escapeHtml(
+          href
+        )}">
           <div class="notif-item__title">${escapeHtml(r.title)}</div>
           <div class="notif-item__src">${escapeHtml(r.text)}</div>
           <div class="notif-item__time">${escapeHtml(r.time || "")}</div>
@@ -163,24 +189,130 @@ window.LogbuchReminders = (function () {
     if (existing) existing.remove();
     const wrap = document.createElement("div");
     wrap.className = "notif-reminder-block";
-    wrap.innerHTML = `<div class="notif-reminder-label">Lern-Erinnerungen</div>${block}`;
+    wrap.innerHTML = `<div class="notif-reminder-label">Mitteilungen</div>${block}`;
     list.prepend(wrap);
 
     wrap.querySelectorAll("[data-reminder-nav]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const url = new URL(btn.dataset.reminderNav, location.origin);
-        let section = "today";
-        if (url.pathname.includes("/hausaufgaben")) section = "hausaufgaben";
-        else if (url.pathname.includes("/check")) section = "check";
-        else if (url.pathname.includes("/reflect")) section = "reflect";
-        const query = url.searchParams;
-        window.StudentRouter?.navigateToSection(
-          section,
-          query.toString() ? { query } : {}
-        );
-        document.getElementById("notifPanel")?.classList.remove("open");
+        navigateReminderHref(btn.dataset.reminderNav || "/student/today");
       });
     });
+  }
+
+  function loadSeenInvites() {
+    try {
+      return JSON.parse(localStorage.getItem(SEEN_INVITE_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function markInviteSeen(id) {
+    const seen = loadSeenInvites();
+    seen[String(id)] = Date.now();
+    const keys = Object.keys(seen);
+    if (keys.length > 80) {
+      keys
+        .sort((a, b) => (seen[a] || 0) - (seen[b] || 0))
+        .slice(0, keys.length - 60)
+        .forEach((k) => delete seen[k]);
+    }
+    localStorage.setItem(SEEN_INVITE_KEY, JSON.stringify(seen));
+  }
+
+  function maybeSystemNotify(title, body, tag) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    try {
+      new Notification(title, { body, tag: tag || `sol-${Date.now()}` });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function pollGroupInviteNotifications() {
+    try {
+      const res = await fetch("/api/student/notifications?limit=20", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => ({}));
+      const items = Array.isArray(data.items) ? data.items : [];
+      const seen = loadSeenInvites();
+      const fresh = items.filter(
+        (n) =>
+          n &&
+          n.unread &&
+          (n.type === "group_invite" || String(n.title || "").includes("Einladung")) &&
+          !seen[String(n.id)]
+      );
+      for (const n of fresh) {
+        markInviteSeen(n.id);
+        const title = n.title || "Gruppeneinladung";
+        const text = n.body || "Du wurdest in eine Gruppe eingeladen.";
+        pushBellItem({
+          id: `notif-${n.id}`,
+          entryId: n.meta?.sessionId || n.id,
+          type: "group_invite",
+          title,
+          text,
+          href: n.href || "/student/gruppenmodus",
+          time: new Date(n.createdAt || Date.now()).toLocaleTimeString("de-DE", {
+            hour: "2-digit",
+            minute: "2-digit"
+          })
+        });
+        showToast({
+          entryId: String(n.id),
+          type: "group_invite",
+          subject: n.meta?.subject || "",
+          title,
+          text
+        });
+        maybeSystemNotify(title, text, `sol-invite-${n.id}`);
+      }
+
+      // Fallback: Bootstrap-Einladungen, falls Notification-Zeile fehlt
+      const boot = await fetch("/api/student/group-mode/bootstrap", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      if (!boot.ok) return;
+      const bootData = await boot.json().catch(() => ({}));
+      const invites = Array.isArray(bootData.pendingInvites) ? bootData.pendingInvites : [];
+      for (const inv of invites) {
+        const key = `invite-${inv.id}`;
+        if (seen[key]) continue;
+        markInviteSeen(key);
+        const host = inv.hostName || "Ein Mitschüler";
+        const subject = inv.subject || "Fach";
+        const group = inv.groupName ? `„${inv.groupName}“` : "eine Gruppe";
+        const title = "Gruppeneinladung";
+        const text = `${host} hat dich in ${group} (${subject}) eingeladen.`;
+        pushBellItem({
+          id: key,
+          entryId: inv.id,
+          type: "group_invite",
+          title,
+          text,
+          href: "/student/gruppenmodus",
+          time: new Date().toLocaleTimeString("de-DE", {
+            hour: "2-digit",
+            minute: "2-digit"
+          })
+        });
+        showToast({
+          entryId: String(inv.id),
+          type: "group_invite",
+          subject,
+          title,
+          text
+        });
+        maybeSystemNotify(title, text, `sol-invite-session-${inv.id}`);
+      }
+    } catch {
+      /* ignore poll errors */
+    }
   }
 
   function escapeHtml(str) {
@@ -214,7 +346,9 @@ window.LogbuchReminders = (function () {
         ? "Jetzt checken"
         : type === "homework"
           ? "Zu den Hausaufgaben"
-          : "Jetzt abschließen";
+          : type === "group_invite"
+            ? "Zur Einladung"
+            : "Jetzt abschließen";
     el.innerHTML = `
       <div class="reminder-toast__copy">
         <p class="reminder-toast__title">${escapeHtml(title)}</p>
@@ -230,6 +364,8 @@ window.LogbuchReminders = (function () {
     el.querySelector('[data-action="go"]')?.addEventListener("click", () => {
       if (type === "homework") {
         window.StudentRouter?.navigateToSection("hausaufgaben");
+      } else if (type === "group_invite") {
+        window.StudentRouter?.navigateToSection("gruppenmodus");
       } else {
         const section = type === "check" ? "check" : "reflect";
         window.StudentRouter?.navigateToSection(section, {
@@ -255,12 +391,12 @@ window.LogbuchReminders = (function () {
       time: new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
     });
 
-    if (type === "homework" && "Notification" in window && Notification.permission === "granted") {
-      try {
-        new Notification(title, { body: text, tag: `sol-${entryId}` });
-      } catch {
-        /* ignore */
-      }
+    if (
+      (type === "homework" || type === "group_invite") &&
+      "Notification" in window &&
+      Notification.permission === "granted"
+    ) {
+      maybeSystemNotify(title, text, `sol-${type}-${entryId}`);
     }
   }
 
@@ -488,6 +624,7 @@ window.LogbuchReminders = (function () {
     });
 
     notifyHomework(payload.homework);
+    await pollGroupInviteNotifications();
     maybeShowOptIn();
     mergeBellIntoNotifPanel();
   }
@@ -520,7 +657,8 @@ window.LogbuchReminders = (function () {
     reflectReminderOffset,
     mergeBellIntoNotifPanel,
     notifyHomework,
-    /** Web Push ist NICHT implementiert – nur In-App. */
+    pollGroupInviteNotifications,
+    /** Web Push (FCM) nicht vorhanden – In-App-Glocke + optionale System-Notification. */
     webPushReady: false
   };
 })();

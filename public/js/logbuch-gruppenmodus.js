@@ -764,24 +764,32 @@
           ? `<h3 class="gm-h3">Einladungen zur Stammgruppe</h3>
              <div class="gm-cards">
                ${invites
-                 .map(
-                   (s) => `
+                 .map((s) => {
+                   const from = s.hostName
+                     ? `Einladung von ${s.hostName}`
+                     : "Du wurdest eingeladen";
+                   const who = (s.memberNames || []).join(", ") || "Gruppe";
+                   return `
                  <div class="gm-card-wrap">
                    <div class="gm-card gm-card--static">
                      <span class="gm-card-title">${esc(s.subject)}${
                        s.groupName ? `: ${esc(s.groupName)}` : ""
                      }</span>
-                     <span class="gm-card-sub">${esc(
-                       (s.memberNames || []).join(", ") || "Gruppe"
-                     )}</span>
-                     <span class="gm-card-meta">${s.memberCount || 0}/${s.maxMembers || 4} Personen</span>
+                     <span class="gm-card-sub">${esc(from)}</span>
+                     <span class="gm-card-meta">${esc(who)} · ${s.memberCount || 0}/${
+                       s.maxMembers || 4
+                     } Personen</span>
                    </div>
                    <div class="gm-footer-row">
-                     <button type="button" class="gm-primary" data-invite-accept="${esc(s.id)}">Annehmen</button>
-                     <button type="button" class="gm-ghost" data-invite-decline="${esc(s.id)}">Ablehnen</button>
+                     <button type="button" class="gm-primary" data-invite-accept="${esc(
+                       s.id
+                     )}">Annehmen</button>
+                     <button type="button" class="gm-ghost" data-invite-decline="${esc(
+                       s.id
+                     )}">Ablehnen</button>
                    </div>
-                 </div>`
-                 )
+                 </div>`;
+                 })
                  .join("")}
              </div>`
           : ""
@@ -998,12 +1006,12 @@
         }
         ${
           pending.length
-            ? `<h3 class="gm-h3">Eingeladen</h3>
+            ? `<h3 class="gm-h3">Eingeladen · wartet auf Zusage</h3>
                ${cardGrid(
                  pending.map((m) => ({
                    id: m.userId,
                    title: m.displayName,
-                   desc: "wartet auf Zusage",
+                   desc: "noch nicht angenommen",
                    icon: "◎",
                    accent: "#a855f7"
                  })),
@@ -2445,14 +2453,27 @@
     document.querySelectorAll("[data-invite-accept]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         clearFlash();
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const declineBtn = btn.parentElement?.querySelector("[data-invite-decline]");
+        if (declineBtn) declineBtn.disabled = true;
         try {
           const id = btn.getAttribute("data-invite-accept");
           const data = await api(`/api/student/group-sessions/${id}/invite-respond`, {
             method: "POST",
             body: JSON.stringify({ accept: true })
           });
-          applyBundle(data);
-          resumeScreenFromBundle();
+          await loadBootstrap();
+          if (data.session) {
+            applyBundle(data);
+            state.message = "Zusage gespeichert – du bist in der Gruppe.";
+            resumeScreenFromBundle();
+          } else {
+            state.sessionId = null;
+            state.bundle = null;
+            state.screen = "home";
+            state.message = "Zusage gespeichert.";
+          }
           render();
         } catch (err) {
           state.error = err.message;
@@ -2464,14 +2485,21 @@
     document.querySelectorAll("[data-invite-decline]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         clearFlash();
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const acceptBtn = btn.parentElement?.querySelector("[data-invite-accept]");
+        if (acceptBtn) acceptBtn.disabled = true;
         try {
           const id = btn.getAttribute("data-invite-decline");
           await api(`/api/student/group-sessions/${id}/invite-respond`, {
             method: "POST",
             body: JSON.stringify({ accept: false })
           });
+          state.sessionId = null;
+          state.bundle = null;
           await loadBootstrap();
           state.screen = "home";
+          state.message = "Einladung abgelehnt.";
           render();
         } catch (err) {
           state.error = err.message;
@@ -2483,6 +2511,8 @@
     document.querySelectorAll("[data-invite]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         clearFlash();
+        if (btn.disabled) return;
+        btn.disabled = true;
         try {
           const userId = Number(btn.getAttribute("data-invite"));
           const data = await api(`/api/student/group-sessions/${state.sessionId}/invite`, {
@@ -2490,6 +2520,7 @@
             body: JSON.stringify({ userId })
           });
           applyBundle(data);
+          state.message = "Einladung gesendet – die Person kann zusagen oder ablehnen.";
           render();
         } catch (err) {
           state.error = err.message;
