@@ -439,17 +439,46 @@
     street_legend: { title: "Street Legend", desc: "Meistern und erklären.", icon: "3", accent: "#d946ef" }
   };
 
+  function iconForGoalText(text) {
+    const t = String(text || "").toLowerCase();
+    if (t.includes("rookie") || t.includes("einfach")) return "1";
+    if (t.includes("operator")) return "2";
+    if (t.includes("legend") || t.includes("schwer")) return "3";
+    if (t.includes("video")) return "▶";
+    if (t.includes("beispiel")) return "◎";
+    if (t.includes("hilfe")) return "⇄";
+    if (
+      t.includes("schreib") ||
+      t.includes("rechenweg") ||
+      t.includes("notier") ||
+      t.includes("protokoll")
+    ) {
+      return "✎";
+    }
+    if (t.includes("vergleich") || t.includes("muster")) return "≡";
+    if (t.includes("fehler")) return "⌕";
+    if (t.includes("probe") || t.includes("rückwärts") || t.includes("rueckwaerts")) return "↩";
+    if (t.includes("markier") || t.includes("gegeben") || t.includes("gesucht")) return "◫";
+    if (t.includes("zerleg") || t.includes("schritt")) return "▦";
+    if (t.includes("erklär") || t.includes("erklaer")) return "💬";
+    if (t.includes("wiederhol")) return "↺";
+    if (t.includes("partner") || t.includes("gruppe")) return "👥";
+    if (t.includes("sicher")) return "⚠";
+    if (t.includes("versuch") || t.includes("beobacht")) return "◉";
+    if (t.includes("recherch")) return "⌕";
+    return "◆";
+  }
+
   function howGoalTile(text) {
     const meta = HOW_GOAL_TILE_META[text];
     if (meta) return { value: text, ...meta };
-    // Fach-eigene Wie-Ziele (Admin) → Startkarten, nicht „bearbeiten“ ausfiltern
-    // Volle Labels (kein Ellipsis) – Modal zeigt einspaltige Wrap-Zeilen
+    // Fach-eigene Wie-Ziele: voller Text auf der Karte, kein Ellipsis
     return {
       value: text,
       cat: "starten",
       title: text,
       desc: "",
-      icon: "◆",
+      icon: iconForGoalText(text),
       accent: "#22d3ee"
     };
   }
@@ -462,7 +491,7 @@
       cat: "starten",
       title: text,
       desc: "",
-      icon: "◆",
+      icon: iconForGoalText(text),
       accent: "#22d3ee"
     };
   }
@@ -1192,13 +1221,13 @@
     const V = window.LogbuchVisuals;
     if (!V) return "";
     return `
-      <section class="way-section way-section--start">
+      <section class="way-section way-section--start way-section--embedded">
         <header class="way-section__head">
           <h4 class="way-section__title">Ich starte so</h4>
           <p class="way-section__hint">1 bis 3 Auswahlen</p>
         </header>
         <p class="way-to-goal__intro">Wähle aus, wie du heute starten willst.</p>
-        ${V.strategyTileGrid(startGoalTiles(), state.startGoals, "data-start-goal", { multi: true })}
+        ${V.strategyTileGrid(startGoalTiles(), state.startGoals, "data-start-goal", { multi: true, max: 3 })}
       </section>`;
   }
 
@@ -1206,13 +1235,13 @@
     const V = window.LogbuchVisuals;
     if (!V) return "";
     return `
-      <section class="way-section way-section--work">
+      <section class="way-section way-section--work way-section--embedded">
         <header class="way-section__head">
           <h4 class="way-section__title">Ich arbeite so</h4>
           <p class="way-section__hint">1 bis 3 Auswahlen</p>
         </header>
         <p class="way-to-goal__intro">Wie willst du während der Stunde arbeiten?</p>
-        ${V.strategyTileGrid(arbeitGoalTiles(), state.workGoals, "data-work-goal", { multi: true })}
+        ${V.strategyTileGrid(arbeitGoalTiles(), state.workGoals, "data-work-goal", { multi: true, max: 3 })}
       </section>`;
   }
 
@@ -1221,7 +1250,7 @@
     if (!V) return "";
     const isPhysik = subjectKey() === "physik";
     return `
-      <section class="way-section way-section--control">
+      <section class="way-section way-section--control way-section--embedded">
         <header class="way-section__head">
           <h4 class="way-section__title">Ich kontrolliere so</h4>
           <p class="way-section__hint">1 bis 3 Auswahlen</p>
@@ -1231,7 +1260,7 @@
             ? "Woran merkst du, dass Versuch und Vermutung zusammenpassen?"
             : "Woran merkst du, dass du auf dem Weg bist?"
         }</p>
-        ${V.strategyTileGrid(controlGoalTiles(), state.controlGoals, "data-control-goal", { multi: true })}
+        ${V.strategyTileGrid(controlGoalTiles(), state.controlGoals, "data-control-goal", { multi: true, max: 3 })}
       </section>`;
   }
 
@@ -1240,7 +1269,7 @@
     if (!V) return "";
     const isPhysik = subjectKey() === "physik";
     return `
-      <section class="way-section way-section--planb">
+      <section class="way-section way-section--planb way-section--embedded">
         <header class="way-section__head">
           <h4 class="way-section__title">Plan B, wenn ich hänge</h4>
           <p class="way-section__hint">bis 3 Auswahlen · optional</p>
@@ -1250,7 +1279,7 @@
             ? "Hilfekarten, Partner oder Versuch neu ansetzen?"
             : "Was machst du, wenn du feststeckst?"
         }</p>
-        ${V.strategyTileGrid(planBTilesAll(), state.planBStrategies, "data-plan-b", { multi: true })}
+        ${V.strategyTileGrid(planBTilesAll(), state.planBStrategies, "data-plan-b", { multi: true, max: 3 })}
       </section>`;
   }
 
@@ -2087,6 +2116,32 @@
     });
   }
 
+  function syncRankedTiles(root, selector, datasetKey, selected) {
+    const list = selected || [];
+    root.querySelectorAll(selector).forEach((chip) => {
+      const rank = list.indexOf(chip.dataset[datasetKey]);
+      const active = rank >= 0;
+      const full = !active && list.length >= 3;
+      chip.classList.toggle("is-active", active);
+      chip.disabled = full;
+      chip.setAttribute("aria-pressed", active ? "true" : "false");
+      let badge = chip.querySelector(".strategy-tile__check");
+      if (active) {
+        const label = String(rank + 1);
+        if (!badge) {
+          chip.insertAdjacentHTML(
+            "afterbegin",
+            `<span class="strategy-tile__check" aria-hidden="true">${label}</span>`
+          );
+        } else if (badge.textContent !== label) {
+          badge.textContent = label;
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+    });
+  }
+
   function bindChipGroups(root) {
     bindChoiceChips(root, "[data-level]", (btn) => {
       state.selectedLevel = btn.dataset.level;
@@ -2101,49 +2156,19 @@
     bindChoiceChips(root, "[data-start-goal]", (btn) => {
       toggleMulti(state.startGoals, btn.dataset.startGoal, 3);
       syncStartGoalFromHowGoal();
-      root.querySelectorAll("[data-start-goal]").forEach((chip) => {
-        const active = state.startGoals.includes(chip.dataset.startGoal);
-        chip.classList.toggle("is-active", active);
-        const check = chip.querySelector(".strategy-tile__check");
-        if (active && !check) {
-          chip.insertAdjacentHTML(
-            "afterbegin",
-            `<span class="strategy-tile__check" aria-hidden="true">✓</span>`
-          );
-        } else if (!active) check?.remove();
-      });
+      syncRankedTiles(root, "[data-start-goal]", "startGoal", state.startGoals);
       afterChoiceChange(root);
     });
 
     bindChoiceChips(root, "[data-control-goal]", (btn) => {
       toggleMulti(state.controlGoals, btn.dataset.controlGoal, 3);
-      root.querySelectorAll("[data-control-goal]").forEach((chip) => {
-        const active = state.controlGoals.includes(chip.dataset.controlGoal);
-        chip.classList.toggle("is-active", active);
-        const check = chip.querySelector(".strategy-tile__check");
-        if (active && !check) {
-          chip.insertAdjacentHTML(
-            "afterbegin",
-            `<span class="strategy-tile__check" aria-hidden="true">✓</span>`
-          );
-        } else if (!active) check?.remove();
-      });
+      syncRankedTiles(root, "[data-control-goal]", "controlGoal", state.controlGoals);
       afterChoiceChange(root);
     });
 
     bindChoiceChips(root, "[data-plan-b]", (btn) => {
       toggleMulti(state.planBStrategies, btn.dataset.planB, 3);
-      root.querySelectorAll("[data-plan-b]").forEach((chip) => {
-        const active = state.planBStrategies.includes(chip.dataset.planB);
-        chip.classList.toggle("is-active", active);
-        const check = chip.querySelector(".strategy-tile__check");
-        if (active && !check) {
-          chip.insertAdjacentHTML(
-            "afterbegin",
-            `<span class="strategy-tile__check" aria-hidden="true">✓</span>`
-          );
-        } else if (!active) check?.remove();
-      });
+      syncRankedTiles(root, "[data-plan-b]", "planB", state.planBStrategies);
       updatePlanningPreview(root);
     });
 
@@ -2166,9 +2191,7 @@
         } else if (state.workGoals.length < 3) {
           state.workGoals.push(goal);
         }
-        root.querySelectorAll("[data-work-goal]").forEach((chip) => {
-          chip.classList.toggle("is-active", state.workGoals.includes(chip.dataset.workGoal));
-        });
+        syncRankedTiles(root, "[data-work-goal]", "workGoal", state.workGoals);
         afterChoiceChange(root);
       });
     });

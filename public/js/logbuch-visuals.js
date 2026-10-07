@@ -620,8 +620,10 @@ window.LogbuchVisuals = {
       </div>`;
   },
 
-  strategyTileGrid(tiles, activeValue, attrName, { multi = false } = {}) {
-    const activeSet = multi ? new Set(Array.isArray(activeValue) ? activeValue : []) : null;
+  strategyTileGrid(tiles, activeValue, attrName, { multi = false, max = 0 } = {}) {
+    const activeList = multi ? (Array.isArray(activeValue) ? activeValue : []) : [];
+    const activeSet = multi ? new Set(activeList) : null;
+    const cap = Number(max) || 0;
     return `
       <div class="strategy-tile-grid">
         ${tiles
@@ -629,15 +631,19 @@ window.LogbuchVisuals = {
             const isActive = multi
               ? activeSet.has(tile.value)
               : String(activeValue) === String(tile.value);
+            const rank = isActive && multi ? activeList.indexOf(tile.value) + 1 : 0;
+            const full = multi && cap > 0 && !isActive && activeList.length >= cap;
+            const badge = isActive ? (multi && rank ? String(rank) : "✓") : "";
             return `
           <button
             type="button"
             class="strategy-tile ${isActive ? "is-active" : ""}"
             ${attrName}="${this.escape(tile.value)}"
             style="--tile-accent:${tile.accent || "#8b5cf6"}"
-            ${tile.disabled ? "disabled" : ""}
+            aria-pressed="${isActive ? "true" : "false"}"
+            ${tile.disabled || full ? "disabled" : ""}
           >
-            ${isActive ? `<span class="strategy-tile__check" aria-hidden="true">✓</span>` : ""}
+            ${badge ? `<span class="strategy-tile__check" aria-hidden="true">${this.escape(badge)}</span>` : ""}
             <span class="strategy-tile__icon" aria-hidden="true">${this.escape(tile.icon || "◆")}</span>
             <span class="strategy-tile__title">${this.escape(tile.title)}</span>
             ${

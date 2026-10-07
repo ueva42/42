@@ -9257,7 +9257,7 @@ body.student-app .card.section > h2 {
 }
 
 .plan-next-modal--ask {
-  width: min(540px, 100%);
+  width: min(680px, 100%);
   max-height: min(88vh, 780px);
   overflow: auto;
 }
@@ -9302,38 +9302,85 @@ body.student-app .card.section > h2 {
   margin-top: 4px;
 }
 
-/* Plan-Wizard: volle Zieltexte als einspaltige App-Zeilen (kein 2-Col-Ellipsis) */
+/* Titel steht schon im Schritt-Modal – innen nur die Karten */
+.plan-ask__body .way-section--embedded {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.plan-ask__body .way-section--embedded > .way-section__head,
+.plan-ask__body .way-section--embedded > .way-to-goal__intro {
+  display: none;
+}
+
+/* Plan-Wizard: kompakte 2-Spalten-Karten, Text umbricht vollständig (kein Ellipsis) */
 .plan-next-modal--ask .strategy-tile-grid,
 .plan-ask__body .strategy-tile-grid {
-  grid-template-columns: 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
 }
 
 .plan-ask__body .strategy-tile {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  column-gap: 12px;
-  row-gap: 2px;
-  align-items: center;
-  min-height: 0;
-  padding: 12px 40px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 108px;
+  height: 100%;
+  padding: 14px 36px 14px 14px;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--tile-accent, #22d3ee) 18%, transparent), transparent 48%),
+    linear-gradient(180deg, rgba(14, 22, 48, 0.96), rgba(5, 8, 22, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .plan-ask__body .strategy-tile__icon {
-  grid-column: 1;
-  grid-row: 1 / -1;
-  margin-bottom: 0;
-  align-self: center;
+  margin-bottom: 8px;
+  align-self: flex-start;
+  flex: none;
 }
 
 .plan-ask__body .strategy-tile__title,
 .plan-ask__body .strategy-tile__desc {
-  grid-column: 2;
+  width: 100%;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.plan-ask__body .strategy-tile__title {
+  font-size: 13.5px;
+  line-height: 1.35;
 }
 
 .plan-ask__body .strategy-tile__check {
-  top: 50%;
-  transform: translateY(-50%);
+  top: 10px;
+  right: 10px;
+  transform: none;
+  font-family: "Orbitron", system-ui, sans-serif;
+  font-size: 11px;
+}
+
+.plan-ask__body .strategy-tile:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 560px) {
+  .plan-next-modal--ask .strategy-tile-grid,
+  .plan-ask__body .strategy-tile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-ask__body .strategy-tile {
+    min-height: 0;
+  }
 }
 
 .plan-next-modal--ask .level-tile-grid .strategy-tile-grid,
@@ -13131,12 +13178,12 @@ h2 {
 <script src="/js/logbuch-strategies.js?v=3"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-hub.js?v=39"></script>
-<script src="/js/logbuch-visuals.js?v=17"></script>
+<script src="/js/logbuch-visuals.js?v=18"></script>
 <script src="/js/logbuch-reminders.js?v=6"></script>
-<script src="/js/logbuch-group-invites.js?v=1"></script>
+<script src="/js/logbuch-group-invites.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=12"></script>
-<script src="/js/logbuch-plan.js?v=36"></script>
+<script src="/js/logbuch-plan.js?v=37"></script>
 <script src="/js/logbuch-check.js?v=14"></script>
 <script src="/js/logbuch-reflect.js?v=7"></script>
 <script src="/js/logbuch-today.js?v=46"></script>

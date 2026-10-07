@@ -4,6 +4,7 @@
  */
 (function () {
   const POLL_MS = 12000;
+  const NOTIFIED_KEY = "sol_invite_notified_v1";
   let timerId = null;
   let started = false;
   let busy = false;
@@ -28,7 +29,7 @@
       const style = document.createElement("style");
       style.id = "solGroupInviteModalStyles";
       style.textContent = `
-        #solGroupInviteModalRoot{position:fixed;inset:0;z-index:12000;display:none;align-items:center;justify-content:center;padding:18px;pointer-events:none}
+        #solGroupInviteModalRoot{position:fixed;inset:0;z-index:13000;display:none;align-items:center;justify-content:center;padding:18px;pointer-events:none}
         #solGroupInviteModalRoot.is-open{display:flex;pointer-events:auto}
         .sol-invite-backdrop{position:absolute;inset:0;background:rgba(4,12,24,.72);backdrop-filter:blur(8px)}
         .sol-invite-dialog{position:relative;z-index:1;width:min(440px,100%);max-height:min(86vh,720px);overflow:auto;border-radius:22px;border:1px solid rgba(34,211,238,.42);background:linear-gradient(165deg,rgba(10,28,52,.97),rgba(8,18,36,.98));box-shadow:0 24px 64px rgba(0,0,0,.45),0 0 0 1px rgba(168,85,247,.18);padding:22px 20px 18px;color:#e0f2fe}
@@ -167,7 +168,7 @@
         const toast = document.createElement("div");
         toast.className = "sol-invite-dialog";
         toast.style.cssText =
-          "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12001;width:min(360px,90vw);text-align:center";
+          "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:13001;width:min(360px,90vw);text-align:center";
         toast.innerHTML = `<p class="sol-invite-ok" style="margin:0">Zusage gespeichert – du bist in der Gruppe.</p>`;
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 1600);
@@ -200,15 +201,68 @@
     return Array.isArray(data.invites) ? data.invites : [];
   }
 
+  function notifiedIds() {
+    try {
+      const raw = JSON.parse(sessionStorage.getItem(NOTIFIED_KEY) || "[]");
+      return new Set(Array.isArray(raw) ? raw.map(String) : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  function markNotified(id) {
+    const set = notifiedIds();
+    set.add(String(id));
+    try {
+      sessionStorage.setItem(NOTIFIED_KEY, JSON.stringify([...set].slice(-40)));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** System-Notification nur wenn die App sie schon erlaubt hat (kein Web-Push, keine Glocke). */
+  function notifyNewInvites(invites) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const seen = notifiedIds();
+    for (const invite of invites || []) {
+      const id = String(invite?.id || "");
+      if (!id || seen.has(id)) continue;
+      markNotified(id);
+      seen.add(id);
+      const from = invite.hostName
+        ? `${invite.hostName} hat dich eingeladen`
+        : "Neue Gruppeneinladung";
+      const detail = [invite.subject, invite.groupName].filter(Boolean).join(" · ");
+      try {
+        const note = new Notification("Gruppeneinladung", {
+          body: detail ? `${from}. ${detail}` : `${from}. Tippe auf Annehmen oder Ablehnen.`,
+          tag: `sol-invite-${id}`
+        });
+        note.onclick = () => {
+          try {
+            window.focus();
+          } catch {
+            /* ignore */
+          }
+          note.close();
+        };
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   async function refresh({ force = false } = {}) {
-    if (document.hidden && !force) return;
     try {
       const invites = await fetchInvites();
-      const key = inviteKey(invites);
+      notifyNewInvites(invites);
       if (!invites.length) {
         closeModal();
         return;
       }
+      // Im Hintergrund nur System-Notification; das Center-Modal kommt beim Zurückkehren.
+      if (document.hidden && !force) return;
+      const key = inviteKey(invites);
       if (!force && key === lastKey && ensureRoot().classList.contains("is-open")) {
         return;
       }
