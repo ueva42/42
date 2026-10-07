@@ -69,6 +69,33 @@
     return "/login";
   }
 
+  /** Admin-Shell: /admin oder Admin-Session (auch wenn Tool-JS kurz /teacher/* pushState't). */
+  function isAdminShell() {
+    const path = window.location.pathname || "";
+    if (path === "/admin" || path.startsWith("/admin/")) return true;
+    if (window.__staffSession?.role === "admin") return true;
+    if (authGet() === "admin") return true;
+    return false;
+  }
+
+  /**
+   * Tool-Navigation: unter Administration immer /admin[?qs]#hash,
+   * unter Lehrer-Shell unverändert /teacher/...
+   * @param {string} teacherPath z.B. "/teacher/levelcheck-planen?classId=1"
+   * @param {string} adminHashKey z.B. "levelcheck-planen"
+   */
+  function staffToolUrl(teacherPath, adminHashKey) {
+    const raw = String(teacherPath || "");
+    const hashKey = String(adminHashKey || "").replace(/^#/, "");
+    if (!isAdminShell() || !hashKey) return raw || "/teacher";
+    try {
+      const u = new URL(raw, window.location.origin);
+      return `/admin${u.search || ""}#${hashKey}`;
+    } catch (_err) {
+      return `/admin#${hashKey}`;
+    }
+  }
+
   function loginUrl() {
     return `/login?loggedout=1&t=${Date.now()}`;
   }
@@ -167,6 +194,8 @@
     clear: authClear,
     is: (role) => authGet() === role,
     homeFor,
+    isAdminShell,
+    staffToolUrl,
     loginUrl,
     goLogin,
     goHome,
@@ -289,7 +318,9 @@
             goHome(sessionData.redirectTo || homeFor(role));
             return lastRes;
           }
-          if (onTeacher && role !== "teacher") {
+          // Admin darf Lernsteuerungs-APIs; alte Tool-pushState-URLs unter /teacher/*
+          // dürfen Speichern nicht abbrechen (Retry statt Bounce).
+          if (onTeacher && role !== "teacher" && role !== "admin") {
             goHome(sessionData.redirectTo || homeFor(role));
             return lastRes;
           }

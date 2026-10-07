@@ -2117,7 +2117,7 @@
 
 <script src="/js/client-cache-reset.js?v=3"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=18"></script>
+<script src="/js/auth-fetch.js?v=19"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=5"></script>
@@ -2127,9 +2127,9 @@
 <script src="/js/teacher-was-goals.js?v=7"></script>
 <script src="/js/teacher-levelplan-import.js?v=10"></script>
 <script src="/js/teacher-levelplan.js?v=10"></script>
-<script src="/js/teacher-levelplan-zuordnung.js?v=5"></script>
-<script src="/js/teacher-competencies.js?v=25"></script>
-<script src="/js/teacher-termine.js?v=6"></script>
+<script src="/js/teacher-levelplan-zuordnung.js?v=6"></script>
+<script src="/js/teacher-competencies.js?v=26"></script>
+<script src="/js/teacher-termine.js?v=7"></script>
 <script src="/js/teacher-gruppenmodus.js?v=15"></script>
 <script src="/js/teacher-materialschrank.js?v=2"></script>
 
@@ -2293,12 +2293,18 @@ function showTab(id, ev, options = {}) {
 
   if (!options.skipHistory) {
     const hashEntry = Object.entries(HASH_TABS).find(([, tabId]) => tabId === id);
-    const onAdminPath = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
-    const onTeacherToolPath = (location.pathname || "").startsWith("/teacher/");
+    const staffRole = window.__staffSession?.role || window.SolAuth?.get?.() || "";
+    const forceAdminShell = staffRole === "admin" || window.SolAuth?.isAdminShell?.() === true;
+    const onAdminPath =
+      forceAdminShell ||
+      location.pathname === "/admin" ||
+      location.pathname.startsWith("/admin/");
+    const onTeacherToolPath =
+      !forceAdminShell && (location.pathname || "").startsWith("/teacher/");
     if (onAdminPath && hashEntry) {
       // Im Admin bleiben – nicht nach /teacher/dashboard o. ä. pushen
       const next = `/admin#${hashEntry[0]}`;
-      const current = `${location.pathname}${location.hash || ""}`;
+      const current = `${location.pathname}${location.search || ""}${location.hash || ""}`;
       if (current !== next) {
         history.replaceState({ tab: id }, "", next);
       }
@@ -3826,15 +3832,18 @@ function markAdminAuthed(role = "admin") {
 }
 
 function applyStaffNavPermissions(session) {
+  const role = session?.role || "";
   const onTeacherToolPath = (location.pathname || "").startsWith("/teacher/");
-  const canAdmin = !onTeacherToolPath && (session?.canAdmin === true || session?.role === "admin");
+  const canAdmin = session?.canAdmin === true || role === "admin";
   document.querySelectorAll(".admin-only-nav").forEach((el) => {
     el.style.display = canAdmin ? "" : "none";
   });
   document.querySelectorAll('[data-nav-section="klasse"], [data-nav-section="spiel"], [data-nav-section="konto"]').forEach((section) => {
-    if (onTeacherToolPath) {
-      // Lehrer-Werkzeuge unter /teacher/*: Admin-Sektionen ausblenden
+    // Nur reine Lehrkräfte unter /teacher/*: Admin-Sektionen ausblenden
+    if (onTeacherToolPath && role === "teacher") {
       section.style.display = "none";
+    } else {
+      section.style.display = "";
     }
   });
 }
@@ -3854,7 +3863,12 @@ async function bootAdminApp() {
     const path = location.pathname || "";
     const onAdminPath = path === "/admin" || path.startsWith("/admin/");
     const onTeacherToolPath = path.startsWith("/teacher/");
-    const allowedRoles = onAdminPath ? ["admin"] : onTeacherToolPath ? ["teacher"] : ["admin"];
+    // Admin darf admin.html auch nutzen, wenn Tool-JS die URL kurz auf /teacher/* gesetzt hat.
+    const allowedRoles = onAdminPath
+      ? ["admin"]
+      : onTeacherToolPath
+        ? ["teacher", "admin"]
+        : ["admin"];
 
     let session = null;
     if (window.SolAuth?.enforceShell) {
@@ -3884,6 +3898,17 @@ async function bootAdminApp() {
 
     window.__staffSession = session;
     markAdminAuthed(session.role || (onAdminPath ? "admin" : "teacher"));
+
+    // Admin immer auf /admin#… zurückführen (kein Soft-Stuck unter /teacher/*).
+    if (session.role === "admin" && onTeacherToolPath) {
+      const hash =
+        Object.entries(HASH_TABS).find(([, tabId]) => tabId === ROUTE_TABS[path])?.[0] ||
+        String(location.hash || "").replace(/^#/, "") ||
+        "dashboard";
+      const qs = location.search || "";
+      history.replaceState({ tab: HASH_TABS[hash] || "dashboardTab" }, "", `/admin${qs}#${hash}`);
+    }
+
     applyStaffNavPermissions(session);
     startAdminShell();
   } catch (err) {

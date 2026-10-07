@@ -139,7 +139,9 @@
       classId: String(state.classId),
       subject: cp.subject
     });
-    const url = `/teacher/levelcheck-planen?${params}`;
+    const teacherUrl = `/teacher/levelcheck-planen?${params}`;
+    const url =
+      window.SolAuth?.staffToolUrl?.(teacherUrl, "levelcheck-planen") || teacherUrl;
     history.pushState({ tab: "competenciesTab" }, "", url);
     if (typeof showTab === "function") {
       showTab("competenciesTab", null, { skipHistory: true });
@@ -424,7 +426,9 @@
     root.querySelector("#tmNewCheckpointBtn")?.addEventListener("click", () => {
       const params = new URLSearchParams({ classId: String(state.classId) });
       if (state.subjectFilter) params.set("subject", state.subjectFilter);
-      const url = `/teacher/levelcheck-planen?${params}`;
+      const teacherUrl = `/teacher/levelcheck-planen?${params}`;
+      const url =
+        window.SolAuth?.staffToolUrl?.(teacherUrl, "levelcheck-planen") || teacherUrl;
       history.pushState({ tab: "competenciesTab" }, "", url);
       if (typeof showTab === "function") {
         showTab("competenciesTab", null, { skipHistory: true });

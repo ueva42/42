@@ -73,7 +73,8 @@
     if (gradeLevel) params.set("grade", String(gradeLevel));
     if (catalogId) params.set("catalogId", String(catalogId));
     const qs = params.toString();
-    const url = qs ? `/teacher/levelplan?${qs}` : "/teacher/levelplan";
+    const teacherUrl = qs ? `/teacher/levelplan?${qs}` : "/teacher/levelplan";
+    const url = window.SolAuth?.staffToolUrl?.(teacherUrl, "levelplan") || teacherUrl;
     history.pushState({ tab: "levelplanTab" }, "", url);
     if (typeof showTab === "function") {
       showTab("levelplanTab", null, { skipHistory: true });

@@ -282,12 +282,20 @@
   }
 
   function clearRouteParams() {
-    if (!location.pathname.includes("levelcheck-planen") && location.pathname !== "/teacher/levelstatus") {
+    const hash = String(location.hash || "").replace(/^#/, "");
+    const onPlanPath =
+      location.pathname.includes("levelcheck-planen") ||
+      location.pathname === "/teacher/levelstatus" ||
+      (window.SolAuth?.isAdminShell?.() && hash === "levelcheck-planen");
+    if (!onPlanPath) {
       return;
     }
     const params = new URLSearchParams(location.search);
     if (!params.has("checkpointId") && !params.has("classId") && !params.has("subject")) return;
-    history.replaceState({ tab: "competenciesTab" }, "", "/teacher/levelcheck-planen");
+    const clean =
+      window.SolAuth?.staffToolUrl?.("/teacher/levelcheck-planen", "levelcheck-planen") ||
+      "/teacher/levelcheck-planen";
+    history.replaceState({ tab: "competenciesTab" }, "", clean);
   }
 
   function startEditCheckpoint(checkpointId) {
@@ -303,7 +311,9 @@
   }
 
   function openTermineTab() {
-    history.pushState({ tab: "termineTab" }, "", "/teacher/termine");
+    const url =
+      window.SolAuth?.staffToolUrl?.("/teacher/termine", "termine") || "/teacher/termine";
+    history.pushState({ tab: "termineTab" }, "", url);
     if (typeof showTab === "function") {
       showTab("termineTab", null, { skipHistory: true });
     }
