@@ -9,6 +9,7 @@ import {
   sessionCookieClearVariants,
   SESSION_COOKIE_NAME
 } from "../lib/session-logout.js";
+import { defaultPostLoginPath } from "../lib/teacher-auth.js";
 
 function sign(val, secret) {
   const mac = crypto.createHmac("sha256", secret).update(val).digest("base64").replace(/=+$/, "");
@@ -23,6 +24,9 @@ const header = [
   `${SESSION_COOKIE_NAME}=s%3A${encodeURIComponent(sign(adminId, secret))}`,
   "sol_logout=1"
 ].join("; ");
+
+assert.strictEqual(defaultPostLoginPath({ role: "student" }), "/student/hub");
+assert.strictEqual(defaultPostLoginPath({ role: "admin" }), "/admin");
 
 const ids = parseAllSessionIds(header, secret);
 assert.deepStrictEqual(ids, [studentId, adminId], "both session ids must be collected");

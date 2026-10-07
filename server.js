@@ -14606,7 +14606,7 @@ for (const route of teacherSpaPaths) {
 }
 
 app.get("/student", (_req, res) => {
-  res.redirect(302, "/student/today");
+  res.redirect(302, "/student/hub");
 });
 
 const studentSpaPaths = [

@@ -11,7 +11,7 @@
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <script src="/js/client-cache-reset.js?v=4"></script>
-  <script src="/js/auth-fetch.js?v=21"></script>
+  <script src="/js/auth-fetch.js?v=22"></script>
   <title>Streets of Logic – Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -552,7 +552,7 @@
     function homeForRole(role) {
       if (window.SolAuth?.homeFor) return window.SolAuth.homeFor(role);
       if (role === "superadmin") return "/superadmin";
-      if (role === "student") return "/student/today";
+      if (role === "student") return "/student/hub";
       if (role === "teacher") return "/teacher";
       if (role === "admin") return "/admin";
       return "/login";
@@ -582,7 +582,10 @@
 
     if (forceLoginPage || reloginRequired || tabMustLogin) {
       try {
-        window.SolAuth?.clear?.();
+        // Explizites Logout: alles leeren. Konto-/Tabwechsel: nur diesen Tab,
+        // damit andere offene Tabs (Admin, Test-Konten) ihren Zustand behalten.
+        if (forceLoginPage) window.SolAuth?.clear?.();
+        else (window.SolAuth?.clearTab || window.SolAuth?.clear)?.call(window.SolAuth);
       } catch (_err) {}
     } else {
       (async function resumeExistingSession() {
@@ -702,7 +705,7 @@
 
     if (switchedAccount) {
       showError(
-        "In diesem Browser wurde ein anderes Konto angemeldet oder die Sitzung ist abgelaufen. Bitte melde dich erneut an."
+        "Andere Sitzung oder abgelaufen – bitte melde dich an. Alle Tabs in diesem Browser teilen eine Sitzung; andere offene Tabs zeigen danach nur einen Hinweis."
       );
     }
 

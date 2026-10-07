@@ -2,6 +2,12 @@
  * Session-aware fetch + Rollen-Landing.
  * Logout nur wenn die Session nachweislich tot ist (401 / authenticated:false).
  * Ein 403 bei gültiger Session darf niemanden aus dem Tab werfen.
+ *
+ * Multi-Tab: Alle Tabs teilen EIN Session-Cookie (connect.sid). Meldet sich in
+ * Tab B ein anderes Konto an, kann Tab A nicht parallel als altes Konto
+ * weiterarbeiten. Wir verhindern nur, dass Tab A unter fremder Identität
+ * liest/schreibt (409), und zeigen ein ruhiges Banner. Kein Auto-Redirect,
+ * kein Wipe von localStorage, keine Kaskade über Tabs.
  */
 (function () {
   if (window.__authFetchInstalled) return;
@@ -61,15 +67,21 @@
     });
   }
 
-  function authClear() {
+  /** Nur dieser Tab (sessionStorage) – fasst den geteilten localStorage anderer Tabs nicht an. */
+  function authClearTab() {
     try {
       clearStorageKeys(sessionStorage);
     } catch (_err) {}
     try {
-      clearStorageKeys(localStorage);
-    } catch (_err) {}
-    try {
       sessionStorage.setItem(NEEDS_LOGIN_KEY, "1");
+    } catch (_err) {}
+  }
+
+  /** Explizites Logout: auch geteilte sol.*-Schlüssel entfernen. */
+  function authClear() {
+    authClearTab();
+    try {
+      clearStorageKeys(localStorage);
     } catch (_err) {}
   }
 
@@ -115,7 +127,7 @@
 
   function homeFor(role) {
     if (role === "superadmin") return "/superadmin";
-    if (role === "student") return "/student/today";
+    if (role === "student") return "/student/hub";
     if (role === "teacher") return "/teacher";
     if (role === "admin") return "/admin";
     return "/login";
@@ -156,7 +168,7 @@
     if (window.__authBootstrap) return;
     if (window.__authFetchRedirecting) return;
     window.__authFetchRedirecting = true;
-    authClear();
+    authClearTab();
     window.location.replace(loginUrl());
   }
 
@@ -169,9 +181,63 @@
     try {
       document.documentElement.style.visibility = "hidden";
     } catch (_err) {}
-    authClear();
+    authClearTab();
     const param = reason === "relogin" ? "relogin" : "switched";
     window.location.replace(`/login?${param}=1&t=${Date.now()}`);
+  }
+
+  let conflictBanner = null;
+
+  /**
+   * Ruhiger Hinweis statt Redirect: In diesem Browser ist ein anderes Konto
+   * (oder keine Session) aktiv. Die Ansicht bleibt stehen, API-Aufrufe werden
+   * serverseitig mit 409 abgelehnt, damit nichts unter falscher Identität läuft.
+   */
+  function showSessionConflict(kind = "other") {
+    if (window.__authFetchRedirecting) return;
+    if (conflictBanner?.isConnected) return;
+    const build = () => {
+      if (conflictBanner?.isConnected || !document.body) return;
+      const bar = document.createElement("div");
+      bar.setAttribute("role", "alert");
+      bar.dataset.solSessionConflict = "1";
+      bar.style.cssText =
+        "position:fixed;left:0;right:0;top:0;z-index:2147483000;display:flex;flex-wrap:wrap;" +
+        "gap:8px 12px;align-items:center;justify-content:center;padding:10px 14px;" +
+        "background:#7c2d12;color:#fff;font:600 14px/1.35 system-ui,sans-serif;" +
+        "box-shadow:0 2px 12px rgba(0,0,0,.4)";
+      const msg = document.createElement("span");
+      msg.textContent =
+        kind === "ended"
+          ? "Diese Sitzung wurde beendet (z. B. Abmeldung in einem anderen Tab). Änderungen hier werden nicht gespeichert."
+          : "In diesem Browser ist jetzt ein anderes Konto angemeldet (alle Tabs teilen eine Sitzung). Diese Ansicht ist pausiert – es wird nichts unter dem falschen Konto gespeichert.";
+      const mk = (label, onClick) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = label;
+        b.style.cssText =
+          "cursor:pointer;border:0;border-radius:8px;padding:6px 12px;font:700 13px system-ui,sans-serif;" +
+          "background:#fff;color:#7c2d12";
+        b.addEventListener("click", onClick);
+        return b;
+      };
+      bar.append(
+        msg,
+        mk("Neu anmelden", () => goSwitched("relogin")),
+        mk("Erneut prüfen", () => revalidateTabSession(true))
+      );
+      document.body.appendChild(bar);
+      conflictBanner = bar;
+    };
+    if (document.body) build();
+    else document.addEventListener("DOMContentLoaded", build, { once: true });
+  }
+
+  function hideSessionConflict() {
+    if (conflictBanner) {
+      conflictBanner.remove();
+      conflictBanner = null;
+    }
   }
 
   function goHome(roleOrPath) {
@@ -279,6 +345,8 @@
     goLogin,
     goHome,
     goSwitched,
+    showSessionConflict,
+    clearTab: authClearTab,
     loginDone,
     needsLogin: tabNeedsLogin,
     tabIdentity: tabIdentityGet,
@@ -373,7 +441,7 @@
       }
 
       if (lastRes.status === 409 && lastRes.headers.get("X-Sol-Identity-Mismatch") === "1") {
-        goSwitched();
+        showSessionConflict();
         return lastRes;
       }
       if (lastRes.status !== 401 && lastRes.status !== 403) return lastRes;
@@ -403,7 +471,7 @@
         }
         const pinned = tabIdentityGet();
         if (sessionData?.authenticated && pinned && pinned !== identityOf(sessionData)) {
-          goSwitched();
+          showSessionConflict();
           return lastRes;
         }
         // Falsche Rolle für diese Shell → sofort auf Rollen-Home
@@ -495,13 +563,17 @@
         FETCH_TIMEOUT_MS
       );
       if (res.status === 401) {
-        goSwitched();
+        showSessionConflict("ended");
         return;
       }
       if (!res.ok) return;
       const data = await res.json().catch(() => null);
-      if (!data || data.authenticated === false || identityOf(data) !== pinned) {
-        goSwitched();
+      if (!data || data.authenticated === false) {
+        showSessionConflict("ended");
+      } else if (identityOf(data) !== pinned) {
+        showSessionConflict();
+      } else {
+        hideSessionConflict();
       }
     } catch (_err) {}
   }
@@ -511,9 +583,8 @@
   });
   window.addEventListener("focus", () => revalidateTabSession());
   window.addEventListener("popstate", () => revalidateTabSession(true));
-  window.addEventListener("storage", (e) => {
-    if (e.key === AUTH_KEY || e.key === null) revalidateTabSession(true);
-  });
+  // Bewusst KEIN storage-Listener: Login/Logout in einem Tab darf andere Tabs
+  // nicht in einer Kaskade zum Login schicken.
 
   window.SolAuth.revalidate = revalidateTabSession;
 })();

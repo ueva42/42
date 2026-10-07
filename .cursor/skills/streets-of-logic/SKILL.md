@@ -20,7 +20,7 @@ German SRL logbook + GTA-themed XP platform for schools (classes 5–9+).
 
 | Role | After login | UI |
 |------|-------------|-----|
-| `student` | `/student/today` (or `/first-login`) | `public/student.html` SPA |
+| `student` | `/student/hub` Schüler-Dashboard (or `/first-login`) | `public/student.html` SPA |
 | `teacher` | `/teacher` only (Lehrer-Dashboard) | `public/teacher.html` (+ Lern-Tools via `/teacher/*` → `admin.html` shell) |
 | `admin` | `/admin` only (Administration) | `public/admin.html` |
 | `superadmin` | `/superadmin` | `public/superadmin.html` |
