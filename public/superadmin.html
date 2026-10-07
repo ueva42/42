@@ -554,7 +554,7 @@
 </div>
 
 <script src="/js/client-cache-reset.js?v=3"></script>
-<script src="/js/auth-fetch.js?v=17"></script>
+<script src="/js/auth-fetch.js?v=18"></script>
 <script>
 let schoolsCache = [];
 
@@ -597,9 +597,14 @@ async function logout() {
     window.SolAuth?.clear();
   } catch (_err) {}
   try {
-    await fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" });
+    await fetch("/api/logout", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      keepalive: true
+    });
   } catch (_err) {}
-  window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
+  window.location.replace(`/logout?t=${Date.now()}`);
 }
 
 /* Helper: Slug automatisch aus Namen */

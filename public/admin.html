@@ -2117,7 +2117,7 @@
 
 <script src="/js/client-cache-reset.js?v=3"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=17"></script>
+<script src="/js/auth-fetch.js?v=18"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=5"></script>
@@ -2368,15 +2368,19 @@ async function logout() {
     window.SolAuth?.clear();
   } catch (_err) {}
   try {
-    await fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" });
+    await fetch("/api/logout", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      keepalive: true
+    });
   } catch (_err) {}
   try {
     if (window.__purgeTeacherClientCaches) {
       await window.__purgeTeacherClientCaches();
     }
   } catch (_err) {}
-  // loggedout=1 verhindert Bounce zurück zum Lehrer-Dashboard
-  window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
+  window.location.replace(`/logout?t=${Date.now()}`);
 }
 
 document.querySelector(".nav-item-logout")?.addEventListener("keydown", (e) => {

@@ -2797,6 +2797,32 @@ function clearSessionCookie(res) {
   });
 }
 
+/** Session zerstören + Cookie leeren. Clear-Site-Data ohne "cache" –
+ *  "cache" in XHR-Antworten kann Chrome die aktuelle Shell neu laden lassen
+ *  und Logout (location.replace) abbrechen / Session-Races provozieren. */
+function destroySession(req, res, done) {
+  const finish = (ok = true) => {
+    clearSessionCookie(res);
+    res.setHeader("Clear-Site-Data", '"cookies", "storage"');
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    done(ok);
+  };
+
+  if (!req.session) return finish(true);
+
+  try {
+    if (req.session.user) req.session.user = null;
+  } catch (_err) {}
+
+  req.session.destroy((err) => {
+    if (err) {
+      console.error("❌ session.destroy:", err);
+      return finish(false);
+    }
+    finish(true);
+  });
+}
+
 function sendLoginPage(res) {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   clearSessionCookie(res);
@@ -4558,30 +4584,18 @@ app.post("/api/demo/reset", async (req, res) => {
 });
 
 app.post("/api/logout", (req, res) => {
-  const finish = (ok = true) => {
-    clearSessionCookie(res);
-    // Chrome: Cache/Storage der Site leeren, damit alte SPA-Shells nicht wiederhergestellt werden
-    res.setHeader("Clear-Site-Data", '"cache", "storage"');
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  destroySession(req, res, (ok) => {
     if (!ok) {
       return res.status(500).json({ success: false, message: "Logout fehlgeschlagen." });
     }
     return res.json({ success: true, loggedOut: true });
-  };
+  });
+});
 
-  if (!req.session) return finish(true);
-
-  try {
-    // User sofort entfernen, falls destroy mit parallelen Saves raced.
-    if (req.session.user) req.session.user = null;
-  } catch (_err) {}
-
-  req.session.destroy((err) => {
-    if (err) {
-      console.error("❌ /api/logout destroy:", err);
-      return finish(false);
-    }
-    finish(true);
+/** Navigations-Logout: bricht parallele SPA-Requests ab, die die Session sonst zurückspeichern. */
+app.get("/logout", (req, res) => {
+  destroySession(req, res, () => {
+    res.redirect(303, `/login?loggedout=1&t=${Date.now()}`);
   });
 });
 

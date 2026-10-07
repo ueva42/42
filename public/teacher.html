@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="/js/client-cache-reset.js?v=3"></script>
-  <script src="/js/auth-fetch.js?v=17"></script>
+  <script src="/js/auth-fetch.js?v=18"></script>
   <style>
     :root {
       --navy: #050816;
@@ -115,7 +115,7 @@
       line-height: 1.4;
       max-width: 42ch;
     }
-    .teacher-admin-switch {
+    .teacher-logout-btn {
       flex-shrink: 0;
       display: inline-flex;
       align-items: center;
@@ -123,40 +123,26 @@
       gap: 8px;
       min-height: var(--touch);
       min-width: var(--touch);
-      padding: 0 12px;
+      padding: 0 14px;
       border-radius: 14px;
-      border: 1px solid rgba(139, 92, 246, 0.5);
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.32), rgba(34, 211, 238, 0.12));
-      color: var(--text);
-      text-decoration: none;
-      font-weight: 700;
+      border: 1px solid rgba(251, 113, 133, 0.55);
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.92), rgba(185, 28, 28, 0.88));
+      color: #fef2f2;
+      font-weight: 800;
       font-size: .82rem;
-      letter-spacing: .02em;
+      letter-spacing: .04em;
       white-space: nowrap;
-      box-shadow: var(--glow-violet);
+      cursor: pointer;
+      box-shadow: 0 0 22px rgba(248, 113, 113, 0.18);
       transition: border-color .15s ease, transform .12s ease, background .15s ease;
     }
-    .teacher-admin-switch:hover,
-    .teacher-admin-switch:focus-visible {
-      border-color: rgba(167, 139, 250, 0.85);
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.45), rgba(34, 211, 238, 0.22));
+    .teacher-logout-btn:hover,
+    .teacher-logout-btn:focus-visible {
+      border-color: rgba(254, 202, 202, 0.9);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.98), rgba(220, 38, 38, 0.92));
       outline: none;
     }
-    .teacher-admin-switch:active { transform: scale(.98); }
-    .teacher-admin-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 22px;
-      padding: 0 7px;
-      border-radius: 999px;
-      background: rgba(249, 115, 22, 0.95);
-      color: #0b1220;
-      font-size: .68rem;
-      font-weight: 800;
-      letter-spacing: .06em;
-      text-transform: uppercase;
-    }
+    .teacher-logout-btn:active { transform: scale(.98); }
     .tile--admin {
       border-color: rgba(139, 92, 246, 0.45);
       background:
@@ -1446,6 +1432,9 @@
         <h1 class="teacher-greeting" id="greeting">Lehrer-Dashboard</h1>
         <p class="teacher-sub" id="subline">Themen-Cockpit – wer arbeitet woran, wer braucht Begleitung?</p>
       </div>
+      <button type="button" class="teacher-logout-btn" id="teacherLogoutBtn" aria-label="Abmelden">
+        Abmelden
+      </button>
     </div>
     <div class="teacher-toolbar" id="toolbar">
       <select id="classSelect" aria-label="Klasse"></select>
@@ -1480,6 +1469,6 @@
     <div id="sheetBody"></div>
   </div>
 
-  <script src="/js/teacher-app.js?v=11"></script>
+  <script src="/js/teacher-app.js?v=12"></script>
 </body>
 </html>

@@ -30,9 +30,34 @@
   const sheet = document.getElementById("sheet");
   const sheetBody = document.getElementById("sheetBody");
   const sheetBackdrop = document.getElementById("sheetBackdrop");
+  const teacherLogoutBtn = document.getElementById("teacherLogoutBtn");
 
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  async function doLogout() {
+    if (window.SolAuth?.logoutAndRedirect) {
+      await window.SolAuth.logoutAndRedirect();
+      return;
+    }
+    try {
+      window.SolAuth?.clear();
+    } catch (_err) {}
+    try {
+      await fetch("/api/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        keepalive: true
+      });
+    } catch (_err) {}
+    try {
+      if (window.__purgeTeacherClientCaches) {
+        await window.__purgeTeacherClientCaches();
+      }
+    } catch (_err) {}
+    window.location.replace(`/logout?t=${Date.now()}`);
   }
 
   function escapeHtml(str) {
@@ -1224,26 +1249,7 @@
       return;
     }
     if (ev.target.closest("#logoutBtn")) {
-      if (window.SolAuth?.logoutAndRedirect) {
-        await window.SolAuth.logoutAndRedirect();
-        return;
-      }
-      try {
-        window.SolAuth?.clear();
-      } catch (_err) {}
-      try {
-        await fetch("/api/logout", {
-          method: "POST",
-          credentials: "same-origin",
-          cache: "no-store"
-        });
-      } catch (_err) {}
-      try {
-        if (window.__purgeTeacherClientCaches) {
-          await window.__purgeTeacherClientCaches();
-        }
-      } catch (_err) {}
-      window.location.replace(`/login?loggedout=1&t=${Date.now()}`);
+      await doLogout();
       return;
     }
     if (ev.target.closest("#backFromStudent")) {
@@ -1336,6 +1342,10 @@
       state.studentDetail = null;
       setTab(btn.dataset.tab);
     });
+  });
+
+  teacherLogoutBtn?.addEventListener("click", () => {
+    doLogout().catch((err) => console.error(err));
   });
 
   classSelect.addEventListener("change", () => {

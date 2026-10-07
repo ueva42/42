@@ -132,22 +132,33 @@
   }
 
   async function logoutAndRedirect() {
-    if (window.__authFetchRedirecting) return;
+    // Explizites Logout: immer navigieren (nicht an altem __authFetchRedirecting hängen).
     window.__authFetchRedirecting = true;
     authClear();
     try {
-      await fetchWithTimeout(
-        "/api/logout",
-        { method: "POST", credentials: "same-origin", cache: "no-store" },
-        FETCH_TIMEOUT_MS
-      );
+      // keepalive: Request darf den Unload überleben; kurzes Timeout, dann sofort weg.
+      await Promise.race([
+        fetchWithTimeout(
+          "/api/logout",
+          {
+            method: "POST",
+            credentials: "same-origin",
+            cache: "no-store",
+            keepalive: true
+          },
+          2500
+        ),
+        new Promise((resolve) => setTimeout(resolve, 600))
+      ]);
     } catch (_err) {}
     try {
-      if (window.__purgeTeacherClientCaches) {
-        await window.__purgeTeacherClientCaches();
+      const purge = window.__purgeTeacherClientCaches?.();
+      if (purge && typeof purge.then === "function") {
+        await Promise.race([purge, new Promise((r) => setTimeout(r, 400))]);
       }
     } catch (_err) {}
-    window.location.replace(loginUrl());
+    // Navigations-Logout als Fallback: Session serverseitig + Redirect mit loggedout=1
+    window.location.replace(`/logout?t=${Date.now()}`);
   }
 
   window.SolAuth = {
