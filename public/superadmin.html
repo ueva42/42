@@ -703,7 +703,7 @@ async function loadAdmins() {
       <td>${a.name}</td>
       <td id="admin_pw_${a.id}">nicht einsehbar</td>
       <td>
-        <button class="action" onclick="resetAdminPassword(${a.id}, ${JSON.stringify(a.name)})">Neu setzen</button>
+        <button class="action" data-name="${String(a.name ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}" onclick="resetAdminPassword(${a.id}, this.dataset.name)">Neu setzen</button>
         <button class="delete" onclick="deleteAdmin(${a.id})">X</button>
       </td>
     `;
