@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Levelplan (Kataloge nach Klassenstufe ansehen, zuweisen, löschen).
+ * Lehrkraft – Levelplan (Kataloge nach Klassenstufe ansehen, bearbeiten/ergänzen, zuweisen, löschen).
  */
 (function () {
   const GRADE_LEVELS = ["5", "6", "7", "8", "9", "10"];
@@ -17,6 +17,9 @@
     deleting: false,
     deletingTopicId: null,
     deletingGoalId: null,
+    // Inline-Editor: { type: "goal-add"|"goal-edit"|"topic-add"|"topic-rename", topicId?, goalId?, draft }
+    editor: null,
+    savingEditor: false,
     message: "",
     error: ""
   };
@@ -80,34 +83,90 @@
     }
   }
 
+  function isEditor(type, key) {
+    const ed = state.editor;
+    if (!ed || ed.type !== type) return false;
+    if (type === "goal-edit") return sameId(ed.goalId, key);
+    if (type === "goal-add" || type === "topic-rename") return sameId(ed.topicId, key);
+    return true;
+  }
+
+  function renderGoalForm(heading, saveLabel) {
+    const d = state.editor?.draft || {};
+    const dis = state.savingEditor ? "disabled" : "";
+    return `
+      <div class="lp-form" data-lp-form="goal">
+        <strong>${escapeHtml(heading)}</strong>
+        <label>Unterthema
+          <input type="text" maxlength="300" data-lp-field="text" value="${escapeHtml(d.text || "")}" placeholder="z. B. Potenzen berechnen" ${dis}>
+        </label>
+        <div class="lp-form-grid">
+          <label>Rookie – Was-Ziel
+            <textarea data-lp-field="rookie" maxlength="500" placeholder="Ich kann …" ${dis}>${escapeHtml(d.rookie || "")}</textarea>
+          </label>
+          <label>Operator – Was-Ziel
+            <textarea data-lp-field="operator" maxlength="500" placeholder="Ich kann …" ${dis}>${escapeHtml(d.operator || "")}</textarea>
+          </label>
+          <label>Street Legend – Was-Ziel
+            <textarea data-lp-field="streetLegend" maxlength="500" placeholder="Ich kann …" ${dis}>${escapeHtml(d.streetLegend || "")}</textarea>
+          </label>
+        </div>
+        <div class="lp-form-actions">
+          <button type="button" class="kr-practice-btn" data-lp-save-editor ${dis}>${state.savingEditor ? "Speichern…" : escapeHtml(saveLabel)}</button>
+          <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lp-cancel-editor ${dis}>Abbrechen</button>
+        </div>
+      </div>`;
+  }
+
+  function renderNameForm(heading, placeholder, saveLabel) {
+    const d = state.editor?.draft || {};
+    const dis = state.savingEditor ? "disabled" : "";
+    return `
+      <div class="lp-form" data-lp-form="name">
+        <label>${escapeHtml(heading)}
+          <input type="text" maxlength="120" data-lp-field="name" value="${escapeHtml(d.name || "")}" placeholder="${escapeHtml(placeholder)}" ${dis}>
+        </label>
+        <div class="lp-form-actions">
+          <button type="button" class="kr-practice-btn" data-lp-save-editor ${dis}>${state.savingEditor ? "Speichern…" : escapeHtml(saveLabel)}</button>
+          <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lp-cancel-editor ${dis}>Abbrechen</button>
+        </div>
+      </div>`;
+  }
+
   function renderTopics() {
     const topics = topicsForSubject();
     if (!state.catalogId) {
       return `<div class="tc-empty"><p>Noch kein Levelplan für Klassenstufe ${escapeHtml(state.gradeLevel)}.</p><p class="hint">Importiere einen Plan unter „Levelplan importieren“ – dabei „Neuer Levelplan“ wählen.</p></div>`;
     }
-    if (!topics.length) {
-      return `<div class="tc-empty"><p>Für ${escapeHtml(state.subject || "dieses Fach")} gibt es in diesem Plan noch keine Themen.</p></div>`;
-    }
 
-    return topics
+    const topicHtml = topics
       .map((topic) => {
         const goals = topic.goals || [];
         const rows = goals
-          .map(
-            (g) => `
+          .map((g) => {
+            if (isEditor("goal-edit", g.id)) {
+              return `<tr><td colspan="5">${renderGoalForm("Unterthema bearbeiten", "Änderungen speichern")}</td></tr>`;
+            }
+            return `
           <tr>
             <td>${escapeHtml(g.text)}</td>
             <td>${escapeHtml(g.rookieGoalText || "–")}</td>
             <td>${escapeHtml(g.operatorGoalText || "–")}</td>
             <td>${escapeHtml(g.streetLegendGoalText || "–")}</td>
-            <td style="white-space:nowrap;text-align:right">
-              <button type="button" class="tc-delete-btn" data-lp-del-goal="${escapeHtml(g.id)}" title="Dieses Unterthema löschen" ${
-                state.deletingGoalId === String(g.id) ? "disabled" : ""
-              }>${state.deletingGoalId === String(g.id) ? "Löschen…" : "Löschen"}</button>
+            <td>
+              <div class="lp-row-actions">
+                <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lp-edit-goal="${escapeHtml(g.id)}" title="Dieses Unterthema bearbeiten">Bearbeiten</button>
+                <button type="button" class="tc-delete-btn" data-lp-del-goal="${escapeHtml(g.id)}" title="Dieses Unterthema löschen" ${
+                  state.deletingGoalId === String(g.id) ? "disabled" : ""
+                }>${state.deletingGoalId === String(g.id) ? "Löschen…" : "Löschen"}</button>
+              </div>
             </td>
-          </tr>`
-          )
+          </tr>`;
+          })
           .join("");
+
+        const renaming = isEditor("topic-rename", topic.id);
+        const adding = isEditor("goal-add", topic.id);
 
         return `
         <div class="lpi-preview-wrap" style="margin-top:1em">
@@ -116,12 +175,17 @@
               <h3>${escapeHtml(topic.name)}</h3>
               <p class="hint">${goals.length} Unterthemen</p>
             </div>
-            <button type="button" class="tc-delete-btn tc-topic-delete-btn" data-lp-del-topic="${escapeHtml(topic.id)}" ${
-              state.deletingTopicId === String(topic.id) ? "disabled" : ""
-            }>
-              ${state.deletingTopicId === String(topic.id) ? "Löschen…" : "Thema löschen"}
-            </button>
+            <div class="lp-topic-actions">
+              <button type="button" class="kr-practice-btn" data-lp-add-goal="${escapeHtml(topic.id)}">+ Unterthema hinzufügen</button>
+              <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lp-rename-topic="${escapeHtml(topic.id)}">Thema umbenennen</button>
+              <button type="button" class="tc-delete-btn tc-topic-delete-btn" data-lp-del-topic="${escapeHtml(topic.id)}" ${
+                state.deletingTopicId === String(topic.id) ? "disabled" : ""
+              }>
+                ${state.deletingTopicId === String(topic.id) ? "Löschen…" : "Thema löschen"}
+              </button>
+            </div>
           </div>
+          ${renaming ? renderNameForm("Neuer Name des Themas", "Themenname", "Umbenennen") : ""}
           ${
             goals.length
               ? `<div class="lpi-table-scroll">
@@ -138,11 +202,39 @@
               <tbody>${rows}</tbody>
             </table>
           </div>`
-              : `<p class="hint">Keine Unterthemen.</p>`
+              : adding
+                ? ""
+                : `<p class="hint">Noch keine Unterthemen – füge das erste mit „+ Unterthema hinzufügen“ hinzu.</p>`
           }
+          ${adding ? renderGoalForm("Neues Unterthema", "Unterthema hinzufügen") : ""}
         </div>`;
       })
       .join("");
+
+    const subjectLabel = state.subject || "dieses Fach";
+    const emptyHint = topics.length
+      ? ""
+      : `<div class="tc-empty"><p>Für ${escapeHtml(subjectLabel)} gibt es in diesem Plan noch keine Themen.</p></div>`;
+    const addTopic = isEditor("topic-add")
+      ? renderNameForm(`Neues Thema in ${subjectLabel}`, "z. B. Potenzen und Wurzeln", "Thema anlegen")
+      : `<button type="button" class="kr-practice-btn" data-lp-add-topic ${state.subject ? "" : "disabled"}>+ Neues Thema in ${escapeHtml(subjectLabel)}</button>`;
+
+    return `${emptyHint}${topicHtml}<div class="lp-add-topic">${addTopic}</div>`;
+  }
+
+  function renderActiveBanner() {
+    if (!state.catalogId) return "";
+    const assigned = [...new Set((state.detail?.assignments || []).map((a) => a.className).filter(Boolean))];
+    const where = assigned.length
+      ? `Dieser Plan ist <b>aktiv</b> für ${assigned.map(escapeHtml).join(", ")}. `
+      : "";
+    return `<div class="lp-banner">
+      ${where}Du kannst ihn <b>jederzeit direkt bearbeiten</b>: Themen und Unterthemen ergänzen, umbenennen oder Ziele ändern –
+      du musst den Plan nicht neu anlegen. Änderungen sehen die Schüler:innen sofort.
+      <div style="margin-top:8px">
+        <button type="button" class="kr-practice-btn kr-practice-btn--ghost" id="lpAppendImportBtn">Mehrere per Text ergänzen (Import)</button>
+      </div>
+    </div>`;
   }
 
   function renderAssignments() {
@@ -200,8 +292,8 @@
       <div class="panel">
         <h2>Levelplan</h2>
         <p class="hint">
-          Levelpläne einer <b>Klassenstufe</b> ansehen, einer Klasse zuweisen oder löschen.
-          Neue Pläne legst du unter <b>Levelplan importieren</b> an (dort „Neuer Levelplan“ wählen).
+          Levelpläne einer <b>Klassenstufe</b> ansehen, <b>bearbeiten und ergänzen</b>, einer Klasse zuweisen oder löschen.
+          Ganz neue Pläne legst du unter <b>Levelplan importieren</b> an (dort „Neuer Levelplan“ wählen).
         </p>
 
         <div class="tc-toolbar">
@@ -230,6 +322,8 @@
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
 
+        ${renderActiveBanner()}
+
         ${
           state.catalogId
             ? `<div class="kr-levels-panel" style="margin-top:1.2em">
@@ -257,8 +351,182 @@
     bindHandlers(root);
   }
 
+  function startEditor(editor) {
+    state.editor = editor;
+    state.message = "";
+    state.error = "";
+    render();
+    const first = document.querySelector("#levelplanTabRoot [data-lp-field]");
+    if (first) first.focus();
+  }
+
+  function readDraftFromDom(root) {
+    if (!state.editor) return;
+    root.querySelectorAll("[data-lp-field]").forEach((el) => {
+      state.editor.draft[el.dataset.lpField] = el.value;
+    });
+  }
+
+  async function saveEditor() {
+    const ed = state.editor;
+    if (!ed || state.savingEditor || !state.catalogId) return;
+    const d = ed.draft || {};
+    const base = `/api/teacher/level-plan-catalogs/${encodeURIComponent(state.catalogId)}`;
+    let url;
+    let method = "POST";
+    let body;
+
+    if (ed.type === "topic-add") {
+      url = `${base}/topics`;
+      body = { subject: state.subject, name: String(d.name || "").trim() };
+      if (!body.name) return fail("Bitte einen Namen für das Thema eingeben.");
+    } else if (ed.type === "topic-rename") {
+      url = `${base}/topics/${encodeURIComponent(ed.topicId)}`;
+      method = "PATCH";
+      body = { name: String(d.name || "").trim() };
+      if (!body.name) return fail("Bitte einen Namen eingeben.");
+    } else {
+      body = {
+        text: String(d.text || "").trim(),
+        rookieGoalText: String(d.rookie || "").trim(),
+        operatorGoalText: String(d.operator || "").trim(),
+        streetLegendGoalText: String(d.streetLegend || "").trim()
+      };
+      if (!body.text) return fail("Bitte einen Namen für das Unterthema eingeben.");
+      if (!body.rookieGoalText || !body.operatorGoalText || !body.streetLegendGoalText) {
+        return fail("Bitte Rookie-, Operator- und Street-Legend-Ziel ausfüllen.");
+      }
+      if (ed.type === "goal-add") {
+        url = `${base}/topics/${encodeURIComponent(ed.topicId)}/goals`;
+      } else {
+        url = `${base}/goals/${encodeURIComponent(ed.goalId)}`;
+        method = "PATCH";
+      }
+    }
+
+    function fail(msg) {
+      state.error = msg;
+      render();
+    }
+
+    state.savingEditor = true;
+    state.error = "";
+    state.message = "";
+    render();
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      state.savingEditor = false;
+      if (!res.ok || !data.success) {
+        state.error = data.message || data.error || "Speichern fehlgeschlagen.";
+        render();
+        return;
+      }
+      state.message = data.message || "Gespeichert.";
+      // Neues Thema: direkt das erste Unterthema anlegen lassen (leere Themen werden sonst entfernt).
+      if (ed.type === "topic-add" && data.topicId) {
+        state.editor = { type: "goal-add", topicId: data.topicId, draft: {} };
+        await loadCatalogs();
+        await loadDetail();
+        document.querySelector("#levelplanTabRoot [data-lp-field]")?.focus();
+        return;
+      }
+      // Mehrere Unterthemen hintereinander: Formular für nächstes Unterthema offen lassen.
+      state.editor = ed.type === "goal-add" ? { type: "goal-add", topicId: ed.topicId, draft: {} } : null;
+      await loadDetail();
+      if (state.editor) document.querySelector("#levelplanTabRoot [data-lp-field]")?.focus();
+    } catch (err) {
+      console.error(err);
+      state.savingEditor = false;
+      state.error = "Netzwerkfehler.";
+      render();
+    }
+  }
+
+  function openImportForCatalog() {
+    if (!state.catalogId) return;
+    if (window.TeacherLevelplanImport?.prefill) {
+      window.TeacherLevelplanImport.prefill({
+        gradeLevel: state.gradeLevel,
+        catalogId: state.catalogId,
+        subject: state.subject
+      });
+    }
+    if (typeof window.showTab === "function") window.showTab("levelplanImportTab");
+  }
+
   function bindHandlers(root) {
+    root.querySelectorAll("[data-lp-field]").forEach((el) => {
+      el.addEventListener("input", () => {
+        if (state.editor) state.editor.draft[el.dataset.lpField] = el.value;
+      });
+    });
+    root.querySelectorAll("[data-lp-save-editor]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        readDraftFromDom(root);
+        saveEditor();
+      })
+    );
+    root.querySelectorAll("[data-lp-cancel-editor]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        state.editor = null;
+        state.error = "";
+        render();
+      })
+    );
+    root.querySelectorAll("[data-lp-add-goal]").forEach((btn) =>
+      btn.addEventListener("click", () =>
+        startEditor({ type: "goal-add", topicId: btn.dataset.lpAddGoal, draft: {} })
+      )
+    );
+    root.querySelectorAll("[data-lp-edit-goal]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        const found = findGoal(btn.dataset.lpEditGoal);
+        if (!found) return;
+        startEditor({
+          type: "goal-edit",
+          goalId: found.goal.id,
+          draft: {
+            text: found.goal.text || "",
+            rookie: found.goal.rookieGoalText || "",
+            operator: found.goal.operatorGoalText || "",
+            streetLegend: found.goal.streetLegendGoalText || ""
+          }
+        });
+      })
+    );
+    root.querySelectorAll("[data-lp-rename-topic]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        const topic = (state.detail?.levelChecks || []).find((t) => sameId(t.id, btn.dataset.lpRenameTopic));
+        startEditor({
+          type: "topic-rename",
+          topicId: btn.dataset.lpRenameTopic,
+          draft: { name: topic?.name || "" }
+        });
+      })
+    );
+    root.querySelector("[data-lp-add-topic]")?.addEventListener("click", () =>
+      startEditor({ type: "topic-add", draft: { name: "" } })
+    );
+    root.querySelector("#lpAppendImportBtn")?.addEventListener("click", openImportForCatalog);
+
+    root.querySelectorAll('.lp-form input[type="text"]').forEach((el) =>
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          readDraftFromDom(root);
+          saveEditor();
+        }
+      })
+    );
+
     root.querySelector("#lpGradeSelect")?.addEventListener("change", async (e) => {
+      state.editor = null;
       state.gradeLevel = e.target.value;
       state.catalogId = null;
       state.detail = null;
@@ -269,6 +537,7 @@
     });
 
     root.querySelector("#lpCatalogSelect")?.addEventListener("change", async (e) => {
+      state.editor = null;
       state.catalogId = e.target.value || null;
       state.message = "";
       state.error = "";
@@ -276,6 +545,7 @@
     });
 
     root.querySelector("#lpSubjectSelect")?.addEventListener("change", (e) => {
+      state.editor = null;
       state.subject = e.target.value;
       state.message = "";
       state.error = "";
@@ -513,6 +783,8 @@
   async function init(opts = {}) {
     state.message = "";
     state.error = "";
+    state.editor = null;
+    state.savingEditor = false;
     try {
       const params = new URLSearchParams(window.location.search || "");
       if (!opts.gradeLevel && params.get("grade")) opts.gradeLevel = params.get("grade");

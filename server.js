@@ -11359,6 +11359,193 @@ app.patch("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) =>
   }
 });
 
+// -------------------------------------------------------
+// TEACHER/ADMIN: bestehenden (auch aktiven/zugewiesenen) Levelplan direkt bearbeiten
+// Thema / Unterthema ergänzen, umbenennen, Rookie/Operator/Street-Legend-Ziele ändern.
+// Änderungen gelten sofort für alle Klassen, denen der Plan zugewiesen ist.
+// -------------------------------------------------------
+async function findOwnedCatalog(catalogId, schoolId) {
+  const r = await pool.query(
+    "SELECT id, grade_level FROM level_plan_catalogs WHERE id = $1 AND school_id = $2",
+    [catalogId, schoolId]
+  );
+  return r.rows[0] || null;
+}
+
+async function findTopicInCatalog(topicId, catalogId) {
+  const r = await pool.query(
+    "SELECT id, subject, name FROM level_checks WHERE id = $1 AND catalog_id = $2",
+    [topicId, catalogId]
+  );
+  return r.rows[0] || null;
+}
+
+function readLevelplanGoalBody(body) {
+  const text = String(body?.text || "").trim().slice(0, 300);
+  const rookie = String(body?.rookieGoalText || "").trim().slice(0, 500);
+  const operator = String(body?.operatorGoalText || "").trim().slice(0, 500);
+  const streetLegend = String(body?.streetLegendGoalText || "").trim().slice(0, 500);
+  return { text, rookie, operator, streetLegend };
+}
+
+app.post("/api/teacher/level-plan-catalogs/:id/topics", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const catalogId = String(req.params.id || "").trim();
+    const subject = String(req.body.subject || "").trim();
+    const name = String(req.body.name || "").trim().slice(0, 120);
+    if (!name) return res.json({ success: false, message: "Bitte einen Namen für das Thema eingeben." });
+    if (!LOG_SUBJECTS.includes(subject)) return res.json({ success: false, message: "Ungültiges Fach." });
+    if (!(await findOwnedCatalog(catalogId, schoolId))) {
+      return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
+    }
+    const dup = await pool.query(
+      `SELECT 1 FROM level_checks
+       WHERE catalog_id = $1 AND subject = $2 AND lower(trim(name)) = lower(trim($3)) LIMIT 1`,
+      [catalogId, subject, name]
+    );
+    if (dup.rows.length) {
+      return res.json({ success: false, message: "Dieses Thema gibt es in diesem Fach schon." });
+    }
+    const topicId = await findOrCreateLevelCheckTopicForCatalog(catalogId, schoolId, subject, name);
+    res.json({ success: true, topicId, message: "Thema angelegt." });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/level-plan-catalogs/:id/topics:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.patch(
+  "/api/teacher/level-plan-catalogs/:id/topics/:topicId",
+  isTeacher,
+  async (req, res) => {
+    try {
+      const schoolId = req.session.user.school_id;
+      const catalogId = String(req.params.id || "").trim();
+      const name = String(req.body.name || "").trim().slice(0, 120);
+      if (!name) return res.json({ success: false, message: "Bitte einen Namen eingeben." });
+      if (!(await findOwnedCatalog(catalogId, schoolId))) {
+        return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
+      }
+      const topic = await findTopicInCatalog(req.params.topicId, catalogId);
+      if (!topic) return res.status(404).json({ success: false, message: "Thema nicht gefunden." });
+      const dup = await pool.query(
+        `SELECT 1 FROM level_checks
+         WHERE catalog_id = $1 AND subject = $2 AND id <> $4 AND lower(trim(name)) = lower(trim($3)) LIMIT 1`,
+        [catalogId, topic.subject, name, topic.id]
+      );
+      if (dup.rows.length) {
+        return res.json({ success: false, message: "Dieses Thema gibt es in diesem Fach schon." });
+      }
+      await pool.query("UPDATE level_checks SET name = $1 WHERE id = $2", [name, topic.id]);
+      res.json({ success: true, message: "Thema umbenannt." });
+    } catch (err) {
+      console.error("❌ PATCH level-plan-catalogs topic:", err);
+      res.status(500).json({ success: false, message: "Serverfehler" });
+    }
+  }
+);
+
+app.post(
+  "/api/teacher/level-plan-catalogs/:id/topics/:topicId/goals",
+  isTeacher,
+  async (req, res) => {
+    try {
+      const schoolId = req.session.user.school_id;
+      const catalogId = String(req.params.id || "").trim();
+      const g = readLevelplanGoalBody(req.body);
+      if (!g.text) return res.json({ success: false, message: "Bitte einen Namen für das Unterthema eingeben." });
+      if (!g.rookie || !g.operator || !g.streetLegend) {
+        return res.json({
+          success: false,
+          message: "Bitte Rookie-, Operator- und Street-Legend-Ziel ausfüllen."
+        });
+      }
+      if (!(await findOwnedCatalog(catalogId, schoolId))) {
+        return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
+      }
+      const topic = await findTopicInCatalog(req.params.topicId, catalogId);
+      if (!topic) return res.status(404).json({ success: false, message: "Thema nicht gefunden." });
+      const dup = await pool.query(
+        `SELECT 1 FROM level_check_goals
+         WHERE level_check_id = $1 AND COALESCE(active, true) = true
+           AND lower(trim(goal_text)) = lower(trim($2)) LIMIT 1`,
+        [topic.id, g.text]
+      );
+      if (dup.rows.length) {
+        return res.json({ success: false, message: "Dieses Unterthema gibt es in diesem Thema schon." });
+      }
+      const orderRes = await pool.query(
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM level_check_goals WHERE level_check_id = $1",
+        [topic.id]
+      );
+      const ins = await pool.query(
+        `INSERT INTO level_check_goals (
+           school_id, level_check_id, goal_text, sort_order,
+           rookie_goal_text, operator_goal_text, street_legend_goal_text, active, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,true,NOW()) RETURNING id`,
+        [schoolId, topic.id, g.text, orderRes.rows[0].next_order, g.rookie, g.operator, g.streetLegend]
+      );
+      res.json({ success: true, goalId: ins.rows[0].id, message: "Unterthema hinzugefügt." });
+    } catch (err) {
+      console.error("❌ POST level-plan-catalogs goal:", err);
+      res.status(500).json({ success: false, message: "Serverfehler" });
+    }
+  }
+);
+
+app.patch(
+  "/api/teacher/level-plan-catalogs/:id/goals/:goalId",
+  isTeacher,
+  async (req, res) => {
+    try {
+      const schoolId = req.session.user.school_id;
+      const catalogId = String(req.params.id || "").trim();
+      const g = readLevelplanGoalBody(req.body);
+      if (!g.text) return res.json({ success: false, message: "Bitte einen Namen für das Unterthema eingeben." });
+      if (!g.rookie || !g.operator || !g.streetLegend) {
+        return res.json({
+          success: false,
+          message: "Bitte Rookie-, Operator- und Street-Legend-Ziel ausfüllen."
+        });
+      }
+      if (!(await findOwnedCatalog(catalogId, schoolId))) {
+        return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
+      }
+      const cur = await pool.query(
+        `SELECT g.id, g.level_check_id
+         FROM level_check_goals g
+         JOIN level_checks lc ON lc.id = g.level_check_id
+         WHERE g.id = $1 AND lc.catalog_id = $2`,
+        [req.params.goalId, catalogId]
+      );
+      if (!cur.rows.length) {
+        return res.status(404).json({ success: false, message: "Unterthema nicht gefunden." });
+      }
+      const dup = await pool.query(
+        `SELECT 1 FROM level_check_goals
+         WHERE level_check_id = $1 AND id <> $3 AND COALESCE(active, true) = true
+           AND lower(trim(goal_text)) = lower(trim($2)) LIMIT 1`,
+        [cur.rows[0].level_check_id, g.text, cur.rows[0].id]
+      );
+      if (dup.rows.length) {
+        return res.json({ success: false, message: "Dieses Unterthema gibt es in diesem Thema schon." });
+      }
+      await pool.query(
+        `UPDATE level_check_goals
+         SET goal_text = $1, rookie_goal_text = $2, operator_goal_text = $3,
+             street_legend_goal_text = $4, updated_at = NOW()
+         WHERE id = $5`,
+        [g.text, g.rookie, g.operator, g.streetLegend, cur.rows[0].id]
+      );
+      res.json({ success: true, message: "Unterthema gespeichert." });
+    } catch (err) {
+      console.error("❌ PATCH level-plan-catalogs goal:", err);
+      res.status(500).json({ success: false, message: "Serverfehler" });
+    }
+  }
+);
+
 app.get("/api/teacher/level-plan-assignments", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;

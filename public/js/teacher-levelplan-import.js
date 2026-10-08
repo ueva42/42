@@ -153,7 +153,10 @@
         <p class="hint">
           Der Import gehört zu einer <strong>Klassenstufe</strong> (z.&nbsp;B. 9 oder 10) – noch keiner einzelnen Klasse.
           Eine Überschrift vor Rookie/Operator/Street Legend reicht als Thema.
-          Für jeden neuen Plan „<strong>— Neuer Levelplan —</strong>“ wählen (sonst werden Themen an den vorhandenen Plan angehängt).
+          <strong>Neuer Plan:</strong> „— Neuer Levelplan —“ wählen.
+          <strong>Bestehenden (auch aktiven) Plan ergänzen:</strong> den Plan unter „Levelplan“ auswählen – Themen und Unterthemen werden dann hinzugefügt,
+          bestehende bleiben erhalten (gleiche Unterthemen werden aktualisiert).
+          Einzelne Unterthemen ergänzt du am einfachsten direkt im Tab <strong>Levelplan</strong> mit „+ Unterthema hinzufügen“.
           Klassen weist du den Plan unter <strong>Levelplan</strong> zu.
         </p>
 
@@ -356,20 +359,14 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg." ${state.saving ? "disa
       else state.catalogName = `${state.subject || "Levelplan"} Klasse ${state.gradeLevel}`;
     }
 
-    if (!confirm(`${rows.length} Einträge in Levelplan (Klassenstufe ${state.gradeLevel}) importieren?`)) {
+    const targetPlan = state.catalogId
+      ? catalogsForGrade().find((c) => sameId(c.id, state.catalogId))
+      : null;
+    const targetLabel = targetPlan
+      ? `an den bestehenden Levelplan „${targetPlan.displayName || targetPlan.name}“ angehängt`
+      : `als neuer Levelplan (Klassenstufe ${state.gradeLevel}) angelegt`;
+    if (!confirm(`${rows.length} Einträge werden ${targetLabel}. Fortfahren?`)) {
       return;
-    }
-
-    if (state.catalogId) {
-      const existing = catalogsForGrade().find((c) => sameId(c.id, state.catalogId));
-      const label = existing?.displayName || existing?.name || "diesen Levelplan";
-      if (
-        !confirm(
-          `Die Einträge werden an „${label}“ angehängt.\n\nFür einen eigenen Plan bitte „— Neuer Levelplan —“ wählen.\nTrotzdem anhängen?`
-        )
-      ) {
-        return;
-      }
     }
 
     state.saving = true;
@@ -405,13 +402,19 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg." ${state.saving ? "disa
         return;
       }
 
-      // Nächster Import startet wieder als neuer Plan (nicht an denselben anhängen).
-      state.catalogId = null;
-      state.catalogName = "";
+      const appended = !!state.catalogId;
+      // Nach einem neuen Plan startet der nächste Import wieder als „Neuer Levelplan“;
+      // beim Ergänzen bleibt der Plan ausgewählt, damit man weiter anhängen kann.
+      if (!appended) {
+        state.catalogName = "";
+        state.catalogId = null;
+      }
       await loadCatalogs();
       state.message =
         (data.message || "Import erfolgreich.") +
-        " Unter „Levelplan“ kannst du ihn einer Klasse zuweisen. Für den nächsten Import ist wieder „Neuer Levelplan“ vorausgewählt.";
+        (appended
+          ? " Der Plan wurde ergänzt (Ansicht unter „Levelplan“)."
+          : " Unter „Levelplan“ kannst du ihn einer Klasse zuweisen. Für den nächsten Import ist wieder „Neuer Levelplan“ vorausgewählt.");
       state.previewRows = [];
       render();
     } catch (err) {
@@ -420,6 +423,13 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg." ${state.saving ? "disa
       state.error = "Netzwerkfehler beim Import.";
       render();
     }
+  }
+
+  let pendingContext = null;
+
+  // Vom Levelplan-Tab aus aufrufen: Import mit vorausgewähltem Plan öffnen.
+  function prefill(ctx) {
+    pendingContext = ctx || null;
   }
 
   async function init() {
@@ -432,10 +442,15 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg." ${state.saving ? "disa
     state.message = "";
     state.error = "";
     state.previewRows = [];
+    const ctx = pendingContext;
+    pendingContext = null;
+    if (ctx?.gradeLevel) state.gradeLevel = String(ctx.gradeLevel);
+    if (ctx) state.catalogId = ctx.catalogId || null;
     render();
 
     try {
       await loadSubjects();
+      if (ctx?.subject && state.subjects.includes(ctx.subject)) state.subject = ctx.subject;
       await loadCatalogs();
       render();
     } catch (err) {
@@ -447,5 +462,5 @@ Ich löse Zählaufgaben sicher und begründe meinen Weg." ${state.saving ? "disa
     }
   }
 
-  window.TeacherLevelplanImport = { init };
+  window.TeacherLevelplanImport = { init, prefill };
 })();
