@@ -771,6 +771,15 @@
         <div class="plan-next-modal">
           <p class="plan-next-modal__kicker">Tagesziel gespeichert</p>
           <h3 class="plan-next-modal__title">${ui.escapeHtml(title)}</h3>
+          ${
+            groupRoleSummary()
+              ? `<p class="plan-next-modal__goal">Gruppenrolle: <strong>${ui.escapeHtml(
+                  groupRoleSummary().roleText
+                )}</strong>${
+                  groupRoleSummary().person ? ` (${ui.escapeHtml(groupRoleSummary().person)})` : ""
+                }</p>`
+              : ""
+          }
           <p class="plan-next-modal__goal">Unterpunkt: <strong>${ui.escapeHtml(goalText)}</strong></p>
           ${
             materialBits.length
@@ -932,6 +941,21 @@
     return (gc.myRoles || []).length > 0;
   }
 
+  /** Gewählte Gruppenrolle(n) der planenden Person – für Zusammenfassung & Abschluss. */
+  function groupRoleSummary() {
+    const gc = state.groupContext;
+    if (!gc?.enabled || !gc.hasGroup || gc.needsSetup) return null;
+    const names = planningTargetRoles()
+      .map((r) => String(r?.name || "").trim())
+      .filter(Boolean);
+    if (!names.length) return null;
+    const handoff = isSharedGroupDevice() ? currentHandoffMember() : null;
+    return {
+      roleText: names.join(", "),
+      person: handoff?.displayName || ""
+    };
+  }
+
   /** Gruppenarbeit: nach Unterthema zusätzlich ein Was-Ziel zur eigenen Rolle. */
   function roleGoalRequired() {
     return (state.roleWasGoalOptions || []).length > 0;
@@ -1035,6 +1059,8 @@
   function whatStepSummary() {
     const parts = [];
     if (state.subject) parts.push(state.subject);
+    const gr = groupRoleSummary();
+    if (gr) parts.push(`Gruppenrolle: ${gr.roleText}`);
     if (state.whatGoalText) parts.push(state.whatGoalText);
     const rg = selectedRoleGoal();
     if (rg) parts.push(`Rolle: ${rg.text}`);
@@ -1560,8 +1586,37 @@
       ...controlLines
     ].filter(Boolean);
 
+    const groupRole = groupRoleSummary();
     return `
       <div class="mission-summary">
+        ${
+          groupRole
+            ? `<div class="mission-summary__block">
+          <p class="mission-summary__label">Meine Gruppenrolle</p>
+          <p class="mission-summary__value"><strong>${ui.escapeHtml(groupRole.roleText)}</strong>${
+            groupRole.person ? ` · ${ui.escapeHtml(groupRole.person)}` : ""
+          }</p>
+        </div>`
+            : ""
+        }
+        ${
+          state.subject
+            ? `<div class="mission-summary__block">
+          <p class="mission-summary__label">Fach${state.whatGoalText ? " · Unterthema" : ""}</p>
+          <p class="mission-summary__value">${ui.escapeHtml(
+            [state.subject, state.whatGoalText].filter(Boolean).join(" · ")
+          )}</p>
+        </div>`
+            : ""
+        }
+        ${
+          selectedRoleGoal()
+            ? `<div class="mission-summary__block">
+          <p class="mission-summary__label">Was-Ziel zur Rolle</p>
+          <p class="mission-summary__value">${ui.escapeHtml(selectedRoleGoal().text)}</p>
+        </div>`
+            : ""
+        }
         ${
           state.levelGoalText
             ? `<div class="mission-summary__block">
