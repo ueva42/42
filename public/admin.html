@@ -283,6 +283,30 @@
       cursor: pointer;
     }
 
+    .admin-addaccount-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      margin-right: 10px;
+      padding: 0 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.55);
+      background: rgba(15, 23, 42, 0.85);
+      color: #e2e8f0;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+
+    .admin-addaccount-btn:hover,
+    .admin-addaccount-btn:focus-visible {
+      outline: none;
+      border-color: #f97316;
+      box-shadow: 0 0 14px rgba(249, 115, 22, 0.45);
+    }
+
     .admin-logout-btn:hover,
     .admin-logout-btn:focus-visible {
       outline: none;
@@ -1728,6 +1752,11 @@
         <div class="page-subtitle">ADMINISTRATION – getrennter Zugang</div>
       </div>
       <div class="page-header-actions">
+        <button type="button" class="admin-addaccount-btn" id="adminAddAccountBtn"
+          title="Weiteres Konto (z. B. Lehrkraft) in neuem Tab anmelden – Admin bleibt angemeldet"
+          onclick="window.SolAuth?.addAccount?.()">
+          Weiteres Konto
+        </button>
         <button type="button" class="admin-logout-btn" id="adminLogoutBtn" onclick="logout()">
           Logout
         </button>
@@ -2162,7 +2191,7 @@
 
 <script src="/js/client-cache-reset.js?v=4"></script>
 <script src="/js/demo-banner.js?v=2"></script>
-<script src="/js/auth-fetch.js?v=22"></script>
+<script src="/js/auth-fetch.js?v=23"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/teacher-dashboard.js?v=5"></script>
@@ -2415,7 +2444,7 @@ async function logout() {
     await window.SolAuth.logoutAndRedirect();
     return;
   }
-  window.location.replace(`/logout?t=${Date.now()}`);
+  window.location.replace(`/logout?role=admin&t=${Date.now()}`);
 }
 
 document.querySelector(".nav-item-logout")?.addEventListener("keydown", (e) => {

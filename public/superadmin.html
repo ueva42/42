@@ -570,7 +570,7 @@
 </div>
 
 <script src="/js/client-cache-reset.js?v=4"></script>
-<script src="/js/auth-fetch.js?v=22"></script>
+<script src="/js/auth-fetch.js?v=23"></script>
 <script>
 let schoolsCache = [];
 
@@ -609,7 +609,7 @@ async function logout() {
     await window.SolAuth.logoutAndRedirect();
     return;
   }
-  window.location.replace(`/logout?t=${Date.now()}`);
+  window.location.replace(`/logout?role=superadmin&t=${Date.now()}`);
 }
 
 /* Helper: Slug automatisch aus Namen */

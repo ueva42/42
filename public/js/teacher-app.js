@@ -41,7 +41,7 @@
       await window.SolAuth.logoutAndRedirect();
       return;
     }
-    window.location.replace(`/logout?t=${Date.now()}`);
+    window.location.replace(`/logout?role=teacher&t=${Date.now()}`);
   }
 
   function escapeHtml(str) {
@@ -760,6 +760,12 @@
         <h2 class="section-title">Konto</h2>
       </div>
       <div class="tile-grid tile-grid--tools">
+        <button type="button" class="tile tile--tool" id="addAccountBtn">
+          <p class="tile-kicker">Session</p>
+          <h3>Weiteres Konto</h3>
+          <p>Z. B. Administration in neuem Tab anmelden – diese Anmeldung bleibt bestehen</p>
+          <span class="tile-cta">Neuer Tab →</span>
+        </button>
         <button type="button" class="tile tile--tool tile--danger" id="logoutBtn">
           <p class="tile-kicker">Session</p>
           <h3>Abmelden</h3>
@@ -1230,6 +1236,10 @@
         return;
       }
       setTab("heute");
+      return;
+    }
+    if (ev.target.closest("#addAccountBtn")) {
+      window.SolAuth?.addAccount?.();
       return;
     }
     if (ev.target.closest("#logoutBtn")) {

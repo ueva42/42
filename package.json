@@ -11,7 +11,8 @@
     "test:levelplan-import": "node scripts/test-levelplan-import.js",
     "test:student-day-checks": "node scripts/test-student-day-checks.js",
     "test:session-logout": "node scripts/test-session-logout.js",
-    "test": "npm run test:group-mode && npm run test:freedom-ranks && npm run test:levelplan-import && npm run test:student-day-checks && npm run test:session-logout"
+    "test:session-scope": "node scripts/test-session-scope.js",
+    "test": "npm run test:group-mode && npm run test:freedom-ranks && npm run test:levelplan-import && npm run test:student-day-checks && npm run test:session-logout && npm run test:session-scope"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.932.0",

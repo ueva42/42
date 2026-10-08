@@ -3,8 +3,13 @@
  * Logout nur wenn die Session nachweislich tot ist (401 / authenticated:false).
  * Ein 403 bei gültiger Session darf niemanden aus dem Tab werfen.
  *
- * Multi-Tab: Alle Tabs teilen EIN Session-Cookie (connect.sid). Meldet sich in
- * Tab B ein anderes Konto an, kann Tab A nicht parallel als altes Konto
+ * Multi-Login: Pro Rolle ein eigenes Session-Cookie (sol.sid.admin / .teacher /
+ * .student / .superadmin). Admin- und Lehrer-Tab im selben Browser stören sich
+ * nicht. Jeder Tab merkt sich beim Laden seine Rolle (Boot-Scope aus dem Pfad)
+ * und schickt sie als X-Sol-Scope mit, damit der Server das richtige Cookie nutzt.
+ *
+ * Multi-Tab derselben Rolle: Tabs teilen dort EIN Cookie. Meldet sich in Tab B
+ * ein anderes Konto derselben Rolle an, kann Tab A nicht parallel als altes Konto
  * weiterarbeiten. Wir verhindern nur, dass Tab A unter fremder Identität
  * liest/schreibt (409), und zeigen ein ruhiges Banner. Kein Auto-Redirect,
  * kein Wipe von localStorage, keine Kaskade über Tabs.
@@ -20,6 +25,18 @@
   // darf dieser Tab nicht still unter fremder Identität weiterlaufen.
   const TAB_IDENTITY_KEY = "sol.tabIdentity";
   const IDENTITY_HEADER = "X-Sol-User";
+  const SCOPE_HEADER = "X-Sol-Scope";
+
+  /** Rolle dieser Shell anhand des Boot-Pfads (ändert sich nicht durch pushState). */
+  function scopeFromPath(pathname) {
+    const p = String(pathname || "");
+    if (p === "/admin" || p.startsWith("/admin/")) return "admin";
+    if (p === "/superadmin" || p.startsWith("/superadmin/")) return "superadmin";
+    if (p === "/teacher" || p.startsWith("/teacher/")) return "teacher";
+    if (p === "/student" || p.startsWith("/student/") || p === "/first-login") return "student";
+    return "";
+  }
+  const BOOT_SCOPE = scopeFromPath(window.location.pathname);
   // Pro Tab nach Logout/Kontowechsel: erst nach echtem Login darf der Tab wieder
   // eine Session übernehmen (sonst holt „Zurück“ fremde Shells zurück).
   // Bewusst ohne "sol."-Präfix, damit authClear() den Marker nicht löscht.
@@ -77,11 +94,19 @@
     } catch (_err) {}
   }
 
-  /** Explizites Logout: auch geteilte sol.*-Schlüssel entfernen. */
+  /**
+   * Explizites Logout. Schüler (ein Konto pro Gerät): alle sol.*-Schlüssel entfernen.
+   * Admin/Lehrer/Superadmin: nur diesen Tab + den geteilten Rollen-Marker – andere
+   * angemeldete Rollen im selben Browser behalten ihren Zustand.
+   */
   function authClear() {
     authClearTab();
     try {
-      clearStorageKeys(localStorage);
+      if (!BOOT_SCOPE || BOOT_SCOPE === "student") {
+        clearStorageKeys(localStorage);
+      } else if (localStorage.getItem(AUTH_KEY) === BOOT_SCOPE) {
+        localStorage.removeItem(AUTH_KEY);
+      }
     } catch (_err) {}
   }
 
@@ -135,10 +160,9 @@
 
   /** Admin-Shell: /admin oder Admin-Session (auch wenn Tool-JS kurz /teacher/* pushState't). */
   function isAdminShell() {
-    const path = window.location.pathname || "";
-    if (path === "/admin" || path.startsWith("/admin/")) return true;
+    if (BOOT_SCOPE === "admin") return true;
     if (window.__staffSession?.role === "admin") return true;
-    if (authGet() === "admin") return true;
+    // Kein localStorage-Fallback: sonst färbt ein Admin-Tab auf Lehrer-Tabs ab.
     return false;
   }
 
@@ -210,7 +234,7 @@
       msg.textContent =
         kind === "ended"
           ? "Diese Sitzung wurde beendet (z. B. Abmeldung in einem anderen Tab). Änderungen hier werden nicht gespeichert."
-          : "In diesem Browser ist jetzt ein anderes Konto angemeldet (alle Tabs teilen eine Sitzung). Diese Ansicht ist pausiert – es wird nichts unter dem falschen Konto gespeichert.";
+          : "In diesem Browser hat sich ein anderes Konto derselben Rolle angemeldet (Tabs gleicher Rolle teilen eine Sitzung). Diese Ansicht ist pausiert – es wird nichts unter dem falschen Konto gespeichert.";
       const mk = (label, onClick) => {
         const b = document.createElement("button");
         b.type = "button";
@@ -330,7 +354,16 @@
         ]);
       }
     } catch (_err) {}
-    window.location.replace(`/logout?t=${Date.now()}`);
+    // Nur die Session der eigenen Rolle beenden (Admin bleibt bei Lehrer-Logout angemeldet).
+    const roleParam = BOOT_SCOPE ? `role=${encodeURIComponent(BOOT_SCOPE)}&` : "";
+    window.location.replace(`/logout?${roleParam}t=${Date.now()}`);
+  }
+
+  /** Weiteres Konto (z. B. Lehrkraft neben Admin) in neuem Tab anmelden – bestehende Logins bleiben. */
+  function addAccount() {
+    const url = `/login?add=1&t=${Date.now()}`;
+    const win = window.open(url, "_blank");
+    if (!win) window.location.assign(url);
   }
 
   window.SolAuth = {
@@ -351,7 +384,9 @@
     needsLogin: tabNeedsLogin,
     tabIdentity: tabIdentityGet,
     enforceShell,
-    logoutAndRedirect
+    logoutAndRedirect,
+    addAccount,
+    scope: BOOT_SCOPE
   };
 
   function resolvePath(input) {
@@ -388,7 +423,28 @@
     );
   }
 
-  function fetchWithTimeout(input, init, timeoutMs) {
+  /** X-Sol-Scope: dem Server sagen, welche Rollen-Session (Cookie) dieser Tab nutzt. */
+  function withScopeHeader(input, init) {
+    if (!BOOT_SCOPE) return init;
+    let target = "";
+    try {
+      target = new URL(
+        typeof input === "string" ? input : input instanceof URL ? input.href : input?.url || "",
+        window.location.origin
+      ).pathname;
+    } catch (_err) {
+      return init;
+    }
+    if (!target.startsWith("/api/")) return init;
+    const headers = new Headers(
+      init?.headers || (input instanceof Request ? input.headers : undefined)
+    );
+    if (!headers.has(SCOPE_HEADER)) headers.set(SCOPE_HEADER, BOOT_SCOPE);
+    return { ...init, headers };
+  }
+
+  function fetchWithTimeout(input, rawInit, timeoutMs) {
+    const init = withScopeHeader(input, rawInit);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     const parentSignal = init?.signal;

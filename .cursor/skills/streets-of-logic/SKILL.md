@@ -28,6 +28,7 @@ German SRL logbook + GTA-themed XP platform for schools (classes 5–9+).
 **Strict separation:** one role per account; no Admin↔Lehrer in-app switch. Admins manage teacher accounts (start password) in `/admin`; teachers log in with their own credentials to `/teacher`. Wrong-role URLs bounce to that role’s home.
 
 Session: `req.session.user = { id, role, class_id, school_id }`. Multi-tenant via `school_id`.
+**Multi-login:** one cookie per role (`sol.sid.admin|teacher|student|superadmin`, shared PG store `user_sessions`). Admin + Lehrer can be logged in side by side; logout (`/logout?role=…`) only ends that role. Request → cookie via `X-Sol-Scope` (auth-fetch boot path) → page path → Referer → cookie fallback (`lib/session-scope.js`). Login/logout paths are sessionless in the global middleware; `loginUserSession` loads only the target role's session. Students: one session per device.
 Teacher class scope: `teacher_class_assignments` (admins see all school classes).
 Auth helpers: `isTeacher` APIs (teacher\|admin for admin-shell tools), `isTeacherShell` HTML `/teacher*` (teacher only), `isAdmin` (admin only). Insights: `lib/teacher-insights.js`.
 

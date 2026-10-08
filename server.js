@@ -46,11 +46,23 @@ import {
 } from "./lib/teacher-auth.js";
 import {
   parseAllSessionIds,
-  hasLogoutMarker,
   sessionCookieClearVariants,
-  SESSION_COOKIE_NAME,
-  LOGOUT_MARKER_NAME
+  SESSION_COOKIE_NAME
 } from "./lib/session-logout.js";
+import {
+  SESSION_ROLES,
+  LAST_ROLE_COOKIE,
+  isSessionRole,
+  sessionCookieNameFor,
+  logoutMarkerNameFor,
+  parseScopedSessionIds,
+  rolesWithSessionCookie,
+  hasScopedLogoutMarker,
+  lastRoleFromCookies,
+  orderRolesByPreference,
+  pickRequestScope,
+  cookieClearVariants
+} from "./lib/session-scope.js";
 import { registerTeacherCoachingRoutes } from "./lib/teacher-coaching-api.js";
 import {
   parseLevelplanImportText as parseLevelplanImportTextBase,
@@ -2785,27 +2797,102 @@ try {
   console.error("❌ user_sessions konnte nicht angelegt werden:", err.message || err);
 }
 
-app.use(
-  session({
-    store: new PgSession({
-      pool,
-      tableName: "user_sessions",
-      createTableIfMissing: true,
-      // TTL an Cookie angleichen, sonst fliegt man nach Store-Expiry raus
-      ttl: Math.floor(SESSION_MAX_AGE_MS / 1000)
-    }),
-    secret: process.env.SESSION_SECRET || "super-temp-secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: isProduction,
-      sameSite: "lax",
-      httpOnly: true,
-      maxAge: SESSION_MAX_AGE_MS
-    },
-    rolling: false
-  })
+// Rollen-Sessions: ein gemeinsamer PG-Store, aber pro Rolle ein eigenes Cookie
+// (sol.sid.admin / .teacher / .student / .superadmin). So bleiben Admin und
+// Lehrkraft im selben Browser parallel angemeldet. Pro Anfrage läuft genau EINE
+// dieser Session-Middlewares (siehe scopedSession unten).
+const sessionStore = new PgSession({
+  pool,
+  tableName: "user_sessions",
+  createTableIfMissing: true,
+  // TTL an Cookie angleichen, sonst fliegt man nach Store-Expiry raus
+  ttl: Math.floor(SESSION_MAX_AGE_MS / 1000)
+});
+
+const sessionMiddlewareByRole = Object.fromEntries(
+  SESSION_ROLES.map((role) => [
+    role,
+    session({
+      name: sessionCookieNameFor(role),
+      store: sessionStore,
+      secret: process.env.SESSION_SECRET || "super-temp-secret",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: isProduction,
+        sameSite: "lax",
+        httpOnly: true,
+        maxAge: SESSION_MAX_AGE_MS
+      },
+      rolling: false
+    })
+  ])
 );
+
+// Pfade ohne Session-Objekt: Login legt die Session der Ziel-Rolle selbst an,
+// Logout zerstört gezielt das Cookie einer Rolle.
+const SESSIONLESS_PATHS = new Set([
+  "/",
+  "/login",
+  "/login.html",
+  "/api/login",
+  "/api/demo/login",
+  "/api/logout",
+  "/logout",
+  "/health",
+  "/health/db"
+]);
+
+const STATIC_PREFIXES = ["/js/", "/icons/", "/css/", "/characters/", "/assets/"];
+const STATIC_FILES = new Set([
+  "/manifest.json",
+  "/sw.js",
+  "/offline.html",
+  "/pwa-init.js",
+  "/favicon.ico",
+  "/library-fantasy-bg.jpg"
+]);
+
+function isStaticAssetPath(p) {
+  return STATIC_FILES.has(p) || STATIC_PREFIXES.some((prefix) => p.startsWith(prefix));
+}
+
+function sessionSecret() {
+  return process.env.SESSION_SECRET || "super-temp-secret";
+}
+
+/** Welche Rollen-Session diese Anfrage nutzt (siehe lib/session-scope.js). */
+function requestSessionScope(req) {
+  return pickRequestScope({
+    path: String(req.path || ""),
+    headers: req.headers,
+    cookieHeader: req.headers?.cookie || "",
+    secret: sessionSecret()
+  });
+}
+
+app.use((req, res, next) => {
+  const p = String(req.path || "");
+  if (SESSIONLESS_PATHS.has(p) || isStaticAssetPath(p)) return next();
+
+  const scope = requestSessionScope(req) || "student";
+  req.solScope = scope;
+
+  // Kurz nach Logout dieser Rolle: keine Daten mehr unter dieser Rolle liefern
+  // (parallele SPA-Requests dürfen die zerstörte Session nicht zurückspeichern).
+  // Andere Rollen (z. B. Admin nach Lehrer-Logout) sind davon nicht betroffen.
+  if (hasScopedLogoutMarker(req.headers?.cookie || "", scope)) {
+    if (LOGOUT_MARKER_ALLOW.has(p)) return next();
+    if (p.startsWith("/api/") || req.method !== "GET") {
+      return res.status(401).json({ authenticated: false, loggedOut: true });
+    }
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    return res.redirect(303, `/login?loggedout=1&t=${Date.now()}`);
+  }
+
+  return sessionMiddlewareByRole[scope](req, res, next);
+});
+
 function sameSessionValue(a, b) {
   if (a == null && b == null) return true;
   return String(a) === String(b);
@@ -2864,9 +2951,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Tab-Identität (X-Sol-User aus auth-fetch.js): Alle Tabs teilen ein Cookie.
-// Hat sich in einem anderen Tab ein anderes Konto angemeldet, darf ein alter
-// Tab keine Daten unter der fremden Identität lesen oder schreiben.
+// Tab-Identität (X-Sol-User aus auth-fetch.js): Tabs derselben Rolle teilen ein
+// Cookie (sol.sid.<rolle>). Hat sich in einem anderen Tab ein anderes Konto
+// DERSELBEN Rolle angemeldet, darf ein alter Tab keine Daten unter der fremden
+// Identität lesen oder schreiben. Admin- und Lehrer-Tabs sind davon nicht betroffen
+// (getrennte Cookies).
 const IDENTITY_EXEMPT_API = new Set([
   "/api/login",
   "/api/logout",
@@ -2890,148 +2979,141 @@ app.use((req, res, next) => {
   });
 });
 
-function sessionSecret() {
-  return process.env.SESSION_SECRET || "super-temp-secret";
+function cookieOpts(extra = {}) {
+  return { path: "/", httpOnly: true, sameSite: "lax", secure: isProduction, ...extra };
 }
 
-function clearSessionCookie(res) {
+function clearCookieEverywhere(res, name) {
+  for (const opts of cookieClearVariants()) {
+    res.clearCookie(name, opts);
+  }
+}
+
+/** Altlast: das frühere gemeinsame connect.sid (vor Rollen-Cookies). */
+function clearLegacySessionCookie(res) {
   for (const opts of sessionCookieClearVariants()) {
     res.clearCookie(SESSION_COOKIE_NAME, opts);
   }
 }
 
-function setLogoutMarker(res) {
-  const opts = {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    maxAge: 2 * 60 * 1000
-  };
-  res.cookie(LOGOUT_MARKER_NAME, "1", opts);
+function setLogoutMarker(res, role) {
+  res.cookie(logoutMarkerNameFor(role), "1", cookieOpts({ maxAge: 2 * 60 * 1000 }));
 }
 
-function clearLogoutMarker(res) {
-  for (const secure of [true, false]) {
-    res.clearCookie(LOGOUT_MARKER_NAME, {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      secure
-    });
-  }
+function clearLogoutMarker(res, role) {
+  clearCookieEverywhere(res, logoutMarkerNameFor(role));
+}
+
+function setLastRoleCookie(res, role) {
+  res.cookie(LAST_ROLE_COOKIE, role, cookieOpts({ maxAge: SESSION_MAX_AGE_MS }));
+}
+
+function storeGetSession(sid) {
+  return new Promise((resolve) => {
+    sessionStore.get(sid, (err, sess) => resolve(err ? null : sess || null));
+  });
 }
 
 /**
- * Alle Session-Cookies dieser Origin zerstören (nicht nur die eine ID,
- * die cookie.parse übrig lässt). Kein Clear-Site-Data: das lässt Chrome
- * die aktuelle Shell neu laden und kann dabei ein zweites Cookie einer
- * anderen Rolle zur aktiven Session machen.
+ * Eingeloggten Nutzer einer beliebigen Rollen-Session lesen, ohne req.session
+ * zu belegen (für /login und Rollen-Redirects). Bevorzugt die zuletzt genutzte Rolle.
  */
-function destroySession(req, res, done) {
-  const finish = (ok = true) => {
-    try {
-      delete req.session;
-    } catch (_err) {}
-    clearSessionCookie(res);
-    setLogoutMarker(res);
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    done(ok);
-  };
+async function peekSessionUser(req, { prefer = [] } = {}) {
+  const cookieHeader = req.headers?.cookie || "";
+  const secret = sessionSecret();
+  const roles = orderRolesByPreference(rolesWithSessionCookie(cookieHeader, secret), {
+    prefer,
+    lastRole: lastRoleFromCookies(cookieHeader)
+  });
+  for (const role of roles) {
+    for (const sid of parseScopedSessionIds(cookieHeader, role, secret)) {
+      const sess = await storeGetSession(sid);
+      const user = sess?.user;
+      if (user?.id && user.role) return user;
+    }
+  }
+  return null;
+}
 
-  const ids = parseAllSessionIds(req.headers?.cookie || "", sessionSecret());
-  if (req.sessionID && !ids.includes(req.sessionID)) ids.push(req.sessionID);
-
-  const store = req.sessionStore;
-  if (!store || !ids.length) return finish(true);
-
+function destroySessionIds(ids, done) {
+  if (!ids.length) return done(true);
   let pending = ids.length;
   let failed = false;
   for (const id of ids) {
-    store.destroy(id, (err) => {
+    sessionStore.destroy(id, (err) => {
       if (err) {
         console.error("❌ session.destroy:", err);
         failed = true;
       }
       pending -= 1;
-      if (pending === 0) finish(!failed);
+      if (pending === 0) done(!failed);
     });
   }
 }
 
-function sendLoginPage(res, { keepSession = false } = {}) {
+/**
+ * Nur die Session EINER Rolle beenden (Cookie + Store-Zeile). Die Cookies der
+ * anderen Rollen bleiben unangetastet – Admin bleibt angemeldet, wenn sich die
+ * Lehrkraft abmeldet. Altlast connect.sid wird mit aufgeräumt.
+ * Kein Clear-Site-Data: das lässt Chrome die aktuelle Shell neu laden.
+ */
+function destroyRoleSession(req, res, role, done) {
+  const cookieHeader = req.headers?.cookie || "";
+  const secret = sessionSecret();
+  const ids = role ? parseScopedSessionIds(cookieHeader, role, secret) : [];
+  for (const legacyId of parseAllSessionIds(cookieHeader, secret)) {
+    if (!ids.includes(legacyId)) ids.push(legacyId);
+  }
+
+  destroySessionIds(ids, (ok) => {
+    if (role) {
+      clearCookieEverywhere(res, sessionCookieNameFor(role));
+      setLogoutMarker(res, role);
+      if (lastRoleFromCookies(cookieHeader) === role) {
+        clearCookieEverywhere(res, LAST_ROLE_COOKIE);
+      }
+    }
+    clearLegacySessionCookie(res);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    done(ok, role);
+  });
+}
+
+/** Welche Rolle meldet sich ab? ?role= / Body / X-Sol-Scope, sonst Referer/Cookies. */
+function logoutRoleFor(req) {
+  const asked = String(req.query?.role || req.body?.role || "").trim().toLowerCase();
+  if (isSessionRole(asked)) return asked;
+  return requestSessionScope(req);
+}
+
+function sendLoginPage(req, res) {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  if (!keepSession) clearSessionCookie(res);
+  if (String(req.headers?.cookie || "").includes(`${SESSION_COOKIE_NAME}=`)) {
+    clearLegacySessionCookie(res);
+  }
   return res.sendFile(path.join(__dirname, "public", "login.html"));
 }
 
-function sendToAppOrLogin(req, res) {
-  // Expliziter Logout: Login immer zeigen und Rest-Session verwerfen,
-  // sonst bounce Admin/Teacher wegen sendToAppOrLogin zurück in die App.
-  const forceLogin =
-    String(req.query?.loggedout || "") === "1" ||
-    String(req.query?.logout || "") === "1" ||
-    hasLogoutMarker(req.headers?.cookie || "");
-  if (forceLogin) {
-    return destroySession(req, res, () => sendLoginPage(res));
-  }
+// Login-Seite mit Hinweis statt Auto-Weiterleitung: explizites Logout, Konto-/Tabwechsel,
+// oder bewusst „weiteres Konto anmelden“ (add=1). Keine Session wird dabei angefasst.
+const LOGIN_STAY_PARAMS = ["loggedout", "logout", "switched", "relogin", "add"];
 
-  // Tab mit anderer/abgemeldeter Identität: Login zeigen, ohne die Session
-  // des anderen Tabs zu zerstören und ohne in dessen Bereich weiterzuleiten.
-  const relogin =
-    String(req.query?.switched || "") === "1" || String(req.query?.relogin || "") === "1";
-  if (relogin) {
-    return sendLoginPage(res, { keepSession: true });
-  }
+async function sendToAppOrLogin(req, res) {
+  const stay = LOGIN_STAY_PARAMS.some((key) => String(req.query?.[key] || "") === "1");
+  if (stay) return sendLoginPage(req, res);
 
-  const user = req.session?.user;
-  const role = user?.role;
-  if (role === "admin" || role === "teacher" || role === "student" || role === "superadmin") {
-    return res.redirect(302, defaultPostLoginPath(user));
+  try {
+    const user = await peekSessionUser(req);
+    if (user) return res.redirect(302, defaultPostLoginPath(user));
+  } catch (err) {
+    console.error("❌ sendToAppOrLogin:", err);
   }
-  return sendLoginPage(res);
+  return sendLoginPage(req, res);
 }
 
-// Kurz nach Logout: keine fremde Rolle mehr ausliefern, auch wenn noch ein
-// zweites Session-Cookie ankommt. Login selbst bleibt erreichbar.
-const LOGOUT_MARKER_ALLOW = new Set([
-  "/",
-  "/login",
-  "/login.html",
-  "/logout",
-  "/api/login",
-  "/api/logout",
-  "/api/auth/session",
-  "/api/demo/login",
-  "/api/demo/status",
-  "/health",
-  "/health/db"
-]);
-app.use((req, res, next) => {
-  if (!hasLogoutMarker(req.headers?.cookie || "")) return next();
-  const p = String(req.path || "");
-  if (LOGOUT_MARKER_ALLOW.has(p)) return next();
-  if (
-    p.startsWith("/js/") ||
-    p.startsWith("/icons/") ||
-    p.startsWith("/css/") ||
-    p.startsWith("/characters/") ||
-    p === "/manifest.json" ||
-    p === "/sw.js" ||
-    p === "/offline.html" ||
-    p === "/pwa-init.js" ||
-    /\.(?:png|jpe?g|gif|webp|svg|ico|css|js|map|woff2?|ttf|json)$/i.test(p)
-  ) {
-    return next();
-  }
-  if (p.startsWith("/api/") || req.method !== "GET") {
-    return res.status(401).json({ authenticated: false, loggedOut: true });
-  }
-  return destroySession(req, res, () => {
-    res.redirect(303, `/login?loggedout=1&t=${Date.now()}`);
-  });
-});
+// Pfade, die trotz Logout-Marker der Rolle durchgelassen werden (ohne Session).
+const LOGOUT_MARKER_ALLOW = new Set(["/api/auth/session", "/api/demo/status"]);
 
 app.get("/", sendToAppOrLogin);
 app.get("/login", sendToAppOrLogin);
@@ -4673,9 +4755,16 @@ async function migrate() {
 // AUTH
 // -------------------------------------------------------
 function loginUserSession(req, res, user, options = {}) {
-  req.session.regenerate((regErr) => {
-    if (regErr) {
-      console.error("❌ session regenerate:", regErr);
+  const role = user?.role;
+  if (!isSessionRole(role)) {
+    return res.status(500).json({ success: false, message: "Unbekannte Rolle." });
+  }
+
+  // Nur die Session-Middleware dieser Rolle laden: ein evtl. vorhandenes Cookie
+  // derselben Rolle wird ersetzt, Cookies anderer Rollen bleiben unberührt.
+  sessionMiddlewareByRole[role](req, res, (loadErr) => {
+    if (loadErr || !req.session) {
+      console.error("❌ session load:", loadErr);
       return res.status(500).json({
         success: false,
         message:
@@ -4683,35 +4772,48 @@ function loginUserSession(req, res, user, options = {}) {
       });
     }
 
-    req.session.user = {
-      id: user.id,
-      role: user.role,
-      class_id: user.class_id,
-      school_id: user.school_id
-    };
-
-    req.session.save((saveErr) => {
-      if (saveErr) {
-        console.error("❌ session save:", saveErr);
+    req.session.regenerate((regErr) => {
+      if (regErr) {
+        console.error("❌ session regenerate:", regErr);
         return res.status(500).json({
           success: false,
           message:
-            "Login-Session konnte nicht gespeichert werden. Postgres-Verbindung oder Tabelle user_sessions prüfen."
+            "Login-Session konnte nicht gestartet werden. Bitte DATABASE_URL/Postgres prüfen (nach Regionswechsel neu verknüpfen und App neu starten)."
         });
       }
 
-      const payload = {
-        success: true,
+      req.session.user = {
+        id: user.id,
         role: user.role,
-        redirectTo: defaultPostLoginPath(user),
-        firstLogin: user.role === "student" ? !!user.first_login : false
+        class_id: user.class_id,
+        school_id: user.school_id
       };
-      if (options.isDemo) payload.isDemo = true;
-      // Alte connect.sid (andere Rolle / secure-Flag) und Logout-Sperre entfernen,
-      // danach setzt express-session das neue Cookie.
-      clearSessionCookie(res);
-      clearLogoutMarker(res);
-      res.json(payload);
+
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error("❌ session save:", saveErr);
+          return res.status(500).json({
+            success: false,
+            message:
+              "Login-Session konnte nicht gespeichert werden. Postgres-Verbindung oder Tabelle user_sessions prüfen."
+          });
+        }
+
+        const payload = {
+          success: true,
+          role: user.role,
+          redirectTo: defaultPostLoginPath(user),
+          firstLogin: user.role === "student" ? !!user.first_login : false
+        };
+        if (options.isDemo) payload.isDemo = true;
+
+        // Altlast connect.sid und die Logout-Sperre DIESER Rolle entfernen.
+        // Das Cookie dieser Rolle setzt express-session; andere Rollen bleiben.
+        clearLegacySessionCookie(res);
+        clearLogoutMarker(res, role);
+        setLastRoleCookie(res, role);
+        res.json(payload);
+      });
     });
   });
 }
@@ -4809,18 +4911,19 @@ app.post("/api/demo/reset", async (req, res) => {
   }
 });
 
+// Logout beendet nur die Session der angegebenen Rolle (Body/Header/Query role).
 app.post("/api/logout", (req, res) => {
-  destroySession(req, res, (ok) => {
+  destroyRoleSession(req, res, logoutRoleFor(req), (ok, role) => {
     if (!ok) {
       return res.status(500).json({ success: false, message: "Logout fehlgeschlagen." });
     }
-    return res.json({ success: true, loggedOut: true });
+    return res.json({ success: true, loggedOut: true, role: role || null });
   });
 });
 
 /** Navigations-Logout: bricht parallele SPA-Requests ab, die die Session sonst zurückspeichern. */
 app.get("/logout", (req, res) => {
-  destroySession(req, res, () => {
+  destroyRoleSession(req, res, logoutRoleFor(req), () => {
     res.redirect(303, `/login?loggedout=1&t=${Date.now()}`);
   });
 });
@@ -5243,12 +5346,20 @@ function isHtmlPageRequest(req) {
 
 function denyAccess(req, res) {
   if (isHtmlPageRequest(req)) {
-    const user = req.session?.user;
-    // Eingeloggt, aber falsche Shell → Rollen-Home (nicht /login, sonst Chrome-History-Bounce)
-    if (user?.role) {
-      return res.redirect(302, defaultPostLoginPath(user));
-    }
-    return res.redirect(302, "/login");
+    // Eingeloggt, aber falsche Shell → Rollen-Home (nicht /login, sonst Chrome-History-Bounce).
+    // Rollen-Cookies: fehlt die Session dieser Shell, aber eine andere Rolle ist angemeldet,
+    // dorthin – so bleibt „Admin-URL ohne Admin-Login“ nicht auf der Login-Seite hängen.
+    // Direkt nach Logout dieser Rolle greift die Logout-Sperre vorher (→ /login).
+    (async () => {
+      try {
+        const user = req.session?.user?.role ? req.session.user : await peekSessionUser(req);
+        if (user?.role) return res.redirect(302, defaultPostLoginPath(user));
+      } catch (err) {
+        console.error("❌ denyAccess:", err);
+      }
+      return res.redirect(302, "/login");
+    })();
+    return;
   }
   return res.status(403).json({
     success: false,
@@ -5365,7 +5476,7 @@ function isStudent(req, res, next) {
 }
 
 function isSuperadmin(req, res, next) {
-  if (!req.session.user || req.session.user.role !== "superadmin")
+  if (!req.session?.user || req.session.user.role !== "superadmin")
     return denyAccess(req, res);
   next();
 }

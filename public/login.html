@@ -11,7 +11,7 @@
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <script src="/js/client-cache-reset.js?v=4"></script>
-  <script src="/js/auth-fetch.js?v=22"></script>
+  <script src="/js/auth-fetch.js?v=23"></script>
   <title>Streets of Logic – Login</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -578,14 +578,15 @@
     // nie automatisch in die (fremde) Session weiterleiten.
     const switchedAccount = loginParams.get("switched") === "1";
     const reloginRequired = switchedAccount || loginParams.get("relogin") === "1";
+    // „Weiteres Konto“ (z. B. Lehrkraft neben Admin): Login zeigen, bestehende Logins bleiben.
+    const addAccount = loginParams.get("add") === "1";
     const tabMustLogin = window.SolAuth?.needsLogin?.() === true;
 
-    if (forceLoginPage || reloginRequired || tabMustLogin) {
+    if (forceLoginPage || reloginRequired || addAccount || tabMustLogin) {
       try {
-        // Explizites Logout: alles leeren. Konto-/Tabwechsel: nur diesen Tab,
-        // damit andere offene Tabs (Admin, Test-Konten) ihren Zustand behalten.
-        if (forceLoginPage) window.SolAuth?.clear?.();
-        else (window.SolAuth?.clearTab || window.SolAuth?.clear)?.call(window.SolAuth);
+        // Nur diesen Tab leeren: die eigentliche Abmeldung (inkl. Schüler-Wipe) läuft
+        // in SolAuth.logoutAndRedirect; andere Rollen/Tabs im Browser behalten ihren Zustand.
+        (window.SolAuth?.clearTab || window.SolAuth?.clear)?.call(window.SolAuth);
       } catch (_err) {}
     } else {
       (async function resumeExistingSession() {
@@ -606,9 +607,12 @@
     async function waitForSession(role) {
       for (let i = 0; i < 8; i++) {
         try {
+          // X-Sol-Scope: genau die Session der gerade angemeldeten Rolle prüfen
+          // (Admin- und Lehrer-Cookie können parallel existieren).
           const sessionRes = await fetch("/api/auth/session", {
             credentials: "same-origin",
-            cache: "no-store"
+            cache: "no-store",
+            headers: { "X-Sol-Scope": role }
           });
           if (sessionRes.ok) {
             const sessionData = await sessionRes.json();
@@ -705,7 +709,11 @@
 
     if (switchedAccount) {
       showError(
-        "Andere Sitzung oder abgelaufen – bitte melde dich an. Alle Tabs in diesem Browser teilen eine Sitzung; andere offene Tabs zeigen danach nur einen Hinweis."
+        "Andere Sitzung oder abgelaufen – bitte melde dich an. Tabs derselben Rolle teilen eine Sitzung; andere Rollen (z. B. Admin und Lehrkraft) bleiben parallel angemeldet."
+      );
+    } else if (addAccount) {
+      showError(
+        "Weiteres Konto anmelden: Bestehende Anmeldungen (z. B. Admin) bleiben bestehen. Ein neuer Login ersetzt nur die Sitzung derselben Rolle."
       );
     }
 
