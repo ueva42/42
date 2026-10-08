@@ -6055,7 +6055,11 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
               status === "closed" ||
               (kind === "work" && status !== "setup") ||
               (status === "setup" &&
-                !["members"].includes(String(session.setup_step || "members"))));
+                !["members"].includes(String(session.setup_step || "members"))) ||
+              // Genug angenommene Mitglieder reichen – Rollen werden hier in Mein Tag vergeben
+              (status === "setup" &&
+                kind === "roster" &&
+                members.length >= (Number(gmEnabled.rows[0].min_members) || 2)));
           let availableRoles = [];
           try {
             const roleDefs = await pool.query(
@@ -7288,7 +7292,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       try {
         const gmSettings = await pool.query(
           `
-          SELECT subject, device_mode
+          SELECT subject, device_mode, min_members
           FROM group_mode_settings
           WHERE class_id = $1
             AND enabled = TRUE
@@ -7307,6 +7311,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
             ready: false,
             needsSetup: true,
             deviceMode: row.device_mode === "personal" ? "personal" : "shared",
+            minMembers: Number(row.min_members) || 2,
             memberNames: []
           };
         }
@@ -7314,7 +7319,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         if (!Object.keys(groupModeBySubject).length) {
           const gmAny = await pool.query(
             `
-            SELECT subject, device_mode
+            SELECT subject, device_mode, min_members
             FROM group_mode_settings
             WHERE class_id = $1 AND enabled = TRUE
           `,
@@ -7331,6 +7336,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
               ready: false,
               needsSetup: true,
               deviceMode: row.device_mode === "personal" ? "personal" : "shared",
+              minMembers: Number(row.min_members) || 2,
               memberNames: []
             };
           }
@@ -7340,7 +7346,13 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
           const gmSessions = await pool.query(
             `
             SELECT gs.id, gs.subject, gs.status, gs.session_kind, gs.setup_step,
-                   COALESCE(gsm.invite_status, 'accepted') AS invite_status
+                   COALESCE(gsm.invite_status, 'accepted') AS invite_status,
+                   (
+                     SELECT COUNT(*)::int
+                     FROM group_session_members a
+                     WHERE a.session_id = gs.id
+                       AND COALESCE(a.invite_status, 'accepted') = 'accepted'
+                   ) AS accepted_count
             FROM group_sessions gs
             LEFT JOIN group_session_members gsm
               ON gsm.session_id = gs.id AND gsm.user_id = $2
@@ -7371,10 +7383,19 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
             const status = String(row.status || "");
             const step = String(row.setup_step || "members");
             // Rollen gehören zu Mein Tag – Gruppe ready sobald Mitglieder stehen
+            // (auch ohne „Gruppe fertig“-Klick, wenn genug Zusagen da sind).
+            const iAmAccepted = String(row.invite_status || "accepted") === "accepted";
+            const enoughAccepted =
+              kind === "roster" &&
+              status === "setup" &&
+              Number(row.accepted_count || 0) >=
+                (groupModeBySubject[key].minMembers || 2);
             const ready =
-              status === "standing" ||
-              (kind === "work" && status !== "setup") ||
-              (status === "setup" && step !== "members");
+              iAmAccepted &&
+              (status === "standing" ||
+                (kind === "work" && status !== "setup") ||
+                (status === "setup" && step !== "members") ||
+                enoughAccepted);
             groupModeBySubject[key].activeSessionId = row.id;
             groupModeBySubject[key].status = status;
             groupModeBySubject[key].sessionKind = kind;

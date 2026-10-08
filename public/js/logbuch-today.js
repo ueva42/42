@@ -403,9 +403,7 @@
         s.status === "standing" ||
         s.status === "closed" ||
         (s.sessionKind === "work" && s.status !== "setup") ||
-        (s.isMine &&
-          (s.memberCount || 0) >= (s.minMembers || 2) &&
-          !["members"].includes(String(s.setupStep || "")));
+        (s.isMine && (s.memberCount || 0) >= (s.minMembers || 2));
       map[key].ready = !!ready;
       map[key].needsSetup = !ready;
     }
@@ -789,6 +787,12 @@
     }
     loadDay(date);
   }
+
+  // Einladung angenommen/abgelehnt (Center-Modal): Mein Tag neu laden, falls sichtbar
+  window.addEventListener("sol:group-invite-resolved", () => {
+    if (document.body.dataset.studentSection !== "today") return;
+    loadDay(state.date || todayIso());
+  });
 
   window.LogbuchToday = { init, reload: () => loadDay(state.date || todayIso()) };
 })();

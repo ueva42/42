@@ -350,6 +350,25 @@
     }
   }
 
+  /** Gruppe steht → direkt in Mein Tag (Rollen, Unterthema, Ziele dort). */
+  function goToMeinTag(subject) {
+    const date = state.bootstrap?.date || "";
+    state.sessionId = null;
+    state.bundle = null;
+    state.screen = "home";
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch (_) {}
+    const q = new URLSearchParams();
+    if (date) q.set("date", date);
+    if (subject) q.set("subject", subject);
+    if (window.StudentRouter?.navigateToSection) {
+      window.StudentRouter.navigateToSection("today", { query: q });
+    } else {
+      window.location.assign(`/student/today${q.toString() ? `?${q}` : ""}`);
+    }
+  }
+
   function applyBundle(data) {
     if (data.session) {
       const prevTopics = state.bundle?.topics;
@@ -2558,13 +2577,9 @@
           body: JSON.stringify({ finalize: true })
         });
         applyBundle(data);
-        state.message =
-          "Gruppe fertig. In Mein Tag: Rolle wählen, dann Unterthema und Ziele.";
+        const subject = data.session?.subject || state.bundle?.session?.subject || "";
         await loadBootstrap();
-        state.screen = "home";
-        state.sessionId = null;
-        state.bundle = null;
-        render();
+        goToMeinTag(subject);
       } catch (err) {
         state.error = err.message;
         render();
@@ -2696,12 +2711,9 @@
           body: JSON.stringify({ finalize: true })
         });
         applyBundle(data);
-        state.message = "Gruppe fertig – weiter in Mein Tag.";
+        const subject = data.session?.subject || state.bundle?.session?.subject || "";
         await loadBootstrap();
-        state.screen = "home";
-        state.sessionId = null;
-        state.bundle = null;
-        render();
+        goToMeinTag(subject);
       } catch (err) {
         state.error = err.message;
         render();
@@ -2799,13 +2811,9 @@
           body: JSON.stringify({ memberIds: state.selectedMembers })
         });
         applyBundle(data);
-        state.message =
-          "Gruppe gespeichert. In Mein Tag: Rolle, Unterthema und Ziele setzen.";
+        const subject = data.session?.subject || state.bundle?.session?.subject || "";
         await loadBootstrap();
-        state.screen = "home";
-        state.sessionId = null;
-        state.bundle = null;
-        render();
+        goToMeinTag(subject);
       } catch (err) {
         state.error = err.message;
         render();
@@ -2871,11 +2879,10 @@
         }
         applyBundle(data);
         if (data.rosterReady || data.session?.status === "standing") {
-          state.message = "Gruppe fertig. Weiter in Mein Tag: Unterthema und Ziele setzen.";
+          const subject = data.session?.subject || "";
           await loadBootstrap();
-          state.screen = "home";
-          state.sessionId = null;
-          state.bundle = null;
+          goToMeinTag(subject);
+          return;
         } else if (String(data.session?.sessionKind || "") === "work") {
           // Legacy-Work: nicht mehr im Wizard halten → Mein Tag
           state.message = "Bitte Ziele in Mein Tag setzen.";
