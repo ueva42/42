@@ -1179,8 +1179,6 @@
 
   function renderStepPopup({ step, title, hint, body, showBack = true }) {
     const ui = UI();
-    // Schritt 1 hat die große Personenwahl; ab Schritt 2 immer kompakt wechselbar
-    const handoff = step > 1 ? renderSharedHandoffStrip(ui) : "";
     return `
       <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="${title}">
         <div class="plan-next-modal plan-next-modal--ask">
@@ -1189,7 +1187,6 @@
           <h3 class="plan-next-modal__title">${title}</h3>
           ${hint ? `<p class="plan-next-modal__text">${hint}</p>` : ""}
           ${state.errorMsg ? `<p class="plan-next-modal__text" style="color:#fca5a5">${ui.escapeHtml(state.errorMsg)}</p>` : ""}
-          ${handoff}
           <div class="plan-ask__body">${body}</div>
           <div class="plan-next-modal__actions">
             ${
@@ -1909,8 +1906,8 @@
                 <p class="plan-group-nowbar__meta">${doneCount}/${members.length} mit Rolle</p>
               </div>
               <section class="plan-group-section" aria-label="Person wählen">
-                <p class="plan-group-section__title">1. Person wählen</p>
-                <p class="plan-group-section__hint">Tippen → ausfüllen → Tablet weitergeben.</p>
+                <p class="plan-group-section__title">1. Wer füllt jetzt aus?</p>
+                <p class="plan-group-section__hint">Nach dem Speichern kommt der Hinweis zum Weitergeben.</p>
                 <div class="plan-group-member-grid" role="group" aria-label="Gruppenteilnehmer">
                   ${members
                     .map((m) => {
@@ -3242,17 +3239,21 @@
       }
 
       state.submitting = false;
-      // Shared-Tablet: nach Speichern zur nächsten Person in der Gruppe
+      // Shared-Tablet: erst nach Speichern weitergeben – großer Handoff-Screen
       if (isSharedGroupDevice()) {
         const members = groupMembers();
         const cur = Number(state.handoffUserId);
-        const idx = members.findIndex((m) => Number(m.userId) === cur);
-        const ordered =
-          idx >= 0
-            ? members.slice(idx + 1).concat(members.slice(0, idx))
-            : members.filter((m) => Number(m.userId) !== cur);
-        const next = ordered[0];
+        const saved = members.find((m) => Number(m.userId) === cur);
+        if (Number.isFinite(cur) && cur > 0 && !state.quickDoneIds.includes(cur)) {
+          state.quickDoneIds.push(cur);
+        }
+        const next = nextPendingMember(cur);
         if (next) {
+          state.handoffNotice = {
+            savedName: saved?.displayName || "Gespeichert",
+            nextUserId: Number(next.userId),
+            nextName: next.displayName || "nächste Person"
+          };
           state.handoffUserId = Number(next.userId);
           state.afterSaveOpen = false;
           state.editingEntryId = null;
@@ -3272,18 +3273,14 @@
           state.detailsText = "";
           state.activeStep = 1;
           state.planBAcknowledged = false;
+          state.step3Skipped = false;
           state.errorMsg = "";
           await loadContext();
-          if (state.existingEntry?.canEdit) {
-            state.afterSaveOpen = true;
-            state.errorMsg = `${next.displayName || "Nächste Person"} hat schon ein Tagesziel.`;
-          } else {
-            state.errorMsg = `Gespeichert. Jetzt: ${next.displayName || "nächste Person"} – Rolle, Unterthema, Ziele.`;
-          }
           render();
           return;
         }
       }
+      state.handoffNotice = null;
       state.afterSaveOpen = true;
       render();
     } catch (err) {
