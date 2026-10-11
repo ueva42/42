@@ -1864,7 +1864,9 @@ function normalizeHowGoalsInput(howGoalText, goal) {
 }
 
 function areAllowedHowGoals(goals, allowedGoals) {
-  if (!goals.length || goals.length > 3) return false;
+  // „Ich starte so“ ist optional – leere Liste ist ok
+  if (!goals.length) return true;
+  if (goals.length > 3) return false;
   return goals.every((g) => isAllowedHowGoal(g, allowedGoals));
 }
 
@@ -6091,8 +6093,31 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
                   name: r.role_name_snapshot || ""
                 });
               }
+              // Shared-Tablet: wer hat für diese Stunde schon ein Tagesziel? (schnelles Weitergeben)
+              let plannedIds = new Set();
+              try {
+                const planned = await pool.query(
+                  `
+                  SELECT DISTINCT user_id
+                  FROM log_entries
+                  WHERE user_id = ANY($1::int[])
+                    AND date = $2
+                    AND subject = $3
+                    AND (
+                      $4::text IS NULL
+                      OR timeslot IS NULL
+                      OR timeslot = $4
+                    )
+                `,
+                  [members.map((m) => Number(m.userId)), date, activeSubject, timeslot || null]
+                );
+                plannedIds = new Set(planned.rows.map((r) => Number(r.user_id)));
+              } catch (plannedErr) {
+                console.error("⚠️ group members hasPlan:", plannedErr);
+              }
               for (const m of members) {
                 m.roles = byMember[String(m.memberId)] || [];
+                m.hasPlan = plannedIds.has(Number(m.userId));
                 delete m.memberId;
               }
             }
@@ -6373,10 +6398,10 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         }
       } catch (_) {}
     }
-    if (!areAllowedHowGoals(howGoals, allowedHowGoals)) {
+    if (howGoals.length && !areAllowedHowGoals(howGoals, allowedHowGoals)) {
       return res.json({
         success: false,
-        message: "Bitte 1–3 gültige Start-Ziele wählen."
+        message: "Bitte höchstens 3 gültige Wie-Ziele wählen."
       });
     }
 
@@ -6463,16 +6488,17 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
 
     const normalizedLevel = String(selectedLevel || "").toLowerCase();
     if (!LEVEL_CHECK_TIERS.includes(normalizedLevel)) {
-      return res.json({ success: false, message: "Bitte ein Level wählen." });
+      return res.json({ success: false, message: "Bitte ein Was-Ziel wählen." });
     }
 
     const finalLevelGoalText =
       levelGoalTextForOption(goalOption, normalizedLevel) ||
-      (goalOption.source === "group_role" ? finalWhatGoalText : null);
+      (goalOption.source === "group_role" ? finalWhatGoalText : null) ||
+      (chosenRoleGoal ? String(chosenRoleGoal.text || "").trim() : null);
     if (!finalLevelGoalText) {
       return res.json({
         success: false,
-        message: "Für dieses Level wurde noch kein Zieltext hinterlegt."
+        message: "Für dieses Was-Ziel wurde noch kein Text hinterlegt."
       });
     }
 
@@ -6657,10 +6683,10 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
     const { classId, schoolId: classSchoolId } = await getStudentClassContext(studentId);
     const effectiveSchoolId = classSchoolId || schoolId;
     const allowedHowGoals = await getLessonGoalsForSubject(effectiveSchoolId, subject);
-    if (!areAllowedHowGoals(howGoals, allowedHowGoals)) {
+    if (howGoals.length && !areAllowedHowGoals(howGoals, allowedHowGoals)) {
       return res.json({
         success: false,
-        message: "Bitte 1–3 gültige Start-Ziele wählen."
+        message: "Bitte höchstens 3 gültige Wie-Ziele wählen."
       });
     }
 
@@ -6722,14 +6748,17 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
     const chosenRoleGoal = roleGoalPick.roleGoal;
     const normalizedLevel = String(selectedLevel || "").toLowerCase();
     if (!LEVEL_CHECK_TIERS.includes(normalizedLevel)) {
-      return res.json({ success: false, message: "Bitte ein Level wählen." });
+      return res.json({ success: false, message: "Bitte ein Was-Ziel wählen." });
     }
 
-    const finalLevelGoalText = levelGoalTextForOption(goalOption, normalizedLevel);
+    const finalLevelGoalText =
+      levelGoalTextForOption(goalOption, normalizedLevel) ||
+      (goalOption.source === "group_role" ? String(goalOption.text || "").trim() : null) ||
+      (chosenRoleGoal ? String(chosenRoleGoal.text || "").trim() : null);
     if (!finalLevelGoalText) {
       return res.json({
         success: false,
-        message: "Für dieses Level wurde noch kein Zieltext hinterlegt."
+        message: "Für dieses Was-Ziel wurde noch kein Text hinterlegt."
       });
     }
 

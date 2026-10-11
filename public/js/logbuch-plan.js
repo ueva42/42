@@ -52,6 +52,8 @@
     { value: "operator", label: "Operator" },
     { value: "street_legend", label: "Street Legend" }
   ];
+  /** Ask-Wizard ohne Level- und „Ich starte so“-Schritt */
+  const PLAN_ASK_STEPS = 6;
 
   const state = {
     date: null,
@@ -94,7 +96,12 @@
     afterSaveOpen: false,
     groupContext: null,
     handoffUserId: null,
-    roleSaving: false
+    roleSaving: false,
+    /** Shared-Tablet: Hinweis „Tablet an …“ nach Speichern */
+    handoffNotice: null,
+    /** Shared-Tablet: in dieser Sitzung gespeicherte Personen (userId) */
+    quickDoneIds: [],
+    pqSeenSection: null
   };
 
   const ARBEIT_TILE_META = {
@@ -829,7 +836,40 @@
   function syncLevelGoalText() {
     const goal = pickedWhatGoal();
     state.whatGoalText = goal?.text || "";
-    state.levelGoalText = levelGoalTextFor(goal, state.selectedLevel);
+    state.levelGoalText =
+      levelGoalTextFor(goal, state.selectedLevel) ||
+      (goal?.source === "group_role" ? String(goal.text || "").trim() : "");
+  }
+
+  /** Level nur intern fürs Speichern – keine Rookie/Operator/Street-Legend-Auswahl in der UI. */
+  function ensureSilentLevel() {
+    const goal = pickedWhatGoal();
+    if (!goal) return false;
+    if (state.selectedLevel) {
+      syncLevelGoalText();
+      if (state.levelGoalText) return true;
+    }
+    const order = (state.levelOptions || []).map((o) => o.value);
+    const pick =
+      order.find((l) => levelGoalTextFor(goal, l)) ||
+      (goal.source === "group_role" ? "rookie" : null);
+    if (!pick) return false;
+    state.selectedLevel = pick;
+    syncLevelGoalText();
+    refreshHowGoals();
+    return !!state.levelGoalText;
+  }
+
+  /** Solo: Was-Ziel = Levelplan-Texte ohne Rookie/Operator/Street-Legend-Label. */
+  function wasZielTierOptions() {
+    const goal = pickedWhatGoal();
+    if (!goal) return [];
+    return (state.levelOptions || [])
+      .map((o) => ({
+        value: o.value,
+        label: levelGoalTextFor(goal, o.value)
+      }))
+      .filter((o) => o.label);
   }
 
   function checkpointSatisfied() {
@@ -972,24 +1012,29 @@
     return !roleGoalRequired() || !!selectedRoleGoal();
   }
 
-  /** Feine Abfolge: (Gruppe: Rolle) → Unterthema → Was-Ziel zur Rolle → Level → Start → Arbeit → Kontrolle → Plan B → Selbstcheck */
+  /** Abfolge: (Gruppe: Rolle) → Unterthema → Was-Ziel → Arbeit → Kontrolle → Plan B → Selbstcheck */
   function whatStepComplete() {
     return !!(
       groupRoleComplete() &&
       state.subject &&
       state.whatGoalId &&
-      roleGoalSatisfied() &&
       checkpointSatisfied() &&
       state.whatGoalOptions.length
     );
   }
 
-  function levelStepComplete() {
+  function wasZielStepComplete() {
+    if (!whatStepComplete() || !roleGoalSatisfied()) return false;
+    if (roleGoalRequired()) return ensureSilentLevel();
     return !!(state.selectedLevel && state.levelGoalText);
   }
 
+  function levelStepComplete() {
+    return wasZielStepComplete();
+  }
+
   function startStepComplete() {
-    return state.startGoals.length >= 1 && state.startGoals.length <= 3;
+    return true;
   }
 
   function workStepComplete() {
@@ -1009,11 +1054,11 @@
   }
 
   function step1Complete() {
-    return whatStepComplete() && levelStepComplete();
+    return whatStepComplete() && wasZielStepComplete();
   }
 
   function step2Complete() {
-    return startStepComplete() && workStepComplete() && controlStepComplete();
+    return workStepComplete() && controlStepComplete();
   }
 
   function step3Complete() {
@@ -1025,30 +1070,25 @@
       state.activeStep = 1;
       return;
     }
-    if (state.activeStep >= 3 && !levelStepComplete()) {
+    if (state.activeStep >= 3 && !wasZielStepComplete()) {
       state.activeStep = 2;
       return;
     }
-    if (state.activeStep >= 4 && !startStepComplete()) {
+    if (state.activeStep >= 4 && !workStepComplete()) {
       state.activeStep = 3;
       return;
     }
-    if (state.activeStep >= 5 && !workStepComplete()) {
+    if (state.activeStep >= 5 && !controlStepComplete()) {
       state.activeStep = 4;
       return;
     }
-    if (state.activeStep >= 6 && !controlStepComplete()) {
+    if (state.activeStep >= 6 && !planBStepComplete()) {
       state.activeStep = 5;
       return;
     }
-    if (state.activeStep >= 7 && !planBStepComplete()) {
-      state.activeStep = 6;
-      return;
-    }
-    // Auto nur bei Einzelschritten; Mehrfachauswahl braucht „Weiter“
+    // Auto: nach Unterthema zum Was-Ziel; Mehrfachauswahl braucht „Weiter“
     if (state.activeStep === 1 && whatStepComplete()) state.activeStep = 2;
-    else if (state.activeStep === 2 && levelStepComplete()) state.activeStep = 3;
-    else if (state.activeStep === 7 && confidenceStepComplete()) state.activeStep = 8;
+    else if (state.activeStep === 6 && confidenceStepComplete()) state.activeStep = 7;
   }
 
   function openStep(step) {
@@ -1118,7 +1158,7 @@
     </div>`;
   }
 
-  function renderAskProgress(step, total = 7) {
+  function renderAskProgress(step, total = PLAN_ASK_STEPS) {
     const current = Math.min(step, total);
     return `<div class="plan-ask__progress" role="navigation" aria-label="Schritte">
       ${Array.from({ length: total }, (_, i) => {
@@ -1136,7 +1176,7 @@
       <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="${title}">
         <div class="plan-next-modal plan-next-modal--ask">
           ${renderAskProgress(step)}
-          <p class="plan-next-modal__kicker">Schritt ${step} von 7</p>
+          <p class="plan-next-modal__kicker">Schritt ${step} von ${PLAN_ASK_STEPS}</p>
           <h3 class="plan-next-modal__title">${title}</h3>
           ${hint ? `<p class="plan-next-modal__text">${hint}</p>` : ""}
           ${state.errorMsg ? `<p class="plan-next-modal__text" style="color:#fca5a5">${UI().escapeHtml(state.errorMsg)}</p>` : ""}
@@ -1156,7 +1196,7 @@
     return `
       <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Meine Mission heute">
         <div class="plan-next-modal plan-next-modal--ask">
-          ${renderAskProgress(8)}
+          ${renderAskProgress(PLAN_ASK_STEPS + 1)}
           <p class="plan-next-modal__kicker">Bereit</p>
           <h3 class="plan-next-modal__title">Meine Mission heute</h3>
           <p class="plan-next-modal__text">Prüfe kurz, dann speichern – danach geht’s weiter zum Üben.</p>
@@ -1445,7 +1485,6 @@
   function renderExistingEntry(ui, dateLabel) {
     const e = state.existingEntry;
     const workGoals = Array.isArray(e.work_goals) ? e.work_goals : [];
-    const startTitles = overviewTitles(e.how_goal_text || e.goal, HOW_GOAL_OPTIONS, howGoalTile);
     const workTitles = workGoals.map((g) => arbeitTile(g).title);
     const planBTitles = overviewTitles(e.plan_b_strategy_text, PLAN_B_ALL(), planBTile);
     const controlAllowed = allControlTiles().map((t) => t.value);
@@ -1458,11 +1497,6 @@
 
     const factTiles = [
       overviewTileHtml(ui, { label: "Fach", value: e.subject, accent: "#22d3ee" }),
-      overviewTileHtml(ui, {
-        label: "Level",
-        value: e.selected_level ? levelLabel(e.selected_level) : "",
-        accent: "#a855f7"
-      }),
       overviewTileHtml(ui, { label: "Unterthema", value: e.what_goal_text, accent: "#38bdf8" }),
       ...(e.role_goal_text
         ? [
@@ -1472,7 +1506,15 @@
               accent: "#a78bfa"
             })
           ]
-        : []),
+        : mission
+          ? [
+              overviewTileHtml(ui, {
+                label: "Was-Ziel",
+                value: mission,
+                accent: "#a78bfa"
+              })
+            ]
+          : []),
       overviewTileHtml(ui, {
         label: "Nachweis",
         value: e.checkpoint_title || "Kein kommender Nachweis",
@@ -1483,7 +1525,6 @@
       .join("");
 
     const pathTiles = [
-      overviewTileHtml(ui, { label: "Start", chips: startTitles, accent: "#22d3ee" }),
       overviewTileHtml(ui, { label: "Arbeit", chips: workTitles, accent: "#a855f7" }),
       overviewTileHtml(ui, { label: "Kontrolle", chips: controlTitles, accent: "#38bdf8" }),
       overviewTileHtml(ui, { label: "Plan B", chips: planBTitles, accent: "#f59e0b" }),
@@ -1581,7 +1622,6 @@
     });
 
     const wegLines = [
-      ...state.startGoals,
       ...arbeitLines.map((line) => `Ich arbeite: ${line}`),
       ...controlLines
     ].filter(Boolean);
@@ -1615,23 +1655,12 @@
           <p class="mission-summary__label">Was-Ziel zur Rolle</p>
           <p class="mission-summary__value">${ui.escapeHtml(selectedRoleGoal().text)}</p>
         </div>`
-            : ""
-        }
-        ${
-          state.levelGoalText
-            ? `<div class="mission-summary__block">
-          <p class="mission-summary__label">Was ich heute können will</p>
+            : state.levelGoalText
+              ? `<div class="mission-summary__block">
+          <p class="mission-summary__label">Was-Ziel</p>
           <p class="mission-summary__value">${ui.escapeHtml(state.levelGoalText)}</p>
         </div>`
-            : ""
-        }
-        ${
-          state.selectedLevel
-            ? `<div class="mission-summary__block">
-          <p class="mission-summary__label">Mein Level</p>
-          <p class="mission-summary__value">${ui.escapeHtml(levelLabel(state.selectedLevel))}</p>
-        </div>`
-            : ""
+              : ""
         }
         ${
           wegLines.length
@@ -1680,9 +1709,17 @@
             <img src="/icons/student/png/zielsetzung.png" alt="" aria-hidden="true">
           </div>
           <div class="plan-app-hero__copy">
-            <p class="plan-app-hero__eyebrow">Schritt ${Math.min(state.activeStep, 7)} von 7 · Planen</p>
+            <p class="plan-app-hero__eyebrow">${
+              isQuickGroup()
+                ? "Gruppe · ein Tablet"
+                : `Schritt ${Math.min(state.activeStep, PLAN_ASK_STEPS)} von ${PLAN_ASK_STEPS} · Planen`
+            }</p>
             <h2 class="plan-app-hero__title">Tagesziel setzen</h2>
-            <p class="plan-app-hero__meta">Eine Frage nach der anderen – so bleibt der Fokus klar.</p>
+            <p class="plan-app-hero__meta">${
+              isQuickGroup()
+                ? "Kurz planen, Tablet weitergeben, los geht’s."
+                : "Eine Frage nach der anderen – so bleibt der Fokus klar."
+            }</p>
             ${
               chips.length
                 ? `<div class="plan-app-hero__chips">${chips
@@ -1993,6 +2030,419 @@
     refreshHowGoals();
   }
 
+  /* ------------------------------------------------------------------
+   * Shared-Tablet (ein Tablet): Schnell-Flow – ein kompakter Bildschirm
+   * Person → Rolle → Thema → Ziel zur Rolle → Level → Start → Speichern.
+   * Arbeiten/Kontrolle/Plan B bekommen sinnvolle Standardwerte.
+   * ------------------------------------------------------------------ */
+
+  const QUICK_START_MAX = 2;
+  const QUICK_ROLE_PATTERNS = [
+    {
+      role: /versuch/i,
+      keys: [/versuch/i, /aufbau|aufbauen/i, /durchführ|durchfuehr/i, /phänomen|phaenomen/i, /vermut|hypothes/i, /sicher/i],
+      control: "Sicherheit und Aufbau prüfen"
+    },
+    {
+      role: /protokoll/i,
+      keys: [/protokoll/i, /notier|festhalt|aufschreib|dokument/i, /messwert|beobacht/i, /skizze|zeichn/i],
+      control: "Beobachtung vs. Vermutung"
+    },
+    {
+      role: /ergebnis/i,
+      keys: [/ergebnis/i, /erklär|erklaer/i, /regel|ableit/i, /begründ|begruend|übertrag|uebertrag/i, /recherch/i, /phänomen|phaenomen/i],
+      control: "Ergebnis erklären"
+    },
+    {
+      role: /produkt/i,
+      keys: [/produkt/i, /bau|konstru|modell|prototyp/i, /plan/i, /skizze|entwurf/i, /verbesser|optimier/i],
+      control: "Versuchsplan checken"
+    }
+  ];
+  const QUICK_LEVEL_PREFIX = /^\s*(rookie|operator|street[\s-]?legend)\b/i;
+
+  function isQuickGroup() {
+    const gc = state.groupContext;
+    return !!(
+      isSharedGroupDevice() &&
+      gc?.hasGroup &&
+      !gc.needsSetup &&
+      (gc.availableRoles || []).length
+    );
+  }
+
+  function memberHasPlan(member) {
+    if (!member) return false;
+    return !!member.hasPlan || state.quickDoneIds.includes(Number(member.userId));
+  }
+
+  /** Nächste Person (nach der aktuellen), die noch kein Tagesziel hat. */
+  function nextPendingMember(currentUserId) {
+    const members = groupMembers();
+    const cur = Number(currentUserId);
+    const idx = members.findIndex((m) => Number(m.userId) === cur);
+    const ordered =
+      idx >= 0
+        ? members.slice(idx + 1).concat(members.slice(0, idx))
+        : members.filter((m) => Number(m.userId) !== cur);
+    return ordered.find((m) => !memberHasPlan(m)) || null;
+  }
+
+  function quickRolePatternFor() {
+    const names = planningTargetRoles()
+      .map((r) => r.name)
+      .filter(Boolean)
+      .join(" ");
+    return QUICK_ROLE_PATTERNS.filter((p) => p.role.test(names));
+  }
+
+  /** 3–5 Start-Karten, passend zu Rolle und Level (statt aller Fach-Ziele). */
+  function quickStartTiles() {
+    const all = startGoalTiles();
+    const lvl = state.selectedLevel;
+    const levelOk = (t) => {
+      const m = QUICK_LEVEL_PREFIX.exec(t.value);
+      if (!m) return true;
+      const key = m[1].toLowerCase().replace(/[\s-]+/g, "_");
+      return !lvl || key === lvl;
+    };
+    const pool = all.filter(levelOk);
+
+    const gc = state.groupContext;
+    const roleIds = new Set(planningTargetRoles().map((r) => String(r.id)));
+    const ownTexts = new Set();
+    for (const r of gc?.availableRoles || []) {
+      if (!roleIds.has(String(r.id))) continue;
+      for (const g of r.howGoals || []) {
+        const t = String(g.text || "").trim();
+        if (t) ownTexts.add(t);
+      }
+    }
+    const own = pool.filter((t) => ownTexts.has(t.value));
+
+    const patterns = quickRolePatternFor();
+    const scored = pool
+      .filter((t) => !ownTexts.has(t.value))
+      .map((t, i) => {
+        let score = 0;
+        for (const p of patterns) {
+          for (const k of p.keys) if (k.test(t.value)) score += 1;
+        }
+        if (/meiner rolle|meinen teil/i.test(t.value)) score += 0.5;
+        return { t, i, score };
+      });
+    const matched = scored
+      .filter((s) => s.score > 0)
+      .sort((a, b) => b.score - a.score || a.i - b.i)
+      .map((s) => s.t);
+
+    const out = [...own, ...matched].slice(0, Math.max(4, own.length));
+    if (out.length < 3) {
+      for (const s of scored) {
+        if (out.length >= 3) break;
+        if (!out.includes(s.t)) out.push(s.t);
+      }
+    }
+    return out;
+  }
+
+  function quickControlDefault() {
+    const tiles = controlGoalTiles();
+    const allowed = new Set(tiles.map((t) => t.value));
+    for (const p of quickRolePatternFor()) {
+      if (allowed.has(p.control)) return p.control;
+    }
+    return tiles[0]?.value || null;
+  }
+
+  function applyQuickDefaults() {
+    if (!state.workGoals.length) state.workGoals = [C().WORK_GOALS[0]];
+    if (!state.controlGoals.length) {
+      const c = quickControlDefault();
+      if (c) state.controlGoals = [c];
+    }
+    state.planBAcknowledged = true;
+  }
+
+  function quickLevelStorageKey() {
+    return `sol.quickLevel.${state.handoffUserId || "x"}`;
+  }
+
+  /** Level-Vorschlag: zuletzt gewähltes Level der Person, sonst erstes mit Zieltext. */
+  function applyQuickLevelDefault() {
+    if (state.selectedLevel && state.levelGoalText) return;
+    const goal = pickedWhatGoal();
+    if (!goal) return;
+    const order = (state.levelOptions || []).map((o) => o.value);
+    let remembered = null;
+    try {
+      remembered = window.localStorage.getItem(quickLevelStorageKey());
+    } catch (_) {}
+    const pick = [remembered, ...order]
+      .filter(Boolean)
+      .find((l) => levelGoalTextFor(goal, l));
+    if (pick) state.selectedLevel = pick;
+    syncLevelGoalText();
+    refreshHowGoals();
+  }
+
+  function rememberQuickLevel() {
+    if (!state.selectedLevel) return;
+    try {
+      window.localStorage.setItem(quickLevelStorageKey(), state.selectedLevel);
+    } catch (_) {}
+  }
+
+  function quickReady() {
+    return !!(whatStepComplete() && roleGoalSatisfied() && ensureSilentLevel());
+  }
+
+  function quickMissingLabel() {
+    if (!groupRoleComplete()) return "Rolle wählen";
+    if (!state.whatGoalId) return "Thema wählen";
+    if (!roleGoalSatisfied()) return "Ziel wählen";
+    if (state.checkpoints.length > 1 && !state.selectedCheckpointId) return "Nachweis wählen";
+    if (!ensureSilentLevel()) return "Ziel fehlt";
+    return "";
+  }
+
+  function quickStyles() {
+    return `<style>
+      .pq{display:flex;flex-direction:column;gap:12px;margin-top:6px}
+      .pq-label{margin:0 0 5px;font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#67e8f9}
+      .pq-row{display:flex;flex-wrap:wrap;gap:8px}
+      .pq-list{display:grid;gap:6px}
+      .pq-person,.pq-chip{min-height:46px;padding:8px 16px;border-radius:12px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.45);color:#cbd5e1;font-weight:800;font-size:1rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
+      .pq-person.is-done:not(.is-active){border-color:rgba(52,211,153,.55);color:#a7f3d0;background:rgba(6,78,59,.28)}
+      .pq-person.is-active,.pq-chip.is-active{border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#fff;box-shadow:0 0 0 2px rgba(34,211,238,.3)}
+      .pq-chip:disabled{opacity:.45;cursor:default}
+      .pq-opt{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:9px 12px;border-radius:12px;border:2px solid rgba(56,189,248,.28);background:rgba(8,47,73,.4);color:#e2e8f0;text-align:left;font-size:.92rem;font-weight:600;line-height:1.3;cursor:pointer;-webkit-tap-highlight-color:transparent}
+      .pq-opt__mark{flex:0 0 22px;height:22px;border-radius:999px;border:2px solid rgba(148,163,184,.5);display:grid;place-items:center;font-size:.72rem;font-weight:800;color:transparent}
+      .pq-opt.is-active{border-color:#22d3ee;background:rgba(14,116,144,.55);color:#fff}
+      .pq-opt.is-active .pq-opt__mark{background:#22d3ee;border-color:#67e8f9;color:#082f49}
+      .pq-muted{margin:0;font-size:.78rem;color:#94a3b8}
+      .pq-foot{position:sticky;bottom:-16px;margin:8px -16px -16px;padding:12px 16px 16px;background:linear-gradient(180deg,rgba(8,14,35,0),rgba(8,14,35,.97) 28%);display:flex;flex-direction:column;gap:6px}
+      .pq-foot .today-app-btn{width:100%;min-height:50px;font-size:1.02rem}
+      .pq-next{margin:0;text-align:center;font-size:.8rem;color:#94a3b8}
+      .pq-handoff{text-align:center}
+      .pq-handoff__name{margin:6px 0 14px;font-size:2.2rem;font-weight:900;line-height:1.1;color:#22d3ee}
+      .pq-handoff .today-app-btn{width:100%;min-height:58px;font-size:1.15rem}
+      .pq-dots{display:flex;justify-content:center;gap:6px;margin:0 0 12px}
+      .pq-dots span{width:10px;height:10px;border-radius:50%;background:rgba(148,163,184,.4)}
+      .pq-dots span.is-done{background:#4ade80}
+      .pq-dots span.is-next{background:#22d3ee;box-shadow:0 0 10px rgba(34,211,238,.6)}
+    </style>`;
+  }
+
+  function quickOptList(ui, items, attr, activeFn) {
+    return `<div class="pq-list">${items
+      .map((it) => {
+        const active = activeFn(it);
+        return `<button type="button" class="pq-opt${active ? " is-active" : ""}" ${attr}="${ui.escapeHtml(
+          String(it.value)
+        )}" aria-pressed="${active ? "true" : "false"}"><span class="pq-opt__mark" aria-hidden="true">✓</span><span>${ui.escapeHtml(
+          it.label
+        )}</span></button>`;
+      })
+      .join("")}</div>`;
+  }
+
+  function renderQuickPopup(ui) {
+    const gc = state.groupContext;
+    const members = groupMembers();
+    const handoff = currentHandoffMember();
+    const name = handoff?.displayName || "Person";
+    const roles = gc.availableRoles || [];
+    const activeIds = memberRoleIds(handoff);
+    const roleDone = groupRoleComplete();
+    const topicOptions = whatGoalSelectOptions();
+    const topicNeedsSelect = topicOptions.length > 8;
+    const goal = pickedWhatGoal();
+    const roleGoalOpts = state.roleWasGoalOptions || [];
+    const multiRole =
+      new Set(roleGoalOpts.map((g) => g.roleName).filter(Boolean)).size > 1;
+    const roleNames = planningTargetRoles()
+      .map((r) => r.name)
+      .filter(Boolean);
+    const ready = quickReady();
+    const next = nextPendingMember(state.handoffUserId);
+    const missing = quickMissingLabel();
+
+    const personRow = `
+      <div>
+        <div class="pq-row" role="group" aria-label="Person">
+          ${members
+            .map((m) => {
+              const active = Number(m.userId) === Number(state.handoffUserId);
+              const done = memberHasPlan(m);
+              return `<button type="button" class="pq-person${active ? " is-active" : ""}${
+                done ? " is-done" : ""
+              }" data-plan-handoff="${ui.escapeHtml(String(m.userId))}" aria-pressed="${
+                active ? "true" : "false"
+              }">${ui.escapeHtml(m.displayName || "Person")}${done ? " ✓" : ""}</button>`;
+            })
+            .join("")}
+        </div>
+      </div>`;
+
+    const subjectRow = state.subjectLocked
+      ? ""
+      : ui.fieldWrap(
+          ui.fieldLabel("Fach", { required: true }),
+          ui.select(
+            "subject",
+            C().SUBJECTS.map((s) => ({ value: s, label: s })),
+            state.subject,
+            { phase: "plan" }
+          )
+        );
+
+    const checkpointRow =
+      state.checkpoints.length > 1
+        ? renderCheckpointField(ui)
+        : state.checkpoints.length === 1
+          ? `<p class="pq-muted">Nachweis: ${ui.escapeHtml(state.checkpoints[0].label)}</p>`
+          : "";
+
+    const roleRow = `
+      <div>
+        <p class="pq-label">Rolle für ${ui.escapeHtml(name)}</p>
+        <div class="pq-row" role="group" aria-label="Rolle">
+          ${roles
+            .map((role) => {
+              const active = activeIds.has(String(role.id));
+              return `<button type="button" class="pq-chip${active ? " is-active" : ""}" data-plan-role-pick="${ui.escapeHtml(
+                String(role.id)
+              )}" data-claim="${active ? "0" : "1"}" ${state.roleSaving ? "disabled" : ""}>${ui.escapeHtml(
+                role.name
+              )}</button>`;
+            })
+            .join("")}
+        </div>
+      </div>`;
+
+    let topicRow = "";
+    if (roleDone) {
+      if (!state.whatGoalOptions.length) {
+        topicRow = `<div>${whatGoalMessage(ui)}</div>`;
+      } else {
+        topicRow = `
+      <div data-pq-section="topic">
+        <p class="pq-label">Thema</p>
+        ${
+          topicNeedsSelect
+            ? ui.select("whatGoalId", topicOptions, state.whatGoalId, {
+                phase: "plan",
+                placeholder: "Thema wählen…"
+              })
+            : quickOptList(ui, topicOptions, "data-quick-topic", (it) =>
+                String(it.value) === String(state.whatGoalId)
+              )
+        }
+      </div>`;
+      }
+    }
+
+    let roleGoalRow = "";
+    if (roleDone && state.whatGoalId && roleGoalRequired()) {
+      roleGoalRow = `
+      <div data-pq-section="rolegoal">
+        <p class="pq-label">${
+          roleNames.length === 1 ? `Mein Ziel als ${ui.escapeHtml(roleNames[0])}` : "Mein Ziel in der Rolle"
+        }</p>
+        ${quickOptList(
+          ui,
+          roleGoalOpts.map((g) => ({
+            value: g.id,
+            label: multiRole && g.roleName ? `${g.roleName}: ${g.text}` : g.text
+          })),
+          "data-quick-rolegoal",
+          (it) => String(it.value) === String(state.roleGoalId)
+        )}
+      </div>`;
+    }
+
+    if (roleDone && state.whatGoalId && roleGoalSatisfied()) ensureSilentLevel();
+
+    const submitLabel = state.submitting
+      ? "Speichern…"
+      : state.editingEntryId
+        ? "Änderungen speichern"
+        : "Speichern · +2 XP";
+
+    return `
+      ${quickStyles()}
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Tagesziel Gruppe">
+        <div class="plan-next-modal plan-next-modal--ask">
+          <p class="plan-next-modal__kicker">Tagesziel · ${ui.escapeHtml(state.subject || "")} · ${
+            members.filter(memberHasPlan).length
+          }/${members.length} fertig</p>
+          ${state.errorMsg ? `<p class="plan-next-modal__text" style="color:#fca5a5;margin:4px 0 0">${ui.escapeHtml(state.errorMsg)}</p>` : ""}
+          <div class="pq">
+            ${personRow}
+            ${subjectRow}
+            ${checkpointRow}
+            ${roleRow}
+            ${topicRow}
+            ${roleGoalRow}
+          </div>
+          <div class="pq-foot">
+            <button type="button" class="btn-primary logbuch-submit today-app-btn" id="planSubmitBtn" ${
+              state.submitting || !ready ? "disabled" : ""
+            }>${ready || state.submitting ? submitLabel : `Noch: ${ui.escapeHtml(missing)}`}</button>
+            ${
+              ready && !state.editingEntryId && next
+                ? `<p class="pq-next">Danach: Tablet an ${ui.escapeHtml(next.displayName || "nächste Person")}</p>`
+                : ""
+            }
+            <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="planBackBtn">Abbrechen</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderHandoffPopup(ui) {
+    const n = state.handoffNotice;
+    if (!n) return "";
+    const members = groupMembers();
+    const done = members.filter(memberHasPlan).length;
+    return `
+      ${quickStyles()}
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Tablet weitergeben">
+        <div class="plan-next-modal plan-next-modal--ask pq-handoff">
+          <p class="plan-next-modal__kicker">✓ ${ui.escapeHtml(n.savedName || "Gespeichert")} gespeichert</p>
+          <div class="pq-dots" aria-label="${done} von ${members.length} fertig">
+            ${members
+              .map((m) => {
+                const isNext = Number(m.userId) === Number(n.nextUserId);
+                return `<span class="${memberHasPlan(m) ? "is-done" : isNext ? "is-next" : ""}"></span>`;
+              })
+              .join("")}
+          </div>
+          <h3 class="plan-next-modal__title">Gib das Tablet jetzt an</h3>
+          <p class="pq-handoff__name">${ui.escapeHtml(n.nextName || "nächste Person")}</p>
+          <button type="button" class="btn-primary logbuch-submit today-app-btn" id="planHandoffGo">${ui.escapeHtml(
+            n.nextName || "Weiter"
+          )} ist dran →</button>
+        </div>
+      </div>`;
+  }
+
+  function pickQuickTopic(id) {
+    if (!id || String(id) === String(state.whatGoalId)) return;
+    state.whatGoalId = id;
+    state.roleGoalId =
+      state.roleWasGoalOptions.length === 1 ? state.roleWasGoalOptions[0].id : null;
+    state.selectedLevel = null;
+    state.levelGoalText = "";
+    state.startGoals = [];
+    state.howGoalText = null;
+    state.controlGoals = [];
+    state.errorMsg = "";
+    syncLevelGoalText();
+    applyQuickLevelDefault();
+  }
+
   function render() {
     const root = document.getElementById("plan-screen-root");
     if (!root) return;
@@ -2010,15 +2460,12 @@
       return;
     }
 
-    const levelMeaning = state.levelGoalText;
     const sWhat = whatStepComplete();
-    const sLevel = levelStepComplete();
-    const sStart = startStepComplete();
+    const sWas = wasZielStepComplete();
     const sWork = workStepComplete();
     const sControl = controlStepComplete();
     const sPlanB = planBStepComplete();
-    const sConf = confidenceStepComplete();
-    const missionReady = sWhat && sLevel && sStart && sWork && sControl && sPlanB;
+    const missionReady = sWhat && sWas && sWork && sControl && sPlanB;
 
     const sharedGroup = isSharedGroupDevice() && state.groupContext?.hasGroup && !state.groupContext?.needsSetup;
     const handoffForTopic = sharedGroup ? currentHandoffMember() : null;
@@ -2064,37 +2511,64 @@
                   )
                 : whatGoalMessage(ui)
           )}
-          ${renderRoleGoalField(ui)}
         </div>
-      </div>`;
-
-    const levelBody = `
-      <div class="goal-step-card__stack">
-        ${renderLevelTiles(ui)}
         ${
-          levelMeaning
-            ? `<div class="plan-level-meaning glow-panel glow-panel--violet">
-                <span class="plan-level-meaning-label">${ui.escapeHtml(levelMeaningLabel(state.selectedLevel))}</span>
-                <p>${ui.escapeHtml(levelMeaning)}</p>
-              </div>`
-            : state.selectedLevel && state.whatGoalId
-              ? `<div class="logbuch-msg logbuch-msg-info">Für dieses Level wurde noch kein Zieltext hinterlegt.</div>`
-              : ""
-        }
-        ${
-          state.whatGoalId && state.selectedLevel
-            ? ui.fieldWrap(
-                ui.fieldLabel("Was genau machst du?", { optional: true }),
-                `<input type="text" class="logbuch-input app-input" id="planDetailsText" maxlength="100"
-            placeholder="z. B. Rookie 1–4, danach Operator 1–2"
-            value="${ui.escapeHtml(state.detailsText)}">
-           <div class="logbuch-char-count"><span id="planDetailsCount">${state.detailsText.length}</span>/100</div>`,
-                "",
-                { wide: true }
-              )
+          sWhat
+            ? continueRow("planTopicContinue", "Weiter zum Was-Ziel", true)
             : ""
         }
       </div>`;
+
+    if (state.activeStep === 2 && whatStepComplete()) {
+      if (roleGoalRequired()) {
+        ensureSilentLevel();
+      } else {
+        const opts = wasZielTierOptions();
+        if (opts.length === 1 && state.selectedLevel !== opts[0].value) {
+          state.selectedLevel = opts[0].value;
+          syncLevelGoalText();
+          refreshHowGoals();
+        }
+      }
+    }
+
+    const wasZielBody = (() => {
+      if (roleGoalRequired()) {
+        return `<div class="goal-step-card__stack">${renderRoleGoalField(ui)}${continueRow(
+          "planWasContinue",
+          "Weiter",
+          roleGoalSatisfied() && !!state.levelGoalText
+        )}</div>`;
+      }
+      const opts = wasZielTierOptions();
+      if (!opts.length) {
+        return `<div class="goal-step-card__stack"><div class="logbuch-msg logbuch-msg-info">Für dieses Unterthema sind noch keine Was-Ziele hinterlegt.</div></div>`;
+      }
+      const V = window.LogbuchVisuals;
+      const tiles = opts.map((o) => ({
+        value: o.value,
+        title: o.label,
+        desc: "",
+        icon: "◆",
+        accent: "#38bdf8"
+      }));
+      return `<div class="goal-step-card__stack">
+        <p class="way-to-goal__intro">Wähle dein Was-Ziel für heute.</p>
+        ${
+          V
+            ? V.strategyTileGrid(tiles, state.selectedLevel, "data-was-tier", {
+                multi: false
+              })
+            : ui.select(
+                "selectedLevel",
+                opts,
+                state.selectedLevel,
+                { phase: "plan", placeholder: "Was-Ziel wählen…" }
+              )
+        }
+        ${continueRow("planWasContinue", "Weiter", !!(state.selectedLevel && state.levelGoalText))}
+      </div>`;
+    })();
 
     const confidenceBody = `
       <div class="goal-step-card__stack">
@@ -2105,11 +2579,6 @@
         )}
       </div>`;
 
-    const startBody = `<div class="goal-step-card__stack">${renderStartSection(ui)}${continueRow(
-      "planStartContinue",
-      "Weiter",
-      sStart
-    )}</div>`;
     const workBody = `<div class="goal-step-card__stack">${renderWorkSection(ui)}${continueRow(
       "planWorkContinue",
       "Weiter",
@@ -2126,74 +2595,81 @@
       true
     )}</div>`;
 
+    const quick = isQuickGroup();
+    if (quick && state.whatGoalId && roleGoalSatisfied()) ensureSilentLevel();
+
     const stepPopup = state.afterSaveOpen
       ? ""
-      : state.activeStep >= 8
+      : state.handoffNotice
+        ? renderHandoffPopup(ui)
+        : quick
+          ? renderQuickPopup(ui)
+          : state.activeStep >= 7
         ? renderMissionPopup(ui, missionReady)
         : state.activeStep === 1
           ? renderStepPopup({
               step: 1,
-              title: "Was will ich heute können?",
+              title: "Unterthema wählen",
               hint: state.groupContext?.hasGroup
                 ? isSharedGroupDevice()
-                  ? "Person tippen → Rolle → Unterthema. Tablet weitergeben."
-                  : "Rolle, dann Unterthema. Gleiche Wahl ok."
-                : "Fach und Unterthema wählen.",
+                  ? "Person → Rolle → Unterthema. Tablet weitergeben."
+                  : "Rolle, dann Unterthema."
+                : "Unterthema für diese Stunde wählen.",
               body: whatBody,
               showBack: false
             })
           : state.activeStep === 2
             ? renderStepPopup({
                 step: 2,
-                title: "Mein Level",
-                hint: "Rookie, Operator oder Street Legend.",
-                body: levelBody
+                title: roleGoalRequired() ? "Was-Ziel zur Rolle" : "Was-Ziel",
+                hint: roleGoalRequired()
+                  ? "Was willst du in deiner Rolle heute schaffen?"
+                  : "Wähle dein Was-Ziel.",
+                body: wasZielBody
               })
             : state.activeStep === 3
               ? renderStepPopup({
                   step: 3,
-                  title: "Ich starte so",
-                  hint: "1 bis 3 Karten – so beginnst du.",
-                  body: startBody
+                  title: "Ich arbeite so",
+                  hint: "1 bis 3 Karten – so bleibst du dran.",
+                  body: workBody
                 })
               : state.activeStep === 4
                 ? renderStepPopup({
                     step: 4,
-                    title: "Ich arbeite so",
-                    hint: "1 bis 3 Karten – so bleibst du dran.",
-                    body: workBody
+                    title: "Ich kontrolliere so",
+                    hint:
+                      subjectKey() === "physik"
+                        ? "1 bis 3 Karten – Vermutung, Versuch, Ergebnis."
+                        : "1 bis 3 Karten – so merkst du, ob du’s kannst.",
+                    body: controlBody
                   })
                 : state.activeStep === 5
                   ? renderStepPopup({
                       step: 5,
-                      title: "Ich kontrolliere so",
+                      title: "Plan B, wenn ich hänge",
                       hint:
                         subjectKey() === "physik"
-                          ? "1 bis 3 Karten – Vermutung, Versuch, Ergebnis."
-                          : "1 bis 3 Karten – so merkst du, ob du’s kannst.",
-                      body: controlBody
+                          ? "Optional – Hilfekarten, Partner oder neu ansetzen."
+                          : "Optional – falls du feststeckst.",
+                      body: planBBody
                     })
-                  : state.activeStep === 6
-                    ? renderStepPopup({
-                        step: 6,
-                        title: "Plan B, wenn ich hänge",
-                        hint:
-                          subjectKey() === "physik"
-                            ? "Optional – Hilfekarten, Partner oder neu ansetzen."
-                            : "Optional – falls du feststeckst.",
-                        body: planBBody
-                      })
-                    : renderStepPopup({
-                        step: 7,
-                        title: "Selbstcheck",
-                        hint: "Optional – wie sicher fühlst du dich?",
-                        body: confidenceBody
-                      });
+                  : renderStepPopup({
+                      step: 6,
+                      title: "Selbstcheck",
+                      hint: "Optional – wie sicher fühlst du dich?",
+                      body: confidenceBody
+                    });
+
+    const prevModal = quick
+      ? document.querySelector("body > .plan-next-modal-backdrop .plan-next-modal")
+      : null;
+    const prevScroll = prevModal ? prevModal.scrollTop : 0;
 
     root.innerHTML = `
       <div class="plan-app plan-app--ask">
         ${renderPlanHero(ui, dateLabel)}
-        ${renderGroupContextBanner(ui)}
+        ${quick ? "" : renderGroupContextBanner(ui)}
         ${
           state.editingEntryId
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest dein Tagesziel – beim Speichern gibt es kein zusätzliches XP.</div>`
@@ -2206,6 +2682,20 @@
 
     portalPlanNextModal(root);
     bindHandlers(root);
+
+    if (quick && !state.handoffNotice) {
+      const modal = document.querySelector("body > .plan-next-modal-backdrop .plan-next-modal");
+      if (modal) {
+        modal.scrollTop = prevScroll;
+        // Neu aufgetauchten Abschnitt (zuletzt) ins Sichtfeld holen
+        const sections = modal.querySelectorAll("[data-pq-section]");
+        const last = sections[sections.length - 1];
+        if (last && last.dataset.pqSection !== state.pqSeenSection) {
+          state.pqSeenSection = last.dataset.pqSection;
+          last.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
+      }
+    }
   }
 
   function bindStaticHandlers(root) {
@@ -2343,7 +2833,10 @@
       btn.addEventListener("click", () => {
         const uid = Number(btn.getAttribute("data-plan-handoff"));
         if (!Number.isFinite(uid) || uid <= 0) return;
+        if (uid === Number(state.handoffUserId) && !state.handoffNotice) return;
         state.handoffUserId = uid;
+        state.handoffNotice = null;
+        state.pqSeenSection = null;
         state.errorMsg = "";
         state.whatGoalId = null;
         state.roleGoalId = null;
@@ -2354,8 +2847,57 @@
         state.howGoalText = null;
         state.controlGoals = [];
         state.workGoals = [];
+        state.planBStrategies = [];
+        state.confidenceBefore = null;
+        state.detailsText = "";
+        state.editingEntryId = null;
+        state.entryId = null;
+        state.existingEntry = null;
+        state.planBAcknowledged = false;
         state.activeStep = 1;
         loadContext().then(render).catch(() => render());
+      });
+    });
+    scope.querySelector("#planHandoffGo")?.addEventListener("click", () => {
+      state.handoffNotice = null;
+      render();
+    });
+    scope.querySelectorAll("[data-quick-topic]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        pickQuickTopic(btn.getAttribute("data-quick-topic"));
+        render();
+      });
+    });
+    scope.querySelectorAll("[data-quick-rolegoal]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.roleGoalId = btn.getAttribute("data-quick-rolegoal");
+        state.errorMsg = "";
+        render();
+      });
+    });
+    scope.querySelectorAll("[data-quick-level]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const lvl = btn.getAttribute("data-quick-level");
+        if (!lvl || lvl === state.selectedLevel) return;
+        state.selectedLevel = lvl;
+        state.startGoals = [];
+        state.howGoalText = null;
+        state.errorMsg = "";
+        syncLevelGoalText();
+        refreshHowGoals();
+        render();
+      });
+    });
+    scope.querySelectorAll("[data-quick-start]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const v = btn.getAttribute("data-quick-start");
+        if (!state.startGoals.includes(v) && state.startGoals.length >= QUICK_START_MAX) {
+          state.startGoals.shift();
+        }
+        toggleMulti(state.startGoals, v, QUICK_START_MAX);
+        syncStartGoalFromHowGoal();
+        state.errorMsg = "";
+        render();
       });
     });
     scope.querySelectorAll("[data-plan-role-pick]").forEach((btn) => {
@@ -2394,6 +2936,13 @@
             throw new Error(data.message || data.error || "Rolle konnte nicht gespeichert werden.");
           }
           if (shared && targetUserId) state.handoffUserId = targetUserId;
+          if (isQuickGroup()) {
+            // Rolle geändert: passende Start-Auswahl neu
+            state.startGoals = [];
+            state.howGoalText = null;
+            state.controlGoals = [];
+            state.roleGoalId = null;
+          }
           await loadContext();
           state.roleSaving = false;
           render();
@@ -2439,18 +2988,22 @@
         return;
       }
       if (field === "roleGoalId") {
-        syncActiveStep();
+        ensureSilentLevel();
+        if (wasZielStepComplete() && state.activeStep === 2) state.activeStep = 3;
+        else syncActiveStep();
         render();
         return;
       }
       if (field === "whatGoalId") {
         state.selectedLevel = null;
         state.levelGoalText = "";
+        state.roleGoalId = null;
         state.startGoals = [];
         state.howGoalText = null;
         state.controlGoals = [];
         state.planBAcknowledged = false;
         syncLevelGoalText();
+        if (isQuickGroup() && roleGoalSatisfied()) ensureSilentLevel();
         syncActiveStep();
         render();
         return;
@@ -2461,7 +3014,8 @@
         state.controlGoals = [];
         syncLevelGoalText();
         refreshHowGoals();
-        syncActiveStep();
+        if (wasZielStepComplete() && state.activeStep === 2) state.activeStep = 3;
+        else syncActiveStep();
         render();
         return;
       }
@@ -2479,11 +3033,10 @@
         const step = Number(btn.dataset.planOpen);
         if (!step) return;
         if (step >= 2 && !whatStepComplete() && state.activeStep !== step) return;
-        if (step >= 3 && !levelStepComplete() && state.activeStep !== step) return;
-        if (step >= 4 && !startStepComplete() && state.activeStep !== step) return;
-        if (step >= 5 && !workStepComplete() && state.activeStep !== step) return;
-        if (step >= 6 && !controlStepComplete() && state.activeStep !== step) return;
-        if (step >= 7 && !planBStepComplete() && state.activeStep !== step) return;
+        if (step >= 3 && !wasZielStepComplete() && state.activeStep !== step) return;
+        if (step >= 4 && !workStepComplete() && state.activeStep !== step) return;
+        if (step >= 5 && !controlStepComplete() && state.activeStep !== step) return;
+        if (step >= 6 && !planBStepComplete() && state.activeStep !== step) return;
         openStep(step);
       });
     });
@@ -2493,30 +3046,45 @@
       render();
     });
 
-    scope.querySelector("#planStartContinue")?.addEventListener("click", () => {
-      if (!startStepComplete()) return;
-      state.activeStep = 4;
+    scope.querySelector("#planTopicContinue")?.addEventListener("click", () => {
+      if (!whatStepComplete()) return;
+      state.activeStep = 2;
+      render();
+    });
+    scope.querySelector("#planWasContinue")?.addEventListener("click", () => {
+      if (roleGoalRequired()) ensureSilentLevel();
+      if (!wasZielStepComplete()) return;
+      state.activeStep = 3;
+      render();
+    });
+    bindChoiceChips(scope, "[data-was-tier]", (btn) => {
+      state.selectedLevel = btn.dataset.wasTier;
+      syncLevelGoalText();
+      refreshHowGoals();
+      state.startGoals = [];
+      state.howGoalText = null;
+      if (wasZielStepComplete()) state.activeStep = 3;
       render();
     });
     scope.querySelector("#planWorkContinue")?.addEventListener("click", () => {
       if (!workStepComplete()) return;
-      state.activeStep = 5;
+      state.activeStep = 4;
       render();
     });
     scope.querySelector("#planControlContinue")?.addEventListener("click", () => {
       if (!controlStepComplete()) return;
-      state.activeStep = 6;
+      state.activeStep = 5;
       render();
     });
     scope.querySelector("#planPlanBContinue")?.addEventListener("click", () => {
       state.planBAcknowledged = true;
-      state.activeStep = 7;
+      state.activeStep = 6;
       render();
     });
 
     scope.querySelector("#planStep3Continue")?.addEventListener("click", () => {
       if (state.confidenceBefore == null) state.step3Skipped = true;
-      syncActiveStep();
+      state.activeStep = 7;
       render();
     });
 
@@ -2555,36 +3123,34 @@
       return;
     }
     if (!state.whatGoalId) {
-      fail("Bitte wähle ein Was-Ziel aus dem Levelplan.", 1);
-      return;
-    }
-    if (!roleGoalSatisfied()) {
-      fail("Bitte wähle ein Was-Ziel zu deiner Rolle.", 1);
+      fail("Bitte wähle ein Unterthema.", 1);
       return;
     }
     if (state.checkpoints.length > 1 && !state.selectedCheckpointId) {
       fail("Bitte wähle den Nachweis, für den du arbeitest.", 1);
       return;
     }
-    if (!state.selectedLevel) {
-      fail("Bitte wähle ein Level.", 2);
+    if (!roleGoalSatisfied()) {
+      fail(
+        roleGoalRequired()
+          ? "Bitte wähle ein Was-Ziel zu deiner Rolle."
+          : "Bitte wähle ein Was-Ziel.",
+        2
+      );
       return;
     }
+    if (roleGoalRequired()) ensureSilentLevel();
     syncLevelGoalText();
-    if (!state.levelGoalText) {
-      fail("Für dieses Level wurde noch kein Zieltext hinterlegt.", 2);
-      return;
-    }
-    if (!state.startGoals.length) {
-      fail("Bitte wähle, wie du startest (1–3 Karten unter „Ich starte so“).", 3);
+    if (!state.selectedLevel || !state.levelGoalText) {
+      fail("Bitte wähle ein Was-Ziel.", 2);
       return;
     }
     if (state.workGoals.length < 1) {
-      fail("Bitte wähle, wie du arbeitest (1–3 Karten unter „Ich arbeite so“).", 4);
+      fail("Bitte wähle, wie du arbeitest (1–3 Karten unter „Ich arbeite so“).", 3);
       return;
     }
     if (!state.controlGoals.length) {
-      fail("Bitte wähle, wie du kontrollierst (1–3 Karten unter „Ich kontrolliere so“).", 5);
+      fail("Bitte wähle, wie du kontrollierst (1–3 Karten unter „Ich kontrolliere so“).", 4);
       return;
     }
     if (!state.planBAcknowledged) {
