@@ -1013,6 +1013,21 @@ const TIMETABLE_DEFAULT_TIMES = [
   "13.05-13.50"
 ];
 
+const TIMETABLE_WEEKDAYS = [
+  { id: 1, label: "Montag" },
+  { id: 2, label: "Dienstag" },
+  { id: 3, label: "Mittwoch" },
+  { id: 4, label: "Donnerstag" },
+  { id: 5, label: "Freitag" },
+  { id: 6, label: "Samstag" },
+  { id: 7, label: "Sonntag" }
+];
+
+function isTimetableWeekday(weekday) {
+  const n = Number(weekday);
+  return Number.isInteger(n) && TIMETABLE_WEEKDAYS.some((d) => d.id === n);
+}
+
 function timetableSubjectsFromRows(rows) {
   return [...new Set(rows.map((t) => t.subject).filter((s) => s && !isTimetableFreeSubject(s)))];
 }
@@ -1972,8 +1987,13 @@ function formatGermanDate(isoDate) {
 function weekdayFromIsoDate(dateStr) {
   const iso = normalizeIsoDate(dateStr) || String(dateStr || "").slice(0, 10);
   const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
   const jsDay = d.getDay();
-  return jsDay >= 1 && jsDay <= 5 ? jsDay : null;
+  // JS: 0 = Sonntag … 6 = Samstag. Stundenplan: Mo=1 … Sa=6, So=7
+  // (0 wäre in `if (weekday)` fälschlich „kein Tag“).
+  if (jsDay === 0) return 7;
+  if (jsDay >= 1 && jsDay <= 6) return jsDay;
+  return null;
 }
 
 function mapPlannedWorkFromEntry(row, extra = {}) {
@@ -3898,7 +3918,7 @@ async function migrate() {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
       school_id INTEGER,
-      weekday INTEGER NOT NULL CHECK (weekday >= 1 AND weekday <= 5),
+      weekday INTEGER NOT NULL CHECK (weekday >= 1 AND weekday <= 7),
       timeslot TEXT NOT NULL,
       subject TEXT NOT NULL,
       room TEXT
@@ -4453,6 +4473,38 @@ async function migrate() {
         ALTER TABLE timetables
         ADD CONSTRAINT timetables_class_weekday_timeslot_unique
         UNIQUE (class_id, weekday, timeslot);
+      END IF;
+    END$$;
+  `);
+
+  // Sa=6, So=7. Bestehende DBs haben noch CHECK (1–5).
+  await pool.query(`
+    DO $$
+    DECLARE
+      r record;
+    BEGIN
+      FOR r IN
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'timetables'::regclass
+          AND contype = 'c'
+          AND pg_get_constraintdef(oid) ILIKE '%weekday%'
+          AND pg_get_constraintdef(oid) NOT LIKE '%<= 7%'
+      LOOP
+        EXECUTE format('ALTER TABLE timetables DROP CONSTRAINT %I', r.conname);
+      END LOOP;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'timetables'::regclass
+          AND contype = 'c'
+          AND pg_get_constraintdef(oid) ILIKE '%weekday%'
+          AND pg_get_constraintdef(oid) LIKE '%<= 7%'
+      ) THEN
+        ALTER TABLE timetables
+          ADD CONSTRAINT timetables_weekday_check
+          CHECK (weekday >= 1 AND weekday <= 7);
       END IF;
     END$$;
   `);
@@ -12517,13 +12569,7 @@ app.get("/api/teacher/timetable", isTeacher, async (req, res) => {
       [classId, schoolId]
     );
 
-    const weekdays = [
-      { id: 1, label: "Montag" },
-      { id: 2, label: "Dienstag" },
-      { id: 3, label: "Mittwoch" },
-      { id: 4, label: "Donnerstag" },
-      { id: 5, label: "Freitag" }
-    ];
+    const weekdays = TIMETABLE_WEEKDAYS;
 
     const days = weekdays.map((day) => {
       const dayRows = rowsRes.rows.filter((r) => r.weekday === day.id);
@@ -12599,7 +12645,7 @@ app.put("/api/teacher/timetable", isTeacher, async (req, res) => {
         });
       }
 
-      if (weekday < 1 || weekday > 5) {
+      if (!isTimetableWeekday(weekday)) {
         return res.json({ success: false, message: "Ungültiger Wochentag." });
       }
 

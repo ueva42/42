@@ -1,5 +1,5 @@
 /**
- * Lehrkraft – Stundenplan-Editor (5 Tage × max. 7 Stunden).
+ * Lehrkraft – Stundenplan-Editor (Mo–So × max. 7 Stunden).
  */
 (function () {
   const WEEKDAYS = [
@@ -7,7 +7,9 @@
     { id: 2, label: "Di" },
     { id: 3, label: "Mi" },
     { id: 4, label: "Do" },
-    { id: 5, label: "Fr" }
+    { id: 5, label: "Fr" },
+    { id: 6, label: "Sa" },
+    { id: 7, label: "So" }
   ];
 
   const DEFAULT_TIMES = [
@@ -142,7 +144,7 @@
     root.innerHTML = `
       <div class="panel">
         <h2>Stundenplan</h2>
-        <p class="hint">Pro Klasse: 5 Tage × max. ${maxSlots} Stunden. Zeitslot ist Pflicht. „Frei“ = freie Stunde ohne Logbuch. „Nicht genutzt“ = wird nicht gespeichert.</p>
+        <p class="hint">Pro Klasse: Mo–So × max. ${maxSlots} Stunden. Zeitslot ist Pflicht. „Frei“ = freie Stunde ohne Logbuch. „Nicht genutzt“ = wird nicht gespeichert.</p>
         <p class="hint">Doppelstunde = gleiches Fach in zwei <strong>aufeinanderfolgenden</strong> Stunden → Zwischencheck automatisch. Alternativ Checkbox „Zwischencheck“ setzen.</p>
 
         <div class="tt-toolbar">

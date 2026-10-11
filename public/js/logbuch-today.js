@@ -17,13 +17,7 @@
 
   function addSchoolDays(dateIso, delta) {
     const d = new Date(`${dateIso}T12:00:00`);
-    const step = delta > 0 ? 1 : -1;
-    let remaining = Math.abs(delta);
-    while (remaining > 0) {
-      d.setDate(d.getDate() + step);
-      const day = d.getDay();
-      if (day >= 1 && day <= 5) remaining--;
-    }
+    d.setDate(d.getDate() + delta);
     return d.toISOString().slice(0, 10);
   }
 
