@@ -52,7 +52,7 @@
     { value: "operator", label: "Operator" },
     { value: "street_legend", label: "Street Legend" }
   ];
-  /** Ask-Wizard ohne Level- und „Ich starte so“-Schritt */
+  /** Ask-Wizard: Unterthema → Was-Ziel → Arbeite → Kontrolle → Plan B → Selbstcheck */
   const PLAN_ASK_STEPS = 6;
 
   const state = {
@@ -140,6 +140,12 @@
       desc: "Ich nutze Hilfestellung bewusst.",
       icon: "?",
       accent: "#a855f7"
+    },
+    "Bei Unsicherheit nachfragen": {
+      title: "Bei Unsicherheit nachfragen",
+      desc: "Wenn ich unsicher bin, frage ich gezielt nach.",
+      icon: "?",
+      accent: "#f472b6"
     }
   };
 
@@ -1172,6 +1178,9 @@
   }
 
   function renderStepPopup({ step, title, hint, body, showBack = true }) {
+    const ui = UI();
+    // Schritt 1 hat die große Personenwahl; ab Schritt 2 immer kompakt wechselbar
+    const handoff = step > 1 ? renderSharedHandoffStrip(ui) : "";
     return `
       <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="${title}">
         <div class="plan-next-modal plan-next-modal--ask">
@@ -1179,7 +1188,8 @@
           <p class="plan-next-modal__kicker">Schritt ${step} von ${PLAN_ASK_STEPS}</p>
           <h3 class="plan-next-modal__title">${title}</h3>
           ${hint ? `<p class="plan-next-modal__text">${hint}</p>` : ""}
-          ${state.errorMsg ? `<p class="plan-next-modal__text" style="color:#fca5a5">${UI().escapeHtml(state.errorMsg)}</p>` : ""}
+          ${state.errorMsg ? `<p class="plan-next-modal__text" style="color:#fca5a5">${ui.escapeHtml(state.errorMsg)}</p>` : ""}
+          ${handoff}
           <div class="plan-ask__body">${body}</div>
           <div class="plan-next-modal__actions">
             ${
@@ -1325,11 +1335,46 @@
       <section class="way-section way-section--work way-section--embedded">
         <header class="way-section__head">
           <h4 class="way-section__title">Ich arbeite so</h4>
-          <p class="way-section__hint">1 bis 3 Auswahlen</p>
+          <p class="way-section__hint">1 bis 3 Karten</p>
         </header>
         <p class="way-to-goal__intro">Wie willst du während der Stunde arbeiten?</p>
         ${V.strategyTileGrid(arbeitGoalTiles(), state.workGoals, "data-work-goal", { multi: true, max: 3 })}
       </section>`;
+  }
+
+  /** Kompakte Personenwahl – auf jedem Schritt im Ein-Tablet-Modus. */
+  function renderSharedHandoffStrip(ui) {
+    if (!isSharedGroupDevice() || !state.groupContext?.hasGroup) return "";
+    const members = groupMembers();
+    if (members.length < 2) return "";
+    const handoff = currentHandoffMember();
+    return `
+      <div class="plan-handoff-strip" role="group" aria-label="Person am Tablet">
+        <p class="plan-handoff-strip__label">Am Tablet</p>
+        <div class="plan-handoff-strip__row">
+          ${members
+            .map((m) => {
+              const active = Number(m.userId) === Number(state.handoffUserId);
+              const done = memberHasPlan(m);
+              return `<button type="button" class="plan-handoff-strip__btn${active ? " is-active" : ""}${
+                done ? " is-done" : ""
+              }" data-plan-handoff="${ui.escapeHtml(String(m.userId))}" aria-pressed="${
+                active ? "true" : "false"
+              }">${ui.escapeHtml(m.displayName || "Person")}${done ? " ✓" : ""}</button>`;
+            })
+            .join("")}
+        </div>
+        <p class="plan-handoff-strip__hint">Andere Person tippen = Tablet weitergeben</p>
+      </div>
+      <style>
+        .plan-handoff-strip{margin:0 0 14px;padding:12px;border-radius:14px;border:1px solid rgba(34,211,238,.45);background:rgba(8,47,73,.55)}
+        .plan-handoff-strip__label{margin:0 0 8px;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#67e8f9}
+        .plan-handoff-strip__row{display:flex;flex-wrap:wrap;gap:8px}
+        .plan-handoff-strip__btn{min-height:44px;padding:8px 14px;border-radius:12px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.45);color:#cbd5e1;font-weight:800;font-size:.95rem;cursor:pointer}
+        .plan-handoff-strip__btn.is-active{border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#fff;box-shadow:0 0 0 2px rgba(34,211,238,.3)}
+        .plan-handoff-strip__btn.is-done:not(.is-active){border-color:rgba(52,211,153,.55);color:#a7f3d0}
+        .plan-handoff-strip__hint{margin:8px 0 0;font-size:.78rem;color:#94a3b8}
+      </style>`;
   }
 
   function renderControlSection(ui) {
@@ -1865,7 +1910,7 @@
               </div>
               <section class="plan-group-section" aria-label="Person wählen">
                 <p class="plan-group-section__title">1. Person wählen</p>
-                <p class="plan-group-section__hint">Tippe auf die Person, die jetzt ausfüllt — danach Tablet weitergeben. Zusammen ausfüllen geht auch: einfach jeweils die passende Person tippen.</p>
+                <p class="plan-group-section__hint">Tippen → ausfüllen → Tablet weitergeben.</p>
                 <div class="plan-group-member-grid" role="group" aria-label="Gruppenteilnehmer">
                   ${members
                     .map((m) => {
@@ -2061,14 +2106,9 @@
   ];
   const QUICK_LEVEL_PREFIX = /^\s*(rookie|operator|street[\s-]?legend)\b/i;
 
+  /** Früherer Ein-Tablet-Quick-Pfad: absichtlich aus – normales App-Design + alle Schritte. */
   function isQuickGroup() {
-    const gc = state.groupContext;
-    return !!(
-      isSharedGroupDevice() &&
-      gc?.hasGroup &&
-      !gc.needsSetup &&
-      (gc.availableRoles || []).length
-    );
+    return false;
   }
 
   function memberHasPlan(member) {
@@ -2570,15 +2610,6 @@
       </div>`;
     })();
 
-    const confidenceBody = `
-      <div class="goal-step-card__stack">
-        ${renderConfidenceCards(ui)}
-        ${continueRow(
-          "planStep3Continue",
-          state.confidenceBefore != null ? "Weiter zur Mission" : "Ohne Angabe weiter"
-        )}
-      </div>`;
-
     const workBody = `<div class="goal-step-card__stack">${renderWorkSection(ui)}${continueRow(
       "planWorkContinue",
       "Weiter",
@@ -2594,17 +2625,19 @@
       state.planBStrategies.length ? "Weiter" : "Ohne Plan B weiter",
       true
     )}</div>`;
-
-    const quick = isQuickGroup();
-    if (quick && state.whatGoalId && roleGoalSatisfied()) ensureSilentLevel();
+    const confidenceBody = `<div class="goal-step-card__stack">
+      ${renderConfidenceCards(ui)}
+      ${continueRow(
+        "planStep3Continue",
+        state.confidenceBefore != null ? "Weiter zur Mission" : "Ohne Angabe weiter"
+      )}
+    </div>`;
 
     const stepPopup = state.afterSaveOpen
       ? ""
       : state.handoffNotice
         ? renderHandoffPopup(ui)
-        : quick
-          ? renderQuickPopup(ui)
-          : state.activeStep >= 7
+        : state.activeStep >= 7
         ? renderMissionPopup(ui, missionReady)
         : state.activeStep === 1
           ? renderStepPopup({
@@ -2612,7 +2645,7 @@
               title: "Unterthema wählen",
               hint: state.groupContext?.hasGroup
                 ? isSharedGroupDevice()
-                  ? "Person → Rolle → Unterthema. Tablet weitergeben."
+                  ? "Person → Rolle → Unterthema."
                   : "Rolle, dann Unterthema."
                 : "Unterthema für diese Stunde wählen.",
               body: whatBody,
@@ -2661,15 +2694,10 @@
                       body: confidenceBody
                     });
 
-    const prevModal = quick
-      ? document.querySelector("body > .plan-next-modal-backdrop .plan-next-modal")
-      : null;
-    const prevScroll = prevModal ? prevModal.scrollTop : 0;
-
     root.innerHTML = `
       <div class="plan-app plan-app--ask">
         ${renderPlanHero(ui, dateLabel)}
-        ${quick ? "" : renderGroupContextBanner(ui)}
+        ${renderGroupContextBanner(ui)}
         ${
           state.editingEntryId
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest dein Tagesziel – beim Speichern gibt es kein zusätzliches XP.</div>`
@@ -2682,20 +2710,6 @@
 
     portalPlanNextModal(root);
     bindHandlers(root);
-
-    if (quick && !state.handoffNotice) {
-      const modal = document.querySelector("body > .plan-next-modal-backdrop .plan-next-modal");
-      if (modal) {
-        modal.scrollTop = prevScroll;
-        // Neu aufgetauchten Abschnitt (zuletzt) ins Sichtfeld holen
-        const sections = modal.querySelectorAll("[data-pq-section]");
-        const last = sections[sections.length - 1];
-        if (last && last.dataset.pqSection !== state.pqSeenSection) {
-          state.pqSeenSection = last.dataset.pqSection;
-          last.scrollIntoView({ block: "nearest", behavior: "smooth" });
-        }
-      }
-    }
   }
 
   function bindStaticHandlers(root) {
@@ -3036,7 +3050,6 @@
         if (step >= 3 && !wasZielStepComplete() && state.activeStep !== step) return;
         if (step >= 4 && !workStepComplete() && state.activeStep !== step) return;
         if (step >= 5 && !controlStepComplete() && state.activeStep !== step) return;
-        if (step >= 6 && !planBStepComplete() && state.activeStep !== step) return;
         openStep(step);
       });
     });
@@ -3081,7 +3094,6 @@
       state.activeStep = 6;
       render();
     });
-
     scope.querySelector("#planStep3Continue")?.addEventListener("click", () => {
       if (state.confidenceBefore == null) state.step3Skipped = true;
       state.activeStep = 7;

@@ -40,7 +40,8 @@ window.LOGBUCH = {
     "Tablet nur für Aufgaben",
     "Nicht ablenken lassen",
     "Ruhig arbeiten",
-    "Hilfe holen wenn nötig"
+    "Hilfe holen wenn nötig",
+    "Bei Unsicherheit nachfragen"
   ],
   SOCIAL_FORMS: [
     { id: "einzel", label: "Einzel" },

@@ -1438,7 +1438,8 @@ const LOG_WORK_GOALS = [
   "Tablet nur für Aufgaben",
   "Nicht ablenken lassen",
   "Ruhig arbeiten",
-  "Hilfe holen wenn nötig"
+  "Hilfe holen wenn nötig",
+  "Bei Unsicherheit nachfragen"
 ];
 
 const LOG_SOCIAL_FORMS = ["einzel", "partner", "gruppe", "frei"];
