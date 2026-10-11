@@ -158,12 +158,13 @@
         ${state.error ? `<div class="tt-msg tt-msg-error">${escapeHtml(state.error)}</div>` : ""}
         ${state.message ? `<div class="tt-msg tt-msg-ok">${escapeHtml(state.message)}</div>` : ""}
 
+        <div class="tt-scroll">
         <div class="tt-grid">
-          ${WEEKDAYS.map((day) => {
+          ${WEEKDAYS.map((day, dayIndex) => {
             const slots = state.grid[day.id] || [];
             const doubles = doublePeriodIndexes(slots);
             return `
-              <div class="tt-day-col">
+              <div class="tt-day-col" style="grid-column:${dayIndex + 1};grid-row:1 / span ${slots.length + 1}">
                 <div class="tt-day-head">${day.label}</div>
                 ${slots
                   .map((slot, idx) => {
@@ -220,6 +221,7 @@
                   .join("")}
               </div>`;
           }).join("")}
+        </div>
         </div>
       </div>`;
 
