@@ -1211,7 +1211,7 @@
           ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
           <div class="plan-next-modal__actions">
             <button type="button" class="btn-primary logbuch-submit today-app-btn" id="planSubmitBtn" ${
-              state.submitting || !missionReady ? "disabled" : ""
+              state.submitting ? "disabled" : ""
             }>${
               state.submitting
                 ? "Speichern…"
@@ -1219,6 +1219,11 @@
                   ? "Änderungen speichern"
                   : "Tagesziel speichern (+2 XP)"
             }</button>
+            ${
+              !missionReady && !state.submitting
+                ? `<p class="plan-next-modal__text" style="color:#fcd34d;margin:0">Noch etwas fehlt – Speichern zeigt dir was.</p>`
+                : ""
+            }
             <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="planAskBack">Zurück</button>
           </div>
         </div>
@@ -2035,6 +2040,25 @@
     return ui.msg("Für dieses Fach wurden noch keine Ziele aus dem Levelplan importiert.");
   }
 
+  function restoreRoleGoalSelection(entry) {
+    const opts = state.roleWasGoalOptions || [];
+    if (!opts.length) return;
+    const entryId = entry?.role_goal_id ?? state.roleGoalId;
+    if (entryId != null && opts.some((g) => String(g.id) === String(entryId))) {
+      state.roleGoalId = entryId;
+      return;
+    }
+    const text = String(entry?.role_goal_text || state._editRoleGoalText || "").trim();
+    if (text) {
+      const byText = opts.find((g) => String(g.text || "").trim() === text);
+      if (byText) {
+        state.roleGoalId = byText.id;
+        return;
+      }
+    }
+    if (opts.length === 1) state.roleGoalId = opts[0].id;
+  }
+
   function applyEntryToForm(entry) {
     state.editingEntryId = entry.id;
     state.entryId = entry.id;
@@ -2042,6 +2066,7 @@
     if (entry.timeslot) state.timeslot = entry.timeslot;
     state.whatGoalId = entry.what_goal_id;
     state.roleGoalId = entry.role_goal_id || null;
+    state._editRoleGoalText = entry.role_goal_text || "";
     state.whatGoalText = entry.what_goal_text || "";
     state.selectedLevel = entry.selected_level;
     state.levelGoalText = entry.level_goal_text || "";
@@ -3318,7 +3343,7 @@
     if (data.existingEntry?.canEdit) {
       applyEntryToForm(data.existingEntry);
       state.planBAcknowledged = true;
-      state.activeStep = 8;
+      state.activeStep = 7;
     } else if (
       data.existingEntry &&
       data.groupContext &&
@@ -3365,7 +3390,20 @@
 
     syncSubjectScopedSelections();
 
-    if (state.roleGoalId && !selectedRoleGoal()) state.roleGoalId = null;
+    restoreRoleGoalSelection(
+      state.editingEntryId
+        ? {
+            role_goal_id: state.roleGoalId,
+            role_goal_text: state._editRoleGoalText
+          }
+        : null
+    );
+    if (state.roleGoalId && !selectedRoleGoal()) {
+      restoreRoleGoalSelection({
+        role_goal_id: null,
+        role_goal_text: state._editRoleGoalText
+      });
+    }
     if (!state.roleGoalId && state.roleWasGoalOptions.length === 1) {
       state.roleGoalId = state.roleWasGoalOptions[0].id;
     }
@@ -3378,6 +3416,9 @@
       const picked = state.whatGoalOptions.find((g) => String(g.id) === String(state.whatGoalId));
       if (picked) {
         syncLevelGoalText();
+      } else if (state.editingEntryId) {
+        // Beim Bearbeiten Option behalten, auch wenn die Liste neu gefiltert ist
+        if (!state.levelGoalText) ensureSilentLevel();
       } else {
         state.whatGoalId = null;
         state.whatGoalText = "";
@@ -3385,6 +3426,7 @@
         state.levelGoalText = "";
       }
     }
+    if (state.editingEntryId) ensureSilentLevel();
     if (!state.editingEntryId) syncActiveStep();
 
     // Shared: nach erstem Kontext die aktuelle Handoff-Person nachladen (Rollen-/Zielkontext)

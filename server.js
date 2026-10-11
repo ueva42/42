@@ -6637,24 +6637,17 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
 
 app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
   try {
-    const studentId = req.session.user.id;
+    const actorId = req.session.user.id;
     const schoolId = req.session.user.school_id;
     const entryId = req.params.entryId;
 
-    const existing = await findPlanLogEntry(studentId, { entryId });
+    const byId = await pool.query(
+      `SELECT ${PLAN_ENTRY_FIELDS} FROM log_entries WHERE id=$1 LIMIT 1`,
+      [entryId]
+    );
+    const existing = byId.rows[0] || null;
     if (!existing) {
       return res.json({ success: false, message: "Tagesziel nicht gefunden." });
-    }
-
-    const date =
-      normalizeIsoDate(existing.date) || (await resolveSchoolDate(req, req.body.date));
-    if (!(await planEntryCanEdit(studentId, existing, date))) {
-      return res.json({
-        success: false,
-        message: "Dieses Tagesziel kann nicht mehr bearbeitet werden.",
-        readOnly: true,
-        entryId: existing.id
-      });
     }
 
     const {
@@ -6672,17 +6665,52 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       confidenceBefore = null,
       freitext = null,
       planBStrategyText = null,
-      roleGoalId = null
+      roleGoalId = null,
+      forUserId = null
     } = req.body;
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
       return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
     }
 
+    const { classId, schoolId: classSchoolId } = await getStudentClassContext(actorId);
+    const wantedOwner =
+      forUserId != null && forUserId !== ""
+        ? Number(forUserId)
+        : Number(existing.user_id);
+    const targetResolve = await resolveSharedPlanTargetUserId(
+      actorId,
+      classId,
+      classSchoolId || schoolId,
+      subject,
+      Number.isFinite(wantedOwner) && wantedOwner > 0 ? wantedOwner : existing.user_id
+    );
+    if (!targetResolve.ok) {
+      return res.json({ success: false, message: targetResolve.message || "Keine Berechtigung." });
+    }
+    const studentId = targetResolve.planningUserId;
+    if (Number(existing.user_id) !== Number(studentId)) {
+      return res.json({
+        success: false,
+        message: "Dieses Tagesziel gehört nicht zur gewählten Person."
+      });
+    }
+
+    const date =
+      normalizeIsoDate(existing.date) || (await resolveSchoolDate(req, req.body.date));
+    if (!(await planEntryCanEdit(studentId, existing, date))) {
+      return res.json({
+        success: false,
+        message: "Dieses Tagesziel kann nicht mehr bearbeitet werden.",
+        readOnly: true,
+        entryId: existing.id
+      });
+    }
+
     const howGoals = normalizeHowGoalsInput(howGoalText, goal);
     const normalizedHowGoal = joinMultiSelectValue(howGoals);
-    const { classId, schoolId: classSchoolId } = await getStudentClassContext(studentId);
-    const effectiveSchoolId = classSchoolId || schoolId;
+    const targetCtx = await getStudentClassContext(studentId);
+    const effectiveSchoolId = targetCtx.schoolId || classSchoolId || schoolId;
     const allowedHowGoals = await getLessonGoalsForSubject(effectiveSchoolId, subject);
     if (howGoals.length && !areAllowedHowGoals(howGoals, allowedHowGoals)) {
       return res.json({
@@ -6695,8 +6723,13 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
     let roleWasGoals = [];
     let nextCheckpoint = null;
     let goalSource = "none";
-    if (classId) {
-      const checks = await getLevelChecksForClass(classId, classSchoolId, studentId);
+    const ownerClassId = targetCtx.classId || classId;
+    if (ownerClassId) {
+      const checks = await getLevelChecksForClass(
+        ownerClassId,
+        effectiveSchoolId,
+        studentId
+      );
       const planCheckpoints = listPlanCheckpointsForSubject(checks, subject);
       if (planCheckpoints.length && checkpointId) {
         const validCp = planCheckpoints.find(
@@ -6713,7 +6746,11 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       validWhatGoalOptions = picked.options;
       nextCheckpoint = picked.checkpoint;
       goalSource = picked.goalSource;
-      roleWasGoals = await fetchRoleWasGoalsForStudent(studentId, classId, subject);
+      roleWasGoals = await fetchRoleWasGoalsForStudent(
+        studentId,
+        ownerClassId,
+        subject
+      );
     }
 
     const whatById = new Map(validWhatGoalOptions.map((g) => [String(g.id), g]));
