@@ -5854,6 +5854,48 @@ async function resolveSharedPlanTargetUserId(actorId, classId, schoolId, subject
   return { ok: true, planningUserId: requested, shared: true, sessionId: row.id };
 }
 
+/** Shared-Tablet: Log-Eintrag laden – eigener oder Gruppenmitglied (device_mode=shared). */
+async function loadLogEntryForSharedActor(actorId, entryId) {
+  const byId = await pool.query(
+    `
+    SELECT
+      le.id, le.user_id, le.school_id, le.date, le.timeslot, le.subject, le.goal,
+      le.what_goal_text, le.how_goal_text, le.details_text,
+      le.selected_level, le.level_goal_text, le.confidence_before,
+      le.role_goal_text, le.role_goal_role_name, le.created_at,
+      lc.selected_strategy_name AS check_strategy_name
+    FROM log_entries le
+    LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
+    WHERE le.id = $1
+    LIMIT 1
+  `,
+    [entryId]
+  );
+  const row = byId.rows[0];
+  if (!row) return { ok: false, message: "Lern-Eintrag nicht gefunden." };
+  if (Number(row.user_id) === Number(actorId)) {
+    return { ok: true, entry: row, ownerId: Number(row.user_id), shared: false };
+  }
+  const { classId, schoolId } = await getStudentClassContext(actorId);
+  const resolved = await resolveSharedPlanTargetUserId(
+    actorId,
+    classId,
+    schoolId,
+    row.subject,
+    row.user_id
+  );
+  if (!resolved.ok || Number(resolved.planningUserId) !== Number(row.user_id)) {
+    return { ok: false, message: resolved.message || "Keine Berechtigung." };
+  }
+  return {
+    ok: true,
+    entry: row,
+    ownerId: Number(row.user_id),
+    shared: true,
+    sessionId: resolved.sessionId || null
+  };
+}
+
 app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
@@ -7603,17 +7645,42 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
             if (ready) {
               const mems = await pool.query(
                 `
-                SELECT display_name_snapshot
-                FROM group_session_members
-                WHERE session_id = $1
-                  AND COALESCE(invite_status, 'accepted') = 'accepted'
-                ORDER BY sort_order ASC, id ASC
+                SELECT
+                  m.user_id,
+                  m.display_name_snapshot,
+                  le.id AS entry_id,
+                  (lc.id IS NOT NULL) AS has_check,
+                  (lr.id IS NOT NULL) AS has_reflection
+                FROM group_session_members m
+                LEFT JOIN log_entries le
+                  ON le.user_id = m.user_id
+                 AND le.date = $2::date
+                 AND lower(trim(le.subject)) = lower(trim($3))
+                LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
+                LEFT JOIN log_reflections lr ON lr.log_entry_id = le.id
+                WHERE m.session_id = $1
+                  AND COALESCE(m.invite_status, 'accepted') = 'accepted'
+                ORDER BY m.sort_order ASC, m.id ASC
               `,
-                [row.id]
+                [row.id, date, key]
               );
-              groupModeBySubject[key].memberNames = mems.rows
-                .map((m) => m.display_name_snapshot)
+              const members = mems.rows.map((m) => ({
+                userId: Number(m.user_id),
+                displayName: m.display_name_snapshot || "Person",
+                hasPlan: !!m.entry_id,
+                entryId: m.entry_id || null,
+                hasCheck: !!m.has_check,
+                hasReflection: !!m.has_reflection
+              }));
+              groupModeBySubject[key].members = members;
+              groupModeBySubject[key].memberNames = members
+                .map((m) => m.displayName)
                 .filter(Boolean);
+              groupModeBySubject[key].allPlansDone =
+                members.length > 0 && members.every((m) => m.hasPlan);
+              groupModeBySubject[key].pendingPlanCount = members.filter(
+                (m) => !m.hasPlan
+              ).length;
             }
           }
         }
@@ -8130,36 +8197,28 @@ app.patch("/api/student/log/check/:logEntryId", isStudent, async (req, res) => {
 // -------------------------------------------------------
 app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
   try {
-    const studentId = req.session.user.id;
+    const actorId = req.session.user.id;
     const entryId = req.query.entryId;
 
     if (!entryId) {
       return res.status(400).json({ error: "entryId fehlt" });
     }
 
-    const entryRes = await pool.query(
-      `
-      SELECT
-        le.id, le.date, le.timeslot, le.subject, le.goal,
-        le.what_goal_text, le.how_goal_text, le.details_text,
-        le.selected_level, le.level_goal_text, le.confidence_before,
-        le.role_goal_text, le.role_goal_role_name,
-        le.created_at,
-        lc.selected_strategy_name AS check_strategy_name
-      FROM log_entries le
-      LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
-      WHERE le.id=$1 AND le.user_id=$2
-    `,
-      [entryId, studentId]
-    );
-
-    if (!entryRes.rows.length) {
-      return res.json({ entry: null, existingReflection: null, existingCheck: null });
+    const access = await loadLogEntryForSharedActor(actorId, entryId);
+    if (!access.ok) {
+      return res.json({
+        entry: null,
+        existingReflection: null,
+        existingCheck: null,
+        message: access.message || null
+      });
     }
 
-    const row = entryRes.rows[0];
+    const row = access.entry;
+    const ownerId = access.ownerId;
     const entry = {
       ...row,
+      user_id: ownerId,
       level_label: row.selected_level
         ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
         : null,
@@ -8180,8 +8239,84 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
 
     let existingReflection = reflectionRes.rows[0] || null;
     if (existingReflection) {
-      const canEdit = await reflectionEntryCanEdit(studentId, entryId);
+      const canEdit = await reflectionEntryCanEdit(ownerId, entryId);
       existingReflection = { ...existingReflection, canEdit };
+    }
+
+    let groupContext = null;
+    try {
+      const { classId, schoolId } = await getStudentClassContext(actorId);
+      const date =
+        normalizeIsoDate(row.date) || (await resolveSchoolDate(req, req.query.date));
+      if (classId && row.subject && date) {
+        const sess = await pool.query(
+          `
+          SELECT gs.id
+          FROM group_sessions gs
+          JOIN group_mode_settings gms
+            ON gms.class_id = gs.class_id
+           AND lower(trim(gms.subject)) = lower(trim(gs.subject))
+           AND gms.enabled = TRUE
+           AND ($3::int IS NULL OR gms.school_id = $3 OR gms.school_id IS NULL)
+          WHERE gs.class_id = $2
+            AND gs.status <> 'closed'
+            AND lower(trim(gs.subject)) = lower(trim($4))
+            AND COALESCE(gms.device_mode, 'shared') <> 'personal'
+            AND (
+              gs.host_user_id = $1
+              OR EXISTS (
+                SELECT 1 FROM group_session_members actor
+                WHERE actor.session_id = gs.id
+                  AND actor.user_id = $1
+                  AND COALESCE(actor.invite_status, 'accepted') = 'accepted'
+              )
+            )
+          ORDER BY
+            CASE gs.status WHEN 'standing' THEN 0 WHEN 'setup' THEN 1 ELSE 2 END,
+            gs.updated_at DESC NULLS LAST
+          LIMIT 1
+        `,
+          [actorId, classId, schoolId, row.subject]
+        );
+        const sessId = sess.rows[0]?.id || access.sessionId || null;
+        if (sessId) {
+          const mems = await pool.query(
+            `
+            SELECT
+              m.user_id,
+              m.display_name_snapshot,
+              le.id AS entry_id,
+              (lr.id IS NOT NULL) AS has_reflection
+            FROM group_session_members m
+            LEFT JOIN log_entries le
+              ON le.user_id = m.user_id
+             AND le.date = $2::date
+             AND lower(trim(le.subject)) = lower(trim($3))
+            LEFT JOIN log_reflections lr ON lr.log_entry_id = le.id
+            WHERE m.session_id = $1
+              AND COALESCE(m.invite_status, 'accepted') = 'accepted'
+            ORDER BY m.sort_order ASC, m.id ASC
+          `,
+            [sessId, date, row.subject]
+          );
+          groupContext = {
+            enabled: true,
+            deviceMode: "shared",
+            subject: row.subject,
+            members: mems.rows
+              .filter((m) => m.entry_id)
+              .map((m) => ({
+                userId: Number(m.user_id),
+                displayName: m.display_name_snapshot || "Person",
+                entryId: m.entry_id,
+                hasReflection: !!m.has_reflection,
+                isActive: Number(m.user_id) === Number(ownerId)
+              }))
+          };
+        }
+      }
+    } catch (gmErr) {
+      console.error("⚠️ reflect groupContext:", gmErr);
     }
 
     res.json({
@@ -8189,7 +8324,11 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
       existingReflection,
       existingCheck: row.check_strategy_name
         ? { selected_strategy_name: row.check_strategy_name }
-        : null
+        : null,
+      actorUserId: actorId,
+      ownerUserId: ownerId,
+      sharedHandoff: access.shared,
+      groupContext
     });
   } catch (err) {
     console.error("❌ /api/student/log/reflect-context:", err);
@@ -8199,7 +8338,7 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
 
 app.post("/api/student/log/reflect", isStudent, async (req, res) => {
   try {
-    const studentId = req.session.user.id;
+    const actorId = req.session.user.id;
     const schoolId = req.session.user.school_id;
     const { logEntryId } = req.body;
 
@@ -8207,24 +8346,19 @@ app.post("/api/student/log/reflect", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Lern-Eintrag fehlt." });
     }
 
-    const entryRes = await pool.query(
-      `
-      SELECT le.id, lc.selected_strategy_name
-      FROM log_entries le
-      LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
-      WHERE le.id=$1 AND le.user_id=$2
-    `,
-      [logEntryId, studentId]
-    );
-
-    if (!entryRes.rows.length) {
-      return res.json({ success: false, message: "Lern-Eintrag nicht gefunden." });
+    const access = await loadLogEntryForSharedActor(actorId, logEntryId);
+    if (!access.ok) {
+      return res.json({
+        success: false,
+        message: access.message || "Lern-Eintrag nicht gefunden."
+      });
     }
+    const studentId = access.ownerId;
 
     const parsed = parseReflectionPayload({
       ...req.body,
       usedStrategyName:
-        req.body.usedStrategyName ?? entryRes.rows[0].selected_strategy_name ?? null
+        req.body.usedStrategyName ?? access.entry.check_strategy_name ?? null
     });
     if (parsed.error) {
       return res.json({ success: false, message: parsed.error });
@@ -8284,17 +8418,17 @@ app.post("/api/student/log/reflect", isStudent, async (req, res) => {
 
 app.patch("/api/student/log/reflect/:logEntryId", isStudent, async (req, res) => {
   try {
-    const studentId = req.session.user.id;
+    const actorId = req.session.user.id;
     const logEntryId = req.params.logEntryId;
 
-    const entryRes = await pool.query(
-      "SELECT id FROM log_entries WHERE id=$1 AND user_id=$2",
-      [logEntryId, studentId]
-    );
-
-    if (!entryRes.rows.length) {
-      return res.json({ success: false, message: "Lern-Eintrag nicht gefunden." });
+    const access = await loadLogEntryForSharedActor(actorId, logEntryId);
+    if (!access.ok) {
+      return res.json({
+        success: false,
+        message: access.message || "Lern-Eintrag nicht gefunden."
+      });
     }
+    const studentId = access.ownerId;
 
     if (!(await reflectionEntryCanEdit(studentId, logEntryId))) {
       return res.json({

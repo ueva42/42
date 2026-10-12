@@ -41,8 +41,88 @@
     errorMsg: "",
     activeStep: 1,
     missionSeen: false,
-    disturbDone: false
+    disturbDone: false,
+    groupContext: null,
+    handoffNotice: null
   };
+
+  function groupMembers() {
+    return (state.groupContext?.members || []).filter((m) => m && m.entryId);
+  }
+
+  function renderReflectHandoffStrip(ui) {
+    const members = groupMembers();
+    if (members.length < 2) return "";
+    const activeId = Number(state.entry?.user_id);
+    return `
+      <div class="plan-handoff-strip" role="group" aria-label="Person am Tablet">
+        <p class="plan-handoff-strip__label">Tagesabschluss für</p>
+        <div class="plan-handoff-strip__row">
+          ${members
+            .map((m) => {
+              const active = Number(m.userId) === activeId;
+              const done = !!m.hasReflection;
+              return `<button type="button" class="plan-handoff-strip__btn${active ? " is-active" : ""}${
+                done ? " is-done" : ""
+              }" data-reflect-handoff="${ui.escapeHtml(String(m.entryId))}" aria-pressed="${
+                active ? "true" : "false"
+              }">${ui.escapeHtml(m.displayName || "Person")}${done ? " ✓" : ""}</button>`;
+            })
+            .join("")}
+        </div>
+        <p class="plan-handoff-strip__hint">Andere Person tippen = Tablet weitergeben</p>
+      </div>
+      <style>
+        .plan-handoff-strip{margin:0 0 14px;padding:12px;border-radius:14px;border:1px solid rgba(34,211,238,.45);background:rgba(8,47,73,.55)}
+        .plan-handoff-strip__label{margin:0 0 8px;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#67e8f9}
+        .plan-handoff-strip__row{display:flex;flex-wrap:wrap;gap:8px}
+        .plan-handoff-strip__btn{min-height:44px;padding:8px 14px;border-radius:12px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.45);color:#cbd5e1;font-weight:800;font-size:.95rem;cursor:pointer}
+        .plan-handoff-strip__btn.is-active{border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#fff;box-shadow:0 0 0 2px rgba(34,211,238,.3)}
+        .plan-handoff-strip__btn.is-done:not(.is-active){border-color:rgba(52,211,153,.55);color:#a7f3d0}
+        .plan-handoff-strip__hint{margin:8px 0 0;font-size:.78rem;color:#94a3b8}
+      </style>`;
+  }
+
+  function resetReflectForm() {
+    state.goalReachedAnswer = null;
+    state.helpedItems = [];
+    state.disturbItems = {};
+    state.workPathAnswer = null;
+    state.workPathNote = "";
+    state.strategyHelpedAnswer = null;
+    state.nextStepAnswer = null;
+    state.confidenceAfter = null;
+    state.learnedToday = "";
+    state.usedStrategyName = null;
+    state.existingReflection = null;
+    state.errorMsg = "";
+    state.activeStep = 1;
+    state.missionSeen = false;
+    state.disturbDone = false;
+    state.submitting = false;
+  }
+
+  async function loadReflectEntry(entryId) {
+    const res = await fetch(
+      `/api/student/log/reflect-context?entryId=${encodeURIComponent(entryId)}`
+    );
+    const data = await res.json();
+    if (!data.entry) {
+      state.entry = null;
+      state.entryId = entryId;
+      return false;
+    }
+    state.entryId = entryId;
+    state.entry = data.entry;
+    state.groupContext = data.groupContext || state.groupContext;
+    state.usedStrategyName =
+      data.entry.used_strategy_name ||
+      data.existingCheck?.selected_strategy_name ||
+      null;
+    state.existingReflection = data.existingReflection || null;
+    if (state.existingReflection?.canEdit) applyReflectionToState(state.existingReflection);
+    return true;
+  }
 
   function mapOptions(items) {
     return items.map((item) => ({
@@ -772,6 +852,7 @@
     root.innerHTML = `
       <div class="plan-app reflect-app plan-app--ask">
         ${renderHero(ui, e)}
+        ${renderReflectHandoffStrip(ui)}
         ${
           state.existingReflection?.canEdit
             ? `<div class="logbuch-msg logbuch-msg-info">Du bearbeitest deine Reflexion – beim Speichern gibt es kein zusätzliches XP.</div>`
@@ -786,6 +867,27 @@
 
   function bindHandlers(root) {
     const scope = askModalScope(root);
+
+    root.querySelectorAll("[data-reflect-handoff]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const nextId = btn.getAttribute("data-reflect-handoff");
+        if (!nextId || String(nextId) === String(state.entryId)) return;
+        resetReflectForm();
+        const rootEl = document.getElementById("reflect-screen-root");
+        if (rootEl) rootEl.innerHTML = `<div class="logbuch-loading">Lade Tagesabschluss…</div>`;
+        try {
+          const ok = await loadReflectEntry(nextId);
+          if (!ok) {
+            renderMissing();
+            return;
+          }
+          render();
+        } catch (err) {
+          console.error(err);
+          if (rootEl) rootEl.innerHTML = UI().msg("Tagesabschluss konnte nicht geladen werden.");
+        }
+      });
+    });
 
     scope.querySelectorAll("[data-plan-open]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -984,6 +1086,26 @@
       window.LogbuchReminders?.clearForEntry?.(state.entryId, "reflect");
       teardownAskModal();
       if (typeof window.loadMe === "function") await window.loadMe();
+      // Shared-Tablet: nächste Person ohne Abschluss
+      const members = groupMembers();
+      const curOwner = Number(state.entry?.user_id);
+      const next = members.find(
+        (m) => Number(m.userId) !== curOwner && m.entryId && !m.hasReflection
+      );
+      if (next?.entryId) {
+        resetReflectForm();
+        state.groupContext = {
+          ...state.groupContext,
+          members: members.map((m) =>
+            Number(m.userId) === curOwner ? { ...m, hasReflection: true } : m
+          )
+        };
+        const ok = await loadReflectEntry(next.entryId);
+        if (ok) {
+          render();
+          return;
+        }
+      }
       window.StudentRouter?.navigateToSection("today");
     } catch (err) {
       console.error(err);
@@ -996,23 +1118,9 @@
   async function init(query) {
     const q = query || new URLSearchParams(location.search);
     state.entryId = q.get("entryId") || null;
-    state.goalReachedAnswer = null;
-    state.helpedItems = [];
-    state.disturbItems = {};
-    state.workPathAnswer = null;
-    state.workPathNote = "";
-    state.strategyHelpedAnswer = null;
-    state.nextStepAnswer = null;
-    state.confidenceAfter = null;
-    state.learnedToday = "";
-    state.usedStrategyName = null;
-    state.entry = null;
-    state.existingReflection = null;
-    state.submitting = false;
-    state.errorMsg = "";
-    state.activeStep = 1;
-    state.missionSeen = false;
-    state.disturbDone = false;
+    state.groupContext = null;
+    state.handoffNotice = null;
+    resetReflectForm();
     teardownAskModal();
 
     const root = document.getElementById("reflect-screen-root");
@@ -1024,21 +1132,11 @@
     }
 
     try {
-      const res = await fetch(
-        `/api/student/log/reflect-context?entryId=${encodeURIComponent(state.entryId)}`
-      );
-      const data = await res.json();
-      if (!data.entry) {
+      const ok = await loadReflectEntry(state.entryId);
+      if (!ok) {
         renderMissing();
         return;
       }
-      state.entry = data.entry;
-      state.usedStrategyName =
-        data.entry.used_strategy_name ||
-        data.existingCheck?.selected_strategy_name ||
-        null;
-      state.existingReflection = data.existingReflection || null;
-      if (state.existingReflection?.canEdit) applyReflectionToState(state.existingReflection);
       render();
     } catch (err) {
       console.error(err);

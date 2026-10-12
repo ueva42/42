@@ -3354,6 +3354,41 @@
       syncHandoffMember();
     }
 
+    // Shared: solange nicht alle Ziele da sind → Person ohne Ziel wählen (kein Abschluss-Sprung)
+    if (isSharedGroupDevice() && !state.entryId && !params.get("entryId")) {
+      const pending = groupMembers().filter((m) => !memberHasPlan(m));
+      if (pending.length) {
+        const cur = Number(state.handoffUserId);
+        const curOk = pending.some((m) => Number(m.userId) === cur);
+        if (!curOk) {
+          state.handoffUserId = Number(pending[0].userId);
+          state.existingEntry = null;
+          state.editingEntryId = null;
+          state.entryId = null;
+          if (!params.has("forUserId") || Number(params.get("forUserId")) !== state.handoffUserId) {
+            params.set("forUserId", String(state.handoffUserId));
+            const resPending = await fetch(`/api/student/log/plan-context?${params}`);
+            if (resPending.ok) {
+              const dataPending = await resPending.json();
+              state.groupContext = dataPending.groupContext || state.groupContext;
+              state.whatGoalOptions = Array.isArray(dataPending.whatGoalOptions)
+                ? dataPending.whatGoalOptions
+                : state.whatGoalOptions;
+              state.roleWasGoalOptions = Array.isArray(dataPending.roleWasGoalOptions)
+                ? dataPending.roleWasGoalOptions
+                : [];
+              state.existingEntry = null;
+              if (dataPending.planningUserId) {
+                state.handoffUserId = Number(dataPending.planningUserId);
+              }
+            }
+          }
+        } else if (state.existingEntry) {
+          // Aktuelle Person hat schon Ziel → Übersicht ok; sonst leeres Formular
+        }
+      }
+    }
+
     if (data.lockedSubject) {
       state.subject = data.lockedSubject;
     } else if (!state.subject && data.suggestedSubject) {

@@ -197,15 +197,37 @@
       if (gm && !gm.ready) {
         return `Als Nächstes: In ${subject} zuerst die Gruppe bilden.`;
       }
-      if (!block.entry) {
+      const shared = gm && String(gm.deviceMode || "shared") !== "personal";
+      const members = Array.isArray(gm?.members) ? gm.members : [];
+      const allPlansDone =
+        typeof gm?.allPlansDone === "boolean"
+          ? gm.allPlansDone
+          : !shared
+            ? !!block.entry
+            : members.length > 0 && members.every((m) => m.hasPlan);
+      if (gm && shared && !allPlansDone) {
+        const next = members.find((m) => !m.hasPlan);
+        return next
+          ? `Als Nächstes: Tagesziel für ${next.displayName} in ${subject}.`
+          : `Als Nächstes: In ${subject} Rolle und Tagesziel setzen.`;
+      }
+      if (!block.entry && !(shared && allPlansDone)) {
         return gm
           ? `Als Nächstes: In ${subject} Rolle und Tagesziel setzen.`
           : `Setze als Nächstes dein Tagesziel in ${subject}.`;
       }
-      if (blockNeedsMidCheck(block, block.entry) && !block.entry.hasCheck) {
+      if (shared && allPlansDone) {
+        const needReflect = members.find((m) => m.hasPlan && !m.hasReflection);
+        if (needReflect) {
+          return `Als Nächstes: Tagesabschluss für ${needReflect.displayName} in ${subject}.`;
+        }
+      }
+      if (block.entry && blockNeedsMidCheck(block, block.entry) && !block.entry.hasCheck) {
         return `Als Nächstes: Zwischen-Check in ${subject}.`;
       }
-      if (!block.entry.hasReflection) return `Als Nächstes: Tagesabschluss in ${subject}.`;
+      if (block.entry && !block.entry.hasReflection) {
+        return `Als Nächstes: Tagesabschluss in ${subject}.`;
+      }
     }
     return "Stark – alle Stunden für heute sind erledigt.";
   }
@@ -452,6 +474,15 @@
     const gm = groupModeForSubject(subject);
     const names = (gm?.memberNames || []).filter(Boolean).join(", ");
     const ready = !!gm?.ready && !gm?.needsSetup;
+    const shared = String(gm?.deviceMode || "shared") !== "personal";
+    const members = Array.isArray(gm?.members) ? gm.members : [];
+    const allPlansDone =
+      typeof gm?.allPlansDone === "boolean"
+        ? gm.allPlansDone
+        : !shared
+          ? !!entry
+          : members.length > 0 && members.every((m) => m.hasPlan);
+    const pendingPlan = members.filter((m) => !m.hasPlan);
     const groupPrefix = names ? `Gruppe: ${names}` : "Gruppenarbeit";
 
     // Gruppe noch nicht fertig → zuerst Gruppenmodus
@@ -473,29 +504,65 @@
       });
     }
 
-    // Tagesziel bereits gesetzt → nicht erneut „setzen“, sondern weiter (Check/Abschluss)
-    if (entry) {
-      const needsMidCheck = blockNeedsMidCheck(block, entry);
+    // Shared-Tablet: erst ALLE Tagesziele, danach Abschluss (mit Personenwahl)
+    if (shared && !allPlansDone) {
+      const next = pendingPlan[0];
       const params = new URLSearchParams({ date: state.date || "" });
-      if (entry.id) params.set("entryId", entry.id);
-      if (entry.subject) params.set("subject", entry.subject);
-      if (entry.timeslot) params.set("timeslot", entry.timeslot);
-      const hint = `${groupPrefix} · ${goalHint(entry)}`;
+      if (subject) params.set("subject", subject);
+      if (slot?.timeslot) params.set("timeslot", slot.timeslot);
+      const doneCount = members.filter((m) => m.hasPlan).length;
+      const hint = next
+        ? `${groupPrefix} · ${doneCount}/${members.length || "?"} Ziele – jetzt: ${next.displayName}`
+        : `${groupPrefix} – Rolle & Tagesziel setzen.`;
+      return renderSubjectTile({
+        subject,
+        time,
+        hint,
+        cta: editable ? (doneCount ? "Nächstes Tagesziel" : "Tagesziel setzen") : "",
+        nav: editable ? "plan" : "",
+        query: params.toString(),
+        group: true
+      });
+    }
+
+    // Alle Ziele da (oder Solo/Personal) → Check / Abschluss
+    if (entry || (shared && allPlansDone)) {
+      const needsMidCheck = blockNeedsMidCheck(block, entry);
+      const reflectMembers = members.filter((m) => m.hasPlan && m.entryId);
+      const needReflect = reflectMembers.filter((m) => !m.hasReflection);
+      const needCheck = reflectMembers.filter((m) => !m.hasCheck);
+      const focus =
+        needReflect[0] ||
+        needCheck[0] ||
+        reflectMembers[0] ||
+        (entry ? { entryId: entry.id, displayName: null } : null);
+      const params = new URLSearchParams({ date: state.date || "" });
+      if (focus?.entryId) params.set("entryId", focus.entryId);
+      if (subject) params.set("subject", subject);
+      if (time) params.set("timeslot", time);
+      const hint = entry
+        ? `${groupPrefix} · ${goalHint(entry)}`
+        : `${groupPrefix} · Alle Tagesziele gesetzt.`;
 
       if (!editable) {
         return renderSubjectTile({
           subject,
           time,
           hint,
-          cta: "Ansehen",
-          nav: "plan",
+          cta: focus?.entryId ? "Ansehen" : "",
+          nav: focus?.entryId ? "plan" : "",
           query: params.toString(),
           group: true
         });
       }
 
-      const allDone = (needsMidCheck ? entry.hasCheck : true) && entry.hasReflection;
-      if (allDone) {
+      const hostAllDone =
+        entry &&
+        (needsMidCheck ? entry.hasCheck : true) &&
+        entry.hasReflection &&
+        (!shared || needReflect.length === 0);
+
+      if (hostAllDone && needReflect.length === 0) {
         return renderSubjectTile({
           subject,
           time,
@@ -507,7 +574,24 @@
           group: true
         });
       }
-      if (needsMidCheck && !entry.hasCheck) {
+
+      if (shared && needReflect.length) {
+        const who = needReflect[0];
+        const q = new URLSearchParams({ entryId: who.entryId });
+        if (subject) q.set("subject", subject);
+        if (state.date) q.set("date", state.date);
+        return renderSubjectTile({
+          subject,
+          time,
+          hint: `${groupPrefix} · Abschluss – jetzt: ${who.displayName}`,
+          cta: "Tagesabschluss",
+          nav: "reflect",
+          query: q.toString(),
+          group: true
+        });
+      }
+
+      if (entry && needsMidCheck && !entry.hasCheck) {
         return renderSubjectTile({
           subject,
           time,
@@ -518,7 +602,8 @@
           group: true
         });
       }
-      if (!entry.hasReflection) {
+
+      if (entry && !entry.hasReflection) {
         return renderSubjectTile({
           subject,
           time,
@@ -529,6 +614,7 @@
           group: true
         });
       }
+
       return renderSubjectTile({
         subject,
         time,
@@ -541,7 +627,7 @@
       });
     }
 
-    // Gruppe bereit, aber noch kein Tagesziel für diese Person
+    // Gruppe bereit, aber noch kein Tagesziel
     const params = new URLSearchParams({ date: state.date || "" });
     if (subject) params.set("subject", subject);
     if (slot?.timeslot) params.set("timeslot", slot.timeslot);
