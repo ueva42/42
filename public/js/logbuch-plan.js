@@ -753,63 +753,8 @@
   }
 
   function renderAfterSaveModal() {
-    if (!state.afterSaveOpen) return "";
-    const ui = UI();
-    const goal = pickedWhatGoal();
-    const material = goalPracticeMaterial(goal);
-    const goalText = goal?.text || state.whatGoalText || "dein Unterpunkt";
-    const materialBits = [material.label, material.note].filter(Boolean);
-
-    let title = "Jetzt üben?";
-    let text = "Öffne das hinterlegte Material und starte direkt mit deinem Tagesziel.";
-    if (!material.hasMaterial) {
-      title = "Weiter zum Lernstand";
-      text =
-        "Für diesen Unterpunkt ist noch kein Übungsmaterial hinterlegt. Trage im Lernstand ein, was in Arbeit ist und was schon sicher läuft.";
-    } else if (!material.hasUrl) {
-      title = "Dein Material";
-      text =
-        "So findest du die Aufgabe. Trage danach im Lernstand ein, was in Arbeit ist und was schon sicher läuft.";
-    }
-
-    const primary = material.hasUrl
-      ? `<button type="button" class="btn-primary logbuch-submit today-app-btn" data-plan-next="practice">Jetzt üben</button>`
-      : `<button type="button" class="btn-primary logbuch-submit today-app-btn" data-plan-next="levelplan">Zum Lernstand</button>`;
-    const secondary = material.hasUrl
-      ? `<button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" data-plan-next="levelplan">Zum Lernstand</button>`
-      : "";
-
-    return `
-      <div class="plan-next-modal-backdrop" data-plan-after-save role="dialog" aria-modal="true" aria-label="${ui.escapeHtml(title)}">
-        <div class="plan-next-modal">
-          <p class="plan-next-modal__kicker">Tagesziel gespeichert</p>
-          <h3 class="plan-next-modal__title">${ui.escapeHtml(title)}</h3>
-          ${
-            groupRoleSummary()
-              ? `<p class="plan-next-modal__goal">Gruppenrolle: <strong>${ui.escapeHtml(
-                  groupRoleSummary().roleText
-                )}</strong>${
-                  groupRoleSummary().person ? ` (${ui.escapeHtml(groupRoleSummary().person)})` : ""
-                }</p>`
-              : ""
-          }
-          <p class="plan-next-modal__goal">Unterpunkt: <strong>${ui.escapeHtml(goalText)}</strong></p>
-          ${
-            materialBits.length
-              ? `<div class="plan-next-modal__material">
-                  <span class="plan-next-modal__material-label">Material</span>
-                  <p>${ui.escapeHtml(materialBits.join(" · "))}</p>
-                </div>`
-              : ""
-          }
-          <p class="plan-next-modal__text">${ui.escapeHtml(text)}</p>
-          <div class="plan-next-modal__actions">
-            ${primary}
-            ${secondary}
-            <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" data-plan-next="today">Zurück zu Mein Tag</button>
-          </div>
-        </div>
-      </div>`;
+    // Nach Speichern geht’s direkt zu Mein Tag – kein Lernstand-/Üben-Dialog mehr.
+    return "";
   }
 
   function levelGoalTextFor(goal, level) {
@@ -3323,8 +3268,8 @@
         }
       }
       state.handoffNotice = null;
-      state.afterSaveOpen = true;
-      render();
+      state.afterSaveOpen = false;
+      goToTodayFromPlan();
     } catch (err) {
       console.error(err);
       state.submitting = false;
