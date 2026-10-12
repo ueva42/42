@@ -5963,7 +5963,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     let previousSuggestion = null;
     if (activeSubject && !existingEntry) {
       previousSuggestion = await fetchPreviousPlanSuggestion(
-        studentId,
+        planningUserId,
         activeSubject,
         date
       );

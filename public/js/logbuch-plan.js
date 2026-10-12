@@ -942,9 +942,11 @@
       state.handoffUserId = null;
       return null;
     }
+    // Bewusste Auswahl (z. B. nach Speichern / Tablet-Übergabe) behalten
     const current = members.find((m) => Number(m.userId) === Number(state.handoffUserId));
-    if (current && !memberHasRole(current)) return current;
-    const pending = members.find((m) => !memberHasRole(m));
+    if (current) return current;
+    // Nur wenn noch niemand gewählt: nächste Person ohne Tagesziel
+    const pending = members.find((m) => !memberHasPlan(m));
     if (pending) {
       state.handoffUserId = Number(pending.userId);
       return pending;
@@ -952,6 +954,34 @@
     const me = members.find((m) => m.isMe) || members[0];
     state.handoffUserId = me ? Number(me.userId) : null;
     return me || null;
+  }
+
+  /** Formular für die nächste Person am Shared-Tablet leeren (kein Edit des Vorherigen). */
+  function resetPlanFormForHandoff() {
+    state.editingEntryId = null;
+    state.entryId = null;
+    state.existingEntry = null;
+    state.whatGoalId = null;
+    state.roleGoalId = null;
+    state._editRoleGoalText = "";
+    state.whatGoalText = "";
+    state.selectedLevel = null;
+    state.levelGoalText = "";
+    state.startGoals = [];
+    state.howGoalText = null;
+    state.controlGoals = [];
+    state.workGoals = [];
+    state.planBStrategies = [];
+    state.confidenceBefore = null;
+    state.detailsText = "";
+    state.selectedCheckpointId = null;
+    state.activeStep = 1;
+    state.planBAcknowledged = false;
+    state.step3Skipped = false;
+    state.suggestion = null;
+    state.suggestionApplied = false;
+    state.errorMsg = "";
+    state.afterSaveOpen = false;
   }
 
   function currentHandoffMember() {
@@ -2845,30 +2875,18 @@
         state.handoffUserId = uid;
         state.handoffNotice = null;
         state.pqSeenSection = null;
-        state.errorMsg = "";
-        state.whatGoalId = null;
-        state.roleGoalId = null;
-        state.whatGoalText = "";
-        state.selectedLevel = null;
-        state.levelGoalText = "";
-        state.startGoals = [];
-        state.howGoalText = null;
-        state.controlGoals = [];
-        state.workGoals = [];
-        state.planBStrategies = [];
-        state.confidenceBefore = null;
-        state.detailsText = "";
-        state.editingEntryId = null;
-        state.entryId = null;
-        state.existingEntry = null;
-        state.planBAcknowledged = false;
-        state.activeStep = 1;
+        resetPlanFormForHandoff();
         loadContext().then(render).catch(() => render());
       });
     });
     scope.querySelector("#planHandoffGo")?.addEventListener("click", () => {
+      const nextId = Number(state.handoffNotice?.nextUserId);
       state.handoffNotice = null;
-      render();
+      if (Number.isFinite(nextId) && nextId > 0) {
+        state.handoffUserId = nextId;
+      }
+      resetPlanFormForHandoff();
+      loadContext().then(render).catch(() => render());
     });
     scope.querySelectorAll("[data-quick-topic]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -3243,26 +3261,7 @@
             nextName: next.displayName || "nächste Person"
           };
           state.handoffUserId = Number(next.userId);
-          state.afterSaveOpen = false;
-          state.editingEntryId = null;
-          state.entryId = null;
-          state.existingEntry = null;
-          state.whatGoalId = null;
-          state.roleGoalId = null;
-          state.whatGoalText = "";
-          state.selectedLevel = null;
-          state.levelGoalText = "";
-          state.startGoals = [];
-          state.howGoalText = null;
-          state.controlGoals = [];
-          state.workGoals = [];
-          state.planBStrategies = [];
-          state.confidenceBefore = null;
-          state.detailsText = "";
-          state.activeStep = 1;
-          state.planBAcknowledged = false;
-          state.step3Skipped = false;
-          state.errorMsg = "";
+          resetPlanFormForHandoff();
           await loadContext();
           render();
           return;
@@ -3287,11 +3286,7 @@
     if (state.selectedCheckpointId) {
       params.set("checkpointId", state.selectedCheckpointId);
     }
-    if (
-      state.handoffUserId &&
-      state.groupContext &&
-      String(state.groupContext.deviceMode || "") === "shared"
-    ) {
+    if (state.handoffUserId && isSharedGroupDevice()) {
       params.set("forUserId", String(state.handoffUserId));
     }
 
@@ -3302,19 +3297,27 @@
     const data = await res.json();
 
     state.socialUnlock = data.socialUnlock || { gruppe: false, frei: false };
-    state.existingEntry = data.existingEntry || null;
-    if (data.existingEntry?.canEdit) {
-      applyEntryToForm(data.existingEntry);
+    const planningId =
+      data.planningUserId != null ? Number(data.planningUserId) : null;
+    let existing = data.existingEntry || null;
+    // Nur Tagesziel der Person am Tablet – nie das des Login-Accounts „mitnehmen“
+    if (existing && planningId && Number(existing.user_id) !== planningId) {
+      existing = null;
+    }
+    state.existingEntry = existing;
+    if (existing?.canEdit && Number(existing.user_id) === planningId) {
+      applyEntryToForm(existing);
       state.planBAcknowledged = true;
       state.activeStep = 6;
-    } else if (
-      data.existingEntry &&
-      data.groupContext &&
-      String(data.groupContext.deviceMode || "") === "shared" &&
-      Number(data.planningUserId) !== Number(data.actorUserId)
-    ) {
-      // Andere Person hat schon ein Ziel – Formular nicht überschreiben, nur Hinweis
+    } else if (existing && planningId && planningId !== Number(data.actorUserId)) {
+      // Andere Person hat schon ein Ziel – Formular leer lassen (Handoff-Übersicht)
       state.existingEntry = null;
+      state.editingEntryId = null;
+      state.entryId = null;
+    } else if (!existing) {
+      // Nächste Person: sicher kein Edit-Rest vom Vorherigen
+      state.editingEntryId = null;
+      state.entryId = null;
     }
     state.hasClass = data.hasClass !== false;
     state.howGoalsBase = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
@@ -3334,7 +3337,17 @@
     state.subjectLocked = !!data.subjectLocked;
     state.groupContext = data.groupContext || null;
     if (data.planningUserId) {
-      state.handoffUserId = Number(data.planningUserId);
+      const planned = Number(data.planningUserId);
+      const wanted = params.has("forUserId") ? Number(params.get("forUserId")) : null;
+      if (wanted && Number.isFinite(wanted) && wanted > 0 && planned !== wanted) {
+        // Wunschperson am Tablet behalten – nicht still auf Login-Account zurückfallen
+        state.handoffUserId = wanted;
+        state.editingEntryId = null;
+        state.entryId = null;
+        state.existingEntry = null;
+      } else {
+        state.handoffUserId = planned;
+      }
     } else if (state.groupContext) {
       syncHandoffMember();
     }
@@ -3417,11 +3430,20 @@
         state.howGoalsBase = Array.isArray(data2.howGoals) ? data2.howGoals : state.howGoalsBase;
         refreshHowGoals();
         if (data2.planningUserId) state.handoffUserId = Number(data2.planningUserId);
-        if (data2.existingEntry?.canEdit && Number(data2.planningUserId) === wantFor) {
-          state.existingEntry = data2.existingEntry;
-          applyEntryToForm(data2.existingEntry);
+        const e2 = data2.existingEntry;
+        if (
+          e2?.canEdit &&
+          Number(data2.planningUserId) === wantFor &&
+          Number(e2.user_id) === wantFor
+        ) {
+          state.existingEntry = e2;
+          applyEntryToForm(e2);
           state.planBAcknowledged = true;
           state.activeStep = 6;
+        } else if (!e2 || Number(e2.user_id) !== wantFor) {
+          state.editingEntryId = null;
+          state.entryId = null;
+          state.existingEntry = null;
         }
         if (!state.editingEntryId) syncActiveStep();
       }
