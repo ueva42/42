@@ -526,12 +526,14 @@
       });
     }
 
-    // Alle Ziele da (oder Solo/Personal) → Check / Abschluss
+    // Alle Ziele da (oder Solo/Personal) → Check (nur Doppelstunde) / Abschluss
     if (entry || (shared && allPlansDone)) {
       const needsMidCheck = blockNeedsMidCheck(block, entry);
       const reflectMembers = members.filter((m) => m.hasPlan && m.entryId);
       const needReflect = reflectMembers.filter((m) => !m.hasReflection);
-      const needCheck = reflectMembers.filter((m) => !m.hasCheck);
+      const needCheck = needsMidCheck
+        ? reflectMembers.filter((m) => !m.hasCheck)
+        : [];
       const focus =
         needReflect[0] ||
         needCheck[0] ||
@@ -576,7 +578,7 @@
         });
       }
 
-      if (shared && needCheck.length) {
+      if (shared && needsMidCheck && needCheck.length) {
         const who = needCheck[0];
         const q = new URLSearchParams({ entryId: who.entryId });
         if (subject) q.set("subject", subject);
