@@ -510,6 +510,7 @@
       const params = new URLSearchParams({ date: state.date || "" });
       if (subject) params.set("subject", subject);
       if (slot?.timeslot) params.set("timeslot", slot.timeslot);
+      if (next?.userId) params.set("forUserId", String(next.userId));
       const doneCount = members.filter((m) => m.hasPlan).length;
       const hint = next
         ? `${groupPrefix} · ${doneCount}/${members.length || "?"} Ziele – jetzt: ${next.displayName}`
@@ -575,6 +576,22 @@
         });
       }
 
+      if (shared && needCheck.length) {
+        const who = needCheck[0];
+        const q = new URLSearchParams({ entryId: who.entryId });
+        if (subject) q.set("subject", subject);
+        if (state.date) q.set("date", state.date);
+        return renderSubjectTile({
+          subject,
+          time,
+          hint: `${groupPrefix} · Check – jetzt: ${who.displayName}`,
+          cta: "Zwischen-Check",
+          nav: "check",
+          query: q.toString(),
+          group: true
+        });
+      }
+
       if (shared && needReflect.length) {
         const who = needReflect[0];
         const q = new URLSearchParams({ entryId: who.entryId });
@@ -631,6 +648,8 @@
     const params = new URLSearchParams({ date: state.date || "" });
     if (subject) params.set("subject", subject);
     if (slot?.timeslot) params.set("timeslot", slot.timeslot);
+    const firstMember = members[0];
+    if (shared && firstMember?.userId) params.set("forUserId", String(firstMember.userId));
     return renderSubjectTile({
       subject,
       time,

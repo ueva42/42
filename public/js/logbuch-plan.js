@@ -876,6 +876,31 @@
     return memberRoleNames(member).length > 0 || memberRoleIds(member).size > 0;
   }
 
+  function pendingPlanMembers() {
+    return groupMembers().filter((m) => !memberHasPlan(m));
+  }
+
+  /** Shared-Tablet: noch nicht alle Tagesziele – kein Abschluss, Person wählen. */
+  function sharedPlanPhaseActive(params) {
+    if (!isSharedGroupDevice()) return false;
+    if (params?.get?.("entryId")) return false;
+    return pendingPlanMembers().length > 0;
+  }
+
+  function resolveSharedPlanTargetId(params) {
+    const pending = pendingPlanMembers();
+    if (!pending.length) return null;
+    const urlFor = params?.get?.("forUserId");
+    if (urlFor && pending.some((m) => Number(m.userId) === Number(urlFor))) {
+      return Number(urlFor);
+    }
+    const cur = Number(state.handoffUserId);
+    if (Number.isFinite(cur) && pending.some((m) => Number(m.userId) === cur)) {
+      return cur;
+    }
+    return Number(pending[0].userId);
+  }
+
   function syncHandoffMember() {
     const gc = state.groupContext;
     if (!gc?.enabled || !gc.hasGroup || !isSharedGroupDevice()) {
@@ -887,15 +912,19 @@
       state.handoffUserId = null;
       return null;
     }
-    // Bewusste Auswahl (z. B. nach Speichern / Tablet-Übergabe) behalten
+    const pending = pendingPlanMembers();
     const current = members.find((m) => Number(m.userId) === Number(state.handoffUserId));
-    if (current) return current;
-    // Nur wenn noch niemand gewählt: nächste Person ohne Tagesziel
-    const pending = members.find((m) => !memberHasPlan(m));
-    if (pending) {
-      state.handoffUserId = Number(pending.userId);
-      return pending;
+    // Person mit Ziel, aber andere fehlen noch → nächste ohne Ziel (nicht beim Login hängen bleiben)
+    if (pending.length && current && memberHasPlan(current)) {
+      state.handoffUserId = Number(pending[0].userId);
+      return pending[0];
     }
+    if (current && !memberHasPlan(current)) return current;
+    if (pending.length) {
+      state.handoffUserId = Number(pending[0].userId);
+      return pending[0];
+    }
+    if (current) return current;
     const me = members.find((m) => m.isMe) || members[0];
     state.handoffUserId = me ? Number(me.userId) : null;
     return me || null;
@@ -2110,7 +2139,11 @@
 
   function memberHasPlan(member) {
     if (!member) return false;
-    return !!member.hasPlan || state.quickDoneIds.includes(Number(member.userId));
+    const uid = Number(member.userId);
+    const fromCtx = groupMembers().find((m) => Number(m.userId) === uid);
+    const serverFlag =
+      fromCtx && typeof fromCtx.hasPlan === "boolean" ? fromCtx.hasPlan : !!member.hasPlan;
+    return serverFlag || state.quickDoneIds.includes(uid);
   }
 
   /** Nächste Person (nach der aktuellen), die noch kein Tagesziel hat. */
@@ -3298,9 +3331,15 @@
     const data = await res.json();
 
     state.socialUnlock = data.socialUnlock || { gruppe: false, frei: false };
+    state.groupContext = data.groupContext || null;
+    const inSharedPlanPhase = sharedPlanPhaseActive(params);
+    if (inSharedPlanPhase) {
+      state.handoffUserId = resolveSharedPlanTargetId(params);
+      params.set("forUserId", String(state.handoffUserId));
+    }
     const planningId =
       data.planningUserId != null ? Number(data.planningUserId) : null;
-    let existing = data.existingEntry || null;
+    let existing = inSharedPlanPhase ? null : data.existingEntry || null;
     const existingOwner =
       existing?.user_id != null ? Number(existing.user_id) : null;
     // Nur Tagesziel der Person am Tablet – nie das des Login-Accounts „mitnehmen“
@@ -3332,11 +3371,8 @@
       state.editingEntryId = null;
       state.entryId = null;
     } else if (!existing) {
-      // Nächste Person: sicher kein Edit-Rest vom Vorherigen
-      // entryId aus URL behalten, falls der Server den Eintrag noch liefert
-      const keepEntryId = params.get("entryId");
       state.editingEntryId = null;
-      state.entryId = keepEntryId || null;
+      state.entryId = inSharedPlanPhase ? null : params.get("entryId") || null;
       state.existingEntry = null;
     }
     state.hasClass = data.hasClass !== false;
@@ -3355,12 +3391,15 @@
       (state.checkpoints.length === 1 ? state.checkpoints[0].id : null);
     state.goalSource = data.goalSource || "none";
     state.subjectLocked = !!data.subjectLocked;
-    state.groupContext = data.groupContext || null;
     if (data.planningUserId) {
       const planned = Number(data.planningUserId);
       const wanted = params.has("forUserId") ? Number(params.get("forUserId")) : null;
-      if (wanted && Number.isFinite(wanted) && wanted > 0 && planned !== wanted) {
-        // Wunschperson am Tablet behalten – nicht still auf Login-Account zurückfallen
+      if (inSharedPlanPhase && wanted && Number.isFinite(wanted) && wanted > 0) {
+        state.handoffUserId = wanted;
+        state.editingEntryId = null;
+        state.entryId = null;
+        state.existingEntry = null;
+      } else if (wanted && Number.isFinite(wanted) && wanted > 0 && planned !== wanted) {
         state.handoffUserId = wanted;
         state.editingEntryId = null;
         state.entryId = null;
@@ -3372,37 +3411,34 @@
       syncHandoffMember();
     }
 
-    // Shared: solange nicht alle Ziele da sind → Person ohne Ziel wählen (kein Abschluss-Sprung)
-    if (isSharedGroupDevice() && !state.entryId && !params.get("entryId")) {
-      const pending = groupMembers().filter((m) => !memberHasPlan(m));
-      if (pending.length) {
-        const cur = Number(state.handoffUserId);
-        const curOk = pending.some((m) => Number(m.userId) === cur);
-        if (!curOk) {
-          state.handoffUserId = Number(pending[0].userId);
-          state.existingEntry = null;
-          state.editingEntryId = null;
-          state.entryId = null;
-          if (!params.has("forUserId") || Number(params.get("forUserId")) !== state.handoffUserId) {
-            params.set("forUserId", String(state.handoffUserId));
-            const resPending = await fetch(`/api/student/log/plan-context?${params}`);
-            if (resPending.ok) {
-              const dataPending = await resPending.json();
-              state.groupContext = dataPending.groupContext || state.groupContext;
-              state.whatGoalOptions = Array.isArray(dataPending.whatGoalOptions)
-                ? dataPending.whatGoalOptions
-                : state.whatGoalOptions;
-              state.roleWasGoalOptions = Array.isArray(dataPending.roleWasGoalOptions)
-                ? dataPending.roleWasGoalOptions
-                : [];
-              state.existingEntry = null;
-              if (dataPending.planningUserId) {
-                state.handoffUserId = Number(dataPending.planningUserId);
-              }
-            }
+    // Shared: solange nicht alle Ziele da sind → Kontext für die gewählte Person ohne Ziel
+    if (inSharedPlanPhase) {
+      state.existingEntry = null;
+      state.editingEntryId = null;
+      state.entryId = null;
+      const wantTarget = Number(state.handoffUserId);
+      const gotTarget = data.planningUserId != null ? Number(data.planningUserId) : null;
+      if (wantTarget && gotTarget !== wantTarget) {
+        params.set("forUserId", String(wantTarget));
+        const resPending = await fetch(`/api/student/log/plan-context?${params}`);
+        if (resPending.ok) {
+          const dataPending = await resPending.json();
+          state.groupContext = dataPending.groupContext || state.groupContext;
+          state.whatGoalOptions = Array.isArray(dataPending.whatGoalOptions)
+            ? dataPending.whatGoalOptions
+            : state.whatGoalOptions;
+          state.roleWasGoalOptions = Array.isArray(dataPending.roleWasGoalOptions)
+            ? dataPending.roleWasGoalOptions
+            : [];
+          state.howGoalsBase = Array.isArray(dataPending.howGoals)
+            ? dataPending.howGoals
+            : state.howGoalsBase;
+          refreshHowGoals();
+          if (dataPending.planningUserId) {
+            state.handoffUserId = Number(dataPending.planningUserId);
           }
-        } else if (state.existingEntry) {
-          // Aktuelle Person hat schon Ziel → Übersicht ok; sonst leeres Formular
+          state.existingEntry = null;
+          state.entryId = null;
         }
       }
     }
@@ -3486,11 +3522,16 @@
         refreshHowGoals();
         if (data2.planningUserId) state.handoffUserId = Number(data2.planningUserId);
         const e2 = data2.existingEntry;
-        if (e2 && Number(data2.planningUserId) === wantFor && Number(e2.user_id) === wantFor) {
+        if (
+          !sharedPlanPhaseActive(params) &&
+          e2 &&
+          Number(data2.planningUserId) === wantFor &&
+          Number(e2.user_id) === wantFor
+        ) {
           state.existingEntry = e2;
           state.editingEntryId = null;
           state.entryId = e2.id;
-        } else if (!e2 || Number(e2.user_id) !== wantFor) {
+        } else {
           state.editingEntryId = null;
           state.entryId = null;
           state.existingEntry = null;
@@ -3544,6 +3585,10 @@
     state.afterSaveOpen = false;
     state.groupContext = null;
     state.handoffUserId = null;
+    const forUserInit = q.get("forUserId");
+    if (forUserInit && Number.isFinite(Number(forUserInit)) && Number(forUserInit) > 0) {
+      state.handoffUserId = Number(forUserInit);
+    }
     state.roleSaving = false;
     teardownPlanNextModal();
 
