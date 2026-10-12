@@ -2674,7 +2674,11 @@
     )}</div>`;
     const planBBody = `<div class="goal-step-card__stack">${renderPlanBSection(ui)}${continueRow(
       "planPlanBContinue",
-      state.planBStrategies.length ? "Weiter" : "Ohne Plan B weiter",
+      state.planBStrategies.length
+        ? state.planBStrategies.length === 1
+          ? "Weiter mit Plan B"
+          : `Weiter mit ${state.planBStrategies.length} Plan-B-Karten`
+        : "Ohne Plan B weiter",
       true
     )}</div>`;
     const confidenceBody = `<div class="goal-step-card__stack">
@@ -2854,9 +2858,12 @@
     });
 
     bindChoiceChips(root, "[data-plan-b]", (btn) => {
-      toggleMulti(state.planBStrategies, btn.dataset.planB, 3);
-      syncRankedTiles(root, "[data-plan-b]", "planB", state.planBStrategies);
-      updatePlanningPreview(root);
+      const raw = btn.getAttribute("data-plan-b") || btn.dataset.planB;
+      if (!raw) return;
+      toggleMulti(state.planBStrategies, raw, 3);
+      // Auswahl merken → Button „Weiter“ statt „Ohne Plan B weiter“
+      if (state.planBStrategies.length) state.planBAcknowledged = true;
+      afterChoiceChange(root);
     });
 
     bindChoiceChips(root, "[data-confidence]", (btn) => {
@@ -3155,7 +3162,10 @@
       updatePlanningPreview(scope);
     });
 
-    scope.querySelector("#planSubmitBtn")?.addEventListener("click", submitPlan);
+    document.getElementById("planSubmitBtn")?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      submitPlan();
+    });
     scope.querySelector("#planBackBtn")?.addEventListener("click", () => {
       goToTodayFromPlan();
     });
@@ -3165,6 +3175,7 @@
     if (state.submitting) return;
 
     function fail(msg, step) {
+      state.submitting = false;
       state.errorMsg = msg;
       if (step) state.activeStep = step;
       render();
@@ -3261,7 +3272,15 @@
         })
       });
 
-      const data = await res.json();
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (_) {
+        state.submitting = false;
+        state.errorMsg = `Speichern fehlgeschlagen (Server ${res.status}).`;
+        render();
+        return;
+      }
 
       if (!data.success) {
         state.submitting = false;

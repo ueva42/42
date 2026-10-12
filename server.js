@@ -6577,11 +6577,72 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     });
 
     if (existing) {
+      if (!(await planEntryCanEdit(studentId, existing, date))) {
+        return res.json({
+          success: false,
+          message: "Für diese Stunde ist bereits ein Tagesziel gespeichert – nur Ansicht möglich.",
+          entryId: existing.id,
+          readOnly: true
+        });
+      }
+      // Bereits vorhanden und noch editierbar → aktualisieren (z. B. Shared-Tablet erneut speichern)
+      const upd = await pool.query(
+        `
+        UPDATE log_entries
+        SET
+          subject = $1,
+          goal = $2,
+          work_goals = $3::jsonb,
+          social_form = $4,
+          strategy = $5,
+          confidence_before = $6,
+          freitext = $7,
+          checkpoint_id = $8,
+          checkpoint_title = $9,
+          what_goal_id = $10,
+          what_goal_text = $11,
+          how_goal_text = $12,
+          details_text = $13,
+          selected_level = $14,
+          level_goal_text = $15,
+          plan_b_strategy_text = $16,
+          role_goal_id = $17,
+          role_goal_text = $18,
+          role_goal_role_name = $19
+        WHERE id = $20 AND user_id = $21
+        RETURNING id, created_at
+      `,
+        [
+          subject,
+          storedGoalText,
+          JSON.stringify(cleanWorkGoals),
+          socialForm || null,
+          normalizedStrategy,
+          confidence,
+          cleanDetailsText,
+          finalCheckpointId,
+          finalCheckpointTitle,
+          finalWhatGoalId,
+          finalWhatGoalText,
+          normalizedHowGoal,
+          cleanDetailsText,
+          normalizedLevel,
+          finalLevelGoalText,
+          parsedPlanB,
+          chosenRoleGoal ? chosenRoleGoal.id : null,
+          chosenRoleGoal ? chosenRoleGoal.text : null,
+          chosenRoleGoal ? chosenRoleGoal.roleName || null : null,
+          existing.id,
+          studentId
+        ]
+      );
       return res.json({
-        success: false,
-        message: "Für diese Stunde ist bereits ein Tagesziel gespeichert – nur Ansicht möglich.",
-        entryId: existing.id,
-        readOnly: true
+        success: true,
+        entry: upd.rows[0],
+        xpAwarded: 0,
+        updated: true,
+        planningUserId: studentId,
+        sharedHandoff: Number(studentId) !== Number(actorId)
       });
     }
 
@@ -6635,7 +6696,16 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ /api/student/log/plan:", err);
-    res.status(500).json({ success: false, message: "Serverfehler" });
+    const raw = String(err?.message || "");
+    let message = "Serverfehler beim Speichern.";
+    if (/invalid input syntax for type uuid/i.test(raw)) {
+      message = "Ungültige Ziel-ID – bitte Unterthema und Was-Ziel neu wählen.";
+    } else if (/null value/i.test(raw) && /goal/i.test(raw)) {
+      message = "Tagesziel-Text fehlt – bitte die Schritte erneut durchgehen.";
+    } else if (/duplicate key|unique constraint/i.test(raw)) {
+      message = "Für diese Stunde gibt es schon ein Tagesziel.";
+    }
+    res.status(500).json({ success: false, message });
   }
 });
 
