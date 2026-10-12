@@ -3180,6 +3180,7 @@
     const planBJoined = joinMulti(state.planBStrategies);
 
     try {
+      // Nur echtes Bearbeiten → PATCH; sonst POST (legt an oder aktualisiert denselben Slot)
       const isEdit = !!state.editingEntryId;
       const res = await fetch(
         isEdit
@@ -3300,12 +3301,27 @@
     const planningId =
       data.planningUserId != null ? Number(data.planningUserId) : null;
     let existing = data.existingEntry || null;
+    const existingOwner =
+      existing?.user_id != null ? Number(existing.user_id) : null;
     // Nur Tagesziel der Person am Tablet – nie das des Login-Accounts „mitnehmen“
-    if (existing && planningId && Number(existing.user_id) !== planningId) {
+    // (user_id fehlt → Eintrag behalten, nicht verwerfen)
+    if (
+      existing &&
+      planningId &&
+      existingOwner != null &&
+      Number.isFinite(existingOwner) &&
+      existingOwner !== planningId
+    ) {
       existing = null;
     }
     state.existingEntry = existing;
-    if (existing && (!planningId || Number(existing.user_id) === planningId)) {
+    if (
+      existing &&
+      (!planningId ||
+        existingOwner == null ||
+        !Number.isFinite(existingOwner) ||
+        existingOwner === planningId)
+    ) {
       // Gespeichertes Tagesziel anzeigen – nicht erneut den Wizard öffnen
       state.editingEntryId = null;
       state.entryId = existing.id;
@@ -3317,8 +3333,10 @@
       state.entryId = null;
     } else if (!existing) {
       // Nächste Person: sicher kein Edit-Rest vom Vorherigen
+      // entryId aus URL behalten, falls der Server den Eintrag noch liefert
+      const keepEntryId = params.get("entryId");
       state.editingEntryId = null;
-      state.entryId = null;
+      state.entryId = keepEntryId || null;
       state.existingEntry = null;
     }
     state.hasClass = data.hasClass !== false;

@@ -1155,7 +1155,7 @@ function midCheckForSubject(timetable, subject) {
 }
 
 const PLAN_ENTRY_FIELDS = `
-  id, date, subject, goal, timeslot, work_goals, social_form,
+  id, user_id, date, subject, goal, timeslot, work_goals, social_form,
   strategy, confidence_before, freitext, created_at,
   checkpoint_id, checkpoint_title,
   what_goal_id, what_goal_text, how_goal_text, details_text,
