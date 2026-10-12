@@ -3305,10 +3305,11 @@
       existing = null;
     }
     state.existingEntry = existing;
-    if (existing?.canEdit && Number(existing.user_id) === planningId) {
-      applyEntryToForm(existing);
-      state.planBAcknowledged = true;
-      state.activeStep = 7;
+    if (existing && (!planningId || Number(existing.user_id) === planningId)) {
+      // Gespeichertes Tagesziel anzeigen – nicht erneut den Wizard öffnen
+      state.editingEntryId = null;
+      state.entryId = existing.id;
+      state.existingEntry = existing;
     } else if (existing && planningId && planningId !== Number(data.actorUserId)) {
       // Andere Person hat schon ein Ziel – Formular leer lassen (Handoff-Übersicht)
       state.existingEntry = null;
@@ -3318,6 +3319,7 @@
       // Nächste Person: sicher kein Edit-Rest vom Vorherigen
       state.editingEntryId = null;
       state.entryId = null;
+      state.existingEntry = null;
     }
     state.hasClass = data.hasClass !== false;
     state.howGoalsBase = Array.isArray(data.howGoals) ? data.howGoals : HOW_GOAL_OPTIONS;
@@ -3431,15 +3433,10 @@
         refreshHowGoals();
         if (data2.planningUserId) state.handoffUserId = Number(data2.planningUserId);
         const e2 = data2.existingEntry;
-        if (
-          e2?.canEdit &&
-          Number(data2.planningUserId) === wantFor &&
-          Number(e2.user_id) === wantFor
-        ) {
+        if (e2 && Number(data2.planningUserId) === wantFor && Number(e2.user_id) === wantFor) {
           state.existingEntry = e2;
-          applyEntryToForm(e2);
-          state.planBAcknowledged = true;
-          state.activeStep = 7;
+          state.editingEntryId = null;
+          state.entryId = e2.id;
         } else if (!e2 || Number(e2.user_id) !== wantFor) {
           state.editingEntryId = null;
           state.entryId = null;

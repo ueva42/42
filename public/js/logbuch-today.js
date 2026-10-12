@@ -193,13 +193,15 @@
     if (!editable) return "Schau dir deine Stunden an.";
     for (const block of blockList) {
       const subject = block.entry?.subject || block.slot?.subject || "deiner Stunde";
-      if (groupModeForSubject(subject)) {
-        const gm = groupModeForSubject(subject);
-        return gm?.ready
-          ? `Als Nächstes: In ${subject} Rolle und Tagesziel in Mein Tag setzen.`
-          : `Als Nächstes: In ${subject} zuerst die Gruppe bilden.`;
+      const gm = groupModeForSubject(subject);
+      if (gm && !gm.ready) {
+        return `Als Nächstes: In ${subject} zuerst die Gruppe bilden.`;
       }
-      if (!block.entry) return `Setze als Nächstes dein Tagesziel in ${subject}.`;
+      if (!block.entry) {
+        return gm
+          ? `Als Nächstes: In ${subject} Rolle und Tagesziel setzen.`
+          : `Setze als Nächstes dein Tagesziel in ${subject}.`;
+      }
       if (blockNeedsMidCheck(block, block.entry) && !block.entry.hasCheck) {
         return `Als Nächstes: Zwischen-Check in ${subject}.`;
       }
@@ -444,41 +446,113 @@
 
   function renderGroupModeBlock(block, editable) {
     const slot = block.slot;
-    const subject = slot?.subject || "";
+    const entry = block.entry;
+    const subject = entry?.subject || slot?.subject || "";
+    const time = entry?.timeslot || slot?.timeslot || "";
     const gm = groupModeForSubject(subject);
     const names = (gm?.memberNames || []).filter(Boolean).join(", ");
     const ready = !!gm?.ready && !gm?.needsSetup;
+    const groupPrefix = names ? `Gruppe: ${names}` : "Gruppenarbeit";
 
-    // Lernen in Mein Tag (Plan) – Gruppenmodus nur für Gruppenbildung
-    if (ready) {
-      const params = new URLSearchParams({ date: state.date || "" });
-      if (subject) params.set("subject", subject);
-      if (slot?.timeslot) params.set("timeslot", slot.timeslot);
+    // Gruppe noch nicht fertig → zuerst Gruppenmodus
+    if (!ready) {
+      const params = new URLSearchParams({ subject });
+      if (state.date) params.set("date", state.date);
+      if (gm?.activeSessionId) params.set("sessionId", gm.activeSessionId);
+
       return renderSubjectTile({
         subject,
-        time: slot?.timeslot,
-        hint: names
-          ? `Gruppe: ${names} – Rolle & Ziele setzen.`
-          : "Gruppe bereit – Rolle & Ziele setzen.",
-        cta: editable ? "Tagesziel setzen" : "",
-        nav: editable ? "plan" : "",
+        time,
+        hint: gm?.activeSessionId
+          ? "Gruppe noch nicht fertig."
+          : "Zuerst Gruppe bilden.",
+        cta: editable ? (gm?.activeSessionId ? "Gruppe fertigmachen" : "Gruppe bilden") : "",
+        nav: editable ? "gruppenmodus" : "",
         query: params.toString(),
         group: true
       });
     }
 
-    const params = new URLSearchParams({ subject });
-    if (state.date) params.set("date", state.date);
-    if (gm?.activeSessionId) params.set("sessionId", gm.activeSessionId);
+    // Tagesziel bereits gesetzt → nicht erneut „setzen“, sondern weiter (Check/Abschluss)
+    if (entry) {
+      const needsMidCheck = blockNeedsMidCheck(block, entry);
+      const params = new URLSearchParams({ date: state.date || "" });
+      if (entry.id) params.set("entryId", entry.id);
+      if (entry.subject) params.set("subject", entry.subject);
+      if (entry.timeslot) params.set("timeslot", entry.timeslot);
+      const hint = `${groupPrefix} · ${goalHint(entry)}`;
 
+      if (!editable) {
+        return renderSubjectTile({
+          subject,
+          time,
+          hint,
+          cta: "Ansehen",
+          nav: "plan",
+          query: params.toString(),
+          group: true
+        });
+      }
+
+      const allDone = (needsMidCheck ? entry.hasCheck : true) && entry.hasReflection;
+      if (allDone) {
+        return renderSubjectTile({
+          subject,
+          time,
+          hint,
+          cta: "Ansehen",
+          nav: "plan",
+          query: params.toString(),
+          done: true,
+          group: true
+        });
+      }
+      if (needsMidCheck && !entry.hasCheck) {
+        return renderSubjectTile({
+          subject,
+          time,
+          hint,
+          cta: "Zwischen-Check",
+          nav: "check",
+          query: new URLSearchParams({ entryId: entry.id }).toString(),
+          group: true
+        });
+      }
+      if (!entry.hasReflection) {
+        return renderSubjectTile({
+          subject,
+          time,
+          hint,
+          cta: "Tagesabschluss",
+          nav: "reflect",
+          query: new URLSearchParams({ entryId: entry.id }).toString(),
+          group: true
+        });
+      }
+      return renderSubjectTile({
+        subject,
+        time,
+        hint,
+        cta: "Ansehen",
+        nav: "plan",
+        query: params.toString(),
+        group: true,
+        done: true
+      });
+    }
+
+    // Gruppe bereit, aber noch kein Tagesziel für diese Person
+    const params = new URLSearchParams({ date: state.date || "" });
+    if (subject) params.set("subject", subject);
+    if (slot?.timeslot) params.set("timeslot", slot.timeslot);
     return renderSubjectTile({
       subject,
-      time: slot?.timeslot,
-      hint: gm?.activeSessionId
-        ? "Gruppe noch nicht fertig."
-        : "Zuerst Gruppe bilden.",
-      cta: editable ? (gm?.activeSessionId ? "Gruppe fertigmachen" : "Gruppe bilden") : "",
-      nav: editable ? "gruppenmodus" : "",
+      time,
+      hint: names
+        ? `Gruppe: ${names} – Rolle & Tagesziel setzen.`
+        : "Gruppe bereit – Rolle & Tagesziel setzen.",
+      cta: editable ? "Tagesziel setzen" : "",
+      nav: editable ? "plan" : "",
       query: params.toString(),
       group: true
     });
