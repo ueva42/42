@@ -43,16 +43,66 @@
     missionSeen: false,
     disturbDone: false,
     groupContext: null,
-    handoffNotice: null
+    handoffNotice: null,
+    /** Shared-Tablet: Person gewählt / Handoff bestätigt → Wizard starten */
+    personConfirmed: false,
+    pickerFocusEntryId: null
   };
 
   function groupMembers() {
     return (state.groupContext?.members || []).filter((m) => m && m.entryId);
   }
 
+  function isSharedReflect() {
+    const gc = state.groupContext;
+    return !!(
+      gc?.enabled &&
+      String(gc.deviceMode || "shared") !== "personal" &&
+      groupMembers().length >= 2
+    );
+  }
+
+  function pendingReflectMembers() {
+    return groupMembers().filter((m) => !m.hasReflection);
+  }
+
+  function nextPendingReflect(currentUserId) {
+    const members = groupMembers();
+    const cur = Number(currentUserId);
+    const idx = members.findIndex((m) => Number(m.userId) === cur);
+    const ordered =
+      idx >= 0
+        ? members.slice(idx + 1).concat(members.slice(0, idx))
+        : members.filter((m) => Number(m.userId) !== cur);
+    return ordered.find((m) => m.entryId && !m.hasReflection) || null;
+  }
+
+  function reflectHandoffStyles() {
+    return `<style>
+      .plan-handoff-strip{margin:0 0 14px;padding:12px;border-radius:14px;border:1px solid rgba(34,211,238,.45);background:rgba(8,47,73,.55)}
+      .plan-handoff-strip__label{margin:0 0 8px;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#67e8f9}
+      .plan-handoff-strip__row{display:flex;flex-wrap:wrap;gap:8px}
+      .plan-handoff-strip__btn{min-height:44px;padding:8px 14px;border-radius:12px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.45);color:#cbd5e1;font-weight:800;font-size:.95rem;cursor:pointer}
+      .plan-handoff-strip__btn.is-active{border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#fff;box-shadow:0 0 0 2px rgba(34,211,238,.3)}
+      .plan-handoff-strip__btn.is-done:not(.is-active){border-color:rgba(52,211,153,.55);color:#a7f3d0}
+      .plan-handoff-strip__hint{margin:8px 0 0;font-size:.78rem;color:#94a3b8}
+      .pq-handoff{text-align:center}
+      .pq-handoff__name{margin:6px 0 14px;font-size:2.2rem;font-weight:900;line-height:1.1;color:#22d3ee}
+      .pq-handoff .today-app-btn{width:100%;min-height:58px;font-size:1.15rem}
+      .pq-dots{display:flex;justify-content:center;gap:8px;margin:10px 0 16px}
+      .pq-dots span{width:12px;height:12px;border-radius:50%;background:rgba(148,163,184,.35)}
+      .pq-dots span.is-done{background:#34d399}
+      .pq-dots span.is-next{background:#22d3ee;box-shadow:0 0 0 3px rgba(34,211,238,.35)}
+      .reflect-pick__row{display:flex;flex-direction:column;gap:10px;margin:12px 0 18px}
+      .reflect-pick__btn{min-height:56px;padding:12px 16px;border-radius:14px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.55);color:#e2e8f0;font-weight:800;font-size:1.1rem;cursor:pointer;text-align:left}
+      .reflect-pick__btn.is-focus{border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#fff}
+      .reflect-pick__btn.is-done{border-color:rgba(52,211,153,.5);color:#a7f3d0;opacity:.85}
+    </style>`;
+  }
+
   function renderReflectHandoffStrip(ui) {
     const members = groupMembers();
-    if (members.length < 2) return "";
+    if (!isSharedReflect() || members.length < 2) return "";
     const activeId = Number(state.entry?.user_id);
     return `
       <div class="plan-handoff-strip" role="group" aria-label="Person am Tablet">
@@ -72,15 +122,77 @@
         </div>
         <p class="plan-handoff-strip__hint">Andere Person tippen = Tablet weitergeben</p>
       </div>
-      <style>
-        .plan-handoff-strip{margin:0 0 14px;padding:12px;border-radius:14px;border:1px solid rgba(34,211,238,.45);background:rgba(8,47,73,.55)}
-        .plan-handoff-strip__label{margin:0 0 8px;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#67e8f9}
-        .plan-handoff-strip__row{display:flex;flex-wrap:wrap;gap:8px}
-        .plan-handoff-strip__btn{min-height:44px;padding:8px 14px;border-radius:12px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.45);color:#cbd5e1;font-weight:800;font-size:.95rem;cursor:pointer}
-        .plan-handoff-strip__btn.is-active{border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#fff;box-shadow:0 0 0 2px rgba(34,211,238,.3)}
-        .plan-handoff-strip__btn.is-done:not(.is-active){border-color:rgba(52,211,153,.55);color:#a7f3d0}
-        .plan-handoff-strip__hint{margin:8px 0 0;font-size:.78rem;color:#94a3b8}
-      </style>`;
+      ${reflectHandoffStyles()}`;
+  }
+
+  function renderReflectPersonPicker(ui) {
+    const members = groupMembers();
+    const pending = pendingReflectMembers();
+    const focusId = Number(
+      state.pickerFocusEntryId ||
+        pending[0]?.entryId ||
+        state.entryId ||
+        members[0]?.entryId
+    );
+    const focus = members.find((m) => Number(m.entryId) === focusId) || pending[0] || members[0];
+    const done = members.filter((m) => m.hasReflection).length;
+    return `
+      ${reflectHandoffStyles()}
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Person wählen">
+        <div class="plan-next-modal plan-next-modal--ask">
+          <p class="plan-next-modal__kicker">Tagesabschluss · ${done}/${members.length} fertig</p>
+          <h3 class="plan-next-modal__title">Wer macht den Abschluss?</h3>
+          <p class="plan-next-modal__text">Person tippen, dann Tagesabschluss setzen – danach kommt die nächste Person.</p>
+          <div class="reflect-pick__row" role="group" aria-label="Gruppenmitglieder">
+            ${members
+              .map((m) => {
+                const isFocus = Number(m.entryId) === Number(focus?.entryId);
+                const doneM = !!m.hasReflection;
+                return `<button type="button" class="reflect-pick__btn${isFocus ? " is-focus" : ""}${
+                  doneM ? " is-done" : ""
+                }" data-reflect-pick="${ui.escapeHtml(String(m.entryId))}" ${
+                  doneM ? "disabled" : ""
+                }>${ui.escapeHtml(m.displayName || "Person")}${doneM ? " ✓ fertig" : ""}</button>`;
+              })
+              .join("")}
+          </div>
+          <button type="button" class="btn-primary logbuch-submit today-app-btn" id="reflectPickGo" ${
+            focus && !focus.hasReflection ? "" : "disabled"
+          }>${
+            focus && !focus.hasReflection
+              ? `${ui.escapeHtml(focus.displayName || "Person")} startet →`
+              : "Alle fertig"
+          }</button>
+          <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="reflectPickBack" style="margin-top:10px;width:100%">Zurück zu Mein Tag</button>
+        </div>
+      </div>`;
+  }
+
+  function renderReflectHandoffPopup(ui) {
+    const n = state.handoffNotice;
+    if (!n) return "";
+    const members = groupMembers();
+    const done = members.filter((m) => m.hasReflection).length;
+    return `
+      ${reflectHandoffStyles()}
+      <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Tablet weitergeben">
+        <div class="plan-next-modal plan-next-modal--ask pq-handoff">
+          <p class="plan-next-modal__kicker">✓ ${ui.escapeHtml(n.savedName || "Gespeichert")} gespeichert</p>
+          <div class="pq-dots" aria-label="${done} von ${members.length} fertig">
+            ${members
+              .map((m) => {
+                const isNext = Number(m.userId) === Number(n.nextUserId);
+                return `<span class="${m.hasReflection ? "is-done" : isNext ? "is-next" : ""}"></span>`;
+              })
+              .join("")}
+          </div>
+          <h3 class="plan-next-modal__title">Gib das Tablet jetzt an</h3>
+          <p class="pq-handoff__name">${ui.escapeHtml(n.nextName || "nächste Person")}</p>
+          <button type="button" class="btn-primary logbuch-submit today-app-btn" id="reflectHandoffGo">${ui.escapeHtml(
+            n.nextName || "Weiter"
+          )} ist dran →</button>
+        </div>
+      </div>`;
   }
 
   function resetReflectForm() {
@@ -524,8 +636,15 @@
     return true;
   }
 
+  function currentMemberName() {
+    const uid = Number(state.entry?.user_id);
+    const m = groupMembers().find((x) => Number(x.userId) === uid);
+    return m?.displayName || "";
+  }
+
   function renderHero(ui, e) {
-    const chips = [formatMetaLine(e), e.subject].filter(Boolean);
+    const who = currentMemberName();
+    const chips = [formatMetaLine(e), e.subject, who ? `für ${who}` : null].filter(Boolean);
 
     return `
       <article class="plan-app-hero plan-app-hero--compact plan-app-hero--reflect">
@@ -534,7 +653,7 @@
             <img src="/icons/student/png/lernstand.png" alt="" aria-hidden="true">
           </div>
           <div class="plan-app-hero__copy">
-            <p class="plan-app-hero__eyebrow">Schritt 3 von 3 · Abschluss</p>
+            <p class="plan-app-hero__eyebrow">Schritt 3 von 3 · Abschluss${who ? ` · ${ui.escapeHtml(who)}` : ""}</p>
             <h2 class="plan-app-hero__title">Mein Tagesabschluss</h2>
             <p class="plan-app-hero__meta">Was hat heute funktioniert und was ist dein nächster Schritt?</p>
             ${
@@ -753,6 +872,31 @@
     const root = document.getElementById("reflect-screen-root");
     if (!root) return;
 
+    if (!state.entry && !state.handoffNotice) {
+      renderMissing();
+      return;
+    }
+
+    const ui = UI();
+
+    // Shared: nach Speichern Tablet weitergeben
+    if (state.handoffNotice) {
+      teardownAskModal();
+      root.innerHTML = `<div class="plan-app reflect-app plan-app--ask"></div>${renderReflectHandoffPopup(ui)}`;
+      portalAskModal(root);
+      bindHandoffHandlers();
+      return;
+    }
+
+    // Shared: zuerst Person wählen (wie beim Tagesziel)
+    if (isSharedReflect() && !state.personConfirmed && pendingReflectMembers().length) {
+      teardownAskModal();
+      root.innerHTML = `<div class="plan-app reflect-app plan-app--ask"></div>${renderReflectPersonPicker(ui)}`;
+      portalAskModal(root);
+      bindPickerHandlers();
+      return;
+    }
+
     if (!state.entry) {
       renderMissing();
       return;
@@ -763,7 +907,6 @@
       return;
     }
 
-    const ui = UI();
     const visuals = V();
     const e = state.entry;
     const tile = (tiles, active, attr, multi) =>
@@ -865,27 +1008,73 @@
     bindHandlers(root);
   }
 
+  async function switchReflectPerson(entryId, { confirm = true } = {}) {
+    if (!entryId) return false;
+    resetReflectForm();
+    state.handoffNotice = null;
+    state.personConfirmed = !!confirm;
+    state.pickerFocusEntryId = entryId;
+    const rootEl = document.getElementById("reflect-screen-root");
+    if (rootEl) rootEl.innerHTML = `<div class="logbuch-loading">Lade Tagesabschluss…</div>`;
+    try {
+      const ok = await loadReflectEntry(entryId);
+      if (!ok) {
+        renderMissing();
+        return false;
+      }
+      if (confirm) state.personConfirmed = true;
+      render();
+      return true;
+    } catch (err) {
+      console.error(err);
+      if (rootEl) rootEl.innerHTML = UI().msg("Tagesabschluss konnte nicht geladen werden.");
+      return false;
+    }
+  }
+
+  function bindPickerHandlers() {
+    const scope = askModalScope();
+    scope.querySelectorAll("[data-reflect-pick]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-reflect-pick");
+        if (!id) return;
+        state.pickerFocusEntryId = id;
+        render();
+      });
+    });
+    scope.querySelector("#reflectPickGo")?.addEventListener("click", () => {
+      const id = state.pickerFocusEntryId || pendingReflectMembers()[0]?.entryId;
+      if (!id) return;
+      switchReflectPerson(id, { confirm: true });
+    });
+    scope.querySelector("#reflectPickBack")?.addEventListener("click", () => {
+      teardownAskModal();
+      window.StudentRouter?.navigateToSection("today");
+    });
+  }
+
+  function bindHandoffHandlers() {
+    const scope = askModalScope();
+    scope.querySelector("#reflectHandoffGo")?.addEventListener("click", () => {
+      const nextId = state.handoffNotice?.nextEntryId;
+      state.handoffNotice = null;
+      if (nextId) {
+        switchReflectPerson(nextId, { confirm: true });
+        return;
+      }
+      teardownAskModal();
+      window.StudentRouter?.navigateToSection("today");
+    });
+  }
+
   function bindHandlers(root) {
     const scope = askModalScope(root);
 
     root.querySelectorAll("[data-reflect-handoff]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      btn.addEventListener("click", () => {
         const nextId = btn.getAttribute("data-reflect-handoff");
         if (!nextId || String(nextId) === String(state.entryId)) return;
-        resetReflectForm();
-        const rootEl = document.getElementById("reflect-screen-root");
-        if (rootEl) rootEl.innerHTML = `<div class="logbuch-loading">Lade Tagesabschluss…</div>`;
-        try {
-          const ok = await loadReflectEntry(nextId);
-          if (!ok) {
-            renderMissing();
-            return;
-          }
-          render();
-        } catch (err) {
-          console.error(err);
-          if (rootEl) rootEl.innerHTML = UI().msg("Tagesabschluss konnte nicht geladen werden.");
-        }
+        switchReflectPerson(nextId, { confirm: true });
       });
     });
 
@@ -1086,22 +1275,28 @@
       window.LogbuchReminders?.clearForEntry?.(state.entryId, "reflect");
       teardownAskModal();
       if (typeof window.loadMe === "function") await window.loadMe();
-      // Shared-Tablet: nächste Person ohne Abschluss
-      const members = groupMembers();
-      const curOwner = Number(state.entry?.user_id);
-      const next = members.find(
-        (m) => Number(m.userId) !== curOwner && m.entryId && !m.hasReflection
-      );
-      if (next?.entryId) {
-        resetReflectForm();
+      // Shared-Tablet: Handoff wie beim Tagesziel – nächste Person wählen / Tablet weitergeben
+      if (isSharedReflect()) {
+        const members = groupMembers();
+        const curOwner = Number(state.entry?.user_id);
+        const saved = members.find((m) => Number(m.userId) === curOwner);
         state.groupContext = {
           ...state.groupContext,
           members: members.map((m) =>
             Number(m.userId) === curOwner ? { ...m, hasReflection: true } : m
           )
         };
-        const ok = await loadReflectEntry(next.entryId);
-        if (ok) {
+        const next = nextPendingReflect(curOwner);
+        if (next?.entryId) {
+          state.submitting = false;
+          state.personConfirmed = false;
+          state.pickerFocusEntryId = next.entryId;
+          state.handoffNotice = {
+            savedName: saved?.displayName || "Gespeichert",
+            nextUserId: Number(next.userId),
+            nextEntryId: next.entryId,
+            nextName: next.displayName || "nächste Person"
+          };
           render();
           return;
         }
@@ -1120,6 +1315,8 @@
     state.entryId = q.get("entryId") || null;
     state.groupContext = null;
     state.handoffNotice = null;
+    state.personConfirmed = false;
+    state.pickerFocusEntryId = state.entryId;
     resetReflectForm();
     teardownAskModal();
 
@@ -1136,6 +1333,17 @@
       if (!ok) {
         renderMissing();
         return;
+      }
+      // Shared: Person wählen bevor der Wizard startet
+      if (isSharedReflect() && pendingReflectMembers().length) {
+        const pending = pendingReflectMembers();
+        const urlPending = pending.some((m) => String(m.entryId) === String(state.entryId));
+        state.pickerFocusEntryId = urlPending
+          ? state.entryId
+          : pending[0].entryId;
+        state.personConfirmed = false;
+      } else {
+        state.personConfirmed = true;
       }
       render();
     } catch (err) {

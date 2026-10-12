@@ -599,10 +599,11 @@
         const q = new URLSearchParams({ entryId: who.entryId });
         if (subject) q.set("subject", subject);
         if (state.date) q.set("date", state.date);
+        const left = needReflect.length;
         return renderSubjectTile({
           subject,
           time,
-          hint: `${groupPrefix} · Abschluss – jetzt: ${who.displayName}`,
+          hint: `${groupPrefix} · Abschluss ${reflectMembers.length - left}/${reflectMembers.length} – Person wählen (z. B. ${who.displayName})`,
           cta: "Tagesabschluss",
           nav: "reflect",
           query: q.toString(),
