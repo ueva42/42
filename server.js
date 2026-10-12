@@ -6502,6 +6502,9 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         message: "Für dieses Was-Ziel wurde noch kein Text hinterlegt."
       });
     }
+    // goal ist NOT NULL – ohne „Ich starte so“ Was-/Levelziel als Fallback
+    const storedGoalText =
+      normalizedHowGoal || finalLevelGoalText || finalWhatGoalText || "Tagesziel";
 
     const cleanWorkGoals = Array.isArray(workGoals)
       ? workGoals.filter((g) => LOG_WORK_GOALS.includes(g))
@@ -6599,7 +6602,7 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         date,
         timeslot || null,
         subject,
-        normalizedHowGoal,
+        storedGoalText,
         JSON.stringify(cleanWorkGoals),
         socialForm || null,
         normalizedStrategy,
@@ -6799,6 +6802,11 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
         message: "Für dieses Was-Ziel wurde noch kein Text hinterlegt."
       });
     }
+    const finalWhatGoalText = String(goalOption.text || "")
+      .replace(/\s*\([^)]*\)\s*$/, "")
+      .trim() || goalOption.text;
+    const storedGoalText =
+      normalizedHowGoal || finalLevelGoalText || finalWhatGoalText || "Tagesziel";
 
     const cleanWorkGoals = Array.isArray(workGoals)
       ? workGoals.filter((g) => LOG_WORK_GOALS.includes(g))
@@ -6891,7 +6899,7 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
     `,
       [
         subject,
-        normalizedHowGoal,
+        storedGoalText,
         JSON.stringify(cleanWorkGoals),
         socialForm || null,
         normalizedStrategy,
@@ -6900,7 +6908,7 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
         finalCheckpointId,
         finalCheckpointTitle,
         cleanWhatGoalId,
-        goalOption.text,
+        finalWhatGoalText,
         normalizedHowGoal,
         cleanDetailsText,
         normalizedLevel,
