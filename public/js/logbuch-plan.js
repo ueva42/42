@@ -52,8 +52,8 @@
     { value: "operator", label: "Operator" },
     { value: "street_legend", label: "Street Legend" }
   ];
-  /** Ask-Wizard: Unterthema → Was-Ziel → Arbeite → Kontrolle → Selbstcheck */
-  const PLAN_ASK_STEPS = 5;
+  /** Ask-Wizard: Unterthema → Was-Ziel → Arbeite → Kontrolle → Plan B → Selbstcheck */
+  const PLAN_ASK_STEPS = 6;
 
   const state = {
     date: null,
@@ -1118,9 +1118,13 @@
       state.activeStep = 4;
       return;
     }
+    if (state.activeStep >= 6 && !planBStepComplete()) {
+      state.activeStep = 5;
+      return;
+    }
     // Auto: nach Unterthema zum Was-Ziel; Mehrfachauswahl braucht „Weiter“
     if (state.activeStep === 1 && whatStepComplete()) state.activeStep = 2;
-    else if (state.activeStep === 5 && confidenceStepComplete()) state.activeStep = 6;
+    else if (state.activeStep === 6 && confidenceStepComplete()) state.activeStep = 7;
   }
 
   function openStep(step) {
@@ -1743,6 +1747,14 @@
             ${wegLines.map((line) => `<li>${ui.escapeHtml(line)}</li>`).join("")}
           </ul>
         </div>`
+            : ""
+        }
+        ${
+          state.planBStrategies.length
+            ? `<div class="mission-summary__block">
+                <p class="mission-summary__label">Mein Plan B</p>
+                <p class="mission-summary__value">${ui.escapeHtml(joinMulti(state.planBStrategies))}</p>
+              </div>`
             : ""
         }
         ${
@@ -2544,7 +2556,8 @@
     const sWas = wasZielStepComplete();
     const sWork = workStepComplete();
     const sControl = controlStepComplete();
-    const missionReady = sWhat && sWas && sWork && sControl;
+    const sPlanB = planBStepComplete();
+    const missionReady = sWhat && sWas && sWork && sControl && sPlanB;
 
     const sharedGroup = isSharedGroupDevice() && state.groupContext?.hasGroup && !state.groupContext?.needsSetup;
     const handoffForTopic = sharedGroup ? currentHandoffMember() : null;
@@ -2659,6 +2672,11 @@
       "Weiter",
       sControl
     )}</div>`;
+    const planBBody = `<div class="goal-step-card__stack">${renderPlanBSection(ui)}${continueRow(
+      "planPlanBContinue",
+      state.planBStrategies.length ? "Weiter" : "Ohne Plan B weiter",
+      true
+    )}</div>`;
     const confidenceBody = `<div class="goal-step-card__stack">
       ${renderConfidenceCards(ui)}
       ${continueRow(
@@ -2671,7 +2689,7 @@
       ? ""
       : state.handoffNotice
         ? renderHandoffPopup(ui)
-        : state.activeStep >= 6
+        : state.activeStep >= 7
         ? renderMissionPopup(ui, missionReady)
         : state.activeStep === 1
           ? renderStepPopup({
@@ -2711,12 +2729,22 @@
                         : "1 bis 3 Karten – so merkst du, ob du’s kannst.",
                     body: controlBody
                   })
-                : renderStepPopup({
-                    step: 5,
-                    title: "Selbstcheck",
-                    hint: "Optional – wie sicher fühlst du dich?",
-                    body: confidenceBody
-                  });
+                : state.activeStep === 5
+                  ? renderStepPopup({
+                      step: 5,
+                      title: "Plan B, wenn ich hänge",
+                      hint:
+                        subjectKey() === "physik"
+                          ? "Optional – Hilfekarten, Partner oder neu ansetzen."
+                          : "Optional – falls du feststeckst.",
+                      body: planBBody
+                    })
+                  : renderStepPopup({
+                      step: 6,
+                      title: "Selbstcheck",
+                      hint: "Optional – wie sicher fühlst du dich?",
+                      body: confidenceBody
+                    });
 
     root.innerHTML = `
       <div class="plan-app plan-app--ask">
@@ -3101,9 +3129,14 @@
       state.activeStep = 5;
       render();
     });
+    scope.querySelector("#planPlanBContinue")?.addEventListener("click", () => {
+      state.planBAcknowledged = true;
+      state.activeStep = 6;
+      render();
+    });
     scope.querySelector("#planStep3Continue")?.addEventListener("click", () => {
       if (state.confidenceBefore == null) state.step3Skipped = true;
-      state.activeStep = 6;
+      state.activeStep = 7;
       render();
     });
 
@@ -3172,6 +3205,9 @@
       fail("Bitte wähle, wie du kontrollierst (1–3 Karten unter „Ich kontrolliere so“).", 4);
       return;
     }
+    if (!state.planBAcknowledged) {
+      state.planBAcknowledged = true;
+    }
 
     syncStartGoalFromHowGoal();
 
@@ -3185,7 +3221,7 @@
 
     const checkpoint = pickedCheckpoint();
     const howJoined = joinMulti(state.startGoals);
-    const strategyJoined = joinMulti(state.controlGoals);
+    const planBJoined = joinMulti(state.planBStrategies);
 
     try {
       const isEdit = !!state.editingEntryId;
@@ -3209,14 +3245,14 @@
           whatGoalText: state.whatGoalText.trim(),
           selectedLevel: state.selectedLevel,
           howGoalText: state.startGoals,
-          goal: howJoined || state.levelGoalText || state.whatGoalText.trim() || null,
+          goal: howJoined,
           detailsText: state.detailsText.trim() || null,
           workGoals: state.workGoals,
           socialForm: state.socialForm,
           strategy: state.controlGoals,
           confidenceBefore:
             state.confidenceBefore != null ? Number(state.confidenceBefore) : null,
-          planBStrategyText: null,
+          planBStrategyText: planBJoined,
           freitext: state.detailsText.trim() || null,
           forUserId:
             isSharedGroupDevice() && state.handoffUserId
@@ -3308,7 +3344,7 @@
     if (existing?.canEdit && Number(existing.user_id) === planningId) {
       applyEntryToForm(existing);
       state.planBAcknowledged = true;
-      state.activeStep = 6;
+      state.activeStep = 7;
     } else if (existing && planningId && planningId !== Number(data.actorUserId)) {
       // Andere Person hat schon ein Ziel – Formular leer lassen (Handoff-Übersicht)
       state.existingEntry = null;
@@ -3439,7 +3475,7 @@
           state.existingEntry = e2;
           applyEntryToForm(e2);
           state.planBAcknowledged = true;
-          state.activeStep = 6;
+          state.activeStep = 7;
         } else if (!e2 || Number(e2.user_id) !== wantFor) {
           state.editingEntryId = null;
           state.entryId = null;

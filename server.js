@@ -6367,7 +6367,8 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       }
     }
 
-    const howGoals = normalizeHowGoalsInput(howGoalText, goal);
+    // „Ich starte so“ / Wie-Ziele sind optional – nur howGoalText prüfen, nicht goal/Was-Text
+    const howGoals = normalizeMultiSelectValue(howGoalText);
     const normalizedHowGoal = joinMultiSelectValue(howGoals);
     const effectiveSchoolId = targetSchoolId || schoolId;
     const allowedHowGoals = [
@@ -6710,7 +6711,8 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       });
     }
 
-    const howGoals = normalizeHowGoalsInput(howGoalText, goal);
+    // Wie-Ziele optional – nur howGoalText, nicht goal/Was-Text als Wie-Ziel werten
+    const howGoals = normalizeMultiSelectValue(howGoalText);
     const normalizedHowGoal = joinMultiSelectValue(howGoals);
     const targetCtx = await getStudentClassContext(studentId);
     const effectiveSchoolId = targetCtx.schoolId || classSchoolId || schoolId;
