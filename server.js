@@ -2386,9 +2386,10 @@ function parseReflectionPayload(body) {
     return { error: "Bitte wähle den nächsten Schritt." };
   }
 
-  if (!strategyHelpedAnswer || !isAllowedReflectStrategyHelped(strategyHelpedAnswer)) {
-    return { error: "Bitte beantworte, ob dir die Strategie geholfen hat." };
-  }
+  const strategyHelped =
+    strategyHelpedAnswer && isAllowedReflectStrategyHelped(strategyHelpedAnswer)
+      ? strategyHelpedAnswer
+      : "keine_genutzt";
 
   const confidence = Number(confidenceAfter);
   if (!Number.isInteger(confidence) || confidence < 1 || confidence > 5) {
@@ -2421,7 +2422,7 @@ function parseReflectionPayload(body) {
     nextStep,
     confidenceAfter: confidence,
     learnedToday: cleanLearned,
-    strategyHelpedAnswer,
+    strategyHelpedAnswer: strategyHelped,
     usedStrategyName: cleanStrategyName
   };
 }
@@ -5826,7 +5827,6 @@ async function resolveSharedPlanTargetUserId(actorId, classId, schoolId, subject
      AND target.user_id = $4
      AND COALESCE(target.invite_status, 'accepted') = 'accepted'
     WHERE gs.class_id = $2
-      AND gs.status <> 'closed'
       AND lower(trim(gs.subject)) = lower(trim($5))
       AND (
         gs.host_user_id = $1
@@ -5838,7 +5838,12 @@ async function resolveSharedPlanTargetUserId(actorId, classId, schoolId, subject
         )
       )
     ORDER BY
-      CASE gs.status WHEN 'standing' THEN 0 WHEN 'setup' THEN 1 ELSE 2 END,
+      CASE gs.status
+        WHEN 'standing' THEN 0
+        WHEN 'setup' THEN 1
+        WHEN 'closed' THEN 3
+        ELSE 2
+      END,
       gs.updated_at DESC NULLS LAST
     LIMIT 1
   `,
@@ -6727,12 +6732,18 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       ]
     );
 
-    await awardLogbuchXP(studentId, LOGBUCH_XP.plan, "logbuch_plan", targetSchoolId);
+    let xpAwarded = 0;
+    try {
+      await awardLogbuchXP(studentId, LOGBUCH_XP.plan, "logbuch_plan", targetSchoolId);
+      xpAwarded = LOGBUCH_XP.plan;
+    } catch (xpErr) {
+      console.error("⚠️ plan XP:", xpErr);
+    }
 
     res.json({
       success: true,
       entry: insertRes.rows[0],
-      xpAwarded: LOGBUCH_XP.plan,
+      xpAwarded,
       planningUserId: studentId,
       sharedHandoff: Number(studentId) !== Number(actorId)
     });
@@ -8259,7 +8270,6 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
            AND gms.enabled = TRUE
            AND ($3::int IS NULL OR gms.school_id = $3 OR gms.school_id IS NULL)
           WHERE gs.class_id = $2
-            AND gs.status <> 'closed'
             AND lower(trim(gs.subject)) = lower(trim($4))
             AND COALESCE(gms.device_mode, 'shared') <> 'personal'
             AND (
@@ -8272,7 +8282,12 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
               )
             )
           ORDER BY
-            CASE gs.status WHEN 'standing' THEN 0 WHEN 'setup' THEN 1 ELSE 2 END,
+            CASE gs.status
+              WHEN 'standing' THEN 0
+              WHEN 'setup' THEN 1
+              WHEN 'closed' THEN 3
+              ELSE 2
+            END,
             gs.updated_at DESC NULLS LAST
           LIMIT 1
         `,
@@ -8403,12 +8418,19 @@ app.post("/api/student/log/reflect", isStudent, async (req, res) => {
       ]
     );
 
-    await awardLogbuchXP(studentId, LOGBUCH_XP.reflect, "logbuch_reflect", schoolId);
+    let xpAwarded = 0;
+    try {
+      await awardLogbuchXP(studentId, LOGBUCH_XP.reflect, "logbuch_reflect", schoolId);
+      xpAwarded = LOGBUCH_XP.reflect;
+    } catch (xpErr) {
+      // Abschluss ist gespeichert – XP-Fehler darf Shared-Tablet-Handoff nicht blockieren
+      console.error("⚠️ reflect XP:", xpErr);
+    }
 
     res.json({
       success: true,
       reflection: insertRes.rows[0],
-      xpAwarded: LOGBUCH_XP.reflect
+      xpAwarded
     });
   } catch (err) {
     console.error("❌ /api/student/log/reflect:", err);

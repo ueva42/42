@@ -1984,12 +1984,57 @@
       </div>`;
   }
 
+  function renderWhatGoalTiles(ui) {
+    const opts = whatGoalSelectOptions();
+    if (!opts.length) return whatGoalMessage(ui);
+    const V = window.LogbuchVisuals;
+    const tiles = opts.map((o, i) => ({
+      value: o.value,
+      title: o.label,
+      desc: "Unterthema wählen",
+      icon: "◆",
+      accent: ["#38bdf8", "#22d3ee", "#a855f7", "#34d399"][i % 4]
+    }));
+    if (V?.strategyTileGrid) {
+      return `
+        <p class="way-to-goal__intro">Wähle dein Unterthema für heute.</p>
+        ${V.strategyTileGrid(tiles, state.whatGoalId, "data-what-goal", { multi: false })}`;
+    }
+    return quickOptList(ui, opts, "data-what-goal", (it) =>
+      String(it.value) === String(state.whatGoalId)
+    );
+  }
+
+  function renderRoleGoalTiles(ui) {
+    const opts = state.roleWasGoalOptions || [];
+    const multiRole = new Set(opts.map((g) => g.roleName).filter(Boolean)).size > 1;
+    const items = opts.map((g) => ({
+      value: g.id,
+      label: multiRole && g.roleName ? `${g.roleName}: ${g.text}` : g.text
+    }));
+    const V = window.LogbuchVisuals;
+    const tiles = items.map((o, i) => ({
+      value: o.value,
+      title: o.label,
+      desc: "Was-Ziel zur Rolle",
+      icon: "◈",
+      accent: ["#a855f7", "#38bdf8", "#f472b6", "#22d3ee"][i % 4]
+    }));
+    if (V?.strategyTileGrid) {
+      return `
+        <p class="way-to-goal__intro">Was übernimmst du in deiner Rolle?</p>
+        ${V.strategyTileGrid(tiles, state.roleGoalId, "data-role-goal", { multi: false })}`;
+    }
+    return quickOptList(ui, items, "data-role-goal", (it) =>
+      String(it.value) === String(state.roleGoalId)
+    );
+  }
+
   function renderRoleGoalField(ui) {
     if (!roleGoalRequired() || !groupRoleComplete()) return "";
     const roles = planningTargetRoles()
       .map((r) => r.name)
       .filter(Boolean);
-    const multiRole = new Set(state.roleWasGoalOptions.map((g) => g.roleName).filter(Boolean)).size > 1;
     const label = roles.length === 1 ? `Was-Ziel für ${roles[0]}` : "Was-Ziel zu deiner Rolle";
     if (!state.whatGoalId) {
       return ui.fieldWrap(
@@ -1999,15 +2044,7 @@
     }
     return ui.fieldWrap(
       ui.fieldLabel(label, { required: true }),
-      ui.select(
-        "roleGoalId",
-        state.roleWasGoalOptions.map((g) => ({
-          value: g.id,
-          label: multiRole && g.roleName ? `${g.roleName}: ${g.text}` : g.text
-        })),
-        state.roleGoalId,
-        { phase: "plan", placeholder: "Was-Ziel zur Rolle wählen…" }
-      ),
+      renderRoleGoalTiles(ui),
       "Was übernimmst du in deiner Rolle in dieser Stunde?"
     );
   }
@@ -2326,7 +2363,6 @@
     const activeIds = memberRoleIds(handoff);
     const roleDone = groupRoleComplete();
     const topicOptions = whatGoalSelectOptions();
-    const topicNeedsSelect = topicOptions.length > 8;
     const goal = pickedWhatGoal();
     const roleGoalOpts = state.roleWasGoalOptions || [];
     const multiRole =
@@ -2399,16 +2435,9 @@
         topicRow = `
       <div data-pq-section="topic">
         <p class="pq-label">Thema</p>
-        ${
-          topicNeedsSelect
-            ? ui.select("whatGoalId", topicOptions, state.whatGoalId, {
-                phase: "plan",
-                placeholder: "Thema wählen…"
-              })
-            : quickOptList(ui, topicOptions, "data-quick-topic", (it) =>
-                String(it.value) === String(state.whatGoalId)
-              )
-        }
+        ${quickOptList(ui, topicOptions, "data-quick-topic", (it) =>
+          String(it.value) === String(state.whatGoalId)
+        )}
       </div>`;
       }
     }
@@ -2572,14 +2601,7 @@
                     ? "Zuerst Person und Rolle wählen — dann Unterthema."
                     : "Zuerst Rolle wählen."
                 }</div>`
-              : state.whatGoalOptions.length
-                ? ui.select(
-                    "whatGoalId",
-                    whatGoalSelectOptions(),
-                    state.whatGoalId,
-                    { phase: "plan", placeholder: "Unterthema wählen…" }
-                  )
-                : whatGoalMessage(ui)
+              : renderWhatGoalTiles(ui)
           )}
         </div>
         ${
@@ -3093,6 +3115,34 @@
       if (roleGoalRequired()) ensureSilentLevel();
       if (!wasZielStepComplete()) return;
       state.activeStep = 3;
+      render();
+    });
+    bindChoiceChips(scope, "[data-what-goal]", (btn) => {
+      const id = btn.getAttribute("data-what-goal");
+      if (!id || String(id) === String(state.whatGoalId)) return;
+      state.whatGoalId = id;
+      state.selectedLevel = null;
+      state.levelGoalText = "";
+      state.roleGoalId = null;
+      state.startGoals = [];
+      state.howGoalText = null;
+      state.controlGoals = [];
+      state.planBAcknowledged = false;
+      syncLevelGoalText();
+      if (roleGoalRequired() && state.roleWasGoalOptions.length === 1) {
+        state.roleGoalId = state.roleWasGoalOptions[0].id;
+        ensureSilentLevel();
+      }
+      syncActiveStep();
+      render();
+    });
+    bindChoiceChips(scope, "[data-role-goal]", (btn) => {
+      const id = btn.getAttribute("data-role-goal");
+      if (!id) return;
+      state.roleGoalId = id;
+      ensureSilentLevel();
+      if (wasZielStepComplete() && state.activeStep === 2) state.activeStep = 3;
+      else syncActiveStep();
       render();
     });
     bindChoiceChips(scope, "[data-was-tier]", (btn) => {

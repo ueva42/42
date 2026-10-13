@@ -1244,7 +1244,7 @@
       logEntryId: state.entryId,
       goalReachedAnswer: state.goalReachedAnswer,
       workPathAnswer: state.workPathAnswer,
-      workPathNote: buildWorkPathNote() || null,
+      workPathNote: (buildWorkPathNote() || "").slice(0, 200) || null,
       strategyHelpedAnswer: state.strategyHelpedAnswer,
       usedStrategyName: state.usedStrategyName,
       nextStepAnswer: state.nextStepAnswer,
@@ -1266,7 +1266,11 @@
         }
       );
       const data = await res.json();
-      if (!data.success) {
+      // Schon gespeichert (Doppelklick / Retry) → wie Erfolg behandeln, damit Handoff weitergeht
+      const alreadyDone =
+        !data.success &&
+        /bereits abgeschlossen|schon gespeichert/i.test(String(data.message || ""));
+      if (!data.success && !alreadyDone) {
         state.submitting = false;
         state.errorMsg = data.message || "Speichern fehlgeschlagen.";
         render();
@@ -1301,6 +1305,7 @@
           return;
         }
       }
+      state.submitting = false;
       window.StudentRouter?.navigateToSection("today");
     } catch (err) {
       console.error(err);
