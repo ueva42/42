@@ -12882,6 +12882,24 @@ h2 {
     <div id="hausaufgaben-screen-root" class="logbuch-root"></div>
   </div>
 
+  <!-- ÜBEN ZU HAUSE -->
+  <div id="ueben-section" class="card section logbuch-screen student-screen student-screen--cyan" style="display:none;">
+    <header class="page-hero sol-hero sol-hero--page sol-hero--blend">
+      <div class="page-hero__content">
+        <div class="student-section-icon">
+          <img src="/icons/student/png/zielsetzung.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
+        </div>
+        <p class="page-eyebrow">Üben zu Hause</p>
+        <h2 class="page-hero__title">Üben zu Hause</h2>
+        <p class="page-hero__sub">Fach selbst wählen – Übungsziel setzen und Tagesabschluss machen.</p>
+      </div>
+      <div class="sol-hero__art" aria-hidden="true">
+        <img class="page-hero__image sol-hero__img" src="/icons/student/hero/zielsetzung-hero.png?v=6" alt="" aria-hidden="true" onerror="this.style.display='none'">
+      </div>
+    </header>
+    <div id="ueben-screen-root" class="logbuch-root"></div>
+  </div>
+
   <!-- WOCHE -->
   <div id="week-section" class="card section logbuch-screen logbuch-phase-week student-screen student-screen--purple" style="display:none;">
     <header class="page-hero sol-hero sol-hero--page sol-hero--blend">
@@ -13165,6 +13183,7 @@ h2 {
     <div class="student-more-links">
       <button type="button" class="student-more-link" data-section="hub">Kontrollzentrum <span>›</span></button>
       <button type="button" class="student-more-link" data-section="hausaufgaben">Hausaufgaben <span>›</span></button>
+      <button type="button" class="student-more-link" data-section="ueben">Üben zu Hause <span>›</span></button>
       <button type="button" class="student-more-link" data-section="week">Meine Woche <span>›</span></button>
       <button type="button" class="student-more-link" data-section="taktik-deck">Taktik-Deck <span>›</span></button>
       <button type="button" class="student-more-link" data-section="checkpoint-plan">Meine Checks <span>›</span></button>
@@ -13193,16 +13212,17 @@ h2 {
 <script src="/js/logbuch-constants.js?v=12"></script>
 <script src="/js/logbuch-strategies.js?v=3"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-hub.js?v=39"></script>
+<script src="/js/logbuch-hub.js?v=40"></script>
 <script src="/js/logbuch-visuals.js?v=18"></script>
 <script src="/js/logbuch-reminders.js?v=6"></script>
 <script src="/js/logbuch-group-invites.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/student-router.js?v=12"></script>
-<script src="/js/logbuch-plan.js?v=54"></script>
+<script src="/js/student-router.js?v=13"></script>
+<script src="/js/logbuch-plan.js?v=55"></script>
 <script src="/js/logbuch-check.js?v=15"></script>
-<script src="/js/logbuch-reflect.js?v=11"></script>
+<script src="/js/logbuch-reflect.js?v=12"></script>
 <script src="/js/logbuch-today.js?v=54"></script>
+<script src="/js/logbuch-ueben.js?v=1"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
 <script src="/js/logbuch-levelplan.js?v=32"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
@@ -13212,7 +13232,7 @@ h2 {
 <script src="/js/logbuch-materialschrank.js?v=8"></script>
 <script src="/js/logbuch-homework.js?v=6"></script>
 <script src="/js/logbuch-gruppenmodus.js?v=35"></script>
-<script src="/js/logbuch-screens.js?v=9"></script>
+<script src="/js/logbuch-screens.js?v=10"></script>
 
 <script>
 /* ============================================

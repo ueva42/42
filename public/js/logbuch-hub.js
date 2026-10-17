@@ -56,6 +56,14 @@
       accent: "orange"
     },
     {
+      section: "ueben",
+      slug: "zielsetzung",
+      title: "Üben zu Hause",
+      text: "Fach selbst wählen – Übungsziel setzen und abschließen.",
+      cta: "Üben starten",
+      accent: "cyan"
+    },
+    {
       section: "levelplan",
       slug: "lernstand",
       title: "Mein Lernstand",

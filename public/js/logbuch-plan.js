@@ -101,7 +101,9 @@
     handoffNotice: null,
     /** Shared-Tablet: in dieser Sitzung gespeicherte Personen (userId) */
     quickDoneIds: [],
-    pqSeenSection: null
+    pqSeenSection: null,
+    /** Üben zu Hause: freie Fachwahl, kein Stundenplan */
+    practice: false
   };
 
   const ARBEIT_TILE_META = {
@@ -717,8 +719,13 @@
   function goToTodayFromPlan() {
     teardownPlanNextModal();
     state.afterSaveOpen = false;
+    if (state.practice) {
+      window.StudentRouter?.navigateToSection("ueben");
+      return;
+    }
     window.StudentRouter?.navigateToSection("today");
   }
+
 
   function teardownPlanNextModal() {
     document.querySelectorAll("body > .plan-next-modal-backdrop").forEach((el) => el.remove());
@@ -830,6 +837,7 @@
   }
 
   function isSharedGroupDevice() {
+    if (state.practice) return false;
     const gc = state.groupContext;
     return !!(gc?.enabled && gc.hasGroup && String(gc.deviceMode || "shared") !== "personal");
   }
@@ -1516,7 +1524,7 @@
           </div>
           <div class="plan-app-hero__copy">
             <p class="plan-app-hero__eyebrow">Abgeschlossen · nur Ansicht</p>
-            <h2 class="plan-app-hero__title">Dein Tagesziel</h2>
+            <h2 class="plan-app-hero__title">${state.practice ? "Dein Übungsziel" : "Dein Tagesziel"}</h2>
             <p class="plan-app-hero__meta">Nach dem Tagesabschluss festgehalten – nicht mehr änderbar.</p>
             ${
               chips.length
@@ -1618,7 +1626,7 @@
               </section>`
             : ""
         }
-        ${ui.btnGhost("Zurück zu Mein Tag", "planBackBtn", "today-app-btn today-app-btn--ghost")}
+        ${ui.btnGhost(state.practice ? "Zurück zu Üben" : "Zurück zu Mein Tag", "planBackBtn", "today-app-btn today-app-btn--ghost")}
       </div>`;
   }
 
@@ -1761,15 +1769,19 @@
           </div>
           <div class="plan-app-hero__copy">
             <p class="plan-app-hero__eyebrow">${
-              isQuickGroup()
-                ? "Gruppe · ein Tablet"
-                : `Schritt ${Math.min(state.activeStep, PLAN_ASK_STEPS)} von ${PLAN_ASK_STEPS} · Planen`
+              state.practice
+                ? "Üben zu Hause · Fach selbst wählen"
+                : isQuickGroup()
+                  ? "Gruppe · ein Tablet"
+                  : `Schritt ${Math.min(state.activeStep, PLAN_ASK_STEPS)} von ${PLAN_ASK_STEPS} · Planen`
             }</p>
-            <h2 class="plan-app-hero__title">Tagesziel setzen</h2>
+            <h2 class="plan-app-hero__title">${state.practice ? "Übungsziel setzen" : "Tagesziel setzen"}</h2>
             <p class="plan-app-hero__meta">${
-              isQuickGroup()
-                ? "Kurz planen, Tablet weitergeben, los geht’s."
-                : "Eine Frage nach der anderen – so bleibt der Fokus klar."
+              state.practice
+                ? "Wie in Mein Tag – aber du wählst das Fach selbst."
+                : isQuickGroup()
+                  ? "Kurz planen, Tablet weitergeben, los geht’s."
+                  : "Eine Frage nach der anderen – so bleibt der Fokus klar."
             }</p>
             ${
               chips.length
@@ -2770,7 +2782,7 @@
 
   function bindStaticHandlers(root) {
     root.querySelector("#planBackBtn")?.addEventListener("click", () => {
-      window.StudentRouter?.navigateToSection("today");
+      goToTodayFromPlan();
     });
     root.querySelector("#planGoGruppenmodus")?.addEventListener("click", () => {
       const q = new URLSearchParams(
@@ -3294,6 +3306,8 @@
             state.confidenceBefore != null ? Number(state.confidenceBefore) : null,
           planBStrategyText: planBJoined,
           freitext: state.detailsText.trim() || null,
+          practice: state.practice || undefined,
+          entryKind: state.practice ? "practice" : undefined,
           forUserId:
             isSharedGroupDevice() && state.handoffUserId
               ? Number(state.handoffUserId)
@@ -3364,8 +3378,9 @@
 
   async function loadContext() {
     const params = new URLSearchParams({ date: state.date });
+    if (state.practice) params.set("practice", "1");
     if (state.entryId) params.set("entryId", state.entryId);
-    if (state.timeslot) params.set("timeslot", state.timeslot);
+    if (!state.practice && state.timeslot) params.set("timeslot", state.timeslot);
     if (state.subject) params.set("subject", state.subject);
     if (state.selectedCheckpointId) {
       params.set("checkpointId", state.selectedCheckpointId);
@@ -3440,7 +3455,8 @@
       state.selectedCheckpointId ||
       (state.checkpoints.length === 1 ? state.checkpoints[0].id : null);
     state.goalSource = data.goalSource || "none";
-    state.subjectLocked = !!data.subjectLocked;
+    state.practice = !!(data.practice || state.practice);
+    state.subjectLocked = state.practice ? false : !!data.subjectLocked;
     if (data.planningUserId) {
       const planned = Number(data.planningUserId);
       const wanted = params.has("forUserId") ? Number(params.get("forUserId")) : null;
@@ -3596,7 +3612,9 @@
 
     state.date = q.get("date") || todayIso();
     state.entryId = q.get("entryId") || null;
-    state.timeslot = q.get("timeslot") || null;
+    state.practice =
+      q.get("practice") === "1" || String(q.get("entryKind") || "").toLowerCase() === "practice";
+    state.timeslot = state.practice ? null : q.get("timeslot") || null;
     state.subject = q.get("subject") || null;
     state.whatGoalId = null;
     state.roleGoalId = null;

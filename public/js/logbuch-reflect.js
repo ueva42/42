@@ -46,8 +46,18 @@
     handoffNotice: null,
     /** Shared-Tablet: Person gewählt / Handoff bestätigt → Wizard starten */
     personConfirmed: false,
-    pickerFocusEntryId: null
+    pickerFocusEntryId: null,
+    practice: false
   };
+
+  function goHomeFromReflect() {
+    teardownAskModal();
+    if (state.practice || state.entry?.isPractice || state.entry?.entry_kind === "practice") {
+      window.StudentRouter?.navigateToSection("ueben");
+      return;
+    }
+    window.StudentRouter?.navigateToSection("today");
+  }
 
   function groupMembers() {
     return (state.groupContext?.members || []).filter((m) => m && m.entryId);
@@ -226,6 +236,9 @@
     }
     state.entryId = entryId;
     state.entry = data.entry;
+    if (data.entry?.isPractice || data.entry?.entry_kind === "practice") {
+      state.practice = true;
+    }
     state.groupContext = data.groupContext || state.groupContext;
     state.usedStrategyName =
       data.entry.used_strategy_name ||
@@ -836,9 +849,7 @@
         ${renderReflectionDetails(ui, state.existingReflection)}
         ${ui.btnGhost("Zurück zu Mein Tag", "reflectBackBtn", "today-app-btn today-app-btn--ghost")}
       </div>`;
-    root.querySelector("#reflectBackBtn")?.addEventListener("click", () => {
-      window.StudentRouter?.navigateToSection("today");
-    });
+    root.querySelector("#reflectBackBtn")?.addEventListener("click", goHomeFromReflect);
   }
 
   function renderMissing() {
@@ -849,11 +860,9 @@
     root.innerHTML = `
       <div class="plan-app">
         ${ui.msg("Kein Lern-Eintrag gefunden. Bitte zuerst ein Tagesziel setzen.")}
-        ${ui.btnGhost("Zurück zu Mein Tag", "reflectBackBtn", "today-app-btn today-app-btn--ghost")}
+        ${ui.btnGhost("Zurück", "reflectBackBtn", "today-app-btn today-app-btn--ghost")}
       </div>`;
-    root.querySelector("#reflectBackBtn")?.addEventListener("click", () => {
-      window.StudentRouter?.navigateToSection("today");
-    });
+    root.querySelector("#reflectBackBtn")?.addEventListener("click", goHomeFromReflect);
   }
 
 
@@ -1047,10 +1056,7 @@
       if (!id) return;
       switchReflectPerson(id, { confirm: true });
     });
-    scope.querySelector("#reflectPickBack")?.addEventListener("click", () => {
-      teardownAskModal();
-      window.StudentRouter?.navigateToSection("today");
-    });
+    scope.querySelector("#reflectPickBack")?.addEventListener("click", goHomeFromReflect);
   }
 
   function bindHandoffHandlers() {
@@ -1062,8 +1068,7 @@
         switchReflectPerson(nextId, { confirm: true });
         return;
       }
-      teardownAskModal();
-      window.StudentRouter?.navigateToSection("today");
+      goHomeFromReflect();
     });
   }
 
@@ -1195,10 +1200,7 @@
     });
 
     scope.querySelector("#reflectSubmitBtn")?.addEventListener("click", submitReflect);
-    scope.querySelector("#reflectBackBtn")?.addEventListener("click", () => {
-      teardownAskModal();
-      window.StudentRouter?.navigateToSection("today");
-    });
+    scope.querySelector("#reflectBackBtn")?.addEventListener("click", goHomeFromReflect);
   }
 
   async function submitReflect() {
@@ -1306,7 +1308,11 @@
         }
       }
       state.submitting = false;
-      window.StudentRouter?.navigateToSection("today");
+      if (state.entry?.isPractice || state.entry?.entry_kind === "practice" || state.practice) {
+        window.StudentRouter?.navigateToSection("ueben");
+      } else {
+        window.StudentRouter?.navigateToSection("today");
+      }
     } catch (err) {
       console.error(err);
       state.submitting = false;
@@ -1318,6 +1324,7 @@
   async function init(query) {
     const q = query || new URLSearchParams(location.search);
     state.entryId = q.get("entryId") || null;
+    state.practice = q.get("practice") === "1";
     state.groupContext = null;
     state.handoffNotice = null;
     state.personConfirmed = false;

@@ -1160,7 +1160,8 @@ const PLAN_ENTRY_FIELDS = `
   checkpoint_id, checkpoint_title,
   what_goal_id, what_goal_text, how_goal_text, details_text,
   selected_level, level_goal_text, plan_b_strategy_text,
-  role_goal_id, role_goal_text, role_goal_role_name
+  role_goal_id, role_goal_text, role_goal_role_name,
+  COALESCE(entry_kind, 'lesson') AS entry_kind
 `;
 
 /** Aktive Was-Ziele der Gruppenrollen dieser Person (Gruppenmodus, offene Session, Fach). */
@@ -1211,7 +1212,8 @@ function resolveRoleGoalSelection(roleWasGoals, rawRoleGoalId, unterthemaIsRoleG
   return { ok: true, roleGoal: match };
 }
 
-async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId }) {
+async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId, entryKind }) {
+  const kind = entryKind === "practice" ? "practice" : "lesson";
   if (entryId) {
     const byId = await pool.query(
       `
@@ -1232,6 +1234,7 @@ async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId })
     SELECT ${PLAN_ENTRY_FIELDS}
     FROM log_entries
     WHERE user_id=$1 AND date=$2 AND subject=$3
+      AND COALESCE(entry_kind, 'lesson') = $5
       AND (
         $4::text IS NULL
         OR timeslot IS NULL
@@ -1242,7 +1245,7 @@ async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId })
       created_at ASC
     LIMIT 1
   `,
-    [studentId, date, subject, timeslot || null]
+    [studentId, date, subject, timeslot || null, kind]
   );
   return flexible.rows[0] || null;
 }
@@ -3838,6 +3841,8 @@ async function migrate() {
   await ensureColumn("log_entries", "role_goal_id", "UUID");
   await ensureColumn("log_entries", "role_goal_text", "TEXT");
   await ensureColumn("log_entries", "role_goal_role_name", "TEXT");
+  // lesson = Stundenplan / Mein Tag · practice = Üben zu Hause (freie Fachwahl)
+  await ensureColumn("log_entries", "entry_kind", "TEXT NOT NULL DEFAULT 'lesson'");
 
   // LogCheck – Zwischen-Check (Performance)
   await pool.query(`
@@ -5868,6 +5873,7 @@ async function loadLogEntryForSharedActor(actorId, entryId) {
       le.what_goal_text, le.how_goal_text, le.details_text,
       le.selected_level, le.level_goal_text, le.confidence_before,
       le.role_goal_text, le.role_goal_role_name, le.created_at,
+      COALESCE(le.entry_kind, 'lesson') AS entry_kind,
       lc.selected_strategy_name AS check_strategy_name
     FROM log_entries le
     LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
@@ -5910,26 +5916,33 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     const timeslot = req.query.timeslot || null;
     const subjectQuery = req.query.subject || null;
     const entryId = req.query.entryId || null;
+    const isPractice =
+      String(req.query.practice || "") === "1" ||
+      String(req.query.entryKind || "").toLowerCase() === "practice";
     const weekday = weekdayFromIsoDate(date);
 
     const { classId, schoolId } = await getStudentClassContext(studentId);
 
     let timetable = [];
-    if (classId && weekday) {
+    if (classId && weekday && !isPractice) {
       timetable = await fetchTimetableForClassDay(classId, weekday);
     }
 
-    const lockedSubjectEarly = timetableSubjectForSlot(timetable, timeslot);
+    const lockedSubjectEarly = isPractice
+      ? null
+      : timetableSubjectForSlot(timetable, timeslot);
     const subjectForTarget =
       lockedSubjectEarly ||
       (subjectQuery && LOG_SUBJECTS.includes(subjectQuery) ? subjectQuery : null);
-    const targetResolve = await resolveSharedPlanTargetUserId(
-      studentId,
-      classId,
-      schoolId,
-      subjectForTarget,
-      req.query.forUserId
-    );
+    const targetResolve = isPractice
+      ? { ok: true, planningUserId: studentId, shared: false }
+      : await resolveSharedPlanTargetUserId(
+          studentId,
+          classId,
+          schoolId,
+          subjectForTarget,
+          req.query.forUserId
+        );
     if (!targetResolve.ok) {
       return res.status(403).json({ error: targetResolve.message || "Keine Berechtigung." });
     }
@@ -5942,7 +5955,8 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       existingEntry = await findPlanLogEntry(planningUserId, {
         date,
         subject: subjectQuery,
-        timeslot
+        timeslot: isPractice ? null : timeslot,
+        entryKind: isPractice ? "practice" : "lesson"
       });
     }
     if (existingEntry) {
@@ -5958,14 +5972,14 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     }
 
     const timetableSubjects = timetableSubjectsFromRows(timetable);
-    const lockedSubject = timetableSubjectForSlot(timetable, timeslot);
+    const lockedSubject = isPractice ? null : timetableSubjectForSlot(timetable, timeslot);
     const subjectLocked = !!lockedSubject;
     let suggestedSubject = null;
     if (lockedSubject) {
       suggestedSubject = lockedSubject;
     } else if (subjectQuery && LOG_SUBJECTS.includes(subjectQuery)) {
       suggestedSubject = subjectQuery;
-    } else if (timetableSubjects.length) {
+    } else if (!isPractice && timetableSubjects.length) {
       suggestedSubject = timetableSubjects[0];
     }
 
@@ -6019,7 +6033,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
     // Gruppenmodus: Kontext für Plan (Rollen/Mitglieder) – Ziele bleiben im Plan
     let groupContext = null;
     let roleWasGoalOptions = [];
-    if (classId && activeSubject) {
+    if (!isPractice && classId && activeSubject) {
       try {
         const gmEnabled = await pool.query(
           `
@@ -6341,6 +6355,8 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       subjectLocked,
       lockedSubject,
       groupContext,
+      practice: isPractice,
+      entryKind: isPractice ? "practice" : "lesson",
       actorUserId: studentId,
       planningUserId
     });
@@ -6378,21 +6394,33 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       freitext = null,
       planBStrategyText = null,
       forUserId = null,
-      roleGoalId = null
+      roleGoalId = null,
+      practice = false,
+      entryKind: entryKindRaw = null
     } = req.body;
 
     if (!subject || !LOG_SUBJECTS.includes(subject)) {
       return res.json({ success: false, message: "Bitte ein gültiges Fach wählen." });
     }
 
+    const isPractice =
+      practice === true ||
+      practice === 1 ||
+      practice === "1" ||
+      String(entryKindRaw || "").toLowerCase() === "practice";
+    const entryKind = isPractice ? "practice" : "lesson";
+    const slotForSave = isPractice ? null : timeslot || null;
+
     const { classId, schoolId: classSchoolId } = await getStudentClassContext(actorId);
-    const targetResolve = await resolveSharedPlanTargetUserId(
-      actorId,
-      classId,
-      classSchoolId || schoolId,
-      subject,
-      forUserId
-    );
+    const targetResolve = isPractice
+      ? { ok: true, planningUserId: actorId, shared: false }
+      : await resolveSharedPlanTargetUserId(
+          actorId,
+          classId,
+          classSchoolId || schoolId,
+          subject,
+          forUserId
+        );
     if (!targetResolve.ok) {
       return res.json({ success: false, message: targetResolve.message || "Keine Berechtigung." });
     }
@@ -6400,7 +6428,7 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     const targetCtx = await getStudentClassContext(studentId);
     const targetSchoolId = targetCtx.schoolId || classSchoolId || schoolId;
 
-    if (timeslot) {
+    if (!isPractice && timeslot) {
       const weekday = weekdayFromIsoDate(date);
       if (classId && weekday) {
         const timetable = await fetchTimetableForClassDay(classId, weekday);
@@ -6476,7 +6504,9 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       validWhatGoalOptions = picked.options;
       nextCheckpoint = picked.checkpoint;
       goalSource = picked.goalSource;
-      roleWasGoals = await fetchRoleWasGoalsForStudent(studentId, classId, subject);
+      roleWasGoals = isPractice
+        ? []
+        : await fetchRoleWasGoalsForStudent(studentId, classId, subject);
       // Nur ohne Levelplan-Unterthemen: Rollenziele wie früher als Tagesziel erlauben
       if (!validWhatGoalOptions.length && roleWasGoals.length) {
         for (const g of roleWasGoals) {
@@ -6620,14 +6650,17 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     const existing = await findPlanLogEntry(studentId, {
       date,
       subject,
-      timeslot: timeslot || null
+      timeslot: slotForSave,
+      entryKind
     });
 
     if (existing) {
       if (!(await planEntryCanEdit(studentId, existing, date))) {
         return res.json({
           success: false,
-          message: "Für diese Stunde ist bereits ein Tagesziel gespeichert – nur Ansicht möglich.",
+          message: isPractice
+            ? "Für dieses Fach hast du heute schon ein Übungsziel – nur Ansicht möglich."
+            : "Für diese Stunde ist bereits ein Tagesziel gespeichert – nur Ansicht möglich.",
           entryId: existing.id,
           readOnly: true
         });
@@ -6655,8 +6688,10 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
           plan_b_strategy_text = $16,
           role_goal_id = $17,
           role_goal_text = $18,
-          role_goal_role_name = $19
-        WHERE id = $20 AND user_id = $21
+          role_goal_role_name = $19,
+          entry_kind = $20,
+          timeslot = $21
+        WHERE id = $22 AND user_id = $23
         RETURNING id, created_at
       `,
         [
@@ -6679,6 +6714,8 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
           chosenRoleGoal ? chosenRoleGoal.id : null,
           chosenRoleGoal ? chosenRoleGoal.text : null,
           chosenRoleGoal ? chosenRoleGoal.roleName || null : null,
+          entryKind,
+          slotForSave,
           existing.id,
           studentId
         ]
@@ -6689,7 +6726,9 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         xpAwarded: 0,
         updated: true,
         planningUserId: studentId,
-        sharedHandoff: Number(studentId) !== Number(actorId)
+        sharedHandoff: Number(studentId) !== Number(actorId),
+        practice: isPractice,
+        entryKind
       });
     }
 
@@ -6700,16 +6739,17 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         work_goals, social_form, strategy, confidence_before, freitext,
         checkpoint_id, checkpoint_title, what_goal_id, what_goal_text,
         how_goal_text, details_text, selected_level, level_goal_text,
-        plan_b_strategy_text, role_goal_id, role_goal_text, role_goal_role_name
+        plan_b_strategy_text, role_goal_id, role_goal_text, role_goal_role_name,
+        entry_kind
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
       RETURNING id, created_at
     `,
       [
         studentId,
         targetSchoolId,
         date,
-        timeslot || null,
+        slotForSave,
         subject,
         storedGoalText,
         JSON.stringify(cleanWorkGoals),
@@ -6728,7 +6768,8 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
         parsedPlanB,
         chosenRoleGoal ? chosenRoleGoal.id : null,
         chosenRoleGoal ? chosenRoleGoal.text : null,
-        chosenRoleGoal ? chosenRoleGoal.roleName || null : null
+        chosenRoleGoal ? chosenRoleGoal.roleName || null : null,
+        entryKind
       ]
     );
 
@@ -6745,7 +6786,9 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       entry: insertRes.rows[0],
       xpAwarded,
       planningUserId: studentId,
-      sharedHandoff: Number(studentId) !== Number(actorId)
+      sharedHandoff: Number(studentId) !== Number(actorId),
+      practice: isPractice,
+      entryKind
     });
   } catch (err) {
     console.error("❌ /api/student/log/plan:", err);
@@ -7349,6 +7392,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         le.checkpoint_title, le.what_goal_text, le.how_goal_text, le.details_text,
         le.selected_level, le.level_goal_text, le.plan_b_strategy_text,
         le.role_goal_text, le.role_goal_role_name,
+        COALESCE(le.entry_kind, 'lesson') AS entry_kind,
         lc.id AS check_id,
         lc.on_track AS check_on_track,
         lc.understands AS check_understands,
@@ -7377,12 +7421,18 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         row.level_goal_text && howGoal
           ? null
           : buildPlanSentence(whatGoal, howGoal) || (row.goal ? String(row.goal) : null);
+      const entryKind =
+        String(row.entry_kind || "lesson").toLowerCase() === "practice"
+          ? "practice"
+          : "lesson";
 
       return {
         id: row.id,
         date: row.date,
         timeslot: row.timeslot,
         subject: row.subject,
+        entry_kind: entryKind,
+        isPractice: entryKind === "practice",
         goal: row.goal,
         what_goal_text: whatGoal,
         how_goal_text: howGoal,
@@ -7426,8 +7476,11 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       };
     });
 
+    const lessonEntries = entries.filter((e) => !e.isPractice);
+    const practiceEntries = entries.filter((e) => e.isPractice);
+
     const findEntryForSlot = (slot) => {
-      const exact = entries.find(
+      const exact = lessonEntries.find(
         (e) =>
           e.subject === slot.subject &&
           e.timeslot &&
@@ -7436,7 +7489,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       );
       if (exact) return exact;
 
-      const bySubject = entries.find(
+      const bySubject = lessonEntries.find(
         (e) =>
           e.subject === slot.subject &&
           (!e.timeslot || !slot.timeslot || e.timeslot === slot.timeslot)
@@ -7490,7 +7543,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       });
     }
 
-    for (const entry of entries) {
+    for (const entry of lessonEntries) {
       if (!usedEntryIds.has(entry.id)) {
         const flag =
           midFlags[entry.subject] ||
@@ -7508,6 +7561,10 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
           needsMidCheck
         });
       }
+    }
+
+    for (const entry of practiceEntries) {
+      entry.needsMidCheck = false;
     }
 
     const phases = {
@@ -7713,7 +7770,8 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       timetableSubjects,
       subjectSlotCounts,
       subjects: LOG_SUBJECTS,
-      entries,
+      entries: lessonEntries,
+      practiceEntries,
       blocks,
       phases,
       homework,
@@ -8233,7 +8291,13 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
       level_label: row.selected_level
         ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
         : null,
-      used_strategy_name: row.check_strategy_name || null
+      used_strategy_name: row.check_strategy_name || null,
+      entry_kind:
+        String(row.entry_kind || "lesson").toLowerCase() === "practice"
+          ? "practice"
+          : "lesson",
+      isPractice:
+        String(row.entry_kind || "lesson").toLowerCase() === "practice"
     };
     delete entry.check_strategy_name;
 

@@ -43,6 +43,11 @@
       subtitle: "Was heute fällig ist – und was du für morgen mitnimmst.",
       phase: null
     },
+    ueben: {
+      title: "Üben zu Hause",
+      subtitle: "Fach selbst wählen – Übungsziel und Tagesabschluss für zu Hause.",
+      phase: "plan"
+    },
     gruppenmodus: {
       title: "Gruppenarbeit",
       subtitle: "Laborarbeit mit eurer Gruppe an einem iPad.",
@@ -140,6 +145,11 @@
 
     if (section === "hausaufgaben" && window.LogbuchHomework) {
       window.LogbuchHomework.init();
+      return;
+    }
+
+    if (section === "ueben" && window.LogbuchUeben) {
+      window.LogbuchUeben.init();
       return;
     }
 
