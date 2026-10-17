@@ -368,7 +368,7 @@
 
     .login-demo__actions {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 10px;
     }
 
@@ -519,10 +519,10 @@
         <section class="login-demo is-hidden" id="demoSection" aria-label="Demo ausprobieren">
           <h2 class="login-demo__title">Demo ausprobieren</h2>
           <p class="login-demo__hint">
-            Sofort reinschnuppern – ohne Passwort. Klasse 9a Demo mit Stundenplan, Levelplänen und Beispieldaten.
+            Sofort reinschnuppern – ohne Passwort. Schülerin Lina in Klasse 9a Demo mit Stundenplan,
+            Levelplänen, Hausaufgaben, Gruppenmodus und Beispieldaten.
           </p>
           <div class="login-demo__actions">
-            <button type="button" class="login-demo__btn" id="demoAdminBtn">Als Admin</button>
             <button type="button" class="login-demo__btn" id="demoStudentBtn">Als Schülerin Lina</button>
           </div>
         </section>
@@ -546,7 +546,6 @@
     const errorText = document.getElementById("errorText");
     const togglePassword = document.getElementById("togglePassword");
     const demoSection = document.getElementById("demoSection");
-    const demoAdminBtn = document.getElementById("demoAdminBtn");
     const demoStudentBtn = document.getElementById("demoStudentBtn");
 
     function homeForRole(role) {
@@ -648,9 +647,8 @@
       window.location.replace(target);
     }
 
-    async function doDemoLogin(role) {
+    async function doDemoLogin() {
       hideError();
-      demoAdminBtn.disabled = true;
       demoStudentBtn.disabled = true;
       loginButton.disabled = true;
 
@@ -659,7 +657,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify({ role })
+          body: JSON.stringify({ role: "student" })
         });
         const data = await res.json();
 
@@ -679,7 +677,6 @@
         console.error(err);
         showError("Demo-Login fehlgeschlagen. Bitte erneut versuchen.");
       } finally {
-        demoAdminBtn.disabled = false;
         demoStudentBtn.disabled = false;
         loginButton.disabled = false;
       }
@@ -694,8 +691,7 @@
       } catch (_err) {}
     }
 
-    demoAdminBtn?.addEventListener("click", () => doDemoLogin("admin"));
-    demoStudentBtn?.addEventListener("click", () => doDemoLogin("student"));
+    demoStudentBtn?.addEventListener("click", () => doDemoLogin());
     initDemoSection();
 
     function showError(message) {

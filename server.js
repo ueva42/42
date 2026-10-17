@@ -1252,7 +1252,8 @@ async function findPlanLogEntry(studentId, { date, subject, timeslot, entryId, e
 
 async function planEntryCanEdit(studentId, entry, date) {
   if (!entry || !entry.id) return false;
-  if (date !== todayIsoDate()) return false;
+  const schoolToday = await effectiveTodayForStudent(studentId);
+  if (date !== schoolToday) return false;
   const refl = await pool.query(
     `SELECT id FROM log_reflections WHERE log_entry_id = $1 LIMIT 1`,
     [entry.id]
@@ -1330,7 +1331,8 @@ async function logEntryIsTodayForStudent(studentId, logEntryId) {
     [logEntryId, studentId]
   );
   if (!entryRes.rows.length) return false;
-  return normalizeIsoDate(entryRes.rows[0].date) === todayIsoDate();
+  const schoolToday = await effectiveTodayForStudent(studentId);
+  return normalizeIsoDate(entryRes.rows[0].date) === schoolToday;
 }
 
 async function checkEntryCanEdit(studentId, logEntryId) {
@@ -1541,6 +1543,21 @@ function normalizeIsoDate(value) {
 
 function todayIsoDate() {
   return localIsoDate(new Date());
+}
+
+/** Kalender-heute, für Demo-Schulen auf Werktag gemappt (Sa/So → Freitag). */
+async function schoolTodayIsoDate(schoolId) {
+  const today = todayIsoDate();
+  if (schoolId && (await isDemoSchoolId(pool, schoolId))) {
+    return demoEffectiveIsoDate(today);
+  }
+  return today;
+}
+
+async function effectiveTodayForStudent(studentId) {
+  if (!studentId) return todayIsoDate();
+  const r = await pool.query(`SELECT school_id FROM users WHERE id = $1 LIMIT 1`, [studentId]);
+  return schoolTodayIsoDate(r.rows[0]?.school_id);
 }
 
 async function resolveSchoolDate(req, value) {
@@ -4902,6 +4919,18 @@ app.post("/api/login", async (req, res) => {
     return res.json({ success: false, message: "Konto deaktiviert." });
   }
 
+  // Demo-Schule: kein Admin-/Lehrer-Login (nur Schüler-Demozugang).
+  if (
+    user.name === DEMO_ADMIN &&
+    (user.role === "admin" || user.role === "teacher") &&
+    (await isDemoSchoolId(pool, user.school_id))
+  ) {
+    return res.json({
+      success: false,
+      message: "Demo nur als Schülerin verfügbar."
+    });
+  }
+
   loginUserSession(req, res, user);
 });
 
@@ -4913,7 +4942,6 @@ app.get("/api/demo/status", async (_req, res) => {
     const schoolId = await getDemoSchoolId(pool);
     res.json({
       enabled: Boolean(schoolId),
-      adminUser: DEMO_ADMIN,
       studentUser: DEMO_STUDENT,
       password: DEMO_PASSWORD,
       className: "9a Demo"
@@ -4930,14 +4958,21 @@ app.post("/api/demo/login", async (req, res) => {
       return res.status(404).json({ success: false, message: "Demo nicht verfügbar." });
     }
 
-    const role = req.body?.role === "admin" ? "admin" : "student";
+    // Nur Schüler-Demo – kein Admin-/Lehrer-Demozugang.
+    if (req.body?.role && req.body.role !== "student") {
+      return res.status(404).json({
+        success: false,
+        message: "Demo nur als Schülerin verfügbar."
+      });
+    }
+
     await ensureDemoSchool(pool);
     const demoSchoolId = await getDemoSchoolId(pool);
     if (demoSchoolId) {
       await syncDemoCharacters(pool, demoSchoolId);
       await refreshDemoLearningSetup(pool, demoSchoolId);
     }
-    const user = await findDemoUser(pool, role);
+    const user = await findDemoUser(pool, "student");
     if (!user) {
       return res.status(503).json({
         success: false,
@@ -4945,10 +4980,7 @@ app.post("/api/demo/login", async (req, res) => {
       });
     }
 
-    if (role === "student") {
-      await prepareDemoStudentSession(pool, user.id);
-    }
-
+    await prepareDemoStudentSession(pool, user.id);
     loginUserSession(req, res, user, { isDemo: true });
   } catch (err) {
     console.error("❌ /api/demo/login:", err);
@@ -7796,8 +7828,9 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
     const subject = String(req.body.subject || "").trim();
     const title = String(req.body.title || "").trim();
     const classDoneNote = String(req.body.classDoneNote || "").trim().slice(0, 300) || null;
-    const assignedDate = await resolveSchoolDate(req, req.body.assignedDate);
-    const allowedDueDates = listUpcomingSchoolDays(assignedDate || todayIsoDate(), 8);
+    const schoolToday = await schoolTodayIsoDate(schoolId);
+    const assignedDate = await resolveSchoolDate(req, req.body.assignedDate || schoolToday);
+    const allowedDueDates = listUpcomingSchoolDays(assignedDate || schoolToday, 8);
     const dueDate =
       normalizeIsoDate(req.body.dueDate) || nextSchoolDayIso(assignedDate);
     const dueAllowed = allowedDueDates.includes(dueDate);
@@ -7818,7 +7851,7 @@ app.post("/api/student/homework", isStudent, async (req, res) => {
     if (title.length > 300) {
       return res.json({ success: false, message: "Aufgabe ist zu lang (max. 300 Zeichen)." });
     }
-    if (assignedDate !== todayIsoDate()) {
+    if (assignedDate !== schoolToday) {
       return res.json({ success: false, message: "Hausaufgaben kannst du nur für heute setzen." });
     }
     if (!dueAllowed) {
