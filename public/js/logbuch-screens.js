@@ -45,7 +45,7 @@
     },
     ueben: {
       title: "Üben zu Hause",
-      subtitle: "Fach selbst wählen – Übungsziel und Tagesabschluss für zu Hause.",
+      subtitle: "Fach wählen und Übungsziel setzen.",
       phase: "plan"
     },
     gruppenmodus: {

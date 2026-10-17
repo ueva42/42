@@ -511,10 +511,6 @@
     root.querySelectorAll("[data-hub-section]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const section = btn.dataset.hubSection;
-        if (section === "ueben") {
-          navigate("ueben", new URLSearchParams({ pick: "1" }));
-          return;
-        }
         navigate(section);
       });
     });

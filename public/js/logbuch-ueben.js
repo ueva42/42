@@ -9,8 +9,7 @@
     date: null,
     data: null,
     loading: false,
-    picking: false,
-    openPickOnLoad: false
+    picking: false
   };
 
   function todayIso() {
@@ -103,10 +102,6 @@
     } finally {
       state.loading = false;
       render();
-      if (state.openPickOnLoad && isEditableDate(state.date) && state.data) {
-        state.openPickOnLoad = false;
-        openSubjectModal();
-      }
     }
   }
 
@@ -127,6 +122,7 @@
 
   function closeSubjectModal() {
     state.picking = false;
+    document.removeEventListener("keydown", onSubjectModalKeydown);
     document.querySelectorAll("body > .ueben-subject-modal-backdrop").forEach((el) => el.remove());
   }
 
@@ -143,6 +139,10 @@
         disabled: false
       };
     });
+  }
+
+  function onSubjectModalKeydown(ev) {
+    if (ev.key === "Escape") closeSubjectModal();
   }
 
   function openSubjectModal() {
@@ -171,21 +171,25 @@
     backdrop.setAttribute("aria-modal", "true");
     backdrop.setAttribute("aria-label", "Fach wählen");
     backdrop.innerHTML = `
-      <div class="plan-next-modal plan-next-modal--ask">
-        <p class="plan-next-modal__kicker">Üben zu Hause</p>
+      <style>
+        .ueben-subject-modal{position:relative}
+        .ueben-subject-modal__close{position:absolute;top:10px;right:10px;z-index:2;width:40px;height:40px;border:none;border-radius:12px;background:rgba(15,23,42,.55);color:#e2e8f0;font-size:1.25rem;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+        .ueben-subject-modal__close:hover{background:rgba(51,65,85,.9);color:#fff}
+        .ueben-subject-modal .plan-next-modal__title{padding-right:44px}
+      </style>
+      <div class="plan-next-modal plan-next-modal--ask ueben-subject-modal">
+        <button type="button" class="ueben-subject-modal__close" id="uebenPickClose" aria-label="Schließen">✕</button>
         <h3 class="plan-next-modal__title">Fach wählen</h3>
-        <p class="plan-next-modal__text">Tippe ein Fach an – danach setzt du dein Übungsziel wie in Mein Tag.</p>
+        <p class="plan-next-modal__text">Tippe ein Fach an – danach setzt du dein Übungsziel.</p>
         <div class="plan-ask__body">${grid}</div>
-        <div class="plan-next-modal__actions">
-          <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="uebenPickBack">Abbrechen</button>
-        </div>
       </div>`;
 
     document.body.appendChild(backdrop);
+    document.addEventListener("keydown", onSubjectModalKeydown);
 
-    backdrop.querySelector("#uebenPickBack")?.addEventListener("click", () => {
-      closeSubjectModal();
-    });
+    const closeBtn = backdrop.querySelector("#uebenPickClose");
+    closeBtn?.addEventListener("click", () => closeSubjectModal());
+    closeBtn?.focus();
 
     backdrop.addEventListener("click", (ev) => {
       if (ev.target === backdrop) closeSubjectModal();
@@ -230,9 +234,8 @@
       <button type="button" class="ueben-start-cta hub-accent-cyan" id="uebenStartBtn">
         <span class="ueben-start-cta__glow" aria-hidden="true"></span>
         <span class="ueben-start-cta__copy">
-          <span class="ueben-start-cta__eyebrow">Üben zu Hause</span>
           <span class="ueben-start-cta__title">Üben starten</span>
-          <span class="ueben-start-cta__hint">Fach wählen, Übungsziel setzen – wie dein Tagesziel in Mein Tag.</span>
+          <span class="ueben-start-cta__hint">Wähle ein Fach und setze dein Übungsziel.</span>
         </span>
         <span class="ueben-start-cta__arrow" aria-hidden="true">→</span>
       </button>`;
@@ -241,11 +244,6 @@
   function renderStartBlock(editable) {
     return `
       <section class="ueben-block" id="uebenStartBlock">
-        <div class="ueben-block__head">
-          <p class="ueben-block__eyebrow">Neu starten</p>
-          <h3 class="ueben-block__title">Bereit zum Üben?</h3>
-          <p class="ueben-block__text">Starte eine neue Übung – deine heutigen Einträge siehst du weiterhin unten.</p>
-        </div>
         ${renderStartCta(editable)}
       </section>`;
   }
@@ -290,7 +288,7 @@
         data-query="${ui.escapeHtml(query)}">
         ${art}
         <span class="today-subject-tile__copy hub-tile-content">
-          <span class="today-subject-tile__time">Üben zu Hause</span>
+          <span class="today-subject-tile__time">${done ? "Abgeschlossen" : "Offen"}</span>
           <span class="today-subject-tile__title">${ui.escapeHtml(subject)}</span>
           <span class="today-subject-tile__text">${ui.escapeHtml(hint)}</span>
           <span class="today-subject-tile__cta">${ui.escapeHtml(cta)} <span class="hub-tile-arrow" aria-hidden="true">→</span></span>
@@ -312,7 +310,6 @@
       .ueben-start-cta:active{transform:translateY(0)}
       .ueben-start-cta__glow{position:absolute;inset:auto -20% -60% 20%;height:120%;border-radius:50%;background:radial-gradient(circle,rgba(34,211,238,.28),transparent 65%);pointer-events:none}
       .ueben-start-cta__copy{position:relative;display:grid;gap:4px;flex:1;min-width:0}
-      .ueben-start-cta__eyebrow{font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#67e8f9}
       .ueben-start-cta__title{font-size:1.35rem;font-weight:900;letter-spacing:.02em;line-height:1.15}
       .ueben-start-cta__hint{font-size:.9rem;font-weight:600;line-height:1.4;color:#94a3b8}
       .ueben-start-cta__arrow{position:relative;flex:0 0 auto;font-size:1.35rem;font-weight:900;color:#67e8f9}
@@ -394,10 +391,8 @@
     bindHandlers(root);
   }
 
-  function init(query) {
+  function init() {
     closeSubjectModal();
-    const q = query || new URLSearchParams(location.search);
-    state.openPickOnLoad = q.get("pick") === "1";
     loadDay(todayIso());
   }
 
