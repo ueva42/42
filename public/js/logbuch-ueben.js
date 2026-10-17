@@ -1,6 +1,6 @@
 /**
  * SRL-Logbuch – Üben zu Hause (freie Fachwahl, Tagesziel + Abschluss).
- * Schritt 1: „Üben starten“ → Fach-Kacheln; heutige Einträge bleiben sichtbar.
+ * „Üben starten“ → Fach-Modal (Strategy-Tiles) → Plan mit practice=1&subject=…
  */
 (function () {
   const UI = () => window.LogbuchUI;
@@ -9,7 +9,8 @@
     date: null,
     data: null,
     loading: false,
-    picking: false
+    picking: false,
+    openPickOnLoad: false
   };
 
   function todayIso() {
@@ -69,6 +70,22 @@
     return map[subjectSlug(name)] || "cyan";
   }
 
+  function subjectAccentHex(name) {
+    const map = {
+      orange: "#f97316",
+      cyan: "#22d3ee",
+      blue: "#3b82f6",
+      violet: "#a78bfa",
+      magenta: "#e879f9",
+      green: "#34d399",
+      gold: "#fbbf24",
+      teal: "#2dd4bf",
+      pink: "#f472b6",
+      purple: "#a855f7"
+    };
+    return map[subjectAccent(name)] || "#22d3ee";
+  }
+
   async function loadDay(dateIso) {
     state.loading = true;
     state.picking = false;
@@ -86,6 +103,10 @@
     } finally {
       state.loading = false;
       render();
+      if (state.openPickOnLoad && isEditableDate(state.date) && state.data) {
+        state.openPickOnLoad = false;
+        openSubjectModal();
+      }
     }
   }
 
@@ -95,6 +116,7 @@
 
   function startPractice(subject) {
     if (!subject) return;
+    closeSubjectModal();
     const q = new URLSearchParams({
       practice: "1",
       date: state.date || todayIso(),
@@ -103,8 +125,102 @@
     window.StudentRouter?.navigateToSection("plan", { query: q });
   }
 
-  function renderStartCta(editable) {
+  function closeSubjectModal() {
+    state.picking = false;
+    document.querySelectorAll("body > .ueben-subject-modal-backdrop").forEach((el) => el.remove());
+  }
+
+  function subjectTiles() {
+    const taken = new Set(practiceEntries().map((e) => String(e.subject || "").toLowerCase()));
+    return subjectOptions().map((s) => {
+      const done = taken.has(String(s).toLowerCase());
+      return {
+        value: s,
+        title: s,
+        desc: done ? "Heute schon gestartet" : "Übungsziel setzen",
+        icon: "◆",
+        accent: subjectAccentHex(s),
+        disabled: false
+      };
+    });
+  }
+
+  function openSubjectModal() {
+    if (!isEditableDate(state.date)) return;
+    closeSubjectModal();
+    state.picking = true;
     const ui = UI();
+    const V = window.LogbuchVisuals;
+    const tiles = subjectTiles();
+    const grid = V
+      ? V.strategyTileGrid(tiles, null, "data-ueben-subject")
+      : `<div class="strategy-tile-grid">${tiles
+          .map(
+            (t) =>
+              `<button type="button" class="strategy-tile" data-ueben-subject="${ui.escapeHtml(
+                t.value
+              )}" style="--tile-accent:${t.accent}"><span class="strategy-tile__title">${ui.escapeHtml(
+                t.title
+              )}</span></button>`
+          )
+          .join("")}</div>`;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "plan-next-modal-backdrop plan-next-modal-backdrop--ask ueben-subject-modal-backdrop";
+    backdrop.setAttribute("role", "dialog");
+    backdrop.setAttribute("aria-modal", "true");
+    backdrop.setAttribute("aria-label", "Fach wählen");
+    backdrop.innerHTML = `
+      <div class="plan-next-modal plan-next-modal--ask">
+        <p class="plan-next-modal__kicker">Üben zu Hause</p>
+        <h3 class="plan-next-modal__title">Fach wählen</h3>
+        <p class="plan-next-modal__text">Tippe ein Fach an – danach setzt du dein Übungsziel wie in Mein Tag.</p>
+        <div class="plan-ask__body">${grid}</div>
+        <div class="plan-next-modal__actions">
+          <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="uebenPickBack">Abbrechen</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(backdrop);
+
+    backdrop.querySelector("#uebenPickBack")?.addEventListener("click", () => {
+      closeSubjectModal();
+    });
+
+    backdrop.addEventListener("click", (ev) => {
+      if (ev.target === backdrop) closeSubjectModal();
+    });
+
+    backdrop.querySelectorAll("[data-ueben-subject]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const subject = btn.getAttribute("data-ueben-subject");
+        const existing = practiceEntries().find(
+          (e) =>
+            String(e.subject || "").toLowerCase() === String(subject || "").toLowerCase()
+        );
+        if (existing?.id) {
+          closeSubjectModal();
+          if (isEditableDate(state.date) && !existing.hasReflection) {
+            window.StudentRouter?.navigateToSection("reflect", {
+              query: new URLSearchParams({ entryId: existing.id, practice: "1" })
+            });
+            return;
+          }
+          window.StudentRouter?.navigateToSection("plan", {
+            query: new URLSearchParams({
+              entryId: existing.id,
+              practice: "1",
+              date: state.date || ""
+            })
+          });
+          return;
+        }
+        startPractice(subject);
+      });
+    });
+  }
+
+  function renderStartCta(editable) {
     if (!editable) {
       return `
         <p class="ueben-muted">Heute kannst du kein neues Übungsziel starten – schau dir deine Einträge unten an.</p>`;
@@ -122,60 +238,7 @@
       </button>`;
   }
 
-  function renderSubjectPick(editable) {
-    const ui = UI();
-    if (!editable) {
-      return `
-        <p class="ueben-muted">Heute kannst du kein neues Übungsziel starten – schau dir deine Einträge unten an.</p>`;
-    }
-
-    const taken = new Set(practiceEntries().map((e) => String(e.subject || "").toLowerCase()));
-    const subjects = subjectOptions();
-
-    return `
-      <div class="ueben-pick">
-        <div class="ueben-pick__bar">
-          <button type="button" class="today-app-btn today-app-btn--ghost" id="uebenPickBack">Zurück</button>
-        </div>
-        <div class="ueben-subject-grid" role="list">
-          ${subjects
-            .map((s) => {
-              const done = taken.has(String(s).toLowerCase());
-              const artSrc = window.LogbuchVisuals?.subjectIconSrc(s) || "";
-              const accent = subjectAccent(s);
-              const art = artSrc
-                ? `<span class="ueben-subject-chip__art" aria-hidden="true"><img src="${ui.escapeHtml(
-                    artSrc
-                  )}" alt="" loading="lazy" decoding="async"></span>`
-                : `<span class="ueben-subject-chip__dot" aria-hidden="true"></span>`;
-              return `
-                <button type="button"
-                  class="ueben-subject-chip hub-accent-${accent}${done ? " is-done" : ""}"
-                  data-ueben-subject="${ui.escapeHtml(s)}"
-                  ${done ? 'title="Heute schon gestartet – unten fortsetzen"' : ""}>
-                  ${art}
-                  <span class="ueben-subject-chip__label">${ui.escapeHtml(s)}</span>
-                  ${done ? `<span class="ueben-subject-chip__badge">läuft</span>` : ""}
-                </button>`;
-            })
-            .join("")}
-        </div>
-      </div>`;
-  }
-
   function renderStartBlock(editable) {
-    if (state.picking && editable) {
-      return `
-        <section class="ueben-block" id="uebenStartBlock">
-          <div class="ueben-block__head">
-            <p class="ueben-block__eyebrow">Schritt 1</p>
-            <h3 class="ueben-block__title">Fach wählen</h3>
-            <p class="ueben-block__text">Tippe ein Fach an – danach setzt du dein Übungsziel wie in Mein Tag.</p>
-          </div>
-          ${renderSubjectPick(editable)}
-        </section>`;
-    }
-
     return `
       <section class="ueben-block" id="uebenStartBlock">
         <div class="ueben-block__head">
@@ -253,20 +316,8 @@
       .ueben-start-cta__title{font-size:1.35rem;font-weight:900;letter-spacing:.02em;line-height:1.15}
       .ueben-start-cta__hint{font-size:.9rem;font-weight:600;line-height:1.4;color:#94a3b8}
       .ueben-start-cta__arrow{position:relative;flex:0 0 auto;font-size:1.35rem;font-weight:900;color:#67e8f9}
-      .ueben-pick{display:grid;gap:12px}
-      .ueben-pick__bar{display:flex;justify-content:flex-start}
-      .ueben-subject-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
-      .ueben-subject-chip{position:relative;display:flex;align-items:center;gap:10px;min-height:64px;padding:10px 12px;border-radius:16px;border:1px solid rgba(148,163,184,.28);background:linear-gradient(160deg,rgba(15,23,42,.92),rgba(8,47,73,.55));color:#e2e8f0;font-weight:800;font-size:.98rem;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease}
-      .ueben-subject-chip:hover{transform:translateY(-1px);border-color:rgba(34,211,238,.55);box-shadow:0 10px 24px rgba(2,8,23,.35)}
-      .ueben-subject-chip.is-done{opacity:.72;border-color:rgba(52,211,153,.4)}
-      .ueben-subject-chip__art{flex:0 0 36px;width:36px;height:36px;border-radius:10px;overflow:hidden;background:rgba(8,47,73,.8)}
-      .ueben-subject-chip__art img{width:100%;height:100%;object-fit:cover;display:block}
-      .ueben-subject-chip__dot{flex:0 0 10px;width:10px;height:10px;border-radius:50%;background:var(--hub-accent,#22d3ee);box-shadow:0 0 10px color-mix(in srgb,var(--hub-accent,#22d3ee) 55%,transparent)}
-      .ueben-subject-chip__label{flex:1;line-height:1.2}
-      .ueben-subject-chip__badge{font-size:.68rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#a7f3d0;background:rgba(6,78,59,.45);border:1px solid rgba(52,211,153,.35);border-radius:999px;padding:3px 8px}
       .ueben-entry-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
       @media (max-width:640px){
-        .ueben-subject-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
         .ueben-start-cta{padding:16px 14px;gap:12px}
         .ueben-start-cta__title{font-size:1.2rem}
       }
@@ -275,43 +326,7 @@
 
   function bindHandlers(root) {
     root.querySelector("#uebenStartBtn")?.addEventListener("click", () => {
-      state.picking = true;
-      render();
-      document
-        .getElementById("uebenStartBlock")
-        ?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-    });
-
-    root.querySelector("#uebenPickBack")?.addEventListener("click", () => {
-      state.picking = false;
-      render();
-    });
-
-    root.querySelectorAll("[data-ueben-subject]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const subject = btn.getAttribute("data-ueben-subject");
-        const existing = practiceEntries().find(
-          (e) =>
-            String(e.subject || "").toLowerCase() === String(subject || "").toLowerCase()
-        );
-        if (existing?.id) {
-          if (isEditableDate(state.date) && !existing.hasReflection) {
-            window.StudentRouter?.navigateToSection("reflect", {
-              query: new URLSearchParams({ entryId: existing.id, practice: "1" })
-            });
-            return;
-          }
-          window.StudentRouter?.navigateToSection("plan", {
-            query: new URLSearchParams({
-              entryId: existing.id,
-              practice: "1",
-              date: state.date || ""
-            })
-          });
-          return;
-        }
-        startPractice(subject);
-      });
+      openSubjectModal();
     });
 
     root.querySelectorAll("[data-nav]").forEach((btn) => {
@@ -326,7 +341,6 @@
   function render() {
     const root = document.getElementById("ueben-screen-root");
     if (!root) return;
-    const ui = UI();
     const editable = isEditableDate(state.date);
 
     if (state.loading && !state.data) {
@@ -346,7 +360,7 @@
       return;
     }
 
-    if (!editable) state.picking = false;
+    if (!editable) closeSubjectModal();
 
     const items = practiceEntries();
 
@@ -380,9 +394,12 @@
     bindHandlers(root);
   }
 
-  function init() {
+  function init(query) {
+    closeSubjectModal();
+    const q = query || new URLSearchParams(location.search);
+    state.openPickOnLoad = q.get("pick") === "1";
     loadDay(todayIso());
   }
 
-  window.LogbuchUeben = { init };
+  window.LogbuchUeben = { init, openSubjectModal };
 })();

@@ -731,6 +731,148 @@
     document.querySelectorAll("body > .plan-next-modal-backdrop").forEach((el) => el.remove());
   }
 
+  function practiceSubjectOptions() {
+    return (C()?.SUBJECTS || []).filter((s) => s && s !== "Frei");
+  }
+
+  function practiceSubjectAccent(name) {
+    const key = String(name || "")
+      .toLowerCase()
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, "");
+    const map = {
+      mathe: "#f97316",
+      mathematik: "#f97316",
+      deutsch: "#22d3ee",
+      englisch: "#3b82f6",
+      physik: "#a78bfa",
+      chemie: "#e879f9",
+      biologie: "#34d399",
+      geschichte: "#fbbf24",
+      geo: "#2dd4bf",
+      geographie: "#2dd4bf",
+      musik: "#a78bfa",
+      bk: "#f472b6",
+      sport: "#34d399",
+      gk: "#a855f7"
+    };
+    return map[key] || "#22d3ee";
+  }
+
+  async function applyPracticeSubject(subject) {
+    if (!subject) return;
+    teardownPlanNextModal();
+    state.subject = subject;
+    state.whatGoalId = null;
+    state.roleGoalId = null;
+    state.whatGoalText = "";
+    state.selectedLevel = null;
+    state.levelGoalText = "";
+    state.startGoals = [];
+    state.howGoalText = null;
+    state.controlGoals = [];
+    state.planBStrategies = [];
+    state.selectedCheckpointId = null;
+    state.activeStep = 1;
+    state.step3Skipped = false;
+    state.planBAcknowledged = false;
+    state.suggestionApplied = false;
+    await loadContext();
+    render();
+  }
+
+  function openPracticeSubjectModal() {
+    const ui = UI();
+    const V = window.LogbuchVisuals;
+    const tiles = practiceSubjectOptions().map((s) => ({
+      value: s,
+      title: s,
+      desc: "Übungsziel setzen",
+      icon: "◆",
+      accent: practiceSubjectAccent(s)
+    }));
+    const grid = V
+      ? V.strategyTileGrid(tiles, state.subject, "data-plan-practice-subject")
+      : `<div class="strategy-tile-grid">${tiles
+          .map(
+            (t) =>
+              `<button type="button" class="strategy-tile" data-plan-practice-subject="${ui.escapeHtml(
+                t.value
+              )}" style="--tile-accent:${t.accent}"><span class="strategy-tile__title">${ui.escapeHtml(
+                t.title
+              )}</span></button>`
+          )
+          .join("")}</div>`;
+
+    teardownPlanNextModal();
+    const backdrop = document.createElement("div");
+    backdrop.className =
+      "plan-next-modal-backdrop plan-next-modal-backdrop--ask plan-practice-subject-modal";
+    backdrop.setAttribute("role", "dialog");
+    backdrop.setAttribute("aria-modal", "true");
+    backdrop.setAttribute("aria-label", "Fach wählen");
+    backdrop.innerHTML = `
+      <div class="plan-next-modal plan-next-modal--ask">
+        <p class="plan-next-modal__kicker">Üben zu Hause</p>
+        <h3 class="plan-next-modal__title">Fach wählen</h3>
+        <p class="plan-next-modal__text">Tippe ein Fach an – danach setzt du dein Übungsziel.</p>
+        <div class="plan-ask__body">${grid}</div>
+        <div class="plan-next-modal__actions">
+          <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="planPracticeSubjectBack">
+            ${state.subject ? "Schließen" : "Zurück zu Üben"}
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    backdrop.querySelector("#planPracticeSubjectBack")?.addEventListener("click", () => {
+      teardownPlanNextModal();
+      if (!state.subject) goToTodayFromPlan();
+    });
+    backdrop.addEventListener("click", (ev) => {
+      if (ev.target === backdrop) {
+        teardownPlanNextModal();
+        if (!state.subject) goToTodayFromPlan();
+      }
+    });
+    backdrop.querySelectorAll("[data-plan-practice-subject]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        applyPracticeSubject(btn.getAttribute("data-plan-practice-subject"));
+      });
+    });
+  }
+
+  function renderSubjectField(ui, { lockedHint = "" } = {}) {
+    if (state.subjectLocked) {
+      return ui.fieldWrap(
+        ui.fieldLabel("Fach"),
+        `<div class="plan-subject-locked">${ui.escapeHtml(state.subject || "–")}</div>`,
+        lockedHint || "Vom Stundenplan für diese Stunde"
+      );
+    }
+    if (state.practice) {
+      return ui.fieldWrap(
+        ui.fieldLabel("Fach", { required: true }),
+        `<button type="button" class="plan-subject-pick-btn today-app-btn" id="planPracticeSubjectBtn">
+          <span>${state.subject ? ui.escapeHtml(state.subject) : "Fach wählen"}</span>
+          <span aria-hidden="true">→</span>
+        </button>`
+      );
+    }
+    return ui.fieldWrap(
+      ui.fieldLabel("Fach", { required: true }),
+      ui.select(
+        "subject",
+        C().SUBJECTS.map((s) => ({ value: s, label: s })),
+        state.subject,
+        { phase: "plan" }
+      )
+    );
+  }
+
   function portalPlanNextModal(root) {
     teardownPlanNextModal();
     root?.querySelectorAll(".plan-next-modal-backdrop").forEach((modal) => {
@@ -2403,17 +2545,7 @@
         </div>
       </div>`;
 
-    const subjectRow = state.subjectLocked
-      ? ""
-      : ui.fieldWrap(
-          ui.fieldLabel("Fach", { required: true }),
-          ui.select(
-            "subject",
-            C().SUBJECTS.map((s) => ({ value: s, label: s })),
-            state.subject,
-            { phase: "plan" }
-          )
-        );
+    const subjectRow = state.subjectLocked ? "" : renderSubjectField(ui);
 
     const checkpointRow =
       state.checkpoints.length > 1
@@ -2585,23 +2717,7 @@
       : "Unterthema";
     const whatBody = `
       <div class="goal-step-card__stack">
-        ${
-          state.subjectLocked
-            ? ui.fieldWrap(
-                ui.fieldLabel("Fach"),
-                `<div class="plan-subject-locked">${ui.escapeHtml(state.subject || "–")}</div>`,
-                "Vom Stundenplan für diese Stunde"
-              )
-            : ui.fieldWrap(
-                ui.fieldLabel("Fach", { required: true }),
-                ui.select(
-                  "subject",
-                  C().SUBJECTS.map((s) => ({ value: s, label: s })),
-                  state.subject,
-                  { phase: "plan" }
-                )
-              )
-        }
+        ${renderSubjectField(ui)}
         ${renderGroupRolePicker(ui)}
         <div class="${sharedGroup ? "plan-group-topic-section" : ""}">
           ${renderCheckpointField(ui)}
@@ -3111,6 +3227,10 @@
         if (step >= 5 && !controlStepComplete() && state.activeStep !== step) return;
         openStep(step);
       });
+    });
+
+    scope.querySelector("#planPracticeSubjectBtn")?.addEventListener("click", () => {
+      openPracticeSubjectModal();
     });
 
     scope.querySelector("#planAskBack")?.addEventListener("click", () => {
@@ -3668,6 +3788,9 @@
     try {
       await loadContext();
       render();
+      if (state.practice && !state.subject && !state.existingEntry && !state.editingEntryId) {
+        openPracticeSubjectModal();
+      }
     } catch (err) {
       console.error(err);
       if (root) {

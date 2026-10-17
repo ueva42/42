@@ -4,8 +4,8 @@
 (function () {
   const UI = () => window.LogbuchUI;
 
-  const ICON_V = { hausaufgaben: 3, ueben: 3 };
-  const HERO_V = { hausaufgaben: 3, ueben: 3 };
+  const ICON_V = { hausaufgaben: 4, ueben: 4 };
+  const HERO_V = { hausaufgaben: 5, ueben: 5 };
   const icon = (slug) => `/icons/student/png/${slug}.png${ICON_V[slug] ? `?v=${ICON_V[slug]}` : ""}`;
   const hero = (slug) => `/icons/student/hero/${slug}-hero.png?v=${HERO_V[slug] || 6}`;
 
@@ -509,7 +509,14 @@
       </div>`;
 
     root.querySelectorAll("[data-hub-section]").forEach((btn) => {
-      btn.addEventListener("click", () => navigate(btn.dataset.hubSection));
+      btn.addEventListener("click", () => {
+        const section = btn.dataset.hubSection;
+        if (section === "ueben") {
+          navigate("ueben", new URLSearchParams({ pick: "1" }));
+          return;
+        }
+        navigate(section);
+      });
     });
 
     root.querySelector("[data-hub-identity]")?.addEventListener("click", () => {

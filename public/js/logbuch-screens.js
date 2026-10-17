@@ -149,7 +149,7 @@
     }
 
     if (section === "ueben" && window.LogbuchUeben) {
-      window.LogbuchUeben.init();
+      window.LogbuchUeben.init(query);
       return;
     }
 
