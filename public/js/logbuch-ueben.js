@@ -1,5 +1,6 @@
 /**
  * SRL-Logbuch – Üben zu Hause (freie Fachwahl, Tagesziel + Abschluss).
+ * Schritt 1: „Üben starten“ → Fach-Kacheln; heutige Einträge bleiben sichtbar.
  */
 (function () {
   const UI = () => window.LogbuchUI;
@@ -7,7 +8,8 @@
   const state = {
     date: null,
     data: null,
-    loading: false
+    loading: false,
+    picking: false
   };
 
   function todayIso() {
@@ -69,6 +71,7 @@
 
   async function loadDay(dateIso) {
     state.loading = true;
+    state.picking = false;
     state.date = dateIso || todayIso();
     render();
     try {
@@ -100,6 +103,25 @@
     window.StudentRouter?.navigateToSection("plan", { query: q });
   }
 
+  function renderStartCta(editable) {
+    const ui = UI();
+    if (!editable) {
+      return `
+        <p class="ueben-muted">Heute kannst du kein neues Übungsziel starten – schau dir deine Einträge unten an.</p>`;
+    }
+
+    return `
+      <button type="button" class="ueben-start-cta hub-accent-cyan" id="uebenStartBtn">
+        <span class="ueben-start-cta__glow" aria-hidden="true"></span>
+        <span class="ueben-start-cta__copy">
+          <span class="ueben-start-cta__eyebrow">Üben zu Hause</span>
+          <span class="ueben-start-cta__title">Üben starten</span>
+          <span class="ueben-start-cta__hint">Fach wählen, Übungsziel setzen – wie dein Tagesziel in Mein Tag.</span>
+        </span>
+        <span class="ueben-start-cta__arrow" aria-hidden="true">→</span>
+      </button>`;
+  }
+
   function renderSubjectPick(editable) {
     const ui = UI();
     if (!editable) {
@@ -111,29 +133,58 @@
     const subjects = subjectOptions();
 
     return `
-      <div class="ueben-subject-grid" role="list">
-        ${subjects
-          .map((s) => {
-            const done = taken.has(String(s).toLowerCase());
-            const artSrc = window.LogbuchVisuals?.subjectIconSrc(s) || "";
-            const accent = subjectAccent(s);
-            const art = artSrc
-              ? `<span class="ueben-subject-chip__art" aria-hidden="true"><img src="${ui.escapeHtml(
-                  artSrc
-                )}" alt="" loading="lazy" decoding="async"></span>`
-              : `<span class="ueben-subject-chip__dot" aria-hidden="true"></span>`;
-            return `
-              <button type="button"
-                class="ueben-subject-chip hub-accent-${accent}${done ? " is-done" : ""}"
-                data-ueben-subject="${ui.escapeHtml(s)}"
-                ${done ? 'title="Heute schon gestartet – unten fortsetzen"' : ""}>
-                ${art}
-                <span class="ueben-subject-chip__label">${ui.escapeHtml(s)}</span>
-                ${done ? `<span class="ueben-subject-chip__badge">läuft</span>` : ""}
-              </button>`;
-          })
-          .join("")}
+      <div class="ueben-pick">
+        <div class="ueben-pick__bar">
+          <button type="button" class="today-app-btn today-app-btn--ghost" id="uebenPickBack">Zurück</button>
+        </div>
+        <div class="ueben-subject-grid" role="list">
+          ${subjects
+            .map((s) => {
+              const done = taken.has(String(s).toLowerCase());
+              const artSrc = window.LogbuchVisuals?.subjectIconSrc(s) || "";
+              const accent = subjectAccent(s);
+              const art = artSrc
+                ? `<span class="ueben-subject-chip__art" aria-hidden="true"><img src="${ui.escapeHtml(
+                    artSrc
+                  )}" alt="" loading="lazy" decoding="async"></span>`
+                : `<span class="ueben-subject-chip__dot" aria-hidden="true"></span>`;
+              return `
+                <button type="button"
+                  class="ueben-subject-chip hub-accent-${accent}${done ? " is-done" : ""}"
+                  data-ueben-subject="${ui.escapeHtml(s)}"
+                  ${done ? 'title="Heute schon gestartet – unten fortsetzen"' : ""}>
+                  ${art}
+                  <span class="ueben-subject-chip__label">${ui.escapeHtml(s)}</span>
+                  ${done ? `<span class="ueben-subject-chip__badge">läuft</span>` : ""}
+                </button>`;
+            })
+            .join("")}
+        </div>
       </div>`;
+  }
+
+  function renderStartBlock(editable) {
+    if (state.picking && editable) {
+      return `
+        <section class="ueben-block" id="uebenStartBlock">
+          <div class="ueben-block__head">
+            <p class="ueben-block__eyebrow">Schritt 1</p>
+            <h3 class="ueben-block__title">Fach wählen</h3>
+            <p class="ueben-block__text">Tippe ein Fach an – danach setzt du dein Übungsziel wie in Mein Tag.</p>
+          </div>
+          ${renderSubjectPick(editable)}
+        </section>`;
+    }
+
+    return `
+      <section class="ueben-block" id="uebenStartBlock">
+        <div class="ueben-block__head">
+          <p class="ueben-block__eyebrow">Neu starten</p>
+          <h3 class="ueben-block__title">Bereit zum Üben?</h3>
+          <p class="ueben-block__text">Starte eine neue Übung – deine heutigen Einträge siehst du weiterhin unten.</p>
+        </div>
+        ${renderStartCta(editable)}
+      </section>`;
   }
 
   function renderEntryTile(entry, editable) {
@@ -193,6 +244,17 @@
       .ueben-block__title{margin:0;font-size:1.35rem;font-weight:900;color:#f8fafc;letter-spacing:.02em}
       .ueben-block__text{margin:0;font-size:.95rem;line-height:1.45;color:#94a3b8;max-width:42rem}
       .ueben-muted{margin:0;color:#94a3b8;font-size:.95rem}
+      .ueben-start-cta{position:relative;display:flex;align-items:center;gap:16px;width:100%;max-width:36rem;padding:18px 20px;border-radius:18px;border:1px solid rgba(34,211,238,.45);background:linear-gradient(155deg,rgba(8,47,73,.95),rgba(15,23,42,.92) 55%,rgba(6,78,59,.35));color:#f8fafc;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;overflow:hidden;transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease;box-shadow:0 12px 32px rgba(2,8,23,.4),inset 0 1px 0 rgba(103,232,249,.12)}
+      .ueben-start-cta:hover{transform:translateY(-2px);border-color:rgba(103,232,249,.75);box-shadow:0 16px 40px rgba(2,8,23,.45),0 0 28px rgba(34,211,238,.18)}
+      .ueben-start-cta:active{transform:translateY(0)}
+      .ueben-start-cta__glow{position:absolute;inset:auto -20% -60% 20%;height:120%;border-radius:50%;background:radial-gradient(circle,rgba(34,211,238,.28),transparent 65%);pointer-events:none}
+      .ueben-start-cta__copy{position:relative;display:grid;gap:4px;flex:1;min-width:0}
+      .ueben-start-cta__eyebrow{font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#67e8f9}
+      .ueben-start-cta__title{font-size:1.35rem;font-weight:900;letter-spacing:.02em;line-height:1.15}
+      .ueben-start-cta__hint{font-size:.9rem;font-weight:600;line-height:1.4;color:#94a3b8}
+      .ueben-start-cta__arrow{position:relative;flex:0 0 auto;font-size:1.35rem;font-weight:900;color:#67e8f9}
+      .ueben-pick{display:grid;gap:12px}
+      .ueben-pick__bar{display:flex;justify-content:flex-start}
       .ueben-subject-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
       .ueben-subject-chip{position:relative;display:flex;align-items:center;gap:10px;min-height:64px;padding:10px 12px;border-radius:16px;border:1px solid rgba(148,163,184,.28);background:linear-gradient(160deg,rgba(15,23,42,.92),rgba(8,47,73,.55));color:#e2e8f0;font-weight:800;font-size:.98rem;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease}
       .ueben-subject-chip:hover{transform:translateY(-1px);border-color:rgba(34,211,238,.55);box-shadow:0 10px 24px rgba(2,8,23,.35)}
@@ -205,68 +267,25 @@
       .ueben-entry-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
       @media (max-width:640px){
         .ueben-subject-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .ueben-start-cta{padding:16px 14px;gap:12px}
+        .ueben-start-cta__title{font-size:1.2rem}
       }
     </style>`;
   }
 
-  function render() {
-    const root = document.getElementById("ueben-screen-root");
-    if (!root) return;
-    const ui = UI();
-    const editable = isEditableDate(state.date);
+  function bindHandlers(root) {
+    root.querySelector("#uebenStartBtn")?.addEventListener("click", () => {
+      state.picking = true;
+      render();
+      document
+        .getElementById("uebenStartBlock")
+        ?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    });
 
-    if (state.loading && !state.data) {
-      root.innerHTML = `<div class="logbuch-loading">Lade Übungen…</div>`;
-      return;
-    }
-
-    if (!state.data) {
-      root.innerHTML = `
-        <div class="student-card empty-state-card">
-          <div class="card-content">
-            <h3 class="empty-state-card__title">Übungen konnten nicht geladen werden.</h3>
-            <button type="button" class="today-app-btn" id="uebenRetry">Nochmal versuchen</button>
-          </div>
-        </div>`;
-      root.querySelector("#uebenRetry")?.addEventListener("click", () => loadDay(state.date));
-      return;
-    }
-
-    const items = practiceEntries();
-
-    root.innerHTML = `
-      ${styles()}
-      <div class="ueben-page">
-        <section class="ueben-block">
-          <div class="ueben-block__head">
-            <p class="ueben-block__eyebrow">Schritt 1</p>
-            <h3 class="ueben-block__title">Welches Fach übst du?</h3>
-            <p class="ueben-block__text">Tippe ein Fach an – danach setzt du dein Übungsziel wie in Mein Tag.</p>
-          </div>
-          ${renderSubjectPick(editable)}
-        </section>
-
-        <section class="ueben-block">
-          <div class="ueben-block__head">
-            <p class="ueben-block__eyebrow">Heute</p>
-            <h3 class="ueben-block__title">${
-              items.length ? "Deine Übungen" : "Noch keine Übung gestartet"
-            }</h3>
-            <p class="ueben-block__text">${
-              items.length
-                ? "Offene Übungen abschließen – oder ein weiteres Fach oben wählen."
-                : "Wähle oben ein Fach, um dein erstes Übungsziel zu setzen."
-            }</p>
-          </div>
-          ${
-            items.length
-              ? `<div class="ueben-entry-grid">${items
-                  .map((e) => renderEntryTile(e, editable))
-                  .join("")}</div>`
-              : ""
-          }
-        </section>
-      </div>`;
+    root.querySelector("#uebenPickBack")?.addEventListener("click", () => {
+      state.picking = false;
+      render();
+    });
 
     root.querySelectorAll("[data-ueben-subject]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -276,7 +295,7 @@
             String(e.subject || "").toLowerCase() === String(subject || "").toLowerCase()
         );
         if (existing?.id) {
-          if (editable && !existing.hasReflection) {
+          if (isEditableDate(state.date) && !existing.hasReflection) {
             window.StudentRouter?.navigateToSection("reflect", {
               query: new URLSearchParams({ entryId: existing.id, practice: "1" })
             });
@@ -302,6 +321,63 @@
         window.StudentRouter?.navigateToSection(nav, { query });
       });
     });
+  }
+
+  function render() {
+    const root = document.getElementById("ueben-screen-root");
+    if (!root) return;
+    const ui = UI();
+    const editable = isEditableDate(state.date);
+
+    if (state.loading && !state.data) {
+      root.innerHTML = `<div class="logbuch-loading">Lade Übungen…</div>`;
+      return;
+    }
+
+    if (!state.data) {
+      root.innerHTML = `
+        <div class="student-card empty-state-card">
+          <div class="card-content">
+            <h3 class="empty-state-card__title">Übungen konnten nicht geladen werden.</h3>
+            <button type="button" class="today-app-btn" id="uebenRetry">Nochmal versuchen</button>
+          </div>
+        </div>`;
+      root.querySelector("#uebenRetry")?.addEventListener("click", () => loadDay(state.date));
+      return;
+    }
+
+    if (!editable) state.picking = false;
+
+    const items = practiceEntries();
+
+    root.innerHTML = `
+      ${styles()}
+      <div class="ueben-page">
+        ${renderStartBlock(editable)}
+
+        <section class="ueben-block">
+          <div class="ueben-block__head">
+            <p class="ueben-block__eyebrow">Heute</p>
+            <h3 class="ueben-block__title">${
+              items.length ? "Deine Übungen" : "Noch keine Übung gestartet"
+            }</h3>
+            <p class="ueben-block__text">${
+              items.length
+                ? "Offene Übungen abschließen – oder oben eine neue starten."
+                : "Tippe auf „Üben starten“, um dein erstes Übungsziel zu setzen."
+            }</p>
+          </div>
+          ${
+            items.length
+              ? `<div class="ueben-entry-grid">${items
+                  .map((e) => renderEntryTile(e, editable))
+                  .join("")}</div>`
+              : ""
+          }
+        </section>
+      </div>`;
+
+    bindHandlers(root);
   }
 
   function init() {
