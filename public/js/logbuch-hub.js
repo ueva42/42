@@ -4,8 +4,8 @@
 (function () {
   const UI = () => window.LogbuchUI;
 
-  const ICON_V = { hausaufgaben: 2 };
-  const HERO_V = { hausaufgaben: 2 };
+  const ICON_V = { hausaufgaben: 2, ueben: 1 };
+  const HERO_V = { hausaufgaben: 2, ueben: 1 };
   const icon = (slug) => `/icons/student/png/${slug}.png${ICON_V[slug] ? `?v=${ICON_V[slug]}` : ""}`;
   const hero = (slug) => `/icons/student/hero/${slug}-hero.png?v=${HERO_V[slug] || 6}`;
 
@@ -22,7 +22,8 @@
     charakter: { fit: "cover", position: "center right" },
     "xp-historie": { fit: "cover", position: "center right" },
     materialschrank: { fit: "cover", position: "center right" },
-    hausaufgaben: { fit: "cover", position: "center" }
+    hausaufgaben: { fit: "cover", position: "center" },
+    ueben: { fit: "cover", position: "center" }
   };
 
   const DASHBOARD_HERO = {
@@ -57,7 +58,7 @@
     },
     {
       section: "ueben",
-      slug: "zielsetzung",
+      slug: "ueben",
       title: "Üben zu Hause",
       text: "Fach selbst wählen – Übungsziel setzen und abschließen.",
       cta: "Üben starten",
