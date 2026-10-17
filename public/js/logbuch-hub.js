@@ -4,8 +4,8 @@
 (function () {
   const UI = () => window.LogbuchUI;
 
-  const ICON_V = { hausaufgaben: 2, ueben: 1 };
-  const HERO_V = { hausaufgaben: 2, ueben: 1 };
+  const ICON_V = { hausaufgaben: 3, ueben: 3 };
+  const HERO_V = { hausaufgaben: 3, ueben: 3 };
   const icon = (slug) => `/icons/student/png/${slug}.png${ICON_V[slug] ? `?v=${ICON_V[slug]}` : ""}`;
   const hero = (slug) => `/icons/student/hero/${slug}-hero.png?v=${HERO_V[slug] || 6}`;
 
