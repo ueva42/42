@@ -469,6 +469,54 @@ body.student-app .mobile-header {
   background: rgba(76, 29, 149, 0.15);
 }
 
+.student-more-legal {
+  margin: 14px 2px 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.student-more-legal a {
+  color: #94a3b8;
+  text-decoration: none;
+}
+
+.student-more-legal a:hover {
+  color: #e2e8f0;
+  text-decoration: underline;
+}
+
+.student-more-legal .sep {
+  color: rgba(148, 163, 184, 0.4);
+  user-select: none;
+}
+
+.student-more-legal__ig {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: #e2e8f0;
+  opacity: 0.85;
+}
+
+.student-more-legal__ig:hover {
+  opacity: 1;
+  color: #f9a8d4;
+  text-decoration: none;
+}
+
+.student-more-legal__ig svg {
+  width: 16px;
+  height: 16px;
+}
+
 .student-topbar-title {
   font-family: "Bangers", system-ui;
   font-size: 15px;
@@ -13201,6 +13249,27 @@ h2 {
       <button type="button" class="student-more-link" data-section="charakter">Charakter <span>›</span></button>
       <button type="button" class="student-more-link" data-section="xp">XP-Historie <span>›</span></button>
     </div>
+    <p class="student-more-legal">
+      <a href="/impressum">Impressum</a>
+      <span class="sep">·</span>
+      <a href="/datenschutz">Datenschutz</a>
+      <span class="sep">·</span>
+      <!-- PLACEHOLDER: Instagram-Handle ersetzen -->
+      <a
+        class="student-more-legal__ig"
+        href="https://www.instagram.com/[HANDLE]/"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Instagram (Handle bitte setzen)"
+        title="Instagram – Handle bitte setzen"
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="3.5" y="3.5" width="17" height="17" rx="5" stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="12" cy="12" r="4.1" stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor"/>
+        </svg>
+      </a>
+    </p>
   </div>
 </div>
 

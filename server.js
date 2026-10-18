@@ -2884,7 +2884,11 @@ const SESSIONLESS_PATHS = new Set([
   "/api/logout",
   "/logout",
   "/health",
-  "/health/db"
+  "/health/db",
+  "/impressum",
+  "/impressum.html",
+  "/datenschutz",
+  "/datenschutz.html"
 ]);
 
 const STATIC_PREFIXES = ["/js/", "/icons/", "/css/", "/characters/", "/assets/"];
@@ -2894,7 +2898,9 @@ const STATIC_FILES = new Set([
   "/offline.html",
   "/pwa-init.js",
   "/favicon.ico",
-  "/library-fantasy-bg.jpg"
+  "/library-fantasy-bg.jpg",
+  "/impressum.html",
+  "/datenschutz.html"
 ]);
 
 function isStaticAssetPath(p) {
@@ -15566,6 +15572,16 @@ app.get("/login", sendToAppOrLogin);
 
 app.get("/first-login", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "first-login.html"));
+});
+
+app.get(["/impressum", "/impressum.html"], (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.sendFile(path.join(__dirname, "public", "impressum.html"));
+});
+
+app.get(["/datenschutz", "/datenschutz.html"], (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.sendFile(path.join(__dirname, "public", "datenschutz.html"));
 });
 
 app.get("/admin", isAdmin, (_req, res) => {

@@ -344,6 +344,54 @@
       flex-shrink: 0;
     }
 
+    .login-legal {
+      margin: 14px 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px 10px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .login-legal a {
+      color: #94a3b8;
+      text-decoration: none;
+    }
+
+    .login-legal a:hover {
+      color: #e2e8f0;
+      text-decoration: underline;
+    }
+
+    .login-legal .sep {
+      color: rgba(148, 163, 184, 0.4);
+      user-select: none;
+    }
+
+    .login-legal__ig {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      color: #e2e8f0;
+      opacity: 0.85;
+    }
+
+    .login-legal__ig:hover {
+      opacity: 1;
+      color: #f9a8d4;
+      text-decoration: none;
+    }
+
+    .login-legal__ig svg {
+      width: 16px;
+      height: 16px;
+    }
+
     .login-demo {
       margin-top: 22px;
       padding-top: 20px;
@@ -532,6 +580,28 @@
             <path d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
           </svg>
           Sicher. Geschützt. Dein Fortschritt bleibt bei dir.
+        </p>
+
+        <p class="login-legal">
+          <a href="/impressum">Impressum</a>
+          <span class="sep">·</span>
+          <a href="/datenschutz">Datenschutz</a>
+          <span class="sep">·</span>
+          <!-- PLACEHOLDER: Instagram-Handle ersetzen -->
+          <a
+            class="login-legal__ig"
+            href="https://www.instagram.com/[HANDLE]/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram (Handle bitte setzen)"
+            title="Instagram – Handle bitte setzen"
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="3.5" y="3.5" width="17" height="17" rx="5" stroke="currentColor" stroke-width="1.6"/>
+              <circle cx="12" cy="12" r="4.1" stroke="currentColor" stroke-width="1.6"/>
+              <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor"/>
+            </svg>
+          </a>
         </p>
       </section>
     </div>
