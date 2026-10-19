@@ -1646,12 +1646,30 @@
       .tc-add-grid { grid-template-columns: 1fr; }
     }
   </style>
-  <link rel="stylesheet" href="/css/admin-theme.css?v=4">
+  <link rel="stylesheet" href="/css/admin-theme.css?v=5">
 </head>
 <body class="admin-app">
 
-<!-- SIDEBAR -->
-<div class="sidebar">
+<!-- App-Topbar (Admin-Hub-Shell; bei Lehrkraft-Toolpfaden ausgeblendet) -->
+<header class="admin-app-top" id="adminAppTop" hidden>
+  <div class="admin-app-top__row">
+    <button type="button" class="admin-app-back" id="adminAppBackBtn" hidden onclick="showTab('adminHubTab')">
+      ← Übersicht
+    </button>
+    <div class="admin-app-top__text">
+      <p class="admin-app-brand">STREETS OF LOGIC</p>
+      <h1 class="admin-app-title" id="adminAppTitle">Administration</h1>
+    </div>
+    <div class="admin-app-top__actions">
+      <button type="button" class="admin-addaccount-btn" title="Weiteres Konto in neuem Tab"
+        onclick="window.SolAuth?.addAccount?.()">Konto+</button>
+      <button type="button" class="admin-logout-btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+</header>
+
+<!-- SIDEBAR (Lehrkraft-Werkzeuge / Legacy; Admin nutzt Hub-Kacheln) -->
+<div class="sidebar" id="adminSidebar">
   <div class="sidebar-header">
     <div class="sidebar-logo-orb"></div>
     <div>
@@ -1806,7 +1824,7 @@
 <div class="content">
   <div class="content-inner">
 
-    <div class="page-header">
+    <div class="page-header" id="adminPageHeader">
       <div>
         <h1>STREETS OF LOGIC</h1>
         <div class="page-subtitle">ADMINISTRATION – getrennter Zugang</div>
@@ -1823,8 +1841,13 @@
       </div>
     </div>
 
+    <!-- ADMIN HUB -->
+    <div id="adminHubTab" class="tab hidden">
+      <div id="adminHubTabRoot"></div>
+    </div>
+
     <!-- KLASSENÜBERSICHT -->
-    <div id="dashboardTab" class="tab">
+    <div id="dashboardTab" class="tab hidden">
       <div id="dashboardTabRoot"></div>
     </div>
 
@@ -2278,6 +2301,7 @@
 <script src="/js/teacher-termine.js?v=8"></script>
 <script src="/js/teacher-gruppenmodus.js?v=15"></script>
 <script src="/js/teacher-materialschrank.js?v=2"></script>
+<script src="/js/admin-hub.js?v=1"></script>
 
 <script>
 const TEACHER_TAB_ROUTES = {
@@ -2325,6 +2349,8 @@ const ROUTE_TABS = {
 
 const HASH_TABS = {
   // Admin-Bereich unter /admin#…
+  home: "adminHubTab",
+  hub: "adminHubTab",
   xp: "xpTab",
   classProgress: "classProgressTab",
   class: "classTab",
@@ -2426,7 +2452,46 @@ function initNavSections() {
 }
 
 /* ---------------------------- TABS ---------------------------- */
+function useAdminHubShell() {
+  const path = location.pathname || "";
+  const onTeacherToolPath = path.startsWith("/teacher/");
+  if (onTeacherToolPath) return false;
+  const role = window.__staffSession?.role || window.SolAuth?.get?.() || "";
+  return role === "admin" || window.SolAuth?.isAdminShell?.() === true;
+}
+
+function syncAdminShellChrome(tabId) {
+  const hubShell = useAdminHubShell();
+  const onHub = tabId === "adminHubTab";
+  document.body.classList.toggle("admin-hub-shell", hubShell);
+  document.body.classList.toggle("admin-on-hub", hubShell && onHub);
+  document.body.classList.toggle("admin-in-tool", hubShell && !onHub);
+
+  const top = document.getElementById("adminAppTop");
+  const back = document.getElementById("adminAppBackBtn");
+  const titleEl = document.getElementById("adminAppTitle");
+  const pageHeader = document.getElementById("adminPageHeader");
+
+  if (top) top.hidden = !hubShell;
+  if (pageHeader) pageHeader.hidden = hubShell;
+  if (back) back.hidden = !hubShell || onHub;
+  if (titleEl) {
+    if (!hubShell) {
+      titleEl.textContent = "Administration";
+    } else if (onHub) {
+      titleEl.textContent = "Übersicht";
+    } else {
+      titleEl.textContent =
+        (window.AdminHub && AdminHub.titleForTab(tabId)) || "Bereich";
+    }
+  }
+}
+
 function showTab(id, ev, options = {}) {
+  if (id === "adminHubTab" && !useAdminHubShell()) {
+    id = "dashboardTab";
+  }
+
   document.querySelectorAll(".tab").forEach(t => t.classList.add("hidden"));
   const tab = document.getElementById(id);
   if (tab) tab.classList.remove("hidden");
@@ -2472,6 +2537,7 @@ function showTab(id, ev, options = {}) {
     }
   }
 
+  if (id === "adminHubTab" && window.AdminHub) AdminHub.init();
   if (id === "dashboardTab" && window.TeacherDashboard) TeacherDashboard.init();
   if (id === "timetableTab" && window.TeacherTimetable) TeacherTimetable.init();
   if (id === "lessonGoalsTab" && window.TeacherLessonGoals) TeacherLessonGoals.init();
@@ -2495,20 +2561,34 @@ function showTab(id, ev, options = {}) {
   if (id === "classProgressTab") loadClassProgressInit();
 
   syncNavSectionForTab(id);
+  syncAdminShellChrome(id);
+}
+
+function resolveDefaultAdminTab() {
+  const hash = String(location.hash || "").replace(/^#/, "");
+  if (hash && HASH_TABS[hash]) return HASH_TABS[hash];
+  if (ROUTE_TABS[location.pathname]) return ROUTE_TABS[location.pathname];
+  if (useAdminHubShell()) return "adminHubTab";
+  return "dashboardTab";
 }
 
 function initAdminRoute() {
-  const hash = String(location.hash || "").replace(/^#/, "");
-  const tab = HASH_TABS[hash] || ROUTE_TABS[location.pathname] || "dashboardTab";
+  const tab = resolveDefaultAdminTab();
   showTab(tab, null, { skipHistory: true });
+  // Hub als Default mit sauberer URL
+  if (useAdminHubShell() && tab === "adminHubTab" && !String(location.hash || "").replace(/^#/, "")) {
+    history.replaceState({ tab }, "", "/admin#home");
+  }
 }
 
 window.addEventListener("popstate", (e) => {
   const hash = String(location.hash || "").replace(/^#/, "");
   const tab =
-    e.state?.tab || HASH_TABS[hash] || ROUTE_TABS[location.pathname] || "dashboardTab";
+    e.state?.tab || HASH_TABS[hash] || ROUTE_TABS[location.pathname] || resolveDefaultAdminTab();
   showTab(tab, null, { skipHistory: true });
 });
+
+window.showTab = showTab;
 
 /* ---------------------------- LOGOUT ---------------------------- */
 async function logout() {

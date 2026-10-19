@@ -649,3 +649,302 @@ body.admin-app .lp-level-check input {
   height: 1.05em;
   accent-color: var(--admin-cyan);
 }
+
+/* ---------- Admin Hub App Shell ---------- */
+body.admin-app.admin-hub-shell {
+  flex-direction: column;
+  height: auto;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 28px;
+}
+
+body.admin-app.admin-hub-shell .sidebar {
+  display: none !important;
+}
+
+body.admin-app.admin-hub-shell .content {
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 12px 16px 32px;
+  overflow: visible;
+}
+
+body.admin-app.admin-hub-shell.admin-on-hub .content-inner {
+  max-width: 920px;
+}
+
+body.admin-app.admin-hub-shell .page-header {
+  display: none !important;
+}
+
+body.admin-app .admin-app-top {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: blur(18px) saturate(1.15);
+  background: linear-gradient(180deg, rgba(5, 8, 22, 0.94), rgba(5, 8, 22, 0.82));
+  border-bottom: 1px solid var(--admin-border);
+  padding: 12px 16px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+}
+
+body.admin-app .admin-app-top[hidden] {
+  display: none !important;
+}
+
+body.admin-app .admin-app-top__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+body.admin-app .admin-app-top__text {
+  flex: 1;
+  min-width: 0;
+}
+
+body.admin-app .admin-app-brand {
+  margin: 0 0 2px;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  color: var(--admin-cyan);
+}
+
+body.admin-app .admin-app-title {
+  margin: 0;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  color: var(--admin-text);
+  line-height: 1.25;
+}
+
+body.admin-app .admin-app-top__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+body.admin-app .admin-app-back {
+  appearance: none;
+  border: 1px solid var(--admin-border);
+  background: rgba(13, 25, 51, 0.9);
+  color: var(--admin-text-normal);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+body.admin-app .admin-app-back:hover {
+  border-color: var(--admin-border-active);
+  color: var(--admin-cyan);
+}
+
+body.admin-app .admin-app-back[hidden] {
+  display: none !important;
+}
+
+body.admin-app .admin-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 8px 0 24px;
+}
+
+body.admin-app .admin-hub-hero {
+  padding: 8px 2px 4px;
+}
+
+body.admin-app .admin-hub-hero__brand {
+  margin: 0 0 6px;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--admin-cyan);
+}
+
+body.admin-app .admin-hub-hero__title {
+  margin: 0 0 8px;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: clamp(1.55rem, 4vw, 2.1rem);
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  color: var(--admin-text);
+}
+
+body.admin-app .admin-hub-hero__sub {
+  margin: 0;
+  max-width: 36rem;
+  color: var(--admin-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+body.admin-app .admin-hub-section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+
+body.admin-app .admin-hub-section__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--admin-text);
+}
+
+body.admin-app .admin-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  body.admin-app .admin-hub-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+body.admin-app .admin-hub-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 118px;
+  width: 100%;
+  padding: 14px 14px 13px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--admin-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 42%),
+    linear-gradient(165deg, rgba(16, 27, 51, 0.96), rgba(11, 20, 40, 0.98));
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  transition: border-color 0.18s ease, transform 0.14s ease, box-shadow 0.18s ease;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.admin-app .admin-hub-tile::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--admin-cyan), var(--admin-violet));
+}
+
+body.admin-app .admin-hub-tile.accent-orange::before {
+  background: linear-gradient(180deg, #f97316, #fbbf24);
+}
+body.admin-app .admin-hub-tile.accent-green::before {
+  background: linear-gradient(180deg, #34d399, var(--admin-cyan));
+}
+body.admin-app .admin-hub-tile.accent-violet::before {
+  background: linear-gradient(180deg, var(--admin-violet), #a78bfa);
+}
+body.admin-app .admin-hub-tile.accent-cyan::before {
+  background: linear-gradient(180deg, var(--admin-cyan), #38bdf8);
+}
+body.admin-app .admin-hub-tile.accent-amber::before {
+  background: linear-gradient(180deg, #fbbf24, #f97316);
+}
+
+body.admin-app .admin-hub-tile:hover {
+  border-color: rgba(34, 211, 238, 0.35);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.3), 0 0 24px rgba(34, 211, 238, 0.1);
+}
+
+body.admin-app .admin-hub-tile:active {
+  transform: scale(0.985);
+}
+
+body.admin-app .admin-hub-tile:focus-visible {
+  outline: 2px solid var(--admin-cyan);
+  outline-offset: 2px;
+}
+
+body.admin-app .admin-hub-tile.is-featured {
+  grid-column: 1 / -1;
+  min-height: 128px;
+  background:
+    linear-gradient(145deg, rgba(34, 211, 238, 0.12), transparent 50%),
+    linear-gradient(165deg, rgba(16, 27, 51, 0.96), rgba(11, 20, 40, 0.98));
+}
+
+@media (min-width: 720px) {
+  body.admin-app .admin-hub-tile.is-featured {
+    grid-column: span 2;
+  }
+}
+
+body.admin-app .admin-hub-tile__kicker {
+  margin: 0;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--admin-text-muted);
+}
+
+body.admin-app .admin-hub-tile__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--admin-text);
+}
+
+body.admin-app .admin-hub-tile__desc {
+  margin: 0;
+  color: var(--admin-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+body.admin-app .admin-hub-tile__cta {
+  margin-top: auto;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #a5f3fc;
+}
+
+@media (max-width: 560px) {
+  body.admin-app .admin-hub-grid {
+    grid-template-columns: 1fr;
+  }
+  body.admin-app .admin-hub-tile.is-featured {
+    grid-column: 1;
+  }
+  body.admin-app .admin-app-top__actions .admin-addaccount-btn {
+    display: none;
+  }
+}
