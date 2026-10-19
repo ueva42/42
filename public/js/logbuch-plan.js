@@ -97,6 +97,7 @@
     groupContext: null,
     handoffUserId: null,
     roleSaving: false,
+    absentSaving: false,
     /** Shared-Tablet: Hinweis „Tablet an …“ nach Speichern */
     handoffNotice: null,
     /** Shared-Tablet: in dieser Sitzung gespeicherte Personen (userId) */
@@ -1026,8 +1027,20 @@
     return memberRoleNames(member).length > 0 || memberRoleIds(member).size > 0;
   }
 
+  function memberIsAbsent(member) {
+    if (!member) return false;
+    const uid = Number(member.userId);
+    const fromCtx = groupMembers().find((m) => Number(m.userId) === uid);
+    return !!(fromCtx?.absent ?? member.absent);
+  }
+
+  /** Plan-Phase erledigt: eigenes Tagesziel ODER als fehlend markiert. */
+  function memberPlanPhaseDone(member) {
+    return memberHasPlan(member) || memberIsAbsent(member);
+  }
+
   function pendingPlanMembers() {
-    return groupMembers().filter((m) => !memberHasPlan(m));
+    return groupMembers().filter((m) => !memberPlanPhaseDone(m));
   }
 
   /** Shared-Tablet: noch nicht alle Tagesziele – kein Abschluss, Person wählen. */
@@ -1039,12 +1052,19 @@
 
   function resolveSharedPlanTargetId(params) {
     const pending = pendingPlanMembers();
+    const cur = Number(state.handoffUserId);
+    const curMember = Number.isFinite(cur)
+      ? groupMembers().find((m) => Number(m.userId) === cur)
+      : null;
+    // Explizit „fehlt“ gewählt → für „Wieder da“ auf der Person bleiben
+    if (curMember && memberIsAbsent(curMember) && !memberHasPlan(curMember)) {
+      return cur;
+    }
     if (!pending.length) return null;
     const urlFor = params?.get?.("forUserId");
     if (urlFor && pending.some((m) => Number(m.userId) === Number(urlFor))) {
       return Number(urlFor);
     }
-    const cur = Number(state.handoffUserId);
     if (Number.isFinite(cur) && pending.some((m) => Number(m.userId) === cur)) {
       return cur;
     }
@@ -1064,12 +1084,19 @@
     }
     const pending = pendingPlanMembers();
     const current = members.find((m) => Number(m.userId) === Number(state.handoffUserId));
-    // Person mit Ziel, aber andere fehlen noch → nächste ohne Ziel (nicht beim Login hängen bleiben)
-    if (pending.length && current && memberHasPlan(current)) {
+    // Person mit Ziel, andere noch offen → weiter; „fehlt“ bleibt wählbar (Wieder da)
+    if (
+      pending.length &&
+      current &&
+      memberPlanPhaseDone(current) &&
+      !memberIsAbsent(current)
+    ) {
       state.handoffUserId = Number(pending[0].userId);
       return pending[0];
     }
-    if (current && !memberHasPlan(current)) return current;
+    if (current && (!memberPlanPhaseDone(current) || memberIsAbsent(current))) {
+      return current;
+    }
     if (pending.length) {
       state.handoffUserId = Number(pending[0].userId);
       return pending[0];
@@ -1504,6 +1531,9 @@
     const members = groupMembers();
     if (members.length < 2) return "";
     const handoff = currentHandoffMember();
+    const handoffPending = handoff && !memberPlanPhaseDone(handoff);
+    const handoffAbsent = handoff && memberIsAbsent(handoff) && !memberHasPlan(handoff);
+    const absentName = handoff?.displayName || "Person";
     return `
       <div class="plan-handoff-strip" role="group" aria-label="Person am Tablet">
         <p class="plan-handoff-strip__label">Am Tablet</p>
@@ -1511,16 +1541,38 @@
           ${members
             .map((m) => {
               const active = Number(m.userId) === Number(state.handoffUserId);
+              const absent = memberIsAbsent(m);
               const done = memberHasPlan(m);
+              const phaseDone = done || absent;
+              const suffix = done ? " ✓" : absent ? " · fehlt" : "";
               return `<button type="button" class="plan-handoff-strip__btn${active ? " is-active" : ""}${
                 done ? " is-done" : ""
-              }" data-plan-handoff="${ui.escapeHtml(String(m.userId))}" aria-pressed="${
-                active ? "true" : "false"
-              }">${ui.escapeHtml(m.displayName || "Person")}${done ? " ✓" : ""}</button>`;
+              }${absent && !done ? " is-absent" : ""}" data-plan-handoff="${ui.escapeHtml(
+                String(m.userId)
+              )}" aria-pressed="${active ? "true" : "false"}">${ui.escapeHtml(
+                m.displayName || "Person"
+              )}${suffix}</button>`;
             })
             .join("")}
         </div>
-        <p class="plan-handoff-strip__hint">Andere Person tippen = Tablet weitergeben</p>
+        ${
+          handoffPending
+            ? `<button type="button" class="plan-handoff-strip__absent" data-plan-absent="${ui.escapeHtml(
+                String(handoff.userId)
+              )}" ${state.absentSaving ? "disabled" : ""}>${
+                state.absentSaving
+                  ? "Speichern…"
+                  : `${ui.escapeHtml(absentName)} fehlt / nicht da`
+              }</button>`
+            : handoffAbsent
+              ? `<button type="button" class="plan-handoff-strip__absent plan-handoff-strip__absent--undo" data-plan-absent="${ui.escapeHtml(
+                  String(handoff.userId)
+                )}" data-plan-absent-undo="1" ${state.absentSaving ? "disabled" : ""}>${
+                  state.absentSaving ? "Speichern…" : "Wieder da – Ziel setzen"
+                }</button>`
+              : ""
+        }
+        <p class="plan-handoff-strip__hint">Andere Person tippen = Tablet weitergeben · Fehlt = ohne Ziel weiter</p>
       </div>
       <style>
         .plan-handoff-strip{margin:0 0 14px;padding:12px;border-radius:14px;border:1px solid rgba(34,211,238,.45);background:rgba(8,47,73,.55)}
@@ -1529,6 +1581,10 @@
         .plan-handoff-strip__btn{min-height:44px;padding:8px 14px;border-radius:12px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.45);color:#cbd5e1;font-weight:800;font-size:.95rem;cursor:pointer}
         .plan-handoff-strip__btn.is-active{border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#fff;box-shadow:0 0 0 2px rgba(34,211,238,.3)}
         .plan-handoff-strip__btn.is-done:not(.is-active){border-color:rgba(52,211,153,.55);color:#a7f3d0}
+        .plan-handoff-strip__btn.is-absent:not(.is-active){border-color:rgba(251,191,36,.55);color:#fde68a}
+        .plan-handoff-strip__absent{display:block;width:100%;margin:10px 0 0;min-height:44px;padding:8px 14px;border-radius:12px;border:2px dashed rgba(251,191,36,.65);background:rgba(69,26,3,.35);color:#fde68a;font-weight:800;font-size:.92rem;cursor:pointer}
+        .plan-handoff-strip__absent--undo{border-style:solid;border-color:rgba(52,211,153,.55);background:rgba(6,78,59,.28);color:#a7f3d0}
+        .plan-handoff-strip__absent:disabled{opacity:.55;cursor:wait}
         .plan-handoff-strip__hint{margin:8px 0 0;font-size:.78rem;color:#94a3b8}
       </style>`;
   }
@@ -2050,6 +2106,9 @@
         .plan-group-member-card.is-done:not(.is-active){border-color:rgba(52,211,153,.55);background:rgba(6,78,59,.28)}
         .plan-group-member-card.is-done:not(.is-active) .plan-group-member-card__name{color:#a7f3d0}
         .plan-group-member-card.is-done:not(.is-active) .plan-group-member-card__badge{border-color:rgba(52,211,153,.55);color:#6ee7b7}
+        .plan-group-member-card.is-absent:not(.is-active){border-color:rgba(251,191,36,.55);background:rgba(69,26,3,.28)}
+        .plan-group-member-card.is-absent:not(.is-active) .plan-group-member-card__name{color:#fde68a}
+        .plan-group-member-card.is-absent:not(.is-active) .plan-group-member-card__badge{border-color:rgba(251,191,36,.55);color:#fbbf24}
         .plan-group-role-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-top:2px}
         .plan-group-role-tile{display:grid;gap:4px;text-align:left;padding:12px;border-radius:12px;border:2px solid rgba(56,189,248,.35);background:rgba(8,47,73,.45);color:inherit;cursor:pointer}
         .plan-group-role-tile strong{font-size:.95rem}
@@ -2074,24 +2133,35 @@
                 <div class="plan-group-member-grid" role="group" aria-label="Gruppenteilnehmer">
                   ${members
                     .map((m) => {
-                      const done = memberHasRole(m);
+                      const absent = memberIsAbsent(m);
+                      const planDone = memberHasPlan(m);
+                      const done = memberHasRole(m) || planDone || absent;
                       const active = Number(m.userId) === Number(state.handoffUserId);
                       const roleLabel = memberRoleNames(m).join(", ");
                       const name = m.displayName || "Person";
-                      return `<button type="button"
-                        class="plan-group-member-card ${active ? "is-active" : ""} ${done ? "is-done" : ""}"
-                        data-plan-handoff="${ui.escapeHtml(String(m.userId))}"
-                        aria-pressed="${active ? "true" : "false"}"
-                        aria-label="${ui.escapeHtml(name)}${active ? " – jetzt dran" : ""}${done ? " – Rolle gewählt" : ""}">
-                        <span class="plan-group-member-card__badge" aria-hidden="true">${active ? "✓" : done ? "●" : ""}</span>
-                        <span class="plan-group-member-card__name">${ui.escapeHtml(name)}</span>
-                        <span class="plan-group-member-card__role">${
-                          active
+                      const statusLabel = planDone
+                        ? "Tagesziel fertig"
+                        : absent
+                          ? "Fehlt heute"
+                          : active
                             ? "Jetzt am Tablet"
                             : roleLabel
-                              ? ui.escapeHtml(roleLabel)
-                              : "Noch keine Rolle"
+                              ? roleLabel
+                              : "Noch keine Rolle";
+                      return `<button type="button"
+                        class="plan-group-member-card ${active ? "is-active" : ""} ${
+                          planDone ? "is-done" : ""
+                        }${absent && !planDone ? " is-absent" : ""}"
+                        data-plan-handoff="${ui.escapeHtml(String(m.userId))}"
+                        aria-pressed="${active ? "true" : "false"}"
+                        aria-label="${ui.escapeHtml(name)}${active ? " – jetzt dran" : ""}${
+                          absent ? " – fehlt" : done ? " – fertig" : ""
+                        }">
+                        <span class="plan-group-member-card__badge" aria-hidden="true">${
+                          active ? "✓" : planDone ? "●" : absent ? "–" : ""
                         }</span>
+                        <span class="plan-group-member-card__name">${ui.escapeHtml(name)}</span>
+                        <span class="plan-group-member-card__role">${ui.escapeHtml(statusLabel)}</span>
                       </button>`;
                     })
                     .join("")}
@@ -2337,7 +2407,7 @@
     return serverFlag || state.quickDoneIds.includes(uid);
   }
 
-  /** Nächste Person (nach der aktuellen), die noch kein Tagesziel hat. */
+  /** Nächste Person (nach der aktuellen), die noch kein Tagesziel hat (fehlt zählt als erledigt). */
   function nextPendingMember(currentUserId) {
     const members = groupMembers();
     const cur = Number(currentUserId);
@@ -2346,7 +2416,72 @@
       idx >= 0
         ? members.slice(idx + 1).concat(members.slice(0, idx))
         : members.filter((m) => Number(m.userId) !== cur);
-    return ordered.find((m) => !memberHasPlan(m)) || null;
+    return ordered.find((m) => !memberPlanPhaseDone(m)) || null;
+  }
+
+  function setMemberAbsentLocal(userId, absent) {
+    const uid = Number(userId);
+    const members = state.groupContext?.members;
+    if (!Array.isArray(members)) return;
+    for (const m of members) {
+      if (Number(m.userId) !== uid) continue;
+      m.absent = !!absent;
+      m.planPhaseDone = !!m.hasPlan || !!absent;
+    }
+  }
+
+  async function markMemberAttendance(userId, absent) {
+    const sessionId = state.groupContext?.sessionId;
+    const uid = Number(userId);
+    if (!sessionId || !Number.isFinite(uid) || uid <= 0 || state.absentSaving) return;
+    state.absentSaving = true;
+    state.errorMsg = "";
+    render();
+    try {
+      const r = await fetch(
+        `/api/student/group-sessions/${sessionId}/members/attendance`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ userId: uid, absent: !!absent })
+        }
+      );
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || data.success === false) {
+        throw new Error(data.message || data.error || "Abwesenheit konnte nicht gespeichert werden.");
+      }
+      setMemberAbsentLocal(uid, !!absent);
+      if (absent) {
+        const saved = groupMembers().find((m) => Number(m.userId) === uid);
+        const next = nextPendingMember(uid);
+        if (next) {
+          state.handoffNotice = {
+            savedName: `${saved?.displayName || "Person"} fehlt`,
+            nextUserId: Number(next.userId),
+            nextName: next.displayName || "nächste Person"
+          };
+          state.handoffUserId = Number(next.userId);
+          resetPlanFormForHandoff();
+        } else {
+          state.handoffNotice = null;
+          state.absentSaving = false;
+          goToTodayFromPlan();
+          return;
+        }
+      } else {
+        state.handoffUserId = uid;
+        state.handoffNotice = null;
+        resetPlanFormForHandoff();
+      }
+      await loadContext();
+      state.absentSaving = false;
+      render();
+    } catch (err) {
+      state.absentSaving = false;
+      state.errorMsg = err.message || "Abwesenheit speichern fehlgeschlagen.";
+      render();
+    }
   }
 
   function quickRolePatternFor() {
@@ -2475,7 +2610,10 @@
       .pq-list{display:grid;gap:6px}
       .pq-person,.pq-chip{min-height:46px;padding:8px 16px;border-radius:12px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.45);color:#cbd5e1;font-weight:800;font-size:1rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
       .pq-person.is-done:not(.is-active){border-color:rgba(52,211,153,.55);color:#a7f3d0;background:rgba(6,78,59,.28)}
+      .pq-person.is-absent:not(.is-active){border-color:rgba(251,191,36,.55);color:#fde68a;background:rgba(69,26,3,.28)}
       .pq-person.is-active,.pq-chip.is-active{border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#fff;box-shadow:0 0 0 2px rgba(34,211,238,.3)}
+      .pq-absent{width:100%;margin-top:8px;min-height:44px;padding:8px 14px;border-radius:12px;border:2px dashed rgba(251,191,36,.65);background:rgba(69,26,3,.35);color:#fde68a;font-weight:800;font-size:.92rem;cursor:pointer}
+      .pq-absent:disabled{opacity:.55;cursor:wait}
       .pq-chip:disabled{opacity:.45;cursor:default}
       .pq-opt{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:9px 12px;border-radius:12px;border:2px solid rgba(56,189,248,.28);background:rgba(8,47,73,.4);color:#e2e8f0;text-align:left;font-size:.92rem;font-weight:600;line-height:1.3;cursor:pointer;-webkit-tap-highlight-color:transparent}
       .pq-opt__mark{flex:0 0 22px;height:22px;border-radius:999px;border:2px solid rgba(148,163,184,.5);display:grid;place-items:center;font-size:.72rem;font-weight:800;color:transparent}
@@ -2528,21 +2666,37 @@
     const next = nextPendingMember(state.handoffUserId);
     const missing = quickMissingLabel();
 
+    const handoffPending = handoff && !memberPlanPhaseDone(handoff);
     const personRow = `
       <div>
         <div class="pq-row" role="group" aria-label="Person">
           ${members
             .map((m) => {
               const active = Number(m.userId) === Number(state.handoffUserId);
+              const absent = memberIsAbsent(m);
               const done = memberHasPlan(m);
+              const suffix = done ? " ✓" : absent ? " · fehlt" : "";
               return `<button type="button" class="pq-person${active ? " is-active" : ""}${
                 done ? " is-done" : ""
-              }" data-plan-handoff="${ui.escapeHtml(String(m.userId))}" aria-pressed="${
-                active ? "true" : "false"
-              }">${ui.escapeHtml(m.displayName || "Person")}${done ? " ✓" : ""}</button>`;
+              }${absent && !done ? " is-absent" : ""}" data-plan-handoff="${ui.escapeHtml(
+                String(m.userId)
+              )}" aria-pressed="${active ? "true" : "false"}">${ui.escapeHtml(
+                m.displayName || "Person"
+              )}${suffix}</button>`;
             })
             .join("")}
         </div>
+        ${
+          handoffPending
+            ? `<button type="button" class="pq-absent" data-plan-absent="${ui.escapeHtml(
+                String(handoff.userId)
+              )}" ${state.absentSaving ? "disabled" : ""}>${
+                state.absentSaving
+                  ? "Speichern…"
+                  : `${ui.escapeHtml(name)} fehlt / nicht da`
+              }</button>`
+            : ""
+        }
       </div>`;
 
     const subjectRow = state.subjectLocked ? "" : renderSubjectField(ui);
@@ -2618,7 +2772,7 @@
       <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Tagesziel Gruppe">
         <div class="plan-next-modal plan-next-modal--ask">
           <p class="plan-next-modal__kicker">Tagesziel · ${ui.escapeHtml(state.subject || "")} · ${
-            members.filter(memberHasPlan).length
+            members.filter(memberPlanPhaseDone).length
           }/${members.length} fertig</p>
           ${state.errorMsg ? `<p class="plan-next-modal__text" style="color:#fca5a5;margin:4px 0 0">${ui.escapeHtml(state.errorMsg)}</p>` : ""}
           <div class="pq">
@@ -2648,7 +2802,7 @@
     const n = state.handoffNotice;
     if (!n) return "";
     const members = groupMembers();
-    const done = members.filter(memberHasPlan).length;
+    const done = members.filter(memberPlanPhaseDone).length;
     return `
       ${quickStyles()}
       <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Tablet weitergeben">
@@ -2658,7 +2812,7 @@
             ${members
               .map((m) => {
                 const isNext = Number(m.userId) === Number(n.nextUserId);
-                return `<span class="${memberHasPlan(m) ? "is-done" : isNext ? "is-next" : ""}"></span>`;
+                return `<span class="${memberPlanPhaseDone(m) ? "is-done" : isNext ? "is-next" : ""}"></span>`;
               })
               .join("")}
           </div>
@@ -2700,6 +2854,46 @@
     if (state.existingEntry) {
       root.innerHTML = renderExistingEntry(ui, dateLabel);
       bindStaticHandlers(root);
+      return;
+    }
+
+    if (state.handoffNotice) {
+      root.innerHTML = `
+        <div class="plan-app plan-app--ask">
+          ${renderPlanHero(ui, dateLabel)}
+          ${renderHandoffPopup(ui)}
+        </div>`;
+      bindHandlers(root);
+      return;
+    }
+
+    const absentHandoff = currentHandoffMember();
+    if (
+      isSharedGroupDevice() &&
+      absentHandoff &&
+      memberIsAbsent(absentHandoff) &&
+      !memberHasPlan(absentHandoff)
+    ) {
+      const name = absentHandoff.displayName || "Person";
+      root.innerHTML = `
+        <div class="plan-app plan-app--ask">
+          ${renderPlanHero(ui, dateLabel)}
+          ${renderSharedHandoffStrip(ui)}
+          <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="status">
+            <div class="plan-next-modal plan-next-modal--ask">
+              <p class="plan-next-modal__kicker">Fehlt heute</p>
+              <h3 class="plan-next-modal__title">${ui.escapeHtml(name)}</h3>
+              <p class="plan-next-modal__text">Kein Tagesziel und kein Abschluss nötig. Tippe „Wieder da“, wenn die Person doch mitmacht – oder wähle jemand anderen.</p>
+              <button type="button" class="btn-primary logbuch-submit today-app-btn" data-plan-absent="${ui.escapeHtml(
+                String(absentHandoff.userId)
+              )}" data-plan-absent-undo="1" ${state.absentSaving ? "disabled" : ""}>${
+                state.absentSaving ? "Speichern…" : "Wieder da – Ziel setzen"
+              }</button>
+              <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" id="planBackBtn" style="margin-top:10px;width:100%">Zurück zu Mein Tag</button>
+            </div>
+          </div>
+        </div>`;
+      bindHandlers(root);
       return;
     }
 
@@ -3040,6 +3234,14 @@
         state.pqSeenSection = null;
         resetPlanFormForHandoff();
         loadContext().then(render).catch(() => render());
+      });
+    });
+    scope.querySelectorAll("[data-plan-absent]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const uid = Number(btn.getAttribute("data-plan-absent"));
+        if (!Number.isFinite(uid) || uid <= 0) return;
+        const undo = btn.getAttribute("data-plan-absent-undo") === "1";
+        markMemberAttendance(uid, !undo);
       });
     });
     scope.querySelector("#planHandoffGo")?.addEventListener("click", () => {

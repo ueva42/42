@@ -6113,7 +6113,8 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
           if (session) {
             const memRes = await pool.query(
               `
-              SELECT id, user_id, display_name_snapshot, invite_status
+              SELECT id, user_id, display_name_snapshot, invite_status,
+                     COALESCE(absent, FALSE) AS absent
               FROM group_session_members
               WHERE session_id = $1
               ORDER BY sort_order ASC, id ASC
@@ -6128,6 +6129,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
                 isMe: Number(m.user_id) === Number(studentId),
                 isPlanningTarget: Number(m.user_id) === Number(planningUserId),
                 memberId: m.id,
+                absent: !!m.absent,
                 roles: []
               }));
             const planMember =
@@ -6218,6 +6220,8 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
               for (const m of members) {
                 m.roles = byMember[String(m.memberId)] || [];
                 m.hasPlan = plannedIds.has(Number(m.userId));
+                // Fehlt zählt für die Plan-Phase als erledigt (Gruppe nicht blockieren)
+                m.planPhaseDone = m.hasPlan || !!m.absent;
                 delete m.memberId;
               }
             }
@@ -6817,6 +6821,22 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       xpAwarded = LOGBUCH_XP.plan;
     } catch (xpErr) {
       console.error("⚠️ plan XP:", xpErr);
+    }
+
+    // Tagesziel gesetzt → Abwesenheit für diese Session zurücksetzen
+    if (targetResolve.sessionId) {
+      try {
+        await pool.query(
+          `
+          UPDATE group_session_members
+          SET absent = FALSE, updated_at = NOW()
+          WHERE session_id = $1 AND user_id = $2 AND absent IS DISTINCT FROM FALSE
+        `,
+          [targetResolve.sessionId, studentId]
+        );
+      } catch (absErr) {
+        console.error("⚠️ clear absent after plan:", absErr);
+      }
     }
 
     res.json({
@@ -7754,6 +7774,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
                 SELECT
                   m.user_id,
                   m.display_name_snapshot,
+                  COALESCE(m.absent, FALSE) AS absent,
                   le.id AS entry_id,
                   (lc.id IS NOT NULL) AS has_check,
                   (lr.id IS NOT NULL) AS has_reflection
@@ -7770,22 +7791,29 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
               `,
                 [row.id, date, key]
               );
-              const members = mems.rows.map((m) => ({
-                userId: Number(m.user_id),
-                displayName: m.display_name_snapshot || "Person",
-                hasPlan: !!m.entry_id,
-                entryId: m.entry_id || null,
-                hasCheck: !!m.has_check,
-                hasReflection: !!m.has_reflection
-              }));
+              const members = mems.rows.map((m) => {
+                const hasPlan = !!m.entry_id;
+                const absent = !!m.absent;
+                return {
+                  userId: Number(m.user_id),
+                  displayName: m.display_name_snapshot || "Person",
+                  hasPlan,
+                  absent,
+                  planPhaseDone: hasPlan || absent,
+                  entryId: m.entry_id || null,
+                  hasCheck: !!m.has_check,
+                  hasReflection: !!m.has_reflection
+                };
+              });
               groupModeBySubject[key].members = members;
               groupModeBySubject[key].memberNames = members
                 .map((m) => m.displayName)
                 .filter(Boolean);
               groupModeBySubject[key].allPlansDone =
-                members.length > 0 && members.every((m) => m.hasPlan);
+                members.length > 0 &&
+                members.every((m) => m.hasPlan || m.absent);
               groupModeBySubject[key].pendingPlanCount = members.filter(
-                (m) => !m.hasPlan
+                (m) => !m.hasPlan && !m.absent
               ).length;
             }
           }

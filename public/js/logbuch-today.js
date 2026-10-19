@@ -204,9 +204,10 @@
           ? gm.allPlansDone
           : !shared
             ? !!block.entry
-            : members.length > 0 && members.every((m) => m.hasPlan);
+            : members.length > 0 &&
+              members.every((m) => m.hasPlan || m.absent);
       if (gm && shared && !allPlansDone) {
-        const next = members.find((m) => !m.hasPlan);
+        const next = members.find((m) => !m.hasPlan && !m.absent);
         return next
           ? `Als Nächstes: Tagesziel für ${next.displayName} in ${subject}.`
           : `Als Nächstes: In ${subject} Rolle und Tagesziel setzen.`;
@@ -217,7 +218,9 @@
           : `Setze als Nächstes dein Tagesziel in ${subject}.`;
       }
       if (shared && allPlansDone) {
-        const needReflect = members.find((m) => m.hasPlan && !m.hasReflection);
+        const needReflect = members.find(
+          (m) => m.hasPlan && !m.absent && !m.hasReflection
+        );
         if (needReflect) {
           return `Als Nächstes: Tagesabschluss für ${needReflect.displayName} in ${subject}.`;
         }
@@ -481,8 +484,9 @@
         ? gm.allPlansDone
         : !shared
           ? !!entry
-          : members.length > 0 && members.every((m) => m.hasPlan);
-    const pendingPlan = members.filter((m) => !m.hasPlan);
+          : members.length > 0 &&
+            members.every((m) => m.hasPlan || m.absent);
+    const pendingPlan = members.filter((m) => !m.hasPlan && !m.absent);
     const groupPrefix = names ? `Gruppe: ${names}` : "Gruppenarbeit";
 
     // Gruppe noch nicht fertig → zuerst Gruppenmodus
@@ -504,16 +508,19 @@
       });
     }
 
-    // Shared-Tablet: erst ALLE Tagesziele, danach Abschluss (mit Personenwahl)
+    // Shared-Tablet: erst ALLE Tagesziele (oder „fehlt“), danach Abschluss (mit Personenwahl)
     if (shared && !allPlansDone) {
       const next = pendingPlan[0];
       const params = new URLSearchParams({ date: state.date || "" });
       if (subject) params.set("subject", subject);
       if (slot?.timeslot) params.set("timeslot", slot.timeslot);
       if (next?.userId) params.set("forUserId", String(next.userId));
-      const doneCount = members.filter((m) => m.hasPlan).length;
+      const doneCount = members.filter((m) => m.hasPlan || m.absent).length;
+      const absentCount = members.filter((m) => m.absent && !m.hasPlan).length;
       const hint = next
-        ? `${groupPrefix} · ${doneCount}/${members.length || "?"} Ziele – jetzt: ${next.displayName}`
+        ? `${groupPrefix} · ${doneCount}/${members.length || "?"} fertig${
+            absentCount ? ` (${absentCount} fehlt)` : ""
+          } – jetzt: ${next.displayName}`
         : `${groupPrefix} – Rolle & Tagesziel setzen.`;
       return renderSubjectTile({
         subject,
@@ -529,7 +536,10 @@
     // Alle Ziele da (oder Solo/Personal) → Check (nur Doppelstunde) / Abschluss
     if (entry || (shared && allPlansDone)) {
       const needsMidCheck = blockNeedsMidCheck(block, entry);
-      const reflectMembers = members.filter((m) => m.hasPlan && m.entryId);
+      // Fehlende Personen ohne Eintrag brauchen keinen Abschluss
+      const reflectMembers = members.filter(
+        (m) => m.hasPlan && m.entryId && !m.absent
+      );
       const needReflect = reflectMembers.filter((m) => !m.hasReflection);
       const needCheck = needsMidCheck
         ? reflectMembers.filter((m) => !m.hasCheck)
