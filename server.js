@@ -443,7 +443,12 @@ function normalizeActiveLevels(raw) {
     }
   }
   if (!Array.isArray(arr) || !arr.length) return [...DEFAULT_ACTIVE_LEVELS];
-  const filtered = arr.filter((tier) => LEVEL_CHECK_TIERS.includes(tier));
+  const wanted = new Set(
+    arr
+      .map((tier) => (typeof tier === "string" ? tier : tier?.id))
+      .filter((tier) => LEVEL_CHECK_TIERS.includes(tier))
+  );
+  const filtered = LEVEL_CHECK_TIERS.filter((tier) => wanted.has(tier));
   return filtered.length ? filtered : [...DEFAULT_ACTIVE_LEVELS];
 }
 
@@ -6384,10 +6389,12 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       previousSuggestion,
       hasClass: !!classId,
       howGoals,
-      levelOptions: LEVEL_CHECK_TIERS.map((tier) => ({
-        value: tier,
-        label: LEVEL_CHECK_TIER_LABELS[tier]
-      })),
+      levelOptions: (classId ? await getClassActiveLevels(classId) : [...DEFAULT_ACTIVE_LEVELS]).map(
+        (tier) => ({
+          value: tier,
+          label: LEVEL_CHECK_TIER_LABELS[tier]
+        })
+      ),
       goalSource,
       checkpoints,
       selectedCheckpoint,
@@ -11794,10 +11801,7 @@ app.get("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) => {
     `,
       [catalogId, schoolId]
     );
-    const classes = await pool.query(
-      "SELECT id, name FROM classes WHERE school_id = $1 ORDER BY name ASC",
-      [schoolId]
-    );
+    const accessibleClasses = await listAccessibleClasses(pool, req.session.user);
     res.json({
       catalog: {
         id: catalogRes.rows[0].id,
@@ -11816,7 +11820,15 @@ app.get("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) => {
         className: r.class_name,
         subject: r.subject
       })),
-      classes: classes.rows.map((c) => ({ id: c.id, name: c.name }))
+      classes: accessibleClasses.map((c) => ({
+        id: c.id,
+        name: c.name,
+        activeLevels: normalizeActiveLevels(c.activeLevels)
+      })),
+      levelTiers: LEVEL_CHECK_TIERS.map((id) => ({
+        id,
+        label: LEVEL_CHECK_TIER_LABELS[id]
+      }))
     });
   } catch (err) {
     console.error("❌ GET /api/teacher/level-plan-catalogs/:id:", err);
@@ -12649,6 +12661,10 @@ app.patch("/api/teacher/classes/:classId/active-levels", isTeacher, async (req, 
     const classId = Number(req.params.classId);
     if (!classId) {
       return res.json({ success: false, message: "classId fehlt." });
+    }
+
+    if (!(await teacherCanAccessClass(pool, req.session.user, classId))) {
+      return res.status(403).json({ success: false, message: "Keine Berechtigung für diese Klasse." });
     }
 
     const activeLevels = normalizeActiveLevels(req.body.activeLevels);
@@ -14395,7 +14411,13 @@ app.get("/api/class", isTeacher, async (req, res) => {
     }
 
     const rows = await listAccessibleClasses(pool, user);
-    res.json(rows);
+    res.json(
+      rows.map((c) => ({
+        id: c.id,
+        name: c.name,
+        activeLevels: normalizeActiveLevels(c.activeLevels)
+      }))
+    );
   } catch (err) {
     console.error("❌ /api/class:", err);
     res.status(500).json({

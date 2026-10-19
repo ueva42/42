@@ -3,6 +3,11 @@
  */
 (function () {
   const GRADE_LEVELS = ["5", "6", "7", "8", "9", "10"];
+  const DEFAULT_LEVEL_TIERS = [
+    { id: "rookie", label: "Rookie" },
+    { id: "operator", label: "Operator" },
+    { id: "street_legend", label: "Street Legend" }
+  ];
 
   const state = {
     gradeLevel: "9",
@@ -11,9 +16,11 @@
     catalogs: [],
     detail: null,
     classes: [],
+    levelTiers: DEFAULT_LEVEL_TIERS,
     assignClassId: null,
     loading: false,
     assigning: false,
+    savingActiveLevels: false,
     deleting: false,
     deletingTopicId: null,
     deletingGoalId: null,
@@ -81,6 +88,54 @@
     ) {
       state.assignClassId = state.classes[0]?.id || null;
     }
+  }
+
+  function selectedClass() {
+    return state.classes.find((c) => sameId(c.id, state.assignClassId)) || null;
+  }
+
+  function classActiveLevelIds(cls) {
+    const raw = cls?.activeLevels;
+    const ids = Array.isArray(raw)
+      ? raw.map((t) => (typeof t === "string" ? t : t?.id)).filter(Boolean)
+      : [];
+    const known = state.levelTiers.map((t) => t.id);
+    const filtered = known.filter((id) => ids.includes(id));
+    return filtered.length ? filtered : [...known];
+  }
+
+  function renderActiveLevelsPanel() {
+    const cls = selectedClass();
+    if (!cls) return "";
+    const active = new Set(classActiveLevelIds(cls));
+    const tiers = state.levelTiers.length ? state.levelTiers : DEFAULT_LEVEL_TIERS;
+    const checks = tiers
+      .map(
+        (t) => `
+        <label class="lp-level-check">
+          <input type="checkbox" data-lp-active-level="${escapeHtml(t.id)}" ${
+            active.has(t.id) ? "checked" : ""
+          } ${state.savingActiveLevels ? "disabled" : ""}>
+          <span>${escapeHtml(t.label)}</span>
+        </label>`
+      )
+      .join("");
+    return `
+      <div class="kr-levels-panel" style="margin-top:1.2em" data-lp-active-levels>
+        <h3>Aktive Level für ${escapeHtml(cls.name)}</h3>
+        <p class="hint">
+          Schüler:innen sehen im Levelplan, bei der Zielsetzung und beim Levelcheck nur die angehakten Stufen
+          (mindestens eine). Der Katalog behält alle drei Texte – du blendest sie nur für die Klasse aus.
+        </p>
+        <div class="lp-level-checks">${checks}</div>
+        <div class="lp-form-actions" style="margin-top:.75em">
+          <button type="button" class="kr-practice-btn" id="lpSaveActiveLevels" ${
+            state.savingActiveLevels ? "disabled" : ""
+          }>
+            ${state.savingActiveLevels ? "Speichern…" : "Level speichern"}
+          </button>
+        </div>
+      </div>`;
   }
 
   function isEditor(type, key) {
@@ -341,7 +396,8 @@
             </button>
           </div>
           ${renderAssignments()}
-        </div>`
+        </div>
+        ${renderActiveLevelsPanel()}`
             : ""
         }
 
@@ -554,10 +610,14 @@
 
     root.querySelector("#lpAssignClass")?.addEventListener("change", (e) => {
       state.assignClassId = e.target.value;
+      state.message = "";
+      state.error = "";
+      render();
     });
 
     root.querySelector("#lpAssignBtn")?.addEventListener("click", () => saveAssignment(true));
     root.querySelector("#lpUnassignBtn")?.addEventListener("click", () => saveAssignment(false));
+    root.querySelector("#lpSaveActiveLevels")?.addEventListener("click", saveActiveLevels);
     root.querySelector("#lpDeleteCatalogBtn")?.addEventListener("click", deleteCatalog);
 
     root.querySelectorAll("[data-lp-del-topic]").forEach((btn) => {
@@ -567,6 +627,54 @@
     root.querySelectorAll("[data-lp-del-goal]").forEach((btn) => {
       btn.addEventListener("click", () => deleteGoal(btn.dataset.lpDelGoal));
     });
+  }
+
+  async function saveActiveLevels() {
+    const cls = selectedClass();
+    if (!cls || state.savingActiveLevels) return;
+    const root = document.getElementById("levelplanTabRoot");
+    const checked = [...(root?.querySelectorAll("[data-lp-active-level]:checked") || [])].map(
+      (el) => el.dataset.lpActiveLevel
+    );
+    if (!checked.length) {
+      state.error = "Mindestens ein Level muss aktiv sein.";
+      render();
+      return;
+    }
+
+    state.savingActiveLevels = true;
+    state.message = "";
+    state.error = "";
+    render();
+
+    try {
+      const res = await fetch(`/api/teacher/classes/${encodeURIComponent(cls.id)}/active-levels`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activeLevels: checked })
+      });
+      const data = await res.json().catch(() => ({}));
+      state.savingActiveLevels = false;
+      if (!res.ok || !data.success) {
+        state.error = data.message || data.error || "Level konnten nicht gespeichert werden.";
+        render();
+        return;
+      }
+      const nextIds = (data.activeLevels || []).map((t) => (typeof t === "string" ? t : t.id));
+      state.classes = state.classes.map((c) =>
+        sameId(c.id, cls.id) ? { ...c, activeLevels: nextIds } : c
+      );
+      state.message =
+        data.className
+          ? `Aktive Level für ${data.className} gespeichert.`
+          : "Aktive Level gespeichert.";
+      render();
+    } catch (err) {
+      console.error(err);
+      state.savingActiveLevels = false;
+      state.error = "Netzwerkfehler.";
+      render();
+    }
   }
 
   async function saveAssignment(assign) {
@@ -769,6 +877,9 @@
       }
       state.detail = data;
       state.classes = data.classes || [];
+      if (Array.isArray(data.levelTiers) && data.levelTiers.length) {
+        state.levelTiers = data.levelTiers;
+      }
       state.error = "";
       render();
     } catch (err) {

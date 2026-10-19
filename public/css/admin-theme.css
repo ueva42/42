@@ -611,3 +611,41 @@ body.admin-app .tt-slot-free {
   border-color: rgba(148, 163, 184, 0.28);
   background: rgba(30, 41, 59, 0.45);
 }
+
+/* Aktive Level (Klassen-Einstellung) */
+body.admin-app .class-active-levels {
+  margin: 1rem 0 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: rgba(5, 12, 29, 0.55);
+}
+
+body.admin-app .class-active-levels h4 {
+  margin: 0 0 0.35rem;
+  color: var(--admin-text);
+  font-size: 1rem;
+}
+
+body.admin-app .lp-level-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1.1rem;
+  margin: 0.65rem 0 0.85rem;
+}
+
+body.admin-app .lp-level-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--admin-text-normal);
+  font-size: 0.95rem;
+  user-select: none;
+}
+
+body.admin-app .lp-level-check input {
+  width: 1.05em;
+  height: 1.05em;
+  accent-color: var(--admin-cyan);
+}
