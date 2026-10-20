@@ -3,6 +3,12 @@
  */
 (function () {
   const TIER_META = [
+    {
+      id: "unterthema",
+      label: "Unterthema",
+      textKey: "text",
+      colClass: "lp-col--unterthema"
+    },
     { id: "rookie", label: "Rookie", textKey: "rookieGoalText", colClass: "lp-col--rookie" },
     { id: "operator", label: "Operator", textKey: "operatorGoalText", colClass: "lp-col--operator" },
     {
@@ -93,7 +99,9 @@
   function activeTiers() {
     const ids = (state.data?.activeLevels || []).map((t) => (typeof t === "string" ? t : t.id));
     const filtered = TIER_META.filter((t) => ids.includes(t.id));
-    return filtered.length ? filtered : TIER_META;
+    if (filtered.length) return filtered;
+    // Fallback: klassische drei Stufen (ohne Unterthema-Spalte)
+    return TIER_META.filter((t) => t.id !== "unterthema");
   }
 
   function statusOptions() {
@@ -295,6 +303,7 @@
     if (!rules || !total) return null;
     const out = {};
     for (const tier of TIER_META) {
+      if (tier.id === "unterthema") continue;
       out[tier.id] = Math.ceil(total * (Number(rules[tier.id]) || 0));
     }
     return out;
@@ -305,6 +314,7 @@
     const tiers = activeTiers();
     const targetGrade = thema?.target?.targetGrade || null;
     const recommended = targetGrade ? recommendedTierCounts(goals.length, targetGrade) : null;
+    const hasClassicTiers = tiers.some((t) => t.id !== "unterthema");
 
     const required = { total: 0, sicher: 0, inArbeit: 0, offen: 0 };
     const challenge = { total: 0, sicher: 0, inArbeit: 0, offen: 0 };
@@ -318,10 +328,19 @@
     };
 
     for (const tier of tiers) {
-      const requiredCount = recommended?.[tier.id] ?? 0;
+      const requiredCount =
+        tier.id === "unterthema"
+          ? targetGrade && !hasClassicTiers
+            ? goals.length
+            : 0
+          : recommended?.[tier.id] ?? 0;
       goals.forEach((goal, index) => {
         const status = tierStatus(goal, tier.id);
-        if (!targetGrade) {
+        if (!targetGrade || !hasClassicTiers) {
+          bump(all, status);
+          return;
+        }
+        if (tier.id === "unterthema") {
           bump(all, status);
           return;
         }
@@ -520,6 +539,7 @@
           <div class="lp-detail-panel">
             <p class="lp-detail-panel__title">${escapeHtml(goal.text)}</p>
             ${tiers
+              .filter((tier) => tier.id !== "unterthema")
               .map(
                 (tier) => `
               <div class="lp-detail-panel__tier">
@@ -562,15 +582,20 @@
       })
       .join("");
 
-    const lernstandHeader = tiers.length === 1 ? "Lernstand" : "";
+    const nameHeader =
+      tiers.some((t) => t.id === "unterthema") && tiers.length > 1 ? "Thema" : "Unterthema";
+    const statusHeaders =
+      tiers.length === 1
+        ? `<th class="${tiers[0].colClass}">Lernstand</th>`
+        : headerCells;
 
     return `
       <div class="lp-table-wrap" role="region" aria-label="Lernstandstabelle">
         <table class="lp-table">
           <thead>
             <tr>
-              <th>Unterthema</th>
-              ${tiers.length === 1 ? `<th>${escapeHtml(lernstandHeader || tiers[0].label)}</th>` : headerCells}
+              <th>${escapeHtml(nameHeader)}</th>
+              ${statusHeaders}
               <th>Material</th>
             </tr>
           </thead>

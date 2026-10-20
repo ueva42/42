@@ -4,6 +4,7 @@
 (function () {
   const GRADE_LEVELS = ["5", "6", "7", "8", "9", "10"];
   const DEFAULT_LEVEL_TIERS = [
+    { id: "unterthema", label: "Unterthema" },
     { id: "rookie", label: "Rookie" },
     { id: "operator", label: "Operator" },
     { id: "street_legend", label: "Street Legend" }
@@ -124,8 +125,10 @@
       <div class="kr-levels-panel" style="margin-top:1.2em" data-lp-active-levels>
         <h3>Aktive Level für ${escapeHtml(cls.name)}</h3>
         <p class="hint">
-          Schüler:innen sehen im Levelplan, bei der Zielsetzung und beim Levelcheck nur die angehakten Stufen
-          (mindestens eine). Der Katalog behält alle drei Texte – du blendest sie nur für die Klasse aus.
+          Schüler:innen sehen nur die angehakten Spalten (mindestens eine):
+          <b>Unterthema</b> = Lernstand am Unterthema (z.&nbsp;B. Physik),
+          dazu optional Rookie / Operator / Street Legend.
+          Der Katalog behält alle Texte – du blendest Spalten nur für die Klasse aus.
         </p>
         <div class="lp-level-checks">${checks}</div>
         <div class="lp-form-actions" style="margin-top:.75em">

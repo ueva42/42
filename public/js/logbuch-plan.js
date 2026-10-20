@@ -909,6 +909,7 @@
 
   function levelGoalTextFor(goal, level) {
     if (!goal || !level) return "";
+    if (level === "unterthema") return String(goal.text || "").trim();
     if (level === "rookie") return String(goal.rookieGoalText || "").trim();
     if (level === "operator") return String(goal.operatorGoalText || "").trim();
     if (level === "street_legend") return String(goal.streetLegendGoalText || "").trim();
@@ -953,7 +954,8 @@
     const order = (state.levelOptions || []).map((o) => o.value);
     const pick =
       order.find((l) => levelGoalTextFor(goal, l)) ||
-      (goal.source === "group_role" ? "rookie" : null);
+      (goal.source === "group_role" ? "rookie" : null) ||
+      (order.includes("unterthema") ? "unterthema" : null);
     if (!pick) return false;
     state.selectedLevel = pick;
     syncLevelGoalText();

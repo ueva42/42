@@ -148,6 +148,12 @@ const LEVEL_CHECK_TIER_LABELS = {
   operator: "Operator",
   street_legend: "Street Legend"
 };
+/** Klassen-Einstellung: welche Spalten Schüler:innen sehen (Unterthema = Lernstand am Unterthema). */
+const ACTIVE_LEVEL_OPTIONS = ["unterthema", "rookie", "operator", "street_legend"];
+const ACTIVE_LEVEL_LABELS = {
+  unterthema: "Unterthema",
+  ...LEVEL_CHECK_TIER_LABELS
+};
 const LEVEL_STATUS_VALUES = ["offen", "in_arbeit", "sicher"];
 const LEVEL_STATUS_LABELS = {
   offen: "offen",
@@ -446,10 +452,21 @@ function normalizeActiveLevels(raw) {
   const wanted = new Set(
     arr
       .map((tier) => (typeof tier === "string" ? tier : tier?.id))
-      .filter((tier) => LEVEL_CHECK_TIERS.includes(tier))
+      .filter((tier) => ACTIVE_LEVEL_OPTIONS.includes(tier))
   );
-  const filtered = LEVEL_CHECK_TIERS.filter((tier) => wanted.has(tier));
+  const filtered = ACTIVE_LEVEL_OPTIONS.filter((tier) => wanted.has(tier));
   return filtered.length ? filtered : [...DEFAULT_ACTIVE_LEVELS];
+}
+
+function isMarkableActiveLevel(tier) {
+  return ACTIVE_LEVEL_OPTIONS.includes(tier);
+}
+
+function activeLevelsPayload(activeLevels) {
+  return normalizeActiveLevels(activeLevels).map((id) => ({
+    id,
+    label: ACTIVE_LEVEL_LABELS[id] || id
+  }));
 }
 
 function mapGoalMaterialFields(row) {
@@ -720,6 +737,7 @@ function buildTargetProgressSummary(tiers, targetGradeKey) {
 }
 
 function tierGoalTextForGoal(goal, tier) {
+  if (tier === "unterthema") return goal.text || goal.goal_text || null;
   if (tier === "rookie") return goal.rookieGoalText || null;
   if (tier === "operator") return goal.operatorGoalText || null;
   if (tier === "street_legend") return goal.streetLegendGoalText || null;
@@ -1829,6 +1847,7 @@ function findGoalInChecks(checks, goalId) {
 function levelGoalTextForOption(option, tier) {
   if (!option || !tier) return null;
   const t = String(tier).toLowerCase();
+  if (t === "unterthema") return String(option.text || "").trim() || null;
   if (t === "rookie") return String(option.rookieGoalText || "").trim() || null;
   if (t === "operator") return String(option.operatorGoalText || "").trim() || null;
   if (t === "street_legend") {
@@ -2038,7 +2057,9 @@ function mapPlannedWorkFromEntry(row, extra = {}) {
     levelGoalText: row.level_goal_text || null,
     planB: row.plan_b_strategy_text || null,
     levelLabel: row.selected_level
-      ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+      ? ACTIVE_LEVEL_LABELS[row.selected_level] ||
+        LEVEL_CHECK_TIER_LABELS[row.selected_level] ||
+        row.selected_level
       : extra.levelLabel || null,
     subject: row.subject || extra.subject || null,
     date: normalizeIsoDate(row.date) || extra.date || null,
@@ -2307,7 +2328,9 @@ function weekGoalResultSymbol(goalAchieved) {
 function buildOpenGoalLabel(row) {
   const what = row.what_goal_text || row.goal || "Ziel";
   const level = row.selected_level
-    ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+    ? ACTIVE_LEVEL_LABELS[row.selected_level] ||
+      LEVEL_CHECK_TIER_LABELS[row.selected_level] ||
+      row.selected_level
     : null;
   return level ? `${what} auf ${level}-Level` : what;
 }
@@ -6392,7 +6415,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       levelOptions: (classId ? await getClassActiveLevels(classId) : [...DEFAULT_ACTIVE_LEVELS]).map(
         (tier) => ({
           value: tier,
-          label: LEVEL_CHECK_TIER_LABELS[tier]
+          label: ACTIVE_LEVEL_LABELS[tier] || LEVEL_CHECK_TIER_LABELS[tier] || tier
         })
       ),
       goalSource,
@@ -6615,7 +6638,7 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     const chosenRoleGoal = roleGoalPick.roleGoal;
 
     const normalizedLevel = String(selectedLevel || "").toLowerCase();
-    if (!LEVEL_CHECK_TIERS.includes(normalizedLevel)) {
+    if (!isMarkableActiveLevel(normalizedLevel)) {
       return res.json({ success: false, message: "Bitte ein Was-Ziel wählen." });
     }
 
@@ -7021,7 +7044,7 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
     }
     const chosenRoleGoal = roleGoalPick.roleGoal;
     const normalizedLevel = String(selectedLevel || "").toLowerCase();
-    if (!LEVEL_CHECK_TIERS.includes(normalizedLevel)) {
+    if (!isMarkableActiveLevel(normalizedLevel)) {
       return res.json({ success: false, message: "Bitte ein Was-Ziel wählen." });
     }
 
@@ -7237,7 +7260,7 @@ app.get("/api/student/log/week", isStudent, async (req, res) => {
       const d = new Date(`${dateIso}T12:00:00`);
       const whatGoal = row.what_goal_text || row.goal || "–";
       const levelLabel = row.selected_level
-        ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+        ? ACTIVE_LEVEL_LABELS[row.selected_level] || row.selected_level
         : "–";
 
       return {
@@ -7508,7 +7531,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         role_goal_text: row.role_goal_text || null,
         role_goal_role_name: row.role_goal_role_name || null,
         level_label: row.selected_level
-          ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+          ? ACTIVE_LEVEL_LABELS[row.selected_level] || row.selected_level
           : null,
         checkpoint_title: row.checkpoint_title,
         plan_sentence: planSentence,
@@ -8040,7 +8063,7 @@ app.get("/api/student/log/check-context", isStudent, async (req, res) => {
       ...row,
       what_goal_text: whatGoalText || row.what_goal_text || null,
       level_label: row.selected_level
-        ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+        ? ACTIVE_LEVEL_LABELS[row.selected_level] || row.selected_level
         : null
     };
     const plannedWork = mapPlannedWorkFromEntry(entry, { whatGoalText });
@@ -8363,7 +8386,7 @@ app.get("/api/student/log/reflect-context", isStudent, async (req, res) => {
       ...row,
       user_id: ownerId,
       level_label: row.selected_level
-        ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+        ? ACTIVE_LEVEL_LABELS[row.selected_level] || row.selected_level
         : null,
       used_strategy_name: row.check_strategy_name || null,
       entry_kind:
@@ -8678,6 +8701,14 @@ function levelCheckTiersPayload(withXp = false) {
     id: t,
     label: LEVEL_CHECK_TIER_LABELS[t],
     ...(withXp ? { xp: LEVEL_CHECK_XP[t] } : {})
+  }));
+}
+
+function activeLevelTiersPayload(activeLevels, withXp = false) {
+  return normalizeActiveLevels(activeLevels).map((t) => ({
+    id: t,
+    label: ACTIVE_LEVEL_LABELS[t] || t,
+    ...(withXp && LEVEL_CHECK_XP[t] ? { xp: LEVEL_CHECK_XP[t] } : {})
   }));
 }
 
@@ -9316,7 +9347,7 @@ app.get("/api/student/checkpoint-plan", isStudent, async (req, res) => {
         detailsText: row.details_text || null,
         selectedLevel: row.selected_level || null,
         levelLabel: row.selected_level
-          ? LEVEL_CHECK_TIER_LABELS[row.selected_level] || row.selected_level
+          ? ACTIVE_LEVEL_LABELS[row.selected_level] || row.selected_level
           : null
       });
     }
@@ -9382,11 +9413,8 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
     res.json({
       hasClass: true,
       grouped: groupLevelChecksBySubject(checksWithTargets),
-      activeLevels: activeLevels.map((id) => ({
-        id,
-        label: LEVEL_CHECK_TIER_LABELS[id]
-      })),
-      tiers: levelCheckTiersPayload(false).filter((t) => activeLevels.includes(t.id)),
+      activeLevels: activeLevelsPayload(activeLevels),
+      tiers: activeLevelTiersPayload(activeLevels, false),
       gradeOptions: TARGET_GRADE_OPTIONS,
       statusOptions: LEVEL_STATUS_VALUES.map((id) => ({
         id,
@@ -9994,7 +10022,7 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
     if (!goalId || !tier) {
       return res.json({ success: false, message: "Ziel und Stufe fehlen." });
     }
-    if (!LEVEL_CHECK_TIERS.includes(tier)) {
+    if (!isMarkableActiveLevel(tier)) {
       return res.json({ success: false, message: "Ungültige Stufe." });
     }
     if (hasStatus && !LEVEL_STATUS_VALUES.includes(status)) {
@@ -10035,7 +10063,7 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
       return res.json({
         success: true,
         tier,
-        tierLabel: LEVEL_CHECK_TIER_LABELS[tier],
+        tierLabel: ACTIVE_LEVEL_LABELS[tier] || LEVEL_CHECK_TIER_LABELS[tier],
         status,
         statusLabel: LEVEL_STATUS_LABELS[status],
         xpAwarded: 0
@@ -10063,7 +10091,7 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
     res.json({
       success: true,
       tier,
-      tierLabel: LEVEL_CHECK_TIER_LABELS[tier],
+      tierLabel: ACTIVE_LEVEL_LABELS[tier] || LEVEL_CHECK_TIER_LABELS[tier],
       status: "sicher",
       statusLabel: LEVEL_STATUS_LABELS.sicher,
       xpAwarded: 0
@@ -10194,11 +10222,8 @@ app.get("/api/teacher/levelchecks", isTeacher, async (req, res) => {
           topicNames
         };
       }),
-      activeLevels: activeLevels.map((id) => ({
-        id,
-        label: LEVEL_CHECK_TIER_LABELS[id]
-      })),
-      tiers: levelCheckTiersPayload(true).filter((t) => activeLevels.includes(t.id)),
+      activeLevels: activeLevelsPayload(activeLevels),
+      tiers: activeLevelTiersPayload(activeLevels, true),
       checkpointTypeOptions: CHECKPOINT_TYPE_OPTIONS,
       levelChecks: checks
     });
@@ -11825,9 +11850,9 @@ app.get("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) => {
         name: c.name,
         activeLevels: normalizeActiveLevels(c.activeLevels)
       })),
-      levelTiers: LEVEL_CHECK_TIERS.map((id) => ({
+      levelTiers: ACTIVE_LEVEL_OPTIONS.map((id) => ({
         id,
-        label: LEVEL_CHECK_TIER_LABELS[id]
+        label: ACTIVE_LEVEL_LABELS[id]
       }))
     });
   } catch (err) {
@@ -12687,10 +12712,7 @@ app.patch("/api/teacher/classes/:classId/active-levels", isTeacher, async (req, 
       success: true,
       classId: result.rows[0].id,
       className: result.rows[0].name,
-      activeLevels: normalized.map((id) => ({
-        id,
-        label: LEVEL_CHECK_TIER_LABELS[id]
-      }))
+      activeLevels: activeLevelsPayload(normalized)
     });
   } catch (err) {
     console.error("❌ PATCH classes active-levels:", err);
