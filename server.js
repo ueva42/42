@@ -2976,15 +2976,32 @@ function sameSessionValue(a, b) {
   return String(a) === String(b);
 }
 
+async function isClassAccessLocked(classId) {
+  const id = Number(classId);
+  if (!Number.isInteger(id) || id <= 0) return false;
+  const r = await pool.query(
+    `SELECT COALESCE(access_locked, FALSE) AS access_locked FROM classes WHERE id = $1 LIMIT 1`,
+    [id]
+  );
+  return r.rows[0]?.access_locked === true;
+}
+
 async function refreshSessionUserFromDb(req) {
   const user = req.session?.user;
   if (!user?.id) return { user: null, changed: false };
 
   const r = await pool.query(
     `
-    SELECT id, role, class_id, school_id, COALESCE(is_active, TRUE) AS is_active
-    FROM users
-    WHERE id = $1
+    SELECT
+      u.id,
+      u.role,
+      u.class_id,
+      u.school_id,
+      COALESCE(u.is_active, TRUE) AS is_active,
+      COALESCE(c.access_locked, FALSE) AS class_access_locked
+    FROM users u
+    LEFT JOIN classes c ON c.id = u.class_id
+    WHERE u.id = $1
     LIMIT 1
   `,
     [user.id]
@@ -2993,7 +3010,12 @@ async function refreshSessionUserFromDb(req) {
 
   const row = r.rows[0];
   if (row.is_active === false) {
+    req.session.user = null;
     return { user: null, changed: true, inactive: true };
+  }
+  if (row.role === "student" && row.class_access_locked === true) {
+    req.session.user = null;
+    return { user: null, changed: true, inactive: true, classLocked: true };
   }
 
   const next = {
@@ -3603,6 +3625,7 @@ async function migrate() {
     "active_levels",
     `JSONB DEFAULT '["rookie","operator","street_legend"]'::jsonb`
   );
+  await ensureColumn("classes", "access_locked", "BOOLEAN NOT NULL DEFAULT FALSE");
 
   await ensureColumn("school_material_tiles", "class_id", "INTEGER");
   await pool.query(`
@@ -4952,6 +4975,12 @@ app.post("/api/login", async (req, res) => {
   if (user.is_active === false) {
     return res.json({ success: false, message: "Konto deaktiviert." });
   }
+  if (user.role === "student" && (await isClassAccessLocked(user.class_id))) {
+    return res.json({
+      success: false,
+      message: "Zugang für diese Klasse ist gesperrt. Bitte frag deine Lehrkraft."
+    });
+  }
 
   // Demo-Schule: kein Admin-/Lehrer-Login (nur Schüler-Demozugang).
   if (
@@ -5599,7 +5628,23 @@ function isTeacherShell(req, res, next) {
 function isStudent(req, res, next) {
   if (!req.session?.user || req.session.user.role !== "student")
     return denyAccess(req, res);
-  next();
+  const classId = req.session.user.class_id;
+  if (!classId) return next();
+  (async () => {
+    try {
+      if (await isClassAccessLocked(classId)) {
+        req.session.user = null;
+        try {
+          await saveSession(req);
+        } catch (_) {}
+        return denyAccess(req, res);
+      }
+      next();
+    } catch (err) {
+      console.error("❌ isStudent class lock:", err);
+      return denyAccess(req, res);
+    }
+  })();
 }
 
 function isSuperadmin(req, res, next) {
@@ -14441,7 +14486,8 @@ app.get("/api/class", isTeacher, async (req, res) => {
       rows.map((c) => ({
         id: c.id,
         name: c.name,
-        activeLevels: normalizeActiveLevels(c.activeLevels)
+        activeLevels: normalizeActiveLevels(c.activeLevels),
+        accessLocked: c.accessLocked === true
       }))
     );
   } catch (err) {
@@ -14472,15 +14518,43 @@ app.patch("/api/class/:id", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const id = Number(req.params.id);
-    const name = String(req.body.name || "").trim();
-    if (!name) return res.json({ success: false, message: "Name darf nicht leer sein." });
+    const hasName = Object.prototype.hasOwnProperty.call(req.body || {}, "name");
+    const hasLock = Object.prototype.hasOwnProperty.call(req.body || {}, "accessLocked");
+    if (!hasName && !hasLock) {
+      return res.json({ success: false, message: "Keine Änderung angegeben." });
+    }
 
+    const sets = [];
+    const params = [];
+    if (hasName) {
+      const name = String(req.body.name || "").trim();
+      if (!name) return res.json({ success: false, message: "Name darf nicht leer sein." });
+      params.push(name);
+      sets.push(`name = $${params.length}`);
+    }
+    if (hasLock) {
+      params.push(req.body.accessLocked === true);
+      sets.push(`access_locked = $${params.length}`);
+    }
+    params.push(id, schoolId);
     const r = await pool.query(
-      "UPDATE classes SET name = $1 WHERE id = $2 AND school_id = $3 RETURNING id, name",
-      [name, id, schoolId]
+      `
+      UPDATE classes
+      SET ${sets.join(", ")}
+      WHERE id = $${params.length - 1} AND school_id = $${params.length}
+      RETURNING id, name, COALESCE(access_locked, FALSE) AS access_locked
+    `,
+      params
     );
     if (!r.rows.length) return res.json({ success: false, message: "Klasse nicht gefunden." });
-    res.json({ success: true, class: r.rows[0] });
+    res.json({
+      success: true,
+      class: {
+        id: r.rows[0].id,
+        name: r.rows[0].name,
+        accessLocked: r.rows[0].access_locked === true
+      }
+    });
   } catch (err) {
     if (err.code === "23505") {
       return res.json({ success: false, message: "Eine Klasse mit diesem Namen existiert bereits." });

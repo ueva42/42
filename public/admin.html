@@ -1646,7 +1646,7 @@
       .tc-add-grid { grid-template-columns: 1fr; }
     }
   </style>
-  <link rel="stylesheet" href="/css/admin-theme.css?v=5">
+  <link rel="stylesheet" href="/css/admin-theme.css?v=6">
 </head>
 <body class="admin-app">
 
@@ -2039,6 +2039,17 @@
         <!-- Passwortkarten-Button -->
         <button class="action" onclick="printPasswordCards()">Passwortkarten (offene Einmal-PWs)</button>
         <button class="action" onclick="reissueAllPasswords()">Alle Einmalpasswörter neu setzen</button>
+
+        <div id="classAccessLockPanel" class="class-access-lock" hidden>
+          <h4>Zugang</h4>
+          <p class="hint" id="classAccessLockHint">
+            Gesperrte Klassen können sich nicht einloggen. Offene Sitzungen werden beim nächsten Aufruf beendet.
+          </p>
+          <p id="classAccessLockStatus" class="class-access-lock__status" hidden></p>
+          <button type="button" class="action" id="classAccessLockBtn" onclick="toggleClassAccessLock()">
+            Zugang sperren
+          </button>
+        </div>
 
         <div id="classActiveLevelsPanel" class="class-active-levels" hidden>
           <h4>Aktive Level (Levelplan)</h4>
@@ -2820,6 +2831,7 @@ const CLASS_LEVEL_TIERS = [
 let managedClassesCache = [];
 
 function onClassManageChange() {
+  renderClassAccessLock();
   renderClassActiveLevels();
   loadClassStudents();
 }
@@ -2830,18 +2842,102 @@ async function loadClassesForManage() {
   managedClassesCache = Array.isArray(classes) ? classes : [];
 
   const sel = document.getElementById("classManageSelect");
+  const prev = sel?.value;
   sel.innerHTML = "";
 
   managedClassesCache.forEach(c => {
     const opt = document.createElement("option");
     opt.value = c.id;
-    opt.textContent = c.name;
+    opt.textContent = c.accessLocked ? `${c.name} (gesperrt)` : c.name;
     sel.appendChild(opt);
   });
 
-  if (managedClassesCache.length > 0) sel.value = managedClassesCache[0].id;
+  if (managedClassesCache.length > 0) {
+    const keep = managedClassesCache.some((c) => String(c.id) === String(prev))
+      ? prev
+      : managedClassesCache[0].id;
+    sel.value = keep;
+  }
+  renderClassAccessLock();
   renderClassActiveLevels();
   loadClassStudents();
+}
+
+function selectedManagedClass() {
+  const sel = document.getElementById("classManageSelect");
+  const classId = sel?.value;
+  return managedClassesCache.find((c) => String(c.id) === String(classId)) || null;
+}
+
+function renderClassAccessLock() {
+  const panel = document.getElementById("classAccessLockPanel");
+  const status = document.getElementById("classAccessLockStatus");
+  const btn = document.getElementById("classAccessLockBtn");
+  const cls = selectedManagedClass();
+  if (!panel || !btn) return;
+  if (!cls) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  const locked = cls.accessLocked === true;
+  if (status) {
+    status.hidden = false;
+    status.textContent = locked
+      ? `Status: gesperrt – Schüler:innen von „${cls.name}“ kommen nicht rein.`
+      : `Status: offen – Schüler:innen von „${cls.name}“ können sich anmelden.`;
+    status.classList.toggle("is-locked", locked);
+  }
+  btn.textContent = locked ? "Zugang freigeben" : "Zugang sperren";
+  btn.classList.toggle("delete", !locked);
+  btn.classList.toggle("action", locked);
+}
+
+async function toggleClassAccessLock() {
+  const cls = selectedManagedClass();
+  const btn = document.getElementById("classAccessLockBtn");
+  if (!cls) return;
+  const nextLocked = !cls.accessLocked;
+  const label = cls.name || "diese Klasse";
+  if (
+    nextLocked &&
+    !confirm(
+      `Zugang für „${label}“ wirklich sperren?\n\nSchüler:innen können sich nicht mehr einloggen. Offene Sitzungen enden beim nächsten Aufruf.`
+    )
+  ) {
+    return;
+  }
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch(`/api/class/${encodeURIComponent(cls.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessLocked: nextLocked })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.success) {
+      alert(data.message || "Sperren fehlgeschlagen.");
+      return;
+    }
+    managedClassesCache = managedClassesCache.map((c) =>
+      String(c.id) === String(cls.id)
+        ? { ...c, accessLocked: data.class?.accessLocked === true }
+        : c
+    );
+    const sel = document.getElementById("classManageSelect");
+    const opt = [...(sel?.options || [])].find((o) => String(o.value) === String(cls.id));
+    if (opt) {
+      const name = data.class?.name || cls.name;
+      opt.textContent =
+        data.class?.accessLocked === true ? `${name} (gesperrt)` : name;
+    }
+    renderClassAccessLock();
+  } catch (err) {
+    console.error(err);
+    alert("Netzwerkfehler.");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function normalizeClassActiveLevels(raw) {

@@ -817,7 +817,7 @@
         loginButton.querySelector("span").textContent = "Einloggen";
 
         if (!data.success) {
-          showError("Benutzername oder Passwort stimmen nicht.");
+          showError(data.message || "Benutzername oder Passwort stimmen nicht.");
           return;
         }
 

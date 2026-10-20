@@ -612,6 +612,32 @@ body.admin-app .tt-slot-free {
   background: rgba(30, 41, 59, 0.45);
 }
 
+/* Klassenzugang sperren */
+body.admin-app .class-access-lock {
+  margin: 1rem 0 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: rgba(5, 12, 29, 0.55);
+}
+
+body.admin-app .class-access-lock h4 {
+  margin: 0 0 0.35rem;
+  color: var(--admin-text);
+  font-size: 1rem;
+}
+
+body.admin-app .class-access-lock__status {
+  margin: 0.5rem 0 0.85rem;
+  color: var(--admin-success);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+body.admin-app .class-access-lock__status.is-locked {
+  color: #fecaca;
+}
+
 /* Aktive Level (Klassen-Einstellung) */
 body.admin-app .class-active-levels {
   margin: 1rem 0 1.25rem;
