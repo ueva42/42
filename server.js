@@ -6233,6 +6233,7 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
                   WHERE user_id = ANY($1::int[])
                     AND date = $2
                     AND subject = $3
+                    AND COALESCE(entry_kind, 'lesson') = 'lesson'
                     AND (
                       $4::text IS NULL
                       OR timeslot IS NULL
@@ -6734,7 +6735,9 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
             ? "Für dieses Fach hast du heute schon ein Übungsziel – nur Ansicht möglich."
             : "Für diese Stunde ist bereits ein Tagesziel gespeichert – nur Ansicht möglich.",
           entryId: existing.id,
-          readOnly: true
+          readOnly: true,
+          planningUserId: studentId,
+          sharedHandoff: !!targetResolve.shared
         });
       }
       // Bereits vorhanden und noch editierbar → aktualisieren (z. B. Shared-Tablet erneut speichern)
@@ -7813,6 +7816,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
                   ON le.user_id = m.user_id
                  AND le.date = $2::date
                  AND lower(trim(le.subject)) = lower(trim($3))
+                 AND COALESCE(le.entry_kind, 'lesson') = 'lesson'
                 LEFT JOIN log_checks lc ON lc.log_entry_id = le.id
                 LEFT JOIN log_reflections lr ON lr.log_entry_id = le.id
                 WHERE m.session_id = $1

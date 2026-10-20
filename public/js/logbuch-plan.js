@@ -952,13 +952,19 @@
       if (state.levelGoalText) return true;
     }
     const order = (state.levelOptions || []).map((o) => o.value);
+    const topicText = String(goal.text || "").trim();
     const pick =
       order.find((l) => levelGoalTextFor(goal, l)) ||
       (goal.source === "group_role" ? "rookie" : null) ||
-      (order.includes("unterthema") ? "unterthema" : null);
+      (order.includes("unterthema") && topicText ? "unterthema" : null) ||
+      // Physik-Style / leere Tier-Texte: Unterthema-Name als Was-Ziel nutzen
+      (topicText ? "unterthema" : null);
     if (!pick) return false;
     state.selectedLevel = pick;
     syncLevelGoalText();
+    if (!state.levelGoalText && pick === "unterthema" && topicText) {
+      state.levelGoalText = topicText;
+    }
     refreshHowGoals();
     return !!state.levelGoalText;
   }
@@ -2421,6 +2427,45 @@
     return ordered.find((m) => !memberPlanPhaseDone(m)) || null;
   }
 
+  /** Shared-Tablet: Person als erledigt markieren und zur nächsten wechseln (oder false). */
+  async function advanceSharedHandoffAfterSave(savedUserId) {
+    if (!isSharedGroupDevice()) return false;
+    const members = groupMembers();
+    const cur = Number(savedUserId || state.handoffUserId);
+    const saved = members.find((m) => Number(m.userId) === cur);
+    if (Number.isFinite(cur) && cur > 0) {
+      if (!state.quickDoneIds.includes(cur)) state.quickDoneIds.push(cur);
+      if (saved) {
+        saved.hasPlan = true;
+        saved.planPhaseDone = true;
+      }
+    }
+    const next = nextPendingMember(cur);
+    if (!next) return false;
+    state.handoffNotice = {
+      savedName: saved?.displayName || "Gespeichert",
+      nextUserId: Number(next.userId),
+      nextName: next.displayName || "nächste Person"
+    };
+    state.handoffUserId = Number(next.userId);
+    // Kein entryId – sonst endet die Shared-Plan-Phase
+    state.entryId = null;
+    state.editingEntryId = null;
+    resetPlanFormForHandoff();
+    // Altes Missions-Popup sofort weg + Handoff zeigen (nicht auf loadContext warten)
+    teardownPlanNextModal();
+    state.submitting = false;
+    render();
+    try {
+      await loadContext();
+      // Handoff-Notice beibehalten – loadContext soll sie nicht verwerfen
+      render();
+    } catch (err) {
+      console.error("handoff loadContext:", err);
+    }
+    return true;
+  }
+
   function setMemberAbsentLocal(userId, absent) {
     const uid = Number(userId);
     const members = state.groupContext?.members;
@@ -2854,6 +2899,7 @@
     });
 
     if (state.existingEntry) {
+      teardownPlanNextModal();
       root.innerHTML = renderExistingEntry(ui, dateLabel);
       bindStaticHandlers(root);
       return;
@@ -2865,6 +2911,8 @@
           ${renderPlanHero(ui, dateLabel)}
           ${renderHandoffPopup(ui)}
         </div>`;
+      // Altes Missions-Popup von body entfernen, sonst wirkt die App nach dem Speichern „hängend“
+      portalPlanNextModal(root);
       bindHandlers(root);
       return;
     }
@@ -2895,6 +2943,7 @@
             </div>
           </div>
         </div>`;
+      portalPlanNextModal(root);
       bindHandlers(root);
       return;
     }
@@ -3566,7 +3615,11 @@
       );
       return;
     }
-    if (roleGoalRequired()) ensureSilentLevel();
+    if (isSharedGroupDevice() && !state.handoffUserId) {
+      fail("Bitte zuerst die Person am Tablet wählen.");
+      return;
+    }
+    ensureSilentLevel();
     syncLevelGoalText();
     if (!state.selectedLevel || !state.levelGoalText) {
       fail("Bitte wähle ein Was-Ziel.", 2);
@@ -3651,6 +3704,17 @@
 
       if (!data.success) {
         state.submitting = false;
+        // Shared-Tablet: bereits gespeichertes Ziel nicht still schlucken – Person als fertig,
+        // weiter zur nächsten (sonst hängt die Gruppe ohne Handoff).
+        if (data.readOnly && isSharedGroupDevice()) {
+          const doneId = Number(data.planningUserId || state.handoffUserId);
+          const advanced = await advanceSharedHandoffAfterSave(doneId);
+          if (advanced) return;
+          state.handoffNotice = null;
+          state.afterSaveOpen = false;
+          goToTodayFromPlan();
+          return;
+        }
         if (data.readOnly && data.entryId) {
           state.entryId = data.entryId;
           await loadContext();
@@ -3662,32 +3726,18 @@
         return;
       }
 
+      // XP-Leiste nicht blockierend laden – sonst hängt „Speichern…“ nach erfolgreichem Ziel
       if (typeof window.loadMe === "function") {
-        await window.loadMe();
+        Promise.resolve(window.loadMe()).catch((err) => console.error("loadMe:", err));
       }
 
       state.submitting = false;
+      teardownPlanNextModal();
       // Shared-Tablet: erst nach Speichern weitergeben – großer Handoff-Screen
       if (isSharedGroupDevice()) {
-        const members = groupMembers();
-        const cur = Number(state.handoffUserId);
-        const saved = members.find((m) => Number(m.userId) === cur);
-        if (Number.isFinite(cur) && cur > 0 && !state.quickDoneIds.includes(cur)) {
-          state.quickDoneIds.push(cur);
-        }
-        const next = nextPendingMember(cur);
-        if (next) {
-          state.handoffNotice = {
-            savedName: saved?.displayName || "Gespeichert",
-            nextUserId: Number(next.userId),
-            nextName: next.displayName || "nächste Person"
-          };
-          state.handoffUserId = Number(next.userId);
-          resetPlanFormForHandoff();
-          await loadContext();
-          render();
-          return;
-        }
+        const doneId = Number(data.planningUserId || state.handoffUserId);
+        const advanced = await advanceSharedHandoffAfterSave(doneId);
+        if (advanced) return;
       }
       state.handoffNotice = null;
       state.afterSaveOpen = false;
@@ -3695,6 +3745,7 @@
     } catch (err) {
       console.error(err);
       state.submitting = false;
+      teardownPlanNextModal();
       state.errorMsg = "Netzwerkfehler – bitte erneut versuchen.";
       render();
     }
