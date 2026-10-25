@@ -281,31 +281,57 @@
     return state.katexPromise;
   }
 
-  // \times ist im JSON ein Tab plus „imes“ und käme sonst als „2imes3“ an.
+  // Dieselbe Lesart wie auf dem Server: \sqrt → Wurzel, \times / \cdot / · → mal, nie „imes“.
   function readableMal(text) {
-    return String(text || "")
-      .replace(/[ \t]*\\times[ \t]*/g, " mal ")
-      .replace(/[ \t]*\\cdot[ \t]*/g, " mal ")
-      .replace(/[ \t]*\times[ \t]*/g, " mal ")
-      .replace(/(\d)\s*imes\s*(\d)/g, "$1 mal $2")
-      .replace(/(\d)\s*[·×∙⋅]\s*(\d)/g, "$1 mal $2")
-      .replace(/ {2,}/g, " ");
+    let s = String(text ?? "");
+    s = s.replace(/\u0009\s*imes/g, " mal ");
+    s = s.replace(/\u000crac/g, "\\frac");
+    s = s.replace(/\\{2,}/g, "\\");
+    let prev = "";
+    while (s !== prev) {
+      prev = s;
+      s = s.replace(
+        /\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g,
+        (_, a, b) => `(${String(a).trim()})/(${String(b).trim()})`
+      );
+      s = s.replace(/\\sqrt\s*(?:\[([^\]]*)\])?\s*\{([^{}]*)\}/g, (_, deg, inner) =>
+        deg ? `Wurzel ${String(deg).trim()} aus ${String(inner).trim()}` : `Wurzel ${String(inner).trim()}`
+      );
+      s = s.replace(/\\sqrt\s*(\d+(?:[.,]\d+)?)/g, "Wurzel $1");
+    }
+    s = s.replace(/\(\s*(\d+(?:[.,]\d+)?)\s*\)\s*\/\s*\(\s*(\d+(?:[.,]\d+)?)\s*\)/g, "$1/$2");
+    s = s.replace(/[ \t]*\\(?:times|cdot)[ \t]*/g, " mal ");
+    s = s.replace(/[ \t]*[·×∙⋅][ \t]*/g, " mal ");
+    s = s.replace(/(\d)\s*imes\s*(\d)/gi, "$1 mal $2");
+    s = s.replace(/\bimes\b/gi, "mal");
+    s = s.replace(/\\text\s*\{([^{}]*)\}/g, "$1");
+    s = s.replace(/\\(?:left|right|big|Big|bigg|Bigg|displaystyle|textstyle|qquad|quad)\b/g, "");
+    s = s.replace(/\\[A-Za-z]+/g, (cmd) => cmd.slice(1));
+    s = s.replace(/\\(.)/g, "$1");
+    s = s.replace(/\\/g, "");
+    s = s.replace(/\$([^$\n]*)\$/g, (all, inner) => {
+      if (/Wurzel|\bmal\b|[A-Za-z]{3,}/.test(inner)) return inner;
+      return all;
+    });
+    s = s.replace(/[ \t]{2,}/g, " ");
+    s = s.replace(/[ \t]+\n/g, "\n");
+    s = s.replace(/\n[ \t]+/g, "\n");
+    return s.trim();
   }
 
   function renderMath(text) {
-    const source = String(text || "");
+    const source = readableMal(text);
     const pattern = /\$([^$\n]+)\$/g;
     let html = "";
     let last = 0;
     let match = pattern.exec(source);
     while (match) {
-      html += esc(readableMal(source.slice(last, match.index)));
+      html += esc(source.slice(last, match.index));
       const rawTex = match[1];
       const tex = rawTex
         .replace(/\\times/g, "\\cdot")
         .replace(/\times/g, "\\cdot")
         .replace(/(\d)\s*imes\s*(\d)/g, "$1\\cdot $2");
-      const needsMal = /\\times|\\cdot|\times|imes|[·×∙⋅]/.test(rawTex);
       let piece = "";
       if (window.katex) {
         try {
@@ -314,14 +340,14 @@
           piece = "";
         }
       }
-      if (!piece || piece.includes("imes") || piece.includes("katex-error")) {
-        piece = needsMal ? esc(readableMal(rawTex)) : esc(match[0]);
+      if (!piece || piece.includes("imes") || piece.includes("katex-error") || piece.includes("\\")) {
+        piece = esc(readableMal(rawTex));
       }
       html += piece;
       last = match.index + match[0].length;
       match = pattern.exec(source);
     }
-    html += esc(readableMal(source.slice(last)));
+    html += esc(source.slice(last));
     return html;
   }
 
