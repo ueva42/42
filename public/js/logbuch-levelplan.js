@@ -482,21 +482,18 @@
       : String(name || "").trim().toLowerCase() === "mathe";
   }
 
-  function coachLevelForGoal(goal) {
-    const tiers = activeTiers().filter((tier) => tier.id !== "unterthema");
-    const working = tiers.find((tier) => tierStatus(goal, tier.id) === "in_arbeit");
-    if (working) return working.id;
-    const open = tiers.find((tier) => tierStatus(goal, tier.id) === "offen");
-    if (open) return open.id;
-    return tiers[0]?.id || "rookie";
-  }
-
-  function coachRowButton(goal) {
+  function coachFieldButton(goal, tier) {
     if (!state.coachEnabled || !window.LogbuchCoach?.isEnabled()) return "";
     if (!isMathSubject(state.selectedSubject)) return "";
-    const level = coachLevelForGoal(goal);
+    if (tier.id !== "rookie" && tier.id !== "operator" && tier.id !== "street_legend") return "";
     const thema = selectedThema();
-    return `<button type="button" class="lp-coach-btn" data-lp-coach="${escapeHtml(goal.id)}" data-lp-level="${escapeHtml(level)}" data-lp-label="${escapeHtml(goal.text || "")}" data-lp-thema="${escapeHtml(thema?.name || "")}">Coach fragen</button>`;
+    return `<button type="button" class="lp-coach-field" data-lp-coach="${escapeHtml(goal.id)}" data-lp-level="${escapeHtml(tier.id)}" data-lp-label="${escapeHtml(goal.text || "")}" data-lp-thema="${escapeHtml(thema?.name || "")}" aria-label="Coach für ${escapeHtml(tier.label)}">Coach</button>`;
+  }
+
+  function renderLevelField(goal, tier) {
+    const coach = coachFieldButton(goal, tier);
+    if (!coach) return renderStatusButton(goal, tier);
+    return `<div class="lp-level-field lp-level-field--with-coach">${renderStatusButton(goal, tier)}${coach}</div>`;
   }
 
   function renderStatusButton(goal, tier) {
@@ -551,7 +548,7 @@
   function renderStatusCell(goal, tier) {
     return `
       <td class="${tier.colClass}">
-        ${renderStatusButton(goal, tier)}
+        ${renderLevelField(goal, tier)}
       </td>`;
   }
 
@@ -598,7 +595,6 @@
                 <span class="lp-topic-btn__title">${escapeHtml(goal.text)}</span>
                 ${isChecked ? `<span class="lp-lc-tag">im Levelcheck</span>` : ""}
               </button>
-              ${coachRowButton(goal)}
             </th>
             ${tiers.map((tier) => renderStatusCell(goal, tier)).join("")}
             <td class="lp-table__material">${renderMaterialCell(goal)}</td>
@@ -644,14 +640,13 @@
               <button type="button" class="lp-mobile-card__head" data-lp-expand="${escapeHtml(goal.id)}" aria-expanded="${expanded ? "true" : "false"}">
                 <h4>${escapeHtml(goal.text)}${isChecked ? ` <span class="lp-lc-tag">im Levelcheck</span>` : ""}</h4>
               </button>
-              ${coachRowButton(goal)}
               <div class="lp-mobile-card__tiers">
                 ${tiers
                   .map(
                     (tier) => `
                   <div class="lp-mobile-tier ${tier.colClass}">
                     <span class="lp-mobile-tier__label">${escapeHtml(tier.label)}</span>
-                    <div class="lp-mobile-tier__cell">${renderStatusButton(goal, tier)}</div>
+                    <div class="lp-mobile-tier__cell">${renderLevelField(goal, tier)}</div>
                   </div>`
                   )
                   .join("")}
@@ -964,8 +959,10 @@
     root.querySelectorAll("[data-lp-coach]").forEach((btn) => {
       btn.addEventListener("click", (event) => {
         event.stopPropagation();
+        closePopover();
         window.LogbuchCoach?.open({
           source: "levelplan",
+          autostart: true,
           competenceId: btn.dataset.lpCoach || "",
           level: btn.dataset.lpLevel || "",
           kompetenzLabel: btn.dataset.lpLabel || "",

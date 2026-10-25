@@ -531,6 +531,35 @@
     show();
     const input = document.getElementById("logicCoachInput");
     if (input) input.value = "";
+    if (options.autostart === true && state.context.competenceId && state.context.level) {
+      beginTalk();
+    }
+  }
+
+  async function beginTalk() {
+    if (state.sending || state.mode !== "chat") return;
+    if (!state.context.competenceId || !state.context.level) return;
+    state.sending = true;
+    state.messages = [];
+    renderBody();
+    try {
+      const res = await fetch("/api/coach/start", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competenceId: state.context.competenceId,
+          level: state.context.level
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.sessionId) state.sessionId = data.sessionId;
+      state.messages.push({ role: "coach", text: data.nachricht || UNREACHABLE });
+    } catch {
+      state.messages.push({ role: "coach", text: UNREACHABLE });
+    }
+    state.sending = false;
+    if (state.open) renderBody();
   }
 
   async function loadPicker() {
