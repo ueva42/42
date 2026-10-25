@@ -281,6 +281,17 @@
     return state.katexPromise;
   }
 
+  // \times ist im JSON ein Tab plus „imes“ und käme sonst als „2imes3“ an.
+  function readableMal(text) {
+    return String(text || "")
+      .replace(/[ \t]*\\times[ \t]*/g, " mal ")
+      .replace(/[ \t]*\\cdot[ \t]*/g, " mal ")
+      .replace(/[ \t]*\times[ \t]*/g, " mal ")
+      .replace(/(\d)\s*imes\s*(\d)/g, "$1 mal $2")
+      .replace(/(\d)\s*[·×∙⋅]\s*(\d)/g, "$1 mal $2")
+      .replace(/ {2,}/g, " ");
+  }
+
   function renderMath(text) {
     const source = String(text || "");
     const pattern = /\$([^$\n]+)\$/g;
@@ -288,21 +299,29 @@
     let last = 0;
     let match = pattern.exec(source);
     while (match) {
-      html += esc(source.slice(last, match.index));
-      const tex = match[1];
+      html += esc(readableMal(source.slice(last, match.index)));
+      const rawTex = match[1];
+      const tex = rawTex
+        .replace(/\\times/g, "\\cdot")
+        .replace(/\times/g, "\\cdot")
+        .replace(/(\d)\s*imes\s*(\d)/g, "$1\\cdot $2");
+      const needsMal = /\\times|\\cdot|\times|imes|[·×∙⋅]/.test(rawTex);
+      let piece = "";
       if (window.katex) {
         try {
-          html += window.katex.renderToString(tex, { throwOnError: false, displayMode: false });
+          piece = window.katex.renderToString(tex, { throwOnError: false, displayMode: false });
         } catch {
-          html += esc(match[0]);
+          piece = "";
         }
-      } else {
-        html += esc(match[0]);
       }
+      if (!piece || piece.includes("imes") || piece.includes("katex-error")) {
+        piece = needsMal ? esc(readableMal(rawTex)) : esc(match[0]);
+      }
+      html += piece;
       last = match.index + match[0].length;
       match = pattern.exec(source);
     }
-    html += esc(source.slice(last));
+    html += esc(readableMal(source.slice(last)));
     return html;
   }
 
