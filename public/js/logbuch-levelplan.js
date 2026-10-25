@@ -45,6 +45,7 @@
     statusFilter: "all",
     expandedGoalId: null,
     focusGoalId: null,
+    coachEnabled: false,
     fromPlan: false,
     pendingSubject: null,
     pendingThemaId: null,
@@ -475,6 +476,29 @@
     return `<div class="lp-material-cell">${body}</div>`;
   }
 
+  function isMathSubject(name) {
+    return window.LogbuchCoach?.isMathSubject
+      ? window.LogbuchCoach.isMathSubject(name)
+      : String(name || "").trim().toLowerCase() === "mathe";
+  }
+
+  function coachLevelForGoal(goal) {
+    const tiers = activeTiers().filter((tier) => tier.id !== "unterthema");
+    const working = tiers.find((tier) => tierStatus(goal, tier.id) === "in_arbeit");
+    if (working) return working.id;
+    const open = tiers.find((tier) => tierStatus(goal, tier.id) === "offen");
+    if (open) return open.id;
+    return tiers[0]?.id || "rookie";
+  }
+
+  function coachRowButton(goal) {
+    if (!state.coachEnabled || !window.LogbuchCoach?.isEnabled()) return "";
+    if (!isMathSubject(state.selectedSubject)) return "";
+    const level = coachLevelForGoal(goal);
+    const thema = selectedThema();
+    return `<button type="button" class="lp-coach-btn" data-lp-coach="${escapeHtml(goal.id)}" data-lp-level="${escapeHtml(level)}" data-lp-label="${escapeHtml(goal.text || "")}" data-lp-thema="${escapeHtml(thema?.name || "")}">Coach fragen</button>`;
+  }
+
   function renderStatusButton(goal, tier) {
     const key = `${goal.id}_${tier.id}`;
     const busy = state.saving === key;
@@ -574,6 +598,7 @@
                 <span class="lp-topic-btn__title">${escapeHtml(goal.text)}</span>
                 ${isChecked ? `<span class="lp-lc-tag">im Levelcheck</span>` : ""}
               </button>
+              ${coachRowButton(goal)}
             </th>
             ${tiers.map((tier) => renderStatusCell(goal, tier)).join("")}
             <td class="lp-table__material">${renderMaterialCell(goal)}</td>
@@ -619,6 +644,7 @@
               <button type="button" class="lp-mobile-card__head" data-lp-expand="${escapeHtml(goal.id)}" aria-expanded="${expanded ? "true" : "false"}">
                 <h4>${escapeHtml(goal.text)}${isChecked ? ` <span class="lp-lc-tag">im Levelcheck</span>` : ""}</h4>
               </button>
+              ${coachRowButton(goal)}
               <div class="lp-mobile-card__tiers">
                 ${tiers
                   .map(
@@ -935,6 +961,19 @@
       });
     });
 
+    root.querySelectorAll("[data-lp-coach]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        window.LogbuchCoach?.open({
+          source: "levelplan",
+          competenceId: btn.dataset.lpCoach || "",
+          level: btn.dataset.lpLevel || "",
+          kompetenzLabel: btn.dataset.lpLabel || "",
+          themaLabel: btn.dataset.lpThema || ""
+        });
+      });
+    });
+
     root.querySelectorAll("[data-lp-expand]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = btn.dataset.lpExpand;
@@ -1170,6 +1209,7 @@
     state.popover = null;
     const root = document.getElementById("levelplan-screen-root");
     if (root) root.innerHTML = `<div class="logbuch-loading">Lade Levelplan…</div>`;
+    state.coachEnabled = (await window.LogbuchCoach?.refreshStatus?.()) === true;
     await loadData(generation);
   }
 

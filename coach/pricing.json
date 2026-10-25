@@ -1,5 +1,5 @@
 {
-  "hinweis": "Platzhalterpreise in Euro pro 1 Million Tokens. Echte OVH-Preise hier eintragen, bevor der Mock aus ist.",
+  "hinweis": "Schätzpreise in Euro pro 1 Million Tokens. Echte OVH-Preise hier eintragen, damit das Monatsbudget stimmt.",
   "currency": "EUR",
   "perMillionTokens": {
     "strong": { "input": 0.15, "output": 0.6 },

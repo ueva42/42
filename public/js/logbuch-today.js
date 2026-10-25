@@ -8,8 +8,15 @@
     date: null,
     data: null,
     loading: false,
-    slideDir: null
+    slideDir: null,
+    coachEnabled: false
   };
+
+  function isMathSubject(name) {
+    return window.LogbuchCoach?.isMathSubject
+      ? window.LogbuchCoach.isMathSubject(name)
+      : String(name || "").trim().toLowerCase() === "mathe";
+  }
 
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
@@ -97,6 +104,11 @@
       </select>`;
   }
 
+  function coachAskButton(ui, entry) {
+    if (!state.coachEnabled || !window.LogbuchCoach?.isEnabled()) return "";
+    return `<button type="button" class="today-app-btn coach-ask-btn" data-coach-open="1" data-coach-goal="${ui.escapeHtml(entry.what_goal_id || "")}" data-coach-level="${ui.escapeHtml(entry.selected_level || "")}" data-coach-entry="${ui.escapeHtml(entry.id || "")}" data-coach-subject="${ui.escapeHtml(entry.subject || "")}" data-coach-label="${ui.escapeHtml(entry.what_goal_text || entry.level_goal_text || "Tagesziel")}">Coach fragen</button>`;
+  }
+
   function renderDailyGoalBody(ui, entry) {
     if (entry.level_goal_text) {
       const meta = [];
@@ -117,14 +129,19 @@
               ? `<p class="lesson-card__goal"><strong>Mein Weg zum Ziel:</strong> ${ui.escapeHtml(entry.how_goal_text || entry.goal || "")}</p>`
               : ""
           }
+          ${coachAskButton(ui, entry)}
         </div>`;
     }
     const titleText = entry.plan_sentence || entry.goal;
     if (!titleText) return "";
     const detailText = entry.details_text ? `Konkret: ${entry.details_text}` : "";
     return `
-      <p class="lesson-card__goal">${ui.escapeHtml(titleText)}</p>
-      ${detailText ? `<p class="today-block-muted">${ui.escapeHtml(detailText)}</p>` : ""}`;
+      <div class="today-focus-card">
+        <p class="today-focus-card-title">Dein Tagesziel</p>
+        <p class="lesson-card__goal">${ui.escapeHtml(titleText)}</p>
+        ${detailText ? `<p class="today-block-muted">${ui.escapeHtml(detailText)}</p>` : ""}
+        ${coachAskButton(ui, entry)}
+      </div>`;
   }
 
   function renderCheckSummary(ui, entry) {
@@ -859,7 +876,9 @@
 
     const lessonsHtml =
       blockList.length > 0
-        ? blockList.map((b) => renderBlock(b, editable)).join("")
+        ? `<h3 class="today-lesson-list__title">Deine Stunden</h3><div class="today-subject-grid">${blockList
+            .map((block) => renderLesson(block, editable))
+            .join("")}</div>`
         : renderEmptyState(d, editable);
 
     root.innerHTML = `
@@ -869,11 +888,7 @@
         <div class="today-slide-viewport">
           <div class="today-slide-panel ${slideClass}" id="todaySlidePanel">
             <div class="today-lesson-list">
-              ${
-                blockList.length
-                  ? `<h3 class="today-lesson-list__title">Deine Stunden</h3><div class="today-subject-grid">${lessonsHtml}</div>`
-                  : lessonsHtml
-              }
+              ${lessonsHtml}
             </div>
           </div>
         </div>
@@ -890,9 +905,34 @@
     }
   }
 
+  function renderLesson(block, editable) {
+    const tile = renderBlock(block, editable);
+    if (!state.coachEnabled) return tile;
+    const entry = block.entry;
+    const subject = entry?.subject || block.slot?.subject;
+    if (!entry || !isMathSubject(subject)) return tile;
+    const card = renderDailyGoalBody(UI(), entry);
+    if (!card) return tile;
+    return `<div class="today-block-stack">${tile}${card}</div>`;
+  }
+
   function bindHandlers(root) {
     root.querySelector('[data-dir="prev"]')?.addEventListener("click", () => navigateDay(-1));
     root.querySelector('[data-dir="next"]')?.addEventListener("click", () => navigateDay(1));
+
+    root.querySelectorAll("[data-coach-open]").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        window.LogbuchCoach?.open({
+          source: "today",
+          competenceId: btn.dataset.coachGoal || "",
+          level: btn.dataset.coachLevel || "",
+          tageszielId: btn.dataset.coachEntry || "",
+          kompetenzLabel: btn.dataset.coachLabel || "",
+          subject: btn.dataset.coachSubject || ""
+        });
+      });
+    });
 
     root.querySelectorAll("[data-nav]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -930,7 +970,7 @@
     if (!state.data) render();
 
     try {
-      const [todayRes, bootRes] = await Promise.all([
+      const [todayRes, bootRes, coachOn] = await Promise.all([
         fetch(`/api/student/log/today?date=${encodeURIComponent(dateIso)}`, {
           credentials: "same-origin",
           cache: "no-store"
@@ -938,8 +978,10 @@
         fetch("/api/student/group-mode/bootstrap", {
           credentials: "same-origin",
           cache: "no-store"
-        }).catch(() => null)
+        }).catch(() => null),
+        window.LogbuchCoach?.refreshStatus?.() || Promise.resolve(false)
       ]);
+      state.coachEnabled = coachOn === true;
       if (!todayRes.ok) throw new Error(`HTTP ${todayRes.status}`);
       let data = await todayRes.json();
       if (bootRes && bootRes.ok) {

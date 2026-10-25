@@ -7530,7 +7530,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       SELECT
         le.id, le.date, le.timeslot, le.subject, le.goal,
         le.confidence_before, le.created_at,
-        le.checkpoint_title, le.what_goal_text, le.how_goal_text, le.details_text,
+        le.checkpoint_title, le.what_goal_id, le.what_goal_text, le.how_goal_text, le.details_text,
         le.selected_level, le.level_goal_text, le.plan_b_strategy_text,
         le.role_goal_text, le.role_goal_role_name,
         COALESCE(le.entry_kind, 'lesson') AS entry_kind,
@@ -7575,6 +7575,7 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
         entry_kind: entryKind,
         isPractice: entryKind === "practice",
         goal: row.goal,
+        what_goal_id: row.what_goal_id || null,
         what_goal_text: whatGoal,
         how_goal_text: howGoal,
         details_text: details,

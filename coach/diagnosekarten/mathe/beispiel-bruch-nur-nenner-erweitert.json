@@ -1,0 +1,14 @@
+{
+  "competenceId": "beispiel-bruch-nur-nenner-erweitert",
+  "titel": "Brüche addieren und subtrahieren",
+  "level": ["Rookie", "Operator"],
+  "fehlvorstellungen": [
+    {
+      "code": "NUR_NENNER_ERWEITERT",
+      "erkennung": "Gemeinsamer Nenner gebildet, Zähler aber nicht mit erweitert, z. B. 1/2 + 1/3 = 1/6 + 1/6",
+      "denkfehler": "Erweitern wird als Änderung nur des Nenners verstanden",
+      "hilfestrategie": "Prüfen lassen, ob 1/6 noch genauso viel ist wie 1/2; Erweitern als ‚Stücke feiner schneiden‘",
+      "rueckfrage": "Ist 1/6 genauso viel wie 1/2? Wie viele Sechstel sind ein halbes Ganzes?"
+    }
+  ]
+}

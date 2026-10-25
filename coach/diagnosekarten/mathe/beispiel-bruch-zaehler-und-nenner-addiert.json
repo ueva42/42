@@ -1,0 +1,14 @@
+{
+  "competenceId": "beispiel-bruch-zaehler-und-nenner-addiert",
+  "titel": "Brüche addieren und subtrahieren",
+  "level": ["Rookie", "Operator"],
+  "fehlvorstellungen": [
+    {
+      "code": "ZAEHLER_UND_NENNER_ADDIERT",
+      "erkennung": "Schüler addiert Zähler und Nenner getrennt, z. B. 1/2 + 1/3 = 2/5",
+      "denkfehler": "Bruch wird als zwei unabhängige Zahlen gesehen, nicht als Anteil",
+      "hilfestrategie": "Mit Anteilen argumentieren lassen: Ist 2/5 mehr oder weniger als 1/2? Dann an Pizza/Strecke gleich große Stücke (gemeinsamer Nenner) herstellen lassen",
+      "rueckfrage": "Ist dein Ergebnis größer oder kleiner als 1/2? Passt das, wenn du noch etwas dazuaddierst?"
+    }
+  ]
+}

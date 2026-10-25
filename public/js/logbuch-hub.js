@@ -4,8 +4,8 @@
 (function () {
   const UI = () => window.LogbuchUI;
 
-  const ICON_V = { hausaufgaben: 4, ueben: 4 };
-  const HERO_V = { hausaufgaben: 5, ueben: 5 };
+  const ICON_V = { hausaufgaben: 4, ueben: 4, "logic-coach": 1 };
+  const HERO_V = { hausaufgaben: 5, ueben: 5, "logic-coach": 1 };
   const icon = (slug) => `/icons/student/png/${slug}.png${ICON_V[slug] ? `?v=${ICON_V[slug]}` : ""}`;
   const hero = (slug) => `/icons/student/hero/${slug}-hero.png?v=${HERO_V[slug] || 6}`;
 
@@ -23,7 +23,18 @@
     "xp-historie": { fit: "cover", position: "center right" },
     materialschrank: { fit: "cover", position: "center right" },
     hausaufgaben: { fit: "cover", position: "center" },
-    ueben: { fit: "cover", position: "center" }
+    ueben: { fit: "cover", position: "center" },
+    "logic-coach": { fit: "cover", position: "center right" }
+  };
+
+  const COACH_TILE = {
+    coach: true,
+    section: "logic-coach",
+    slug: "logic-coach",
+    title: "LOGIC COACH",
+    text: "Hängst du fest? Dein Coach hilft dir, selbst auf die Lösung zu kommen.",
+    cta: "Coach fragen",
+    accent: "magenta"
   };
 
   const DASHBOARD_HERO = {
@@ -138,7 +149,8 @@
     blocks: [],
     nextStep: null,
     feedback: [],
-    feedbackLabels: {}
+    feedbackLabels: {},
+    coachEnabled: false
   };
 
   function todayIso() {
@@ -284,10 +296,13 @@
     const art = TILE_ARTWORK[tile.slug] || { fit: "contain", position: "center" };
     const fit = art.fit === "cover" ? "cover" : "contain";
     const position = ui.escapeHtml(art.position || "center");
+    const action = tile.coach
+      ? `data-hub-coach="open"`
+      : `data-hub-section="${ui.escapeHtml(tile.section)}"`;
     return `
       <button type="button"
         class="hub-tile dashboard-card app-card hub-accent-${tile.accent} ${large ? "hub-tile-lg" : "hub-tile-sm"} ${tile.featured ? "hub-tile-featured" : ""}"
-        data-hub-section="${ui.escapeHtml(tile.section)}">
+        ${action}>
         <span class="hub-tile-glow" aria-hidden="true"></span>
         <span class="hub-tile-shine" aria-hidden="true"></span>
         <div class="dashboard-card__artwork hub-tile-art" data-fit="${fit}" aria-hidden="true">
@@ -499,7 +514,9 @@
         <section class="hub-block">
           <h2 class="hub-block-label">Dein Kontrollzentrum</h2>
           <div class="hub-grid-main">
-            ${MAIN_TILES.map((t) => renderTile(ui, t, "large")).join("")}
+            ${(state.coachEnabled ? MAIN_TILES.concat([COACH_TILE]) : MAIN_TILES)
+              .map((t) => renderTile(ui, t, "large"))
+              .join("")}
           </div>
         </section>
 
@@ -512,6 +529,12 @@
       btn.addEventListener("click", () => {
         const section = btn.dataset.hubSection;
         navigate(section);
+      });
+    });
+
+    root.querySelectorAll("[data-hub-coach]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        window.LogbuchCoach?.open({ source: "hub" });
       });
     });
 
@@ -657,14 +680,18 @@
     syncRegelregalBtn();
   }
 
+  async function loadCoachFlag() {
+    state.coachEnabled = (await window.LogbuchCoach?.refreshStatus?.()) === true;
+  }
+
   async function init() {
-    await Promise.all([loadTodayData(), loadTeacherFeedback()]);
+    await Promise.all([loadTodayData(), loadTeacherFeedback(), loadCoachFlag()]);
     render();
     refreshStats();
   }
 
   async function refresh() {
-    await Promise.all([loadTodayData(), loadTeacherFeedback()]);
+    await Promise.all([loadTodayData(), loadTeacherFeedback(), loadCoachFlag()]);
     render();
     refreshStats();
   }
