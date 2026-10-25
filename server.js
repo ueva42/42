@@ -64,6 +64,7 @@ import {
   cookieClearVariants
 } from "./lib/session-scope.js";
 import { registerTeacherCoachingRoutes } from "./lib/teacher-coaching-api.js";
+import { migrateCoachTables, registerCoachRoutes } from "./lib/coach-api.js";
 import {
   parseLevelplanImportText as parseLevelplanImportTextBase,
   normalizeLevelplanImportRows as normalizeLevelplanImportRowsBase
@@ -4883,6 +4884,8 @@ async function migrate() {
     console.warn("⚠️ Level-Neuberechnung nach Katalog-Sync:", err.message || err);
   }
 
+  await migrateCoachTables(pool);
+
   console.log("✔️ Migration fertig.");
 }
 
@@ -5678,6 +5681,8 @@ registerTeacherCoachingRoutes(app, {
   publicImageUrl,
   getGradeRequirements
 });
+
+registerCoachRoutes(app, { pool, isStudent });
 
 // -------------------------------------------------------
 // STUDENT: FIRST LOGIN – Passwort ändern

@@ -1,0 +1,8 @@
+{
+  "hinweis": "Platzhalterpreise in Euro pro 1 Million Tokens. Echte OVH-Preise hier eintragen, bevor der Mock aus ist.",
+  "currency": "EUR",
+  "perMillionTokens": {
+    "strong": { "input": 0.15, "output": 0.6 },
+    "fast": { "input": 0.1, "output": 0.3 }
+  }
+}
