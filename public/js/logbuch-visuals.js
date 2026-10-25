@@ -77,6 +77,60 @@ window.LogbuchVisuals = {
     return window.LogbuchUI?.escapeHtml(str) ?? String(str ?? "");
   },
 
+  /** Anzeige-Texte für XP-Ereignisse. Interne Keys (zielsetzung_achieved:uuid) nie roh zeigen. */
+  XP_EVENT_LABELS: {
+    zielsetzung_achieved: "Zielsetzung geschafft",
+    zielsetzung_target: "Zielnote festgelegt",
+    zielsetzung_grow: "Verbesserung notiert",
+    zielsetzung_glow: "Stärke notiert",
+    zielsetzung_next_goal: "Nächstes Ziel gesetzt",
+    logbuch_plan: "Planung gespeichert",
+    logbuch_check: "Check gespeichert",
+    logbuch_reflect: "Reflexion gespeichert",
+    logbuch_week: "Wochenreflexion gespeichert",
+    levelcheck_rookie: "Rookie-Check geschafft",
+    levelcheck_operator: "Operator-Check geschafft",
+    levelcheck_street_legend: "Street-Legend-Check geschafft",
+    levelcheck_unterthema: "Unterthema geschafft",
+    mission: "Mission geschafft",
+    direct: "XP erhalten",
+    group_role: "Gruppenrolle geschafft"
+  },
+
+  xpEventKey(raw) {
+    const text = String(raw || "").trim();
+    if (!text) return "";
+    const colon = text.indexOf(":");
+    return (colon >= 0 ? text.slice(0, colon) : text).trim().toLowerCase();
+  },
+
+  looksLikeInternalXpKey(raw) {
+    const text = String(raw || "").trim();
+    if (!text) return false;
+    if (text.includes(":")) return true;
+    if (/[0-9a-f]{8,}[-_][0-9a-f-]{8,}/i.test(text)) return true;
+    return /^[a-z0-9]+(_[a-z0-9]+)+$/i.test(text);
+  },
+
+  xpEventLabel(entry) {
+    const V = this;
+    const missionName = String(entry?.mission_name || "").trim();
+    if (missionName && !V.looksLikeInternalXpKey(missionName)) return missionName;
+
+    const source = String(entry?.source || missionName || "").trim();
+    const key = V.xpEventKey(source);
+    if (key && V.XP_EVENT_LABELS[key]) return V.XP_EVENT_LABELS[key];
+    if (key.startsWith("zielsetzung_")) return "Zielsetzung geschafft";
+    if (key.startsWith("levelcheck_")) return "Levelcheck geschafft";
+    if (key.startsWith("logbuch_")) return "Logbucheintrag gespeichert";
+    if (key.startsWith("mission_")) return "Mission geschafft";
+    if (key.endsWith("_achieved") || key === "achieved") return "Ziel erreicht";
+    if (!source || V.looksLikeInternalXpKey(source) || V.looksLikeInternalXpKey(key)) {
+      return "Fortschritt gespeichert";
+    }
+    return source;
+  },
+
   progressPct(completed, total) {
     const t = Number(total) || 0;
     const c = Number(completed) || 0;
@@ -376,7 +430,7 @@ window.LogbuchVisuals = {
           <article class="student-card goal-card goal-card--ok">
             <div class="card-content">
               <p class="goal-card__subject">+${V.escape(e.amount)} XP</p>
-              <p class="goal-card__what">${V.escape(e.mission_name || e.source || "Aktivität")}</p>
+              <p class="goal-card__what">${V.escape(V.xpEventLabel(e))}</p>
               <p class="goal-card__what">${V.escape(new Date(e.created_at).toLocaleString("de-DE"))}</p>
             </div>
           </article>`

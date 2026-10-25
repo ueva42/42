@@ -13337,7 +13337,7 @@ h2 {
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-coach.js?v=3"></script>
 <script src="/js/logbuch-hub.js?v=46"></script>
-<script src="/js/logbuch-visuals.js?v=18"></script>
+<script src="/js/logbuch-visuals.js?v=19"></script>
 <script src="/js/logbuch-reminders.js?v=6"></script>
 <script src="/js/logbuch-group-invites.js?v=2"></script>
 <script src="/js/logbuch-swipe.js"></script>
@@ -13508,7 +13508,9 @@ function renderNotifListFromXpLog(xpLog) {
   list.innerHTML = sorted.slice(0, 25).map(e => {
     const amount = Number(e.amount);
     const title = `${amount > 0 ? "+" : ""}${amount} XP`;
-    const src = e.mission_name || e.source || "XP";
+    const src = window.LogbuchUI?.escapeHtml(
+      window.LogbuchVisuals?.xpEventLabel?.(e) || "Fortschritt gespeichert"
+    ) || "Fortschritt gespeichert";
     const time = fmtTS(e.created_at);
 
     return `
@@ -13732,7 +13734,7 @@ window.loadMe = async function loadMe() {
       const d = new Date(e.created_at).toLocaleString("de-DE");
       xpDiv.innerHTML += `
         <div class="xp-entry">
-          <b>${e.amount} XP</b> – ${e.mission_name || e.source}<br>
+          <b>${e.amount} XP</b> – ${window.LogbuchUI?.escapeHtml(window.LogbuchVisuals?.xpEventLabel?.(e) || "Fortschritt gespeichert") || "Fortschritt gespeichert"}<br>
           <span style="opacity:0.7;">${d}</span>
         </div>`;
     });
