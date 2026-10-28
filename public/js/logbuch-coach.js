@@ -23,6 +23,7 @@
     sessionId: null,
     draft: "",
     messages: [],
+    fragenUebrig: null,
     context: emptyContext(),
     picker: null,
     katexPromise: null
@@ -178,6 +179,13 @@
         font-size: 13px;
         line-height: 1.4;
       }
+      .logic-coach-remaining {
+        margin: -6px 16px 10px;
+        color: rgba(238, 244, 255, 0.55);
+        font-size: 12px;
+        line-height: 1.3;
+      }
+      .logic-coach-remaining[hidden] { display: none !important; }
       .logic-coach-body {
         flex: 1;
         overflow: auto;
@@ -378,6 +386,7 @@
           <button type="button" class="logic-coach-close" data-coach-action="close" aria-label="Schließen">✕</button>
         </header>
         <p class="logic-coach-hint">Der Coach ist eine KI und kann sich irren. Bei Unsicherheit frag deine Lehrkraft.</p>
+        <p class="logic-coach-remaining" id="logicCoachRemaining" hidden></p>
         <div class="logic-coach-body" id="logicCoachBody"></div>
         <form class="logic-coach-form" id="logicCoachForm">
           <div class="logic-coach-keys">
@@ -530,11 +539,59 @@
     if (state.mode === "chat") body.scrollTop = body.scrollHeight;
   }
 
+  function renderRemaining() {
+    const el = document.getElementById("logicCoachRemaining");
+    if (!el) return;
+    const n = state.fragenUebrig;
+    if (!Number.isFinite(n)) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    const wort = n === 1 ? "Frage" : "Fragen";
+    el.textContent = `Heute noch ${n} ${wort}.`;
+    el.hidden = false;
+  }
+
+  let quotaToken = 0;
+
+  function takeRemaining(data) {
+    if (!data || !Object.prototype.hasOwnProperty.call(data, "fragenUebrig")) return;
+    const n = Number(data.fragenUebrig);
+    if (!Number.isFinite(n)) return;
+    quotaToken += 1;
+    state.fragenUebrig = Math.max(0, Math.floor(n));
+    renderRemaining();
+  }
+
+  function loadQuota() {
+    const token = ++quotaToken;
+    fetch("/api/coach/status", { credentials: "same-origin" })
+      .then((res) => (res.ok ? res.json() : {}))
+      .then((data) => {
+        if (token !== quotaToken) return;
+        if (!data || !Object.prototype.hasOwnProperty.call(data, "fragenUebrig")) {
+          state.fragenUebrig = null;
+        } else {
+          const n = Number(data.fragenUebrig);
+          state.fragenUebrig = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : null;
+        }
+        renderRemaining();
+      })
+      .catch(() => {
+        if (token !== quotaToken) return;
+        state.fragenUebrig = null;
+        renderRemaining();
+      });
+  }
+
   function show() {
     const root = ensurePanel();
     root.hidden = false;
     state.open = true;
     renderBody();
+    renderRemaining();
+    loadQuota();
     ensureKatex().then(() => {
       if (state.open && state.mode === "chat") renderBody();
     });
@@ -613,6 +670,7 @@
         })
       });
       const data = await res.json().catch(() => ({}));
+      takeRemaining(data);
       if (data.sessionId) state.sessionId = data.sessionId;
       state.messages.push({ role: "coach", text: data.nachricht || UNREACHABLE, debugCode: data.debugCode || "" });
     } catch {
@@ -732,6 +790,7 @@
         })
       });
       const data = await res.json().catch(() => ({}));
+      takeRemaining(data);
       if (data.sessionId) state.sessionId = data.sessionId;
       state.messages.push({ role: "coach", text: data.nachricht || UNREACHABLE, debugCode: data.debugCode || "" });
     } catch {

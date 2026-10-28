@@ -1,6 +1,6 @@
 # Cursor-Prompt 2: Logic Coach für Mathematik
 
-> **Umsetzung (gilt vor dem Text darunter, wo er widerspricht):** Kein Sonderkonto und keine Besucher-Liste. Kein Testmodus für Besucher. Der Coach ist für alle eingeloggten Schüler da, aber nur wenn `COACH_ENABLED=true` ist und `AI_API_KEY` gesetzt ist. Tageslimit 25 Antworten, Monatsbudget 8 €. Phasen 4, 5 und 6 sind nicht gebaut.
+> **Umsetzung (gilt vor dem Text darunter, wo er widerspricht):** Kein Sonderkonto und keine Besucher-Liste. Kein Testmodus für Besucher. Der Coach ist für alle eingeloggten Schüler da, aber nur wenn `COACH_ENABLED=true` ist und `AI_API_KEY` gesetzt ist. Tageslimit 60 Fragen pro Schüler und Tag (Lehrkräfte und Admins ohne Tageslimit), Monatsbudget 8 €. Phasen 4, 5 und 6 sind nicht gebaut.
 
 > In Cursor im Agent-Modus einfügen. Die Datei kann auch als `docs/LOGIC_COACH.md` im Projekt liegen; dann in Cursor mit `@docs/LOGIC_COACH.md` darauf verweisen.
 
@@ -45,7 +45,7 @@ Lies das Projekt und erkläre mir in einfachem Deutsch: Framework, wie Kompetenz
 - Der Server baut den Kontext selbst aus der Datenbank zusammen – dem Browser wird nicht vertraut.
 - Neue Tabellen (per Migration): `coach_sessions` (id, schueler_pseudonym, fach, competence_id, level, created_at), `coach_messages` (session_id, rolle, inhalt, diagnose_code, hilfestufe, modell, tokens_in, tokens_out, created_at), `coach_usage` (Tag, Tokens, geschätzte Kosten).
 - **Datenschutz:** An die KI gehen keine Namen, E-Mails, Klassen oder IDs aus der Schülertabelle. Vor dem Versand Freitext auf Namen/E-Mail/Telefonnummer filtern. Chatverläufe nach 90 Tagen automatisch löschen (Konstante `COACH_RETENTION_DAYS`).
-- **Kostenschutz:** `COACH_DAILY_LIMIT` (Standard 25 KI-Antworten pro Schüler und Tag), `COACH_MONTHLY_BUDGET_EUR` (Standard 8). Kosten aus den `usage`-Angaben der API und den Preisen in einer Konfigurationsdatei berechnen. Bei Überschreitung freundliche Meldung statt KI-Aufruf. `max_tokens` pro Antwort ca. 400 (Reasoning-Modell: so wählen, dass die sichtbare Antwort nicht abgeschnitten wird).
+- **Kostenschutz:** `COACH_DAILY_LIMIT` (Standard 60 Fragen pro Schüler und Tag, Lehrkräfte und Admins ohne Tageslimit), `COACH_MONTHLY_BUDGET_EUR` (Standard 8). Kosten aus den `usage`-Angaben der API und den Preisen in einer Konfigurationsdatei berechnen. Bei Überschreitung freundliche Meldung statt KI-Aufruf. `max_tokens` pro Antwort ca. 400 (Reasoning-Modell: so wählen, dass die sichtbare Antwort nicht abgeschnitten wird).
 - Fehlerbehandlung: Zeitlimit 30 s, ein Wiederholungsversuch, danach Meldung „Der Coach ist gerade nicht erreichbar – frag deine Lehrkraft oder versuch es gleich nochmal.“
 - Feature-Flag `COACH_ENABLED_SUBJECTS=mathe`.
 - Kein Testmodus für Besucher. Ohne `AI_API_KEY` bleibt der Coach unsichtbar. Mit Schlüssel antwortet nur die echte KI.
