@@ -17,6 +17,8 @@
     open: false,
     mode: "pick",
     sending: false,
+    showWait: false,
+    waitTimer: null,
     sessionId: null,
     draft: "",
     messages: [],
@@ -444,9 +446,10 @@
         return `<p class="logic-coach-msg logic-coach-msg--${kind}">${body}</p>`;
       })
       .join("");
-    const wait = state.sending
-      ? `<p class="logic-coach-msg logic-coach-msg--wait">Coach denkt nach…</p>`
-      : "";
+    const wait =
+      state.sending && state.showWait
+        ? `<p class="logic-coach-msg logic-coach-msg--wait">Coach denkt nach…</p>`
+        : "";
     return `${contextLine()}${rows}${wait}`;
   }
 
@@ -545,6 +548,7 @@
     state.messages = [];
     state.draft = "";
     state.sending = false;
+    stopWait();
     const hasGoal = Boolean(state.context.competenceId || state.context.tageszielId);
     if (!hasGoal) {
       state.mode = "pick";
@@ -562,11 +566,29 @@
     }
   }
 
+  function startWait() {
+    stopWait();
+    state.waitTimer = setTimeout(() => {
+      state.waitTimer = null;
+      state.showWait = true;
+      if (state.open && state.sending) renderBody();
+    }, 5000);
+  }
+
+  function stopWait() {
+    if (state.waitTimer) {
+      clearTimeout(state.waitTimer);
+      state.waitTimer = null;
+    }
+    state.showWait = false;
+  }
+
   async function beginTalk() {
     if (state.sending || state.mode !== "chat") return;
     if (!state.context.competenceId || !state.context.level) return;
     state.sending = true;
     state.messages = [];
+    startWait();
     renderBody();
     try {
       const res = await fetch("/api/coach/start", {
@@ -585,6 +607,7 @@
       state.messages.push({ role: "coach", text: UNREACHABLE });
     }
     state.sending = false;
+    stopWait();
     if (state.open) renderBody();
   }
 
@@ -678,6 +701,7 @@
     state.draft = "";
     if (input) input.value = "";
     state.sending = true;
+    startWait();
     renderBody();
     try {
       const res = await fetch("/api/coach/message", {
@@ -702,6 +726,7 @@
       state.messages.push({ role: "coach", text: UNREACHABLE });
     }
     state.sending = false;
+    stopWait();
     if (state.open) renderBody();
   }
 
