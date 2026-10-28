@@ -50,8 +50,8 @@ assert(powerStatus === "falsch", `potenz status ${powerStatus}`);
 const step = nextCoachStep({
   pruefung: "nicht_pruefbar",
   denkfehler: false,
-  trailing: 0,
-  pendingZwischen: false
+  ohneFortschritt: 0,
+  verstaendnis: false
 });
 assert(step === "normal", `folgeschritt ${step}`);
 

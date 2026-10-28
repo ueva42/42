@@ -30,8 +30,8 @@ Kompetenzraster pro Fach und Thema mit den Levels **Rookie, Operator, Street Leg
 - **OVHcloud AI Endpoints** (Frankreich, EU-Rechenzentren, keine Trainingsnutzung), OpenAI-kompatible API.
 - Basis-URL in `AI_BASE_URL` (aktuell vermutlich `https://oai.endpoints.kepler.ai.cloud.ovh.net/v1` – bitte über `GET /v1/models` prüfen und die genauen Modell-IDs ermitteln).
 - Zwei Modelle per Umgebungsvariable:
-  - `AI_MODEL_STRONG` = gpt-oss-120b → Erstdiagnose einer Schülerantwort und Aufgabengenerierung
-  - `AI_MODEL_FAST` = Mistral Small 3.2 24B → Rückfragen, Ermutigung, Folgezüge im Dialog
+  - `AI_MODEL_STRONG` = gpt-oss-120b → alle Coach-Antworten, auch Gesprächsstart. Eine gesetzte Variable überschreibt diesen Standard.
+  - `AI_MODEL_FAST` ist nicht der Standard für Coach-Antworten.
 - Anbieterunabhängig bauen: nur `AI_BASE_URL`, `AI_API_KEY`, Modellnamen tauschen = anderer EU-Anbieter.
 - Der API-Schlüssel bleibt **nur im Backend**, nie im Browser.
 
