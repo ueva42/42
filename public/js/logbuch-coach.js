@@ -10,6 +10,7 @@
   ];
   const UNREACHABLE =
     "Der Coach ist gerade nicht erreichbar – frag deine Lehrkraft oder versuch es gleich nochmal.";
+  const DEBUG_CODE_RE = /^(TIMEOUT|HTTP_\d{3}|JSON_FEHLER|LEER|DB_FEHLER|VERBINDUNG)$/;
 
   const state = {
     enabled: false,
@@ -218,6 +219,13 @@
         max-width: 96%;
         background: rgba(217, 70, 239, 0.16);
         border: 1px solid rgba(240, 171, 252, 0.28);
+      }
+      .logic-coach-debug {
+        display: block;
+        margin-top: 6px;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        color: rgba(251, 207, 232, 0.85);
       }
       .logic-coach-form {
         display: flex;
@@ -443,7 +451,11 @@
       .map((msg) => {
         const kind = msg.role === "coach" ? "coach" : "schueler";
         const body = kind === "coach" ? renderMath(msg.text) : esc(msg.text);
-        return `<p class="logic-coach-msg logic-coach-msg--${kind}">${body}</p>`;
+        const debug =
+          kind === "coach" && DEBUG_CODE_RE.test(String(msg.debugCode || ""))
+            ? `<span class="logic-coach-debug">${esc(msg.debugCode)}</span>`
+            : "";
+        return `<p class="logic-coach-msg logic-coach-msg--${kind}">${body}${debug}</p>`;
       })
       .join("");
     const wait =
@@ -602,7 +614,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (data.sessionId) state.sessionId = data.sessionId;
-      state.messages.push({ role: "coach", text: data.nachricht || UNREACHABLE });
+      state.messages.push({ role: "coach", text: data.nachricht || UNREACHABLE, debugCode: data.debugCode || "" });
     } catch {
       state.messages.push({ role: "coach", text: UNREACHABLE });
     }
@@ -721,7 +733,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (data.sessionId) state.sessionId = data.sessionId;
-      state.messages.push({ role: "coach", text: data.nachricht || UNREACHABLE });
+      state.messages.push({ role: "coach", text: data.nachricht || UNREACHABLE, debugCode: data.debugCode || "" });
     } catch {
       state.messages.push({ role: "coach", text: UNREACHABLE });
     }
