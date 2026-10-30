@@ -13032,11 +13032,81 @@ body.student-app #levelplan-section.card.section {
   flex-direction: column;
   gap: 8px;
 }
-#levelplan-section .lp-tier {
+#levelplan-section .lp-tier,
+#levelplan-section button.lp-tier {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+}
+#levelplan-section button.lp-tier.is-open,
+#levelplan-section button.lp-tier.is-active {
+  border-color: var(--lp-accent, #22d3ee);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--lp-accent, #22d3ee) 35%, transparent);
+}
+#levelplan-section .lp-status-pick {
+  position: relative;
+  z-index: 3;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  background:
+    radial-gradient(circle at 0 0, rgba(34, 211, 238, 0.12), transparent 46%),
+    rgba(8, 14, 35, 0.98);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.14);
+  scroll-margin-top: 96px;
+  scroll-margin-bottom: 96px;
+}
+#levelplan-section .lp-status-pick__label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #67e8f9;
+}
+#levelplan-section .lp-status-pick__topic {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #f8fafc;
+}
+#levelplan-section .lp-status-pick__goal {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+#levelplan-section .lp-status-pick__opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#levelplan-section .lp-goal,
+#levelplan-section .lp-pills,
+#levelplan-section .lp-pill,
+#levelplan-section .lp-status-pick,
+#levelplan-section .lp-status-pick button {
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 #levelplan-section .lp-tier.is-free { opacity: 0.72; }
 #levelplan-section .lp-ring {
@@ -13238,6 +13308,14 @@ body.student-app #levelplan-section.card.section {
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
+#levelplan-section .lp-goal__badge {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fdba74;
+}
 #levelplan-section .lp-dot {
   width: 8px;
   height: 8px;
@@ -13263,9 +13341,13 @@ body.student-app #levelplan-section.card.section {
   border: 1px solid color-mix(in srgb, var(--lp-tier) 48%, transparent);
   background: rgba(6, 11, 29, 0.55);
   color: #e2e8f0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  position: relative;
+  z-index: 2;
+  touch-action: manipulation;
+  pointer-events: auto;
 }
 #levelplan-section .lp-pill--rookie { --lp-tier: #22d3ee; }
 #levelplan-section .lp-pill--operator { --lp-tier: #a855f7; }
@@ -14161,7 +14243,7 @@ body.student-app #levelplan-section.card.section {
 <script src="/js/logbuch-today.js?v=56"></script>
 <script src="/js/logbuch-ueben.js?v=5"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
-<script src="/js/logbuch-levelplan.js?v=37"></script>
+<script src="/js/logbuch-levelplan.js?v=38"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=34"></script>
