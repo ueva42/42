@@ -12793,6 +12793,676 @@ h2 {
 
   .notif-wrap{ top: 70px; right: 14px; }
 }
+
+/* Lernstand – nur #levelplan-section, Ziele und Ring-Klassen bleiben */
+body.student-app #levelplan-section.card.section {
+  overflow: visible;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 8px 0 24px;
+}
+@media (max-width: 900px) {
+  body.student-app #levelplan-section.card.section {
+    padding: 4px 2px 16px;
+  }
+}
+#levelplan-section > .page-hero {
+  min-height: 0;
+  margin: 0 auto 8px;
+  padding: 12px 16px;
+  max-width: 960px;
+  border-radius: 16px;
+}
+#levelplan-section > .page-hero .page-hero__content { max-width: 100%; }
+#levelplan-section > .page-hero h1.page-hero__title {
+  display: block;
+  margin: 0;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  text-shadow: none;
+  color: #f8fafc;
+}
+@media (max-width: 720px) {
+  #levelplan-section > .page-hero {
+    padding: 8px 0;
+    margin: 0 0 4px;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+  #levelplan-section > .page-hero .page-eyebrow,
+  #levelplan-section > .page-hero .page-hero__sub,
+  #levelplan-section > .page-hero .student-section-icon,
+  #levelplan-section > .page-hero .sol-hero__art {
+    display: none;
+  }
+}
+#levelplan-section #levelplan-screen-root { margin-top: 0; }
+#levelplan-section .student-page,
+#levelplan-section .page-grid { gap: 0; }
+#levelplan-section .lp-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
+}
+#levelplan-section .lp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+#levelplan-section button,
+#levelplan-section input,
+#levelplan-section select { font: inherit; }
+#levelplan-section button:focus-visible,
+#levelplan-section a:focus-visible,
+#levelplan-section select:focus-visible,
+#levelplan-section input:focus-visible {
+  outline: 2px solid #e2e8f0;
+  outline-offset: 2px;
+}
+#levelplan-section .lp-bar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  background: #070b18;
+}
+#levelplan-section .lp-bar__primary,
+#levelplan-section .lp-bar__secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 100%;
+}
+#levelplan-section .lp-bar__secondary { flex-wrap: nowrap; }
+#levelplan-section .lp-seg {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 4px;
+  border-radius: 999px;
+  background: #0f172a;
+  border: 1px solid #334155;
+}
+#levelplan-section .lp-seg button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #e2e8f0;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+#levelplan-section .lp-seg button.is-active {
+  background: #155e75;
+  color: #ecfeff;
+}
+#levelplan-section .lp-thema { flex: 1 1 auto; min-width: 0; }
+#levelplan-section .lp-thema select {
+  width: 100%;
+  min-height: 44px;
+  max-width: 100%;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #f8fafc;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 0 12px;
+}
+#levelplan-section .lp-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 700;
+}
+#levelplan-section .lp-chip--ka {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#levelplan-section .lp-chip--ziel {
+  flex: 0 0 auto;
+  border-color: #0e7490;
+  color: #ecfeff;
+  cursor: pointer;
+}
+#levelplan-section .lp-help {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 50%;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #f8fafc;
+  font-weight: 700;
+  cursor: pointer;
+}
+#levelplan-section .lp-card {
+  background: #0b1224;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  padding: 16px;
+  min-width: 0;
+}
+#levelplan-section .lp-card > h2,
+#levelplan-section .lp-sheet h2,
+#levelplan-section .lp-sheet h3,
+#levelplan-section .lp-goal__title,
+#levelplan-section .lp-next__title {
+  font-family: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  text-shadow: none;
+  border: 0;
+  color: #f8fafc;
+}
+#levelplan-section .lp-card > h2,
+#levelplan-section .lp-sheet h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  padding: 0;
+}
+#levelplan-section .lp-card__lead,
+#levelplan-section .lp-voluntary,
+#levelplan-section .lp-list-note,
+#levelplan-section .lp-lc-note,
+#levelplan-section .lp-empty,
+#levelplan-section .lp-next__detail,
+#levelplan-section .lp-next__miss,
+#levelplan-section .lp-sheet__goal,
+#levelplan-section .lp-sheet__note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+#levelplan-section .lp-card__lead { margin: -4px 0 12px; }
+#levelplan-section .lp-voluntary { margin-top: 8px; }
+#levelplan-section .lp-list-note,
+#levelplan-section .lp-lc-note { margin-bottom: 8px; }
+#levelplan-section .lp-tiers { display: flex; flex-direction: column; gap: 12px; }
+#levelplan-section .lp-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--lp-accent, #22d3ee);
+}
+#levelplan-section .lp-tier__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#levelplan-section .lp-tier__name { font-size: 14px; font-weight: 700; color: #f8fafc; }
+#levelplan-section .lp-tier__stat { font-size: 13px; color: #cbd5e1; text-align: right; }
+#levelplan-section .lp-fill {
+  height: 8px;
+  border-radius: 999px;
+  background: #1e293b;
+  overflow: hidden;
+}
+#levelplan-section .lp-fill > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--lp-accent, #22d3ee);
+  border-radius: inherit;
+  transition: width 180ms ease;
+}
+#levelplan-section .lp-mix {
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #1e293b;
+}
+#levelplan-section .lp-mix__seg--offen { background: #64748b; }
+#levelplan-section .lp-mix__seg--in_arbeit { background: #fbbf24; }
+#levelplan-section .lp-mix__seg--sicher { background: #22c55e; }
+#levelplan-section .lp-mix__key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+#levelplan-section .lp-next {
+  border-color: #155e75;
+  box-shadow: 0 0 24px rgba(34, 211, 238, 0.16);
+}
+#levelplan-section .lp-next__tier {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #a5f3fc;
+}
+#levelplan-section .lp-next__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+#levelplan-section .lp-next__detail { margin-top: 4px; }
+#levelplan-section .lp-next__go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  margin-top: 12px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: #155e75;
+  color: #ecfeff;
+  font-weight: 700;
+  text-decoration: none;
+}
+#levelplan-section .lp-next__miss { margin-top: 8px; }
+#levelplan-section .lp-once {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 12px;
+  background: #111827;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  font-size: 14px;
+}
+#levelplan-section .lp-once p { margin: 0; flex: 1 1 200px; }
+#levelplan-section .lp-once button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #67e8f9;
+  background: transparent;
+  color: #ecfeff;
+  font-weight: 700;
+  cursor: pointer;
+}
+#levelplan-section .lp-live {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+#levelplan-section .lp-live:empty { display: none; padding: 0; }
+#levelplan-section .lp-live.is-ok { background: #052e16; color: #bbf7d0; }
+#levelplan-section .lp-live.is-error { background: #450a0a; color: #fecaca; }
+#levelplan-section .lp-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+#levelplan-section .lp-filters button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #475569;
+  background: transparent;
+  color: #e2e8f0;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+#levelplan-section .lp-filters button.is-active {
+  background: #164e63;
+  border-color: #67e8f9;
+  color: #ecfeff;
+}
+#levelplan-section .lp-goal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid #1e293b;
+}
+#levelplan-section .lp-goal.is-plan-focus {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+#levelplan-section .lp-goal__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+#levelplan-section .lp-goal__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+#levelplan-section .lp-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #fbbf24;
+}
+#levelplan-section .lp-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#levelplan-section .lp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 2px solid var(--lp-tier, #94a3b8);
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 180ms ease, box-shadow 180ms ease;
+}
+#levelplan-section .lp-pill--rookie { --lp-tier: #22d3ee; }
+#levelplan-section .lp-pill--operator { --lp-tier: #a855f7; }
+#levelplan-section .lp-pill--street_legend { --lp-tier: #d946ef; }
+#levelplan-section .lp-pill--in_arbeit { background: #fbbf24; color: #1c1917; }
+#levelplan-section .lp-pill--sicher { background: #166534; color: #f0fdf4; }
+#levelplan-section .lp-pill.is-open { box-shadow: 0 0 16px var(--lp-tier); }
+#levelplan-section .lp-pill.is-busy { opacity: 0.55; }
+#levelplan-section .lp-more { display: none; }
+#levelplan-section .lp-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(2, 6, 23, 0.72);
+  cursor: pointer;
+}
+#levelplan-section .lp-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 80;
+  max-height: min(78vh, 560px);
+  overflow: auto;
+  box-sizing: border-box;
+  background: #0f172a;
+  color: #f8fafc;
+  border-radius: 16px 16px 0 0;
+  padding: 8px 16px 16px;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
+}
+#levelplan-section .lp-sheet:focus { outline: none; }
+#levelplan-section .lp-sheet:focus-visible {
+  outline: 2px solid #e2e8f0;
+  outline-offset: -2px;
+}
+#levelplan-section .lp-sheet__grab {
+  width: 40px;
+  height: 4px;
+  margin: 4px auto 12px;
+  border-radius: 999px;
+  background: #475569;
+}
+#levelplan-section .lp-sheet h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+#levelplan-section .lp-sheet__tiers {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+#levelplan-section .lp-sheet__tiers button {
+  flex: 1;
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 999px;
+  border: 2px solid var(--lp-tier, #64748b);
+  background: transparent;
+  color: #f8fafc;
+  font-weight: 700;
+  cursor: pointer;
+}
+#levelplan-section .lp-sheet__tiers button.is-active { background: #1e293b; }
+#levelplan-section .lp-sheet__status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#levelplan-section .lp-sheet__opt,
+#levelplan-section .lp-sheet__action,
+#levelplan-section .lp-sheet__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  background: #0b1224;
+  color: #f8fafc;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+#levelplan-section .lp-sheet__opt.is-active {
+  border-color: #67e8f9;
+  background: #164e63;
+}
+#levelplan-section .lp-sheet__note { margin-top: 8px; }
+#levelplan-section .lp-helpbox p + p { margin-top: 8px; }
+#levelplan-section .lp-lc { min-width: 0; padding-top: 12px; border-top: 1px solid #1e293b; }
+#levelplan-section .lp-lc:first-child { padding-top: 0; border-top: 0; }
+#levelplan-section .lp-lc-list { display: flex; flex-direction: column; gap: 12px; }
+#levelplan-section .lp-lc__date { margin: 0; font-size: 15px; font-weight: 700; color: #f8fafc; }
+#levelplan-section .lp-lc__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+#levelplan-section .lp-lc__chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 13px;
+}
+#levelplan-section .lp-lc__result { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+#levelplan-section .lp-lc__value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: left;
+  cursor: pointer;
+}
+#levelplan-section .lp-lc__value.is-empty { font-size: 18px; font-weight: 700; color: #e2e8f0; }
+#levelplan-section .lp-lc__unit { font-size: 16px; font-weight: 700; color: #cbd5e1; }
+#levelplan-section .lp-lc__input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid #22d3ee;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 28px;
+  font-weight: 800;
+}
+#levelplan-section .lp-lc__range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+#levelplan-section .lp-lc__range::-webkit-slider-runnable-track {
+  height: 8px;
+  background: #334155;
+  border-radius: 999px;
+}
+#levelplan-section .lp-lc__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  margin-top: -18px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  background: #22d3ee;
+}
+#levelplan-section .lp-lc__range::-moz-range-track {
+  height: 8px;
+  background: #334155;
+  border: 0;
+  border-radius: 999px;
+}
+#levelplan-section .lp-lc__range::-moz-range-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  background: #22d3ee;
+}
+#levelplan-section .lp-lc.is-pass .lp-lc__range::-webkit-slider-thumb,
+#levelplan-section .lp-lc.is-pass .lp-lc__range::-moz-range-thumb { background: #22c55e; }
+#levelplan-section .lp-lc.is-empty .lp-lc__range::-webkit-slider-thumb,
+#levelplan-section .lp-lc.is-empty .lp-lc__range::-moz-range-thumb {
+  background: #1e293b;
+  border-color: #cbd5e1;
+}
+@media (max-width: 900px) {
+  #levelplan-section .lp-sheet {
+    padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  }
+}
+@media (min-width: 1024px) {
+  #levelplan-section .lp-bar { flex-wrap: nowrap; }
+  #levelplan-section .lp-bar__primary,
+  #levelplan-section .lp-bar__secondary { flex: 0 1 auto; }
+  #levelplan-section .lp-thema { flex: 0 1 280px; }
+  #levelplan-section .lp-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 24px;
+  }
+  #levelplan-section .lp-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    background: transparent;
+    color: #f8fafc;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  #levelplan-section .lp-more.is-open { box-shadow: 0 0 16px rgba(34, 211, 238, 0.35); }
+  #levelplan-section .lp-sheet-backdrop { background: transparent; }
+  #levelplan-section .lp-sheet:not(.lp-sheet--help) { visibility: hidden; }
+  #levelplan-section .lp-sheet.is-popover {
+    visibility: visible;
+    right: auto;
+    bottom: auto;
+    width: min(320px, calc(100vw - 32px));
+    max-height: min(70vh, 480px);
+    border-radius: 16px;
+    border: 1px solid #334155;
+    padding: 16px;
+  }
+  #levelplan-section .lp-sheet--help {
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    width: min(440px, calc(100vw - 32px));
+    transform: translate(-50%, -50%);
+    border-radius: 16px;
+    border: 1px solid #334155;
+    padding: 16px;
+  }
+  #levelplan-section .lp-sheet__grab { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #levelplan-section .lp-pill,
+  #levelplan-section .lp-seg button,
+  #levelplan-section .lp-filters button,
+  #levelplan-section .lp-sheet,
+  #levelplan-section .lp-fill > span,
+  #levelplan-section .lp-next {
+    transition: none;
+  }
+}
   </style>
 </head>
 
@@ -13047,7 +13717,7 @@ h2 {
           <img src="/icons/student/png/lernstand.png" alt="" aria-hidden="true" onerror="this.style.display='none'">
         </div>
         <p class="page-eyebrow">Mein Lernstand</p>
-        <h2 class="page-hero__title">Mein Lernstand</h2>
+        <h1 class="page-hero__title">Mein Lernstand</h1>
         <p class="page-hero__sub">Sieh deine Entwicklung und was du schon sicher kannst.</p>
       </div>
             <div class="sol-hero__art" aria-hidden="true">
@@ -13348,7 +14018,7 @@ h2 {
 <script src="/js/logbuch-today.js?v=56"></script>
 <script src="/js/logbuch-ueben.js?v=5"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
-<script src="/js/logbuch-levelplan.js?v=35"></script>
+<script src="/js/logbuch-levelplan.js?v=36"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=34"></script>

@@ -1,5 +1,7 @@
 /**
- * SRL-Logbuch – Levelplan / Mein Lernstand (kompakte Tabellenansicht).
+ * SRL-Logbuch – Levelplan / Mein Lernstand.
+ * Die Termin-Regler zeigen level_check_targets.levelcheck_percent.
+ * Das ist eine Zahl pro Thema (level_check_id, user_id), nicht pro Termin.
  */
 (function () {
   const TIER_META = [
@@ -51,6 +53,10 @@
     pendingThemaId: null,
     pendingGoalId: null,
     popover: null,
+    sheet: null,
+    helpOpen: false,
+    editingLcId: null,
+    hintHidden: false,
     loading: false,
     saving: null,
     message: "",
@@ -166,7 +172,7 @@
 
   function goalMatchesStatusFilter(goal) {
     if (state.statusFilter === "all") return true;
-    return activeTiers().some((tier) => tierStatus(goal, tier.id) === state.statusFilter);
+    return markTiers().some((tier) => tierStatus(goal, tier.id) === state.statusFilter);
   }
 
   function applyArrivalQuery(query) {
@@ -282,7 +288,8 @@
         linkedGoalLabels: [],
         isPast: false,
         isUpcoming: true,
-        levelcheckPercent: Number.isInteger(Number(pct)) ? Number(pct) : null,
+        levelcheckPercent:
+          pct == null || pct === "" || !Number.isInteger(Number(pct)) ? null : Number(pct),
         levelcheckPassed: !!thema.target?.levelcheckPassed,
         unlockThreshold: passPercent()
       }
@@ -419,397 +426,474 @@
     }
   }
 
-  function hasQuizMaterial(goal) {
+  const HINT_KEY = "sol-levelplan-hint";
+  const TIER_ACCENT = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#d946ef" };
+  const lcResultSaveTimers = {};
+  let sheetKeyHandler = null;
+  let ignorePercentBlur = false;
+  let percentCommitLock = false;
+
+  function tierShort(id) {
+    if (id === "rookie") return "R";
+    if (id === "operator") return "O";
+    if (id === "street_legend") return "SL";
+    return "U";
+  }
+
+  function markTiers() {
+    const active = activeTiers().filter((tier) => tier.id !== "unterthema");
+    return active.length ? active : TIER_META.filter((tier) => tier.id !== "unterthema");
+  }
+
+  function onceHintVisible() {
+    if (state.hintHidden) return false;
+    try {
+      return localStorage.getItem(HINT_KEY) !== "1";
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function dismissHint() {
+    state.hintHidden = true;
+    try {
+      localStorage.setItem(HINT_KEY, "1");
+    } catch (err) {
+      /* Anzeige bleibt für diesen Besuch aus, auch ohne Speicher. */
+    }
+  }
+
+  function kaLabel(thema) {
+    const iso = String(thema?.target?.checkpointDate || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+    const date = new Date(`${iso}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return "";
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const days = Math.round((date.getTime() - today.getTime()) / 86400000);
+    const short = date.toLocaleDateString("de-DE", {
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit"
+    });
+    let when = `KA in ${days} Tagen`;
+    if (days === 1) when = "KA morgen";
+    else if (days === 0) when = "KA heute";
+    else if (days === -1) when = "KA gestern";
+    else if (days < 0) when = `KA vor ${Math.abs(days)} Tagen`;
+    return `${when} · ${short}`;
+  }
+
+  function materialInfo(goal) {
+    if (!goal) return { url: "", note: "" };
     const material = goal.material || null;
     const type = material?.type || goal.materialType || (goal.practiceUrl ? "url" : "none");
-    return type !== "none" || !!goal.practiceUrl;
+    const url = type === "url" ? String(material?.url || goal.practiceUrl || "").trim() : "";
+    let note = "";
+    if (!url && (type === "reference" || type === "note")) {
+      note = [material?.label || goal.materialLabel, material?.note || goal.materialNote]
+        .filter(Boolean)
+        .join(" · ");
+    }
+    return { url, note };
   }
 
-  function practicePercentOf(goal) {
-    const n = Number(goal?.practicePercent);
-    return Number.isInteger(n) && n >= 0 && n <= 100 ? n : null;
+  function tierCounts(thema, tierId) {
+    const counts = { offen: 0, in_arbeit: 0, sicher: 0 };
+    for (const goal of thema?.goals || []) {
+      const status = tierStatus(goal, tierId);
+      if (status === "sicher") counts.sicher += 1;
+      else if (status === "in_arbeit") counts.in_arbeit += 1;
+      else counts.offen += 1;
+    }
+    return counts;
   }
 
-  function materialLinkLabel(goal, material) {
-    const raw = String(material?.label || goal.materialLabel || "").trim();
-    if (!raw || /^(quiz|lerncheck)(\s+öffnen)?$/i.test(raw)) return "Material";
-    return raw;
+  function tierStand(thema, tierId, progress) {
+    const goals = thema?.goals || [];
+    const total = goals.length;
+    const counts = tierCounts(thema, tierId);
+    const server = (thema?.target?.tiers || []).find((tier) => tier.id === tierId) || {};
+    const serverCurrent = Number(server.current);
+    const current = Number.isFinite(serverCurrent) ? serverCurrent : counts.sicher;
+    const recommendedRaw =
+      server.recommended != null ? Number(server.recommended) : progress.recommended?.[tierId];
+    const recommended = Number.isFinite(recommendedRaw) ? recommendedRaw : null;
+    const rules = progress.hasTarget
+      ? window.LOGBUCH?.getGradeRequirements?.(progress.targetGrade)
+      : null;
+    const pctRequired = rules ? Math.round((Number(rules[tierId]) || 0) * 100) : null;
+    const needed = progress.hasTarget ? recommended ?? 0 : total;
+    const free = progress.hasTarget && (pctRequired === 0 || needed <= 0);
+    let fill = 0;
+    if (!free && needed > 0) fill = Math.min(100, Math.round((current / needed) * 100));
+    let stat;
+    if (!progress.hasTarget) stat = `${current} von ${total} sicher`;
+    else if (free) stat = "nicht nötig";
+    else if (pctRequired == null) stat = `${current} von ${needed} sicher`;
+    else if (pctRequired >= 100) stat = `${current} von ${needed} sicher · alle nötig`;
+    else stat = `${current} von ${needed} · ${pctRequired} % nötig`;
+    return { fill, stat, counts };
   }
 
-  function renderPracticeDial(goal) {
-    if (!isLevelcheckLinkedGoal(goal.id)) return "";
-    const pct = practicePercentOf(goal);
-    const shown = pct == null ? 0 : pct;
-    const passed = pct != null && pct >= passPercent();
+  function renderMix(counts) {
+    const total = counts.offen + counts.in_arbeit + counts.sicher;
+    const seg = (key) => {
+      const n = counts[key];
+      if (!n || !total) return "";
+      return `<span class="lp-mix__seg lp-mix__seg--${key}" style="width:${(n / total) * 100}%"></span>`;
+    };
     return `
-      <div class="lp-practice-slider ${passed ? "is-pass" : ""}" data-lp-practice-wrap data-goal-id="${escapeHtml(goal.id)}">
-        <div class="lp-practice-slider__row">
-          <input
-            type="range"
-            class="lp-practice-range"
-            min="0"
-            max="100"
-            step="1"
-            value="${shown}"
-            aria-label="Ergebnis Levelcheck in Prozent"
-          />
-          <strong class="lp-practice-slider__value" data-lp-practice-value>${pct == null ? "–" : `${pct} %`}</strong>
+      <div class="lp-mix" aria-hidden="true">${seg("offen")}${seg("in_arbeit")}${seg("sicher")}</div>
+      <p class="lp-mix__key"><span>○ Offen ${counts.offen}</span><span>◑ In Arbeit ${counts.in_arbeit}</span><span>✓ Sicher ${counts.sicher}</span></p>`;
+  }
+
+  function renderTierRow(thema, tier, progress) {
+    const stand = tierStand(thema, tier.id, progress);
+    const accent = TIER_ACCENT[tier.id] || "#22d3ee";
+    return `
+      <div class="lp-tier" style="--lp-accent:${accent}">
+        <div class="lp-tier__top">
+          <span class="lp-tier__name">${escapeHtml(tier.label)}</span>
+          <span class="lp-tier__stat">${escapeHtml(stand.stat)}</span>
         </div>
-        <p class="lp-practice-caption">Ergebnis Levelcheck</p>
+        <div class="lp-fill" aria-hidden="true"><span style="width:${stand.fill}%"></span></div>
+        ${renderMix(stand.counts)}
       </div>`;
   }
 
-  function renderMaterialCell(goal) {
-    const material = goal.material || null;
-    const type = material?.type || goal.materialType || (goal.practiceUrl ? "url" : "none");
-    let body = `<span class="lp-material-empty" aria-hidden="true">–</span>`;
-    if (type === "url" && (material?.url || goal.practiceUrl)) {
-      const url = material?.url || goal.practiceUrl;
-      const label = materialLinkLabel(goal, material);
-      body = `<a class="lp-material-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
-    } else if (type === "reference" || type === "note") {
-      const parts = [material?.label || goal.materialLabel, material?.note || goal.materialNote].filter(Boolean);
-      if (parts.length) {
-        body = `<span class="lp-material-hint">${escapeHtml(parts.join(" · "))}</span>`;
-      }
+  function renderVoluntaryLine(thema) {
+    const counts = tierCounts(thema, "unterthema");
+    const extra = counts.sicher > 0 ? ` · ${counts.sicher} sicher` : "";
+    return `<p class="lp-voluntary">Unterthema frei · Freiwillige Vertiefung${extra}</p>`;
+  }
+
+  function renderThemaControl(themen) {
+    if (themen.length <= 1) {
+      return `<span class="lp-chip lp-thema-chip">${escapeHtml(themen[0]?.name || "Thema")}</span>`;
     }
-    return `<div class="lp-material-cell">${body}</div>`;
-  }
-
-  function isMathSubject(name) {
-    return window.LogbuchCoach?.isMathSubject
-      ? window.LogbuchCoach.isMathSubject(name)
-      : String(name || "").trim().toLowerCase() === "mathe";
-  }
-
-  function coachFieldButton(goal, tier) {
-    if (!state.coachEnabled || !window.LogbuchCoach?.isEnabled()) return "";
-    if (!isMathSubject(state.selectedSubject)) return "";
-    if (tier.id !== "rookie" && tier.id !== "operator" && tier.id !== "street_legend") return "";
-    const thema = selectedThema();
-    return `<button type="button" class="lp-coach-field" data-lp-coach="${escapeHtml(goal.id)}" data-lp-level="${escapeHtml(tier.id)}" data-lp-label="${escapeHtml(goal.text || "")}" data-lp-thema="${escapeHtml(thema?.name || "")}" aria-label="Coach für ${escapeHtml(tier.label)}">Coach</button>`;
-  }
-
-  function renderLevelField(goal, tier) {
-    const coach = coachFieldButton(goal, tier);
-    if (!coach) return renderStatusButton(goal, tier);
-    return `<div class="lp-level-field lp-level-field--with-coach">${renderStatusButton(goal, tier)}${coach}</div>`;
-  }
-
-  function renderStatusButton(goal, tier) {
-    const key = `${goal.id}_${tier.id}`;
-    const busy = state.saving === key;
-    const status = tierStatus(goal, tier.id);
-    const meta = STATUS_META[status] || STATUS_META.offen;
-    const isOpen =
-      state.popover &&
-      state.popover.goalId === goal.id &&
-      state.popover.tier === tier.id;
-
-    return `
-      <div class="lp-status-wrap ${isOpen ? "is-open" : ""}">
-        <button
-          type="button"
-          class="lp-status-cell ${meta.cellClass} ${busy ? "is-busy" : ""}"
-          data-lp-status="${escapeHtml(goal.id)}"
-          data-lp-tier="${escapeHtml(tier.id)}"
-          aria-label="${escapeHtml(tier.label)}: ${escapeHtml(meta.label)}"
-          aria-haspopup="listbox"
-          aria-expanded="${isOpen ? "true" : "false"}"
-          title="Klicken zum Ändern"
-          ${busy ? "disabled" : ""}
-        >
-          <span class="lp-status-cell__icon" aria-hidden="true">${meta.icon}</span>
-          <span class="lp-status-cell__label">${escapeHtml(meta.label)}</span>
-        </button>
-        ${
-          isOpen
-            ? `<div class="lp-status-picker" role="listbox" aria-label="Status wählen">
-                ${statusOptions()
-                  .map(
-                    (opt) => `
-                  <button
-                    type="button"
-                    class="lp-status-picker__opt ${opt.id === status ? "is-active" : ""}"
-                    data-lp-pick="${escapeHtml(opt.id)}"
-                    data-lp-pick-goal="${escapeHtml(goal.id)}"
-                    data-lp-pick-tier="${escapeHtml(tier.id)}"
-                    role="option"
-                    aria-selected="${opt.id === status ? "true" : "false"}"
-                  >${escapeHtml(opt.label)}</button>`
-                  )
-                  .join("")}
-              </div>`
-            : ""
-        }
-      </div>`;
-  }
-
-  function renderStatusCell(goal, tier) {
-    return `
-      <td class="${tier.colClass}">
-        ${renderLevelField(goal, tier)}
-      </td>`;
-  }
-
-  function renderDetailRow(goal, colSpan) {
-    const tiers = activeTiers();
-    return `
-      <tr class="lp-detail-row">
-        <td colspan="${colSpan}">
-          <div class="lp-detail-panel">
-            <p class="lp-detail-panel__title">${escapeHtml(goal.text)}</p>
-            ${tiers
-              .filter((tier) => tier.id !== "unterthema")
-              .map(
-                (tier) => `
-              <div class="lp-detail-panel__tier">
-                <span class="lp-detail-panel__tier-label ${tier.colClass}">${escapeHtml(tier.label)}</span>
-                <p>${escapeHtml(tierGoalText(goal, tier))}</p>
-              </div>`
-              )
-              .join("")}
-            <div class="lp-detail-panel__material">${renderMaterialCell(goal)}</div>
-          </div>
-        </td>
-      </tr>`;
-  }
-
-  function renderDesktopTable(goals) {
-    const tiers = activeTiers();
-    const colSpan = 2 + tiers.length;
-    const linked = linkedGoalIdsForThema(selectedThema()?.id);
-    const headerCells = tiers
-      .map((tier) => `<th class="${tier.colClass}">${escapeHtml(tier.label)}</th>`)
-      .join("");
-
-    const rows = goals
-      .map((goal) => {
-        const expanded = String(state.expandedGoalId) === String(goal.id);
-        const isChecked = linked.has(String(goal.id));
-        const isFocus = String(state.focusGoalId) === String(goal.id);
-        const main = `
-          <tr class="lp-table__row ${expanded ? "is-expanded" : ""} ${isChecked ? "is-levelcheck-goal" : ""} ${isFocus ? "is-plan-focus" : ""}">
-            <th scope="row" class="lp-table__topic">
-              <button type="button" class="lp-topic-btn" data-lp-expand="${escapeHtml(goal.id)}" aria-expanded="${expanded ? "true" : "false"}">
-                <span class="lp-topic-btn__title">${escapeHtml(goal.text)}</span>
-                ${isChecked ? `<span class="lp-lc-tag">im Levelcheck</span>` : ""}
-              </button>
-            </th>
-            ${tiers.map((tier) => renderStatusCell(goal, tier)).join("")}
-            <td class="lp-table__material">${renderMaterialCell(goal)}</td>
-          </tr>`;
-        return main + (expanded ? renderDetailRow(goal, colSpan) : "");
+    const options = themen
+      .map((thema) => {
+        const selected = String(thema.id) === String(state.selectedThemaId) ? " selected" : "";
+        return `<option value="${escapeHtml(thema.id)}"${selected}>${escapeHtml(thema.name)}</option>`;
       })
       .join("");
-
-    const nameHeader =
-      tiers.some((t) => t.id === "unterthema") && tiers.length > 1 ? "Thema" : "Unterthema";
-    const statusHeaders =
-      tiers.length === 1
-        ? `<th class="${tiers[0].colClass}">Lernstand</th>`
-        : headerCells;
-
-    return `
-      <div class="lp-table-wrap" role="region" aria-label="Lernstandstabelle">
-        <table class="lp-table">
-          <thead>
-            <tr>
-              <th>${escapeHtml(nameHeader)}</th>
-              ${statusHeaders}
-              <th>Material</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+    return `<label class="lp-thema"><span class="lp-sr">Thema</span><select data-lp-thema="${escapeHtml(state.selectedThemaId || "")}">${options}</select></label>`;
   }
 
-  function renderMobileCards(goals) {
-    const tiers = activeTiers();
-    const linked = linkedGoalIdsForThema(selectedThema()?.id);
-    return `
-      <div class="lp-mobile-list">
-        ${goals
-          .map((goal) => {
-            const expanded = String(state.expandedGoalId) === String(goal.id);
-            const isChecked = linked.has(String(goal.id));
-            const isFocus = String(state.focusGoalId) === String(goal.id);
-            return `
-            <article class="lp-mobile-card ${isChecked ? "is-levelcheck-goal" : ""} ${isFocus ? "is-plan-focus" : ""}">
-              <button type="button" class="lp-mobile-card__head" data-lp-expand="${escapeHtml(goal.id)}" aria-expanded="${expanded ? "true" : "false"}">
-                <h4>${escapeHtml(goal.text)}${isChecked ? ` <span class="lp-lc-tag">im Levelcheck</span>` : ""}</h4>
-              </button>
-              <div class="lp-mobile-card__tiers">
-                ${tiers
-                  .map(
-                    (tier) => `
-                  <div class="lp-mobile-tier ${tier.colClass}">
-                    <span class="lp-mobile-tier__label">${escapeHtml(tier.label)}</span>
-                    <div class="lp-mobile-tier__cell">${renderLevelField(goal, tier)}</div>
-                  </div>`
-                  )
-                  .join("")}
-              </div>
-              <div class="lp-mobile-card__material">${renderMaterialCell(goal)}</div>
-              ${
-                expanded
-                  ? `<div class="lp-mobile-card__detail">${renderDetailRow(goal, 1)
-                      .replace(/<\/?tr[^>]*>/g, "")
-                      .replace(/<td[^>]*>/, "")
-                      .replace(/<\/td>/, "")}</div>`
-                  : ""
-              }
-            </article>`;
-          })
-          .join("")}
-      </div>`;
-  }
-
-  function renderLevelcheckResult(thema) {
-    const checks = levelcheckRecordsForThema(thema?.id).filter(
-      (lc) => (lc.linkedGoalIds || []).length > 0
-    );
-    if (!checks.length) return "";
-
-    const cards = checks
-      .map((lc) => {
-        const threshold = lc.unlockThreshold || passPercent();
-        const pct = lc.levelcheckPercent;
-        const shown = pct == null ? 0 : pct;
-        const passed = pct != null && pct >= threshold;
-        const names = (lc.linkedGoalLabels || []).filter(Boolean);
-        const count = (lc.linkedGoalIds || []).length;
-        const meta = names.length
-          ? names.slice(0, 3).join(" · ") + (names.length > 3 ? " …" : "")
-          : count
-            ? `${count} geprüfte Ziele`
-            : "ohne Note";
-        return `
-        <article class="lp-lc-result ${passed ? "is-pass" : ""}" data-lp-lc-result data-topic-id="${escapeHtml(lc.levelCheckId)}" data-threshold="${threshold}">
-          <div class="lp-lc-result__copy">
-            <p class="lp-lc-result__kicker">Levelcheck${lc.dateLabel ? ` · ${escapeHtml(lc.dateLabel)}` : ""}</p>
-            <h3 class="lp-lc-result__title">Ergebnis Levelcheck</h3>
-            <p class="lp-lc-result__meta">${escapeHtml(meta)}</p>
-          </div>
-          <div class="lp-practice-slider ${passed ? "is-pass" : ""}">
-            <div class="lp-practice-slider__row">
-              <input
-                type="range"
-                class="lp-practice-range lp-lc-result__range"
-                min="0"
-                max="100"
-                step="1"
-                value="${shown}"
-                aria-label="Ergebnis Levelcheck in Prozent"
-              />
-              <strong class="lp-practice-slider__value" data-lp-lc-result-value>${pct == null ? "–" : `${pct} %`}</strong>
-            </div>
-            <p class="lp-practice-caption">richtig</p>
-          </div>
-        </article>`;
-      })
-      .join("");
-
-    return `<section class="lp-lc-result-list" aria-label="Ergebnis Levelcheck">${cards}</section>`;
-  }
-
-  function renderTargetRings(thema, p) {
-    if (!p.hasTarget) {
-      return `
-        <p class="lp-dash__featured-meta">
-          Zielnote noch nicht gesetzt – unter <span class="lp-dash__link">Ziele</span> festlegen.
-          Danach siehst du hier, wie viel Prozent Rookie, Operator und Street Legend du für die Arbeit brauchst.
-        </p>`;
-    }
-
-    const rules = window.LOGBUCH?.getGradeRequirements?.(p.targetGrade);
-    const accents = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f472b6" };
-    const serverTiers = thema.target?.tiers || [];
-
-    const cards = TIER_META.map((meta) => {
-      const pctRequired = rules ? Math.round((Number(rules[meta.id]) || 0) * 100) : 0;
-      const server = serverTiers.find((t) => t.id === meta.id) || {};
-      const recommended = Number(server.recommended ?? p.recommended?.[meta.id]) || 0;
-      const current = Number(server.current) || 0;
-      const isFree = pctRequired <= 0 || recommended <= 0;
-      const stand = isFree
-        ? current > 0
-          ? `Stand: ${current} (Vertiefung)`
-          : "nicht nötig für diese Zielnote"
-        : `Stand: ${current}/${recommended} sicher`;
-
-      return `
-        <article class="zielpfad-ring-card ${isFree ? "is-voluntary" : ""}" style="--grade-accent:${accents[meta.id]}">
-          <div class="grade-goal-ring" style="--progress:${isFree ? 0 : pctRequired}; --accent:${accents[meta.id]}">
-            <div class="grade-goal-ring__inside">
-              <span class="grade-goal-ring__grade">${escapeHtml(meta.label)}</span>
-              <strong>${isFree ? "frei" : `${pctRequired} %`}</strong>
-            </div>
-          </div>
-          <div class="zielpfad-ring-card__text">
-            <strong>${escapeHtml(meta.label)}</strong>
-            <span>${
-              isFree
-                ? "Freiwillige Vertiefung"
-                : `${pctRequired} % für Zielnote ${escapeHtml(p.targetGradeLabel)}`
-            }</span>
-            <div class="zielpfad-ring-card__stand">
-              <span>Dein Stand</span>
-              <strong>${escapeHtml(stand)}</strong>
-            </div>
-          </div>
-        </article>`;
-    }).join("");
-
-    return `<div class="zielpfad-ring-grid lp-dash__rings">${cards}</div>`;
-  }
-
-  function renderOverview() {
-    const thema = selectedThema();
-    if (!thema) return "";
-    return renderTargetRings(thema, computeTopicProgress(thema));
-  }
-
-  function renderFilters() {
-    const visuals = V();
+  function renderBar(thema, progress) {
     const subjects = subjectsWithData();
     const themen = levelChecksForSubject(state.selectedSubject);
-
-    const subjectChips = visuals?.chipBar(
-      subjects.map((g) => ({ value: g.subject, label: g.subject })),
-      state.selectedSubject,
-      "data-lp-subject"
-    );
-
-    const themaChips = themen.length
-      ? visuals.chipBar(
-          themen.map((t) => ({
-            value: String(t.id),
-            label: t.target?.checkpointDateLabel
-              ? `${t.name} · ${t.target.checkpointDateLabel}`
-              : `${t.name} (${(t.goals || []).length})`
-          })),
-          String(state.selectedThemaId),
-          "data-lp-thema"
-        )
-      : "";
-
-    const statusChips = `
-      <div class="lp-filter-bar">
-        <span class="lp-filter-bar__label">Status</span>
-        <div class="day-chip-bar">
-          ${STATUS_FILTERS.map(
-            (f) =>
-              `<button type="button" class="day-chip ${state.statusFilter === f.id ? "is-active" : ""}" data-lp-status-filter="${escapeHtml(f.id)}">${escapeHtml(f.label)}</button>`
-          ).join("")}
+    const subjectButtons = subjects
+      .map((group) => {
+        const on = group.subject === state.selectedSubject;
+        return `<button type="button" role="tab" class="${on ? "is-active" : ""}" data-lp-subject="${escapeHtml(group.subject)}" aria-selected="${on ? "true" : "false"}">${escapeHtml(group.subject)}</button>`;
+      })
+      .join("");
+    const ka = kaLabel(thema);
+    const ziel = progress.hasTarget ? `Ziel: Note ${progress.targetGradeLabel}` : "Zielnote setzen";
+    return `
+      <div class="lp-bar">
+        <div class="lp-bar__primary">
+          <div class="lp-seg" role="tablist" aria-label="Fach">${subjectButtons}</div>
+          ${renderThemaControl(themen)}
+        </div>
+        <div class="lp-bar__secondary">
+          ${ka ? `<span class="lp-chip lp-chip--ka" title="${escapeHtml(ka)}">${escapeHtml(ka)}</span>` : ""}
+          <button type="button" class="lp-chip lp-chip--ziel" data-lp-ziel>${escapeHtml(ziel)}</button>
+          <button type="button" class="lp-help" data-lp-help aria-expanded="${state.helpOpen ? "true" : "false"}" aria-label="Hinweis zum Lernstand">?</button>
         </div>
       </div>`;
-
-    return `${subjectChips || ""}${themaChips || ""}${statusChips}`;
   }
 
-  function renderContent() {
+  function renderProgressCard(thema, progress) {
+    const title = progress.hasTarget
+      ? `Dein Weg zur Note ${progress.targetGradeLabel}`
+      : "Dein Lernstand";
+    const lead = progress.hasTarget
+      ? ""
+      : `<p class="lp-card__lead">Zielnote noch nicht gesetzt.</p>`;
+    const rows = markTiers().map((tier) => renderTierRow(thema, tier, progress)).join("");
+    return `
+      <section class="lp-card" aria-labelledby="lp-progress-title">
+        <h2 id="lp-progress-title">${escapeHtml(title)}</h2>
+        ${lead}
+        <div class="lp-tiers">${rows}</div>
+        ${renderVoluntaryLine(thema)}
+      </section>`;
+  }
+
+  function nextStepModel(thema) {
+    const items = Array.isArray(thema?.target?.workItems) ? thema.target.workItems : [];
+    if (thema?.target?.targetGrade) {
+      const item = items[0];
+      if (!item || item.status === "sicher" || item.status === "geschafft") return null;
+      const goal = (thema.goals || []).find((entry) => String(entry.id) === String(item.goalId)) || null;
+      const info = goal ? materialInfo(goal) : { url: "", note: "" };
+      return {
+        title: item.goalText || goal?.text || "Nächstes Unterthema",
+        detail: item.taskText || "",
+        tierLabel: item.tierLabel || "",
+        url: info.url || item.practiceUrl || ""
+      };
+    }
+    for (const tier of markTiers()) {
+      for (const goal of thema?.goals || []) {
+        if (tierStatus(goal, tier.id) === "sicher") continue;
+        const detail = tierGoalText(goal, tier);
+        return {
+          title: goal.text,
+          detail,
+          tierLabel: tier.label,
+          url: materialInfo(goal).url
+        };
+      }
+    }
+    return null;
+  }
+
+  function renderNextStep(thema) {
+    const step = nextStepModel(thema);
+    if (!step) return "";
+    const detail = step.detail && step.detail !== step.title && step.detail !== "–" ? step.detail : "";
+    const go = step.url
+      ? `<a class="lp-next__go" href="${escapeHtml(step.url)}" target="_blank" rel="noopener noreferrer">Loslegen</a>`
+      : `<p class="lp-next__miss">Für diesen Schritt ist noch kein Material hinterlegt.</p>`;
+    return `
+      <section class="lp-card lp-next" aria-labelledby="lp-next-title">
+        <h2 id="lp-next-title">Dein nächster Schritt</h2>
+        ${step.tierLabel ? `<p class="lp-next__tier">${escapeHtml(step.tierLabel)}</p>` : ""}
+        <p class="lp-next__title">${escapeHtml(step.title)}</p>
+        ${detail ? `<p class="lp-next__detail">${escapeHtml(detail)}</p>` : ""}
+        ${go}
+      </section>`;
+  }
+
+  function renderOnceHint() {
+    if (!onceHintVisible()) return "";
+    return `
+      <div class="lp-once">
+        <p>Tippe eine Stufe an und wähle Offen, In Arbeit oder Sicher. Ein Punkt am Titel heißt: das Unterthema gehört zu einem Levelcheck.</p>
+        <button type="button" data-lp-once-dismiss>Verstanden</button>
+      </div>`;
+  }
+
+  function renderLive() {
+    const text = state.error || state.message || "";
+    const cls = state.error ? "is-error" : text ? "is-ok" : "";
+    return `<p class="lp-live ${cls}" role="status">${escapeHtml(text)}</p>`;
+  }
+
+  function goalHasStatus(goal, status) {
+    return markTiers().some((tier) => tierStatus(goal, tier.id) === status);
+  }
+
+  function renderStatusFilters(goals) {
+    const buttons = STATUS_FILTERS.map((filter) => {
+      const count =
+        filter.id === "all" ? goals.length : goals.filter((goal) => goalHasStatus(goal, filter.id)).length;
+      const on = state.statusFilter === filter.id;
+      return `<button type="button" class="${on ? "is-active" : ""}" data-lp-status-filter="${escapeHtml(filter.id)}" aria-pressed="${on ? "true" : "false"}">${escapeHtml(filter.label)} ${count}</button>`;
+    }).join("");
+    return `<div class="lp-filters" role="group" aria-label="Status filtern">${buttons}</div>`;
+  }
+
+  function renderGoalRow(goal, linked, allLinked) {
+    const sheetForGoal = state.sheet && String(state.sheet.goalId) === String(goal.id);
+    const moreOpen = !!(sheetForGoal && state.sheet.via === "more");
+    const showDot = !allLinked && linked.has(String(goal.id));
+    const focus = String(state.focusGoalId) === String(goal.id);
+    const pills = markTiers()
+      .map((tier) => {
+        const raw = tierStatus(goal, tier.id);
+        const status = STATUS_META[raw] ? raw : "offen";
+        const meta = STATUS_META[status];
+        const open = !!(sheetForGoal && state.sheet.via !== "more" && state.sheet.tier === tier.id);
+        const busy = state.saving === `${goal.id}_${tier.id}`;
+        return `<button type="button" class="lp-pill lp-pill--${tier.id} lp-pill--${status} ${open ? "is-open" : ""} ${busy ? "is-busy" : ""}" data-lp-pill="${escapeHtml(goal.id)}" data-lp-tier="${escapeHtml(tier.id)}" aria-haspopup="dialog" aria-expanded="${open ? "true" : "false"}" aria-label="${escapeHtml(tier.label)}: ${escapeHtml(meta.label)}" ${busy ? "disabled" : ""}><span class="lp-pill__tier">${tierShort(tier.id)}</span><span class="lp-pill__icon" aria-hidden="true">${meta.icon}</span><span class="lp-pill__status">${escapeHtml(meta.label)}</span></button>`;
+      })
+      .join("");
+    return `
+      <article class="lp-goal ${focus ? "is-plan-focus" : ""}" data-lp-goal="${escapeHtml(goal.id)}">
+        <div class="lp-goal__head">
+          ${showDot ? `<span class="lp-dot" aria-hidden="true"></span><span class="lp-sr">Im Levelcheck</span>` : ""}
+          <h3 class="lp-goal__title">${escapeHtml(goal.text)}</h3>
+          <button type="button" class="lp-more ${moreOpen ? "is-open" : ""}" data-lp-more="${escapeHtml(goal.id)}" aria-haspopup="dialog" aria-expanded="${moreOpen ? "true" : "false"}" aria-label="Aktionen zu ${escapeHtml(goal.text)}">⋯</button>
+        </div>
+        <div class="lp-pills">${pills}</div>
+      </article>`;
+  }
+
+  function renderGoalList(thema) {
+    const allGoals = thema?.goals || [];
+    const linked = linkedGoalIdsForThema(thema?.id);
+    const allLinked = allGoals.length > 0 && allGoals.every((goal) => linked.has(String(goal.id)));
+    let goals = allGoals.filter(goalMatchesStatusFilter);
+    if (state.focusLevelcheckGoals && linked.size) {
+      goals = [...goals].sort((a, b) => {
+        const aLinked = linked.has(String(a.id)) ? 0 : 1;
+        const bLinked = linked.has(String(b.id)) ? 0 : 1;
+        return aLinked - bLinked;
+      });
+    }
+    const note = allLinked
+      ? `<p class="lp-list-note">Alle Unterthemen sind einem Levelcheck zugeordnet.</p>`
+      : "";
+    const rows = goals.length
+      ? `<div class="lp-list">${goals.map((goal) => renderGoalRow(goal, linked, allLinked)).join("")}</div>`
+      : `<p class="lp-empty">${allGoals.length ? "Für diesen Status gibt es hier keine Unterthemen." : "Für dieses Thema gibt es noch keine Unterthemen."}</p>`;
+    return `
+      <section class="lp-card" aria-labelledby="lp-goals-title">
+        <h2 id="lp-goals-title">Unterthemen</h2>
+        ${renderStatusFilters(allGoals)}
+        ${note}
+        ${rows}
+      </section>`;
+  }
+
+  function storedPercent(lc) {
+    if (lc?.levelcheckPercent == null || lc.levelcheckPercent === "") return null;
+    const n = Number(lc.levelcheckPercent);
+    if (!Number.isInteger(n) || n < 0 || n > 100) return null;
+    return n;
+  }
+
+  function renderPercentControl(lc, pct, hasValue) {
+    const editing = String(state.editingLcId) === String(lc.id);
+    if (editing) {
+      return `<input class="lp-lc__input" type="number" inputmode="numeric" min="0" max="100" step="1" value="${hasValue ? pct : ""}" data-topic-id="${escapeHtml(lc.levelCheckId)}" aria-label="Ergebnis in Prozent, gilt für das ganze Thema">`;
+    }
+    const label = hasValue
+      ? `${pct} % <span class="lp-lc__unit">richtig</span>`
+      : "Ergebnis eintragen";
+    return `<button type="button" class="lp-lc__value ${hasValue ? "" : "is-empty"}" data-lp-pct-edit data-lc-id="${escapeHtml(lc.id)}" aria-label="Ergebnis direkt eingeben">${label}</button>`;
+  }
+
+  function renderLevelchecks(thema) {
+    const checks = levelcheckRecordsForThema(thema?.id);
+    if (!checks.length) return "";
+    const note =
+      checks.length > 1
+        ? `<p class="lp-lc-note">Die Termine gehören zu einem Thema und teilen sich ein Ergebnis.</p>`
+        : "";
+    const cards = checks
+      .map((lc) => {
+        const pct = storedPercent(lc);
+        const hasValue = pct != null;
+        const shown = hasValue ? pct : 0;
+        const names = (lc.linkedGoalLabels || []).filter(Boolean);
+        const chips = names.length
+          ? `<ul class="lp-lc__chips">${names
+              .map((name) => `<li class="lp-lc__chip">${escapeHtml(name)}</li>`)
+              .join("")}</ul>`
+          : "";
+        const passed = hasValue && pct >= (lc.unlockThreshold || passPercent());
+        return `
+          <article class="lp-lc ${passed ? "is-pass" : ""} ${hasValue ? "" : "is-empty"}" data-lp-lc-result data-topic-id="${escapeHtml(lc.levelCheckId)}" data-lc-id="${escapeHtml(lc.id)}" data-threshold="${lc.unlockThreshold || passPercent()}" aria-label="Levelcheck ${escapeHtml(lc.dateLabel || lc.date || "")}">
+            <p class="lp-lc__date">${escapeHtml(lc.dateLabel || lc.date || "Levelcheck")}</p>
+            ${chips}
+            <div class="lp-lc__result">
+              ${renderPercentControl(lc, pct, hasValue)}
+              <input type="range" class="lp-lc__range" min="0" max="100" step="1" value="${shown}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${shown}" aria-valuetext="${hasValue ? `${pct} Prozent richtig` : "Ergebnis eintragen"}" aria-label="Ergebnis Levelcheck in Prozent, gilt für das ganze Thema">
+            </div>
+          </article>`;
+      })
+      .join("");
+    return `
+      <section class="lp-card" aria-labelledby="lp-lc-title">
+        <h2 id="lp-lc-title">Levelchecks · ${checks.length}</h2>
+        ${note}
+        <div class="lp-lc-list">${cards}</div>
+      </section>`;
+  }
+
+  function coachAllowed(tierId) {
+    if (!state.coachEnabled || !window.LogbuchCoach?.isEnabled?.()) return false;
+    if (!isMathSubject(state.selectedSubject)) return false;
+    return tierId === "rookie" || tierId === "operator" || tierId === "street_legend";
+  }
+
+  function renderHelp() {
+    return `
+      <div class="lp-sheet-root">
+        <button type="button" class="lp-sheet-backdrop" data-lp-sheet-close aria-label="Hinweis schließen"></button>
+        <div class="lp-sheet lp-sheet--help" role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="lp-help-title">
+          <div class="lp-sheet__grab" aria-hidden="true"></div>
+          <h2 id="lp-help-title">So geht der Lernstand</h2>
+          <div class="lp-helpbox">
+            <p>Die Balken zeigen, wie viel du schon sicher kannst. Daneben steht, was die Zielnote verlangt, zum Beispiel „alle nötig“ oder „50 % nötig“.</p>
+            <p>Tippe auf eine Stufe und wähle Offen, In Arbeit oder Sicher.</p>
+            <p>Ein Punkt am Unterthema heißt: es gehört zu einem Levelcheck. Sind alle dabei, steht ein Hinweis über der Liste.</p>
+            <p>Nach einem Tagesziel trägst du hier ein, was in Arbeit ist und was schon sicher läuft.</p>
+            <p>Das Prozent-Ergebnis gilt für das ganze Thema. Mehrere Termine teilen sich diese eine Zahl.</p>
+          </div>
+          <button type="button" class="lp-sheet__close" data-lp-sheet-close>Schließen</button>
+        </div>
+      </div>`;
+  }
+
+  function renderSheet() {
+    const goal = findGoal(state.sheet?.goalId);
+    const tiers = markTiers();
+    const tier = tiers.find((entry) => entry.id === state.sheet?.tier) || tiers[0];
+    if (!goal || !tier) return "";
+    const status = tierStatus(goal, tier.id);
+    const info = materialInfo(goal);
+    const thema = selectedThema();
+    const goalText = tierGoalText(goal, tier);
+    const tabs = tiers
+      .map((entry) => {
+        const on = entry.id === tier.id;
+        const accent = TIER_ACCENT[entry.id] || "#94a3b8";
+        return `<button type="button" role="tab" class="${on ? "is-active" : ""}" style="--lp-tier:${accent}" data-lp-sheet-tier="${escapeHtml(entry.id)}" aria-selected="${on ? "true" : "false"}">${tierShort(entry.id)} ${escapeHtml(entry.label)}</button>`;
+      })
+      .join("");
+    const options = statusOptions()
+      .map((opt) => {
+        const meta = STATUS_META[opt.id] || STATUS_META.offen;
+        const on = opt.id === status;
+        return `<button type="button" class="lp-sheet__opt ${on ? "is-active" : ""}" data-lp-pick="${escapeHtml(opt.id)}" data-lp-pick-goal="${escapeHtml(goal.id)}" data-lp-pick-tier="${escapeHtml(tier.id)}" aria-pressed="${on ? "true" : "false"}">${meta.icon} ${escapeHtml(opt.label)}</button>`;
+      })
+      .join("");
+    const coach = coachAllowed(tier.id)
+      ? `<button type="button" class="lp-sheet__action" data-lp-coach="${escapeHtml(goal.id)}" data-lp-level="${escapeHtml(tier.id)}" data-lp-label="${escapeHtml(goal.text || "")}" data-lp-thema="${escapeHtml(thema?.name || "")}">Coach fragen</button>`
+      : "";
+    const material = info.url
+      ? `<a class="lp-sheet__action" href="${escapeHtml(info.url)}" target="_blank" rel="noopener noreferrer">Material öffnen</a>`
+      : info.note
+        ? `<p class="lp-sheet__note">${escapeHtml(info.note)}</p>`
+        : "";
+    return `
+      <div class="lp-sheet-root">
+        <button type="button" class="lp-sheet-backdrop" data-lp-sheet-close aria-label="Schließen"></button>
+        <div class="lp-sheet" role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="lp-sheet-title">
+          <div class="lp-sheet__grab" aria-hidden="true"></div>
+          <h3 id="lp-sheet-title">${escapeHtml(goal.text)}</h3>
+          <div class="lp-sheet__tiers" role="tablist" aria-label="Stufe">${tabs}</div>
+          ${goalText && goalText !== "–" ? `<p class="lp-sheet__goal">${escapeHtml(goalText)}</p>` : ""}
+          <div class="lp-sheet__status" role="group" aria-label="Status">${options}</div>
+          ${coach}
+          ${material}
+          <button type="button" class="lp-sheet__close" data-lp-sheet-close>Schließen</button>
+        </div>
+      </div>`;
+  }
+
+  function renderOverlay() {
+    if (state.helpOpen) return renderHelp();
+    if (state.sheet) return renderSheet();
+    return "";
+  }
+
+  function openZiele() {
+    if (window.StudentRouter?.navigateToSection) {
+      window.StudentRouter.navigateToSection("zielsetzung");
+      return;
+    }
+    window.location.assign("/student/zielsetzung");
+  }
+
+  function renderBody() {
     const visuals = V();
     if (!state.data?.hasClass) {
       return (
@@ -820,9 +904,7 @@
         }) || ""
       );
     }
-
-    const subjects = subjectsWithData();
-    if (!subjects.length) {
+    if (!subjectsWithData().length) {
       return (
         visuals?.emptyState({
           title: "Noch keine Klassenarbeit geplant.",
@@ -830,60 +912,32 @@
         }) || ""
       );
     }
-
     ensureSelection();
     const thema = selectedThema();
-    const linked = linkedGoalIdsForThema(thema?.id);
-    let goals = (thema?.goals || []).filter(goalMatchesStatusFilter);
-    if (state.focusLevelcheckGoals && linked.size) {
-      goals = [...goals].sort((a, b) => {
-        const al = linked.has(String(a.id)) ? 0 : 1;
-        const bl = linked.has(String(b.id)) ? 0 : 1;
-        return al - bl;
-      });
-    }
-
-    if (!thema?.goals?.length) {
+    if (!thema) {
       return (
         visuals?.emptyState({
-          title: "Noch keine Unterthemen.",
-          text: "Für dieses Thema wurden noch keine Ziele angelegt."
+          title: "Noch kein Thema.",
+          text: "Für dieses Fach ist gerade kein Thema mit Termin ausgewählt."
         }) || ""
       );
     }
-
-    if (!goals.length) {
-      return (
-        visuals?.emptyState({
-          title: "Keine Treffer.",
-          text: "Für diesen Statusfilter gibt es in diesem Thema keine Unterthemen."
-        }) || ""
-      );
-    }
-
-    const planHint = state.fromPlan
-      ? `<p class="lp-table-hint lp-table-hint--plan">Nach deinem Tagesziel: trage hier ein, was <strong>in Arbeit</strong> ist und was schon <strong>sicher</strong> läuft.</p>`
-      : "";
-    const lcHint = linked.size
-      ? `<p class="lp-table-hint lp-table-hint--lc">Gelb markiert: Ziele im Levelcheck (${linked.size}). Dafür gibt es einen gemeinsamen Ergebnis-Regler.</p>`
-      : "";
-
+    const progress = computeTopicProgress(thema);
     return `
-      <div class="lp-content">
-        ${planHint}
-        ${renderLevelcheckResult(thema)}
-        ${lcHint}
-        <p class="lp-table-hint">Tippe auf eine Zelle unter Rookie, Operator oder Street Legend – dann wählst du <strong>Offen</strong>, <strong>In Arbeit</strong> oder <strong>Sicher</strong>.</p>
-        <div class="lp-content__desktop">${renderDesktopTable(goals)}</div>
-        <div class="lp-content__mobile">${renderMobileCards(goals)}</div>
-      </div>`;
+      ${renderBar(thema, progress)}
+      ${renderLive()}
+      ${renderProgressCard(thema, progress)}
+      ${renderNextStep(thema)}
+      ${renderOnceHint()}
+      ${renderGoalList(thema)}
+      ${renderLevelchecks(thema)}
+      ${renderOverlay()}`;
   }
 
   function render() {
     const root = document.getElementById("levelplan-screen-root");
     if (!root) return;
     const visuals = V();
-
     if (state.loading && !state.data) {
       root.innerHTML = `<div class="logbuch-loading">Lade Levelplan…</div>`;
       return;
@@ -892,32 +946,85 @@
       root.innerHTML = `<div class="logbuch-msg logbuch-msg-error">Levelplan konnte nicht geladen werden.</div>`;
       return;
     }
-
-    root.innerHTML =
-      visuals?.pageShell(`
-      ${renderOverview()}
-      ${state.message ? `<div class="logbuch-msg logbuch-msg-ok">${escapeHtml(state.message)}</div>` : ""}
-      ${state.error ? `<div class="logbuch-msg logbuch-msg-error">${escapeHtml(state.error)}</div>` : ""}
-      ${renderFilters()}
-      ${renderContent()}
-    `) || "";
-
+    root.innerHTML = visuals?.pageShell(`<div class="lp-wrap">${renderBody()}</div>`) || "";
     bindHandlers(root);
     scrollFocusGoalIntoView();
+    placeSheet(root);
+    focusOverlay(root);
   }
 
   function scrollFocusGoalIntoView() {
     if (!state.focusGoalId) return;
     const id = String(state.focusGoalId);
     const escaped = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(id) : id.replace(/"/g, "");
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-lp-expand="${escaped}"]`);
-      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+      const el = document.querySelector(`[data-lp-goal="${escaped}"]`);
+      el?.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
     });
   }
 
-  function closePopover() {
+  function placeSheet(root) {
+    const sheet = root.querySelector(".lp-sheet:not(.lp-sheet--help)");
+    if (!sheet || !state.sheet) return;
+    const wide = window.matchMedia("(min-width: 1024px)").matches;
+    if (!wide) {
+      sheet.classList.remove("is-popover");
+      sheet.style.left = "";
+      sheet.style.top = "";
+      sheet.style.width = "";
+      return;
+    }
+    const anchor =
+      state.sheet.via === "more"
+        ? root.querySelector(".lp-more.is-open")
+        : root.querySelector(".lp-pill.is-open");
+    sheet.classList.add("is-popover");
+    const width = Math.min(320, window.innerWidth - 32);
+    const rect = anchor ? anchor.getBoundingClientRect() : null;
+    let left = rect ? rect.left : 16;
+    left = Math.max(16, Math.min(left, window.innerWidth - width - 16));
+    const height = sheet.offsetHeight || 280;
+    let top = rect ? rect.bottom + 8 : 80;
+    if (top + height > window.innerHeight - 16) {
+      top = Math.max(16, (rect ? rect.top : 80) - height - 8);
+    }
+    sheet.style.left = `${left}px`;
+    sheet.style.top = `${top}px`;
+    sheet.style.width = `${width}px`;
+  }
+
+  function focusOverlay(root) {
+    if (state.editingLcId) {
+      const input = root.querySelector(".lp-lc__input");
+      input?.focus();
+      input?.select();
+      return;
+    }
+    if (!state.sheet && !state.helpOpen) return;
+    root.querySelector(".lp-sheet")?.focus();
+  }
+
+  function closeOverlay() {
+    state.sheet = null;
+    state.helpOpen = false;
     state.popover = null;
+  }
+
+  function bindEscape() {
+    if (sheetKeyHandler) {
+      document.removeEventListener("keydown", sheetKeyHandler);
+      sheetKeyHandler = null;
+    }
+    if (!state.sheet && !state.helpOpen) return;
+    sheetKeyHandler = (event) => {
+      if (event.key !== "Escape") return;
+      closeOverlay();
+      document.removeEventListener("keydown", sheetKeyHandler);
+      sheetKeyHandler = null;
+      render();
+    };
+    document.addEventListener("keydown", sheetKeyHandler);
   }
 
   function bindHandlers(root) {
@@ -927,7 +1034,8 @@
         state.selectedThemaId = null;
         state.expandedGoalId = null;
         state.focusGoalId = null;
-        closePopover();
+        closeOverlay();
+        state.editingLcId = null;
         state.message = "";
         state.error = "";
         ensureSelection();
@@ -935,23 +1043,86 @@
       });
     });
 
-    root.querySelectorAll("[data-lp-thema]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state.selectedThemaId = btn.dataset.lpThema;
+    root.querySelectorAll("[data-lp-thema]").forEach((el) => {
+      const apply = () => {
+        const id = el.tagName === "SELECT" ? el.value : el.dataset.lpThema;
+        state.selectedThemaId = id;
         state.expandedGoalId = null;
         state.focusGoalId = null;
-        closePopover();
+        closeOverlay();
+        state.editingLcId = null;
         state.message = "";
         state.error = "";
         render();
-      });
+      };
+      if (el.tagName === "SELECT") el.addEventListener("change", apply);
+      else el.addEventListener("click", apply);
     });
 
     root.querySelectorAll("[data-lp-status-filter]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.statusFilter = btn.dataset.lpStatusFilter;
-        state.expandedGoalId = null;
-        closePopover();
+        state.sheet = null;
+        state.editingLcId = null;
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-lp-ziel]").forEach((btn) => {
+      btn.addEventListener("click", () => openZiele());
+    });
+
+    root.querySelectorAll("[data-lp-help]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.helpOpen = !state.helpOpen;
+        state.sheet = null;
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-lp-once-dismiss]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dismissHint();
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-lp-pill]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const goalId = btn.dataset.lpPill;
+        const tier = btn.dataset.lpTier;
+        if (state.sheet && state.sheet.goalId === goalId && state.sheet.tier === tier && state.sheet.via !== "more") {
+          state.sheet = null;
+        } else {
+          state.sheet = { goalId, tier, via: "pill" };
+        }
+        state.helpOpen = false;
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-lp-more]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const goalId = btn.dataset.lpMore;
+        const tier = markTiers()[0]?.id || "rookie";
+        if (state.sheet && state.sheet.goalId === goalId && state.sheet.via === "more") state.sheet = null;
+        else state.sheet = { goalId, tier, via: "more" };
+        state.helpOpen = false;
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-lp-sheet-tier]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!state.sheet) return;
+        state.sheet = { ...state.sheet, tier: btn.dataset.lpSheetTier, via: "pill" };
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-lp-sheet-close]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        closeOverlay();
         render();
       });
     });
@@ -959,7 +1130,7 @@
     root.querySelectorAll("[data-lp-coach]").forEach((btn) => {
       btn.addEventListener("click", (event) => {
         event.stopPropagation();
-        closePopover();
+        closeOverlay();
         window.LogbuchCoach?.open({
           source: "levelplan",
           autostart: true,
@@ -968,66 +1139,140 @@
           kompetenzLabel: btn.dataset.lpLabel || "",
           themaLabel: btn.dataset.lpThema || ""
         });
-      });
-    });
-
-    root.querySelectorAll("[data-lp-expand]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = btn.dataset.lpExpand;
-        state.expandedGoalId = String(state.expandedGoalId) === String(id) ? null : id;
-        closePopover();
-        render();
-      });
-    });
-
-    root.querySelectorAll("[data-lp-status]").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const goalId = btn.dataset.lpStatus;
-        const tier = btn.dataset.lpTier;
-        if (
-          state.popover &&
-          state.popover.goalId === goalId &&
-          state.popover.tier === tier
-        ) {
-          closePopover();
-        } else {
-          state.popover = { goalId, tier };
-        }
         render();
       });
     });
 
     root.querySelectorAll("[data-lp-pick]").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
+      btn.addEventListener("click", (event) => {
+        event.stopPropagation();
         const goalId = btn.dataset.lpPickGoal;
         const tier = btn.dataset.lpPickTier;
         const status = btn.dataset.lpPick;
-        closePopover();
+        closeOverlay();
         setStatus(goalId, tier, status);
       });
     });
 
-    if (state.popover) {
-      const onDocClick = (e) => {
-        if (
-          !e.target.closest(".lp-status-wrap") &&
-          !e.target.closest(".lp-status-picker")
-        ) {
-          closePopover();
-          document.removeEventListener("click", onDocClick);
-          render();
-        }
-      };
-      setTimeout(() => document.addEventListener("click", onDocClick), 0);
-    }
+    root.querySelectorAll("[data-lp-pct-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.editingLcId = btn.dataset.lcId || null;
+        closeOverlay();
+        render();
+      });
+    });
 
-    bindLevelcheckResultSliders(root);
-    bindPracticeDials(root);
+    root.querySelectorAll(".lp-lc__input").forEach((input) => {
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          ignorePercentBlur = true;
+          state.editingLcId = null;
+          render();
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          input.blur();
+        }
+      });
+      input.addEventListener("blur", () => {
+        if (ignorePercentBlur) {
+          ignorePercentBlur = false;
+          return;
+        }
+        commitPercentEdit(input.value.trim(), input.dataset.topicId);
+      });
+    });
+
+    bindEscape();
+    bindLevelcheckSliders(root);
   }
 
-  const lcResultSaveTimers = {};
+  function paintTopicPercent(root, topicId, pct, hasValue, source) {
+    const passed = hasValue && pct >= passPercent();
+    root.querySelectorAll("[data-lp-lc-result]").forEach((card) => {
+      if (card.dataset.topicId !== String(topicId)) return;
+      card.classList.toggle("is-pass", !!passed);
+      card.classList.toggle("is-empty", !hasValue);
+      const range = card.querySelector(".lp-lc__range");
+      if (range && range !== source) range.value = String(hasValue ? pct : 0);
+      if (range) {
+        range.setAttribute("aria-valuenow", String(hasValue ? pct : 0));
+        range.setAttribute("aria-valuetext", hasValue ? `${pct} Prozent richtig` : "Ergebnis eintragen");
+      }
+      const button = card.querySelector("[data-lp-pct-edit]");
+      if (button) {
+        button.classList.toggle("is-empty", !hasValue);
+        button.innerHTML = hasValue
+          ? `${pct} % <span class="lp-lc__unit">richtig</span>`
+          : "Ergebnis eintragen";
+      }
+    });
+  }
+
+  function syncTopicPercent(topicId) {
+    const root = document.getElementById("levelplan-screen-root");
+    if (!root) return;
+    let value = null;
+    for (const lc of state.data?.scheduledLevelchecks || []) {
+      if (String(lc.levelCheckId) === String(topicId)) {
+        value = lc.levelcheckPercent;
+        break;
+      }
+    }
+    if (value == null) {
+      const thema = selectedThema();
+      if (thema && String(thema.id) === String(topicId)) value = thema.target?.levelcheckPercent ?? null;
+    }
+    const has = value != null && value !== "" && Number.isInteger(Number(value));
+    paintTopicPercent(root, topicId, has ? Number(value) : 0, has, null);
+  }
+
+  function commitPercentEdit(raw, topicId) {
+    if (percentCommitLock) return;
+    percentCommitLock = true;
+    state.editingLcId = null;
+    try {
+      if (raw === "") {
+        render();
+        return;
+      }
+      const pct = Number(raw);
+      if (!Number.isInteger(pct) || pct < 0 || pct > 100) {
+        state.error = "Bitte eine ganze Zahl von 0 bis 100.";
+        state.message = "";
+        render();
+        return;
+      }
+      state.error = "";
+      saveLevelcheckPercent(topicId, pct);
+      render();
+    } finally {
+      percentCommitLock = false;
+    }
+  }
+
+  function bindLevelcheckSliders(root) {
+    root.querySelectorAll("[data-lp-lc-result]").forEach((card) => {
+      const topicId = card.dataset.topicId;
+      const range = card.querySelector(".lp-lc__range");
+      if (!topicId || !range || range.dataset.bound === "1") return;
+      range.dataset.bound = "1";
+      const commit = () => {
+        const pct = Number(range.value);
+        if (!Number.isInteger(pct) || pct < 0 || pct > 100) return;
+        saveLevelcheckPercent(topicId, pct);
+      };
+      range.addEventListener("input", () => {
+        const pct = Number(range.value);
+        paintTopicPercent(root, topicId, pct, true, range);
+        clearTimeout(lcResultSaveTimers[topicId]);
+        lcResultSaveTimers[topicId] = setTimeout(commit, 400);
+      });
+      range.addEventListener("change", () => {
+        clearTimeout(lcResultSaveTimers[topicId]);
+        commit();
+      });
+    });
+  }
 
   function applyLevelcheckPercentLocally(topicId, percent, passed) {
     const id = String(topicId);
@@ -1044,84 +1289,12 @@
     }
   }
 
-  function bindLevelcheckResultSliders(root) {
-    root.querySelectorAll("[data-lp-lc-result]").forEach((card) => {
-      const topicId = card.dataset.topicId;
-      const range = card.querySelector(".lp-lc-result__range");
-      const valueEl = card.querySelector("[data-lp-lc-result-value]");
-      if (!topicId || !range) return;
-      const threshold = Number(card.dataset.threshold) || passPercent();
-      const paint = (pct) => {
-        const passed = pct >= threshold;
-        card.classList.toggle("is-pass", passed);
-        range.closest(".lp-practice-slider")?.classList.toggle("is-pass", passed);
-        if (valueEl) valueEl.textContent = `${pct} %`;
-      };
-      const commit = () => {
-        const pct = Number(range.value);
-        if (!Number.isInteger(pct) || pct < 0 || pct > 100) return;
-        paint(pct);
-        saveLevelcheckPercent(topicId, pct);
-      };
-      range.addEventListener("input", () => {
-        const pct = Number(range.value) || 0;
-        paint(pct);
-        clearTimeout(lcResultSaveTimers[topicId]);
-        lcResultSaveTimers[topicId] = setTimeout(commit, 400);
-      });
-      range.addEventListener("change", () => {
-        clearTimeout(lcResultSaveTimers[topicId]);
-        commit();
-      });
-    });
-  }
-
-  const practiceSaveTimers = {};
-
-  function bindPracticeDials(root) {
-    root.querySelectorAll(".lp-practice-range").forEach((range) => {
-      const wrap = range.closest("[data-lp-practice-wrap]");
-      const goalId = wrap?.dataset.goalId;
-      if (!goalId) return;
-      const valueEl = wrap.querySelector("[data-lp-practice-value]");
-      const commit = () => {
-        const parsed = Number(range.value);
-        if (!Number.isInteger(parsed) || parsed < 0 || parsed > 100) return;
-        wrap.classList.toggle("is-pass", parsed >= passPercent());
-        if (valueEl) valueEl.textContent = `${parsed} %`;
-        savePracticePercent(goalId, parsed);
-      };
-      range.addEventListener("input", () => {
-        const parsed = Number(range.value) || 0;
-        wrap.classList.toggle("is-pass", parsed >= passPercent());
-        if (valueEl) valueEl.textContent = `${parsed} %`;
-        clearTimeout(practiceSaveTimers[goalId]);
-        practiceSaveTimers[goalId] = setTimeout(commit, 400);
-      });
-      range.addEventListener("change", commit);
-    });
-  }
-
-  async function savePracticePercent(goalId, percent) {
-    const goal = findGoal(goalId);
-    if (goal) goal.practicePercent = percent;
-    try {
-      const res = await fetch("/api/student/levelcheck-practice-percent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goalId, practicePercent: percent })
-      });
-      const data = await res.json();
-      if (!data.success) {
-        state.error = data.message || "Quiz-Ergebnis konnte nicht gespeichert werden.";
-        return;
-      }
-      const stored = findGoal(goalId);
-      if (stored) stored.practicePercent = data.practicePercent;
-    } catch (err) {
-      console.error(err);
-      state.error = "Netzwerkfehler beim Speichern des Quiz-Ergebnisses.";
-    }
+  function flashLive(text, isError) {
+    const el = document.querySelector("#levelplan-screen-root .lp-live");
+    if (!el) return;
+    el.textContent = text || "";
+    el.classList.toggle("is-error", !!isError && !!text);
+    el.classList.toggle("is-ok", !isError && !!text);
   }
 
   async function saveLevelcheckPercent(topicId, percent) {
@@ -1134,15 +1307,24 @@
       });
       const data = await res.json();
       if (!data.success) {
-        state.error = data.message || "Speichern fehlgeschlagen.";
+        const message = data.message || "Speichern fehlgeschlagen.";
+        state.error = message;
+        state.message = "";
+        flashLive(message, true);
         return;
       }
       const stored =
         data.levelcheckPercent != null ? Number(data.levelcheckPercent) : percent;
       applyLevelcheckPercentLocally(topicId, stored, data.levelcheckPassed);
+      state.error = "";
+      state.message = "Gespeichert.";
+      flashLive("Gespeichert.", false);
+      syncTopicPercent(topicId);
     } catch (err) {
       console.error(err);
       state.error = "Netzwerkfehler beim Speichern.";
+      state.message = "";
+      flashLive(state.error, true);
     }
   }
 
@@ -1204,6 +1386,9 @@
     state.message = "";
     state.error = "";
     state.popover = null;
+    state.sheet = null;
+    state.helpOpen = false;
+    state.editingLcId = null;
     const root = document.getElementById("levelplan-screen-root");
     if (root) root.innerHTML = `<div class="logbuch-loading">Lade Levelplan…</div>`;
     state.coachEnabled = (await window.LogbuchCoach?.refreshStatus?.()) === true;
