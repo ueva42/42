@@ -12794,63 +12794,68 @@ h2 {
   .notif-wrap{ top: 70px; right: 14px; }
 }
 
-/* Lernstand – nur #levelplan-section, Ziele und Ring-Klassen bleiben */
+/* Lernstand – nur #levelplan-section. Ziele-Ringe und .grade-goal-* bleiben unberührt. */
 body.student-app #levelplan-section.card.section {
   overflow: visible;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  padding: 8px 0 24px;
-}
-@media (max-width: 900px) {
-  body.student-app #levelplan-section.card.section {
-    padding: 4px 2px 16px;
-  }
+  padding: 16px 16px 24px;
 }
 #levelplan-section > .page-hero {
-  min-height: 0;
-  margin: 0 auto 8px;
-  padding: 12px 16px;
-  max-width: 960px;
-  border-radius: 16px;
+  width: min(1100px, 100%);
+  max-width: 1100px;
+  margin: 0 auto 16px;
+  min-height: 148px;
+  box-sizing: border-box;
 }
-#levelplan-section > .page-hero .page-hero__content { max-width: 100%; }
-#levelplan-section > .page-hero h1.page-hero__title {
-  display: block;
-  margin: 0;
-  font-family: inherit;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: none;
-  text-shadow: none;
-  color: #f8fafc;
+#levelplan-section > .page-hero .page-hero__content {
+  max-width: min(58%, 520px);
 }
 @media (max-width: 720px) {
   #levelplan-section > .page-hero {
-    padding: 8px 0;
-    margin: 0 0 4px;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-  }
-  #levelplan-section > .page-hero .page-eyebrow,
-  #levelplan-section > .page-hero .page-hero__sub,
-  #levelplan-section > .page-hero .student-section-icon,
-  #levelplan-section > .page-hero .sol-hero__art {
-    display: none;
+    min-height: 132px;
   }
 }
 #levelplan-section #levelplan-screen-root { margin-top: 0; }
 #levelplan-section .student-page,
-#levelplan-section .page-grid { gap: 0; }
+#levelplan-section .page-grid { gap: 0; min-width: 0; }
 #levelplan-section .lp-wrap {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 960px;
+  width: min(1100px, 100%);
+  max-width: 1100px;
   margin: 0 auto;
-  width: 100%;
   min-width: 0;
+}
+#levelplan-section .lp-top {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-bottom: 8px;
+  background: rgba(6, 11, 29, 0.96);
+}
+#levelplan-section .lp-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+#levelplan-section .lp-main,
+#levelplan-section .lp-rail,
+#levelplan-section .lp-side {
+  min-width: 0;
+  max-width: 100%;
+}
+#levelplan-section .lp-rail,
+#levelplan-section .lp-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 #levelplan-section .lp-sr {
   position: absolute;
@@ -12873,64 +12878,82 @@ body.student-app #levelplan-section.card.section {
   outline: 2px solid #e2e8f0;
   outline-offset: 2px;
 }
+#levelplan-section h2,
+#levelplan-section h3 {
+  font-family: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  text-shadow: none;
+  border: 0;
+  color: #f8fafc;
+  margin: 0;
+  padding: 0;
+}
+#levelplan-section .lp-kicker {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
 #levelplan-section .lp-bar {
-  position: sticky;
-  top: 0;
-  z-index: 6;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  padding: 8px 0;
-  background: #070b18;
+  min-width: 0;
 }
 #levelplan-section .lp-bar__primary,
 #levelplan-section .lp-bar__secondary {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
   flex: 1 1 100%;
 }
-#levelplan-section .lp-bar__secondary { flex-wrap: nowrap; }
 #levelplan-section .lp-seg {
   display: inline-flex;
   flex: 0 1 auto;
   min-width: 0;
   padding: 4px;
   border-radius: 999px;
-  background: #0f172a;
-  border: 1px solid #334155;
+  background: rgba(6, 11, 29, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 #levelplan-section .lp-seg button {
   min-height: 44px;
   min-width: 44px;
-  padding: 8px 14px;
+  padding: 8px 16px;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: #e2e8f0;
   font-weight: 700;
   cursor: pointer;
-  transition: background 180ms ease, color 180ms ease;
 }
 #levelplan-section .lp-seg button.is-active {
-  background: #155e75;
+  background: rgba(34, 211, 238, 0.14);
   color: #ecfeff;
 }
-#levelplan-section .lp-thema { flex: 1 1 auto; min-width: 0; }
+#levelplan-section .lp-thema { flex: 1 1 160px; min-width: 0; }
+#levelplan-section .lp-thema select,
+#levelplan-section .lp-chip,
+#levelplan-section .lp-help {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(6, 11, 29, 0.92);
+  color: #e2e8f0;
+}
 #levelplan-section .lp-thema select {
   width: 100%;
   min-height: 44px;
   max-width: 100%;
   box-sizing: border-box;
   border-radius: 999px;
-  border: 1px solid #334155;
-  background: #0f172a;
-  color: #f8fafc;
   font-weight: 700;
   font-size: 14px;
-  padding: 0 12px;
+  padding: 0 16px;
 }
 #levelplan-section .lp-chip {
   display: inline-flex;
@@ -12938,25 +12961,24 @@ body.student-app #levelplan-section.card.section {
   min-height: 44px;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 8px 12px;
+  padding: 8px 16px;
   border-radius: 999px;
-  border: 1px solid #334155;
-  background: #0f172a;
-  color: #e2e8f0;
   font-size: 14px;
   font-weight: 700;
 }
 #levelplan-section .lp-chip--ka {
-  flex: 1 1 auto;
+  flex: 1 1 120px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #cbd5e1;
 }
 #levelplan-section .lp-chip--ziel {
   flex: 0 0 auto;
-  border-color: #0e7490;
-  color: #ecfeff;
+  border-color: rgba(34, 211, 238, 0.45);
+  background: rgba(34, 211, 238, 0.08);
+  color: #67e8f9;
   cursor: pointer;
 }
 #levelplan-section .lp-help {
@@ -12964,37 +12986,25 @@ body.student-app #levelplan-section.card.section {
   height: 44px;
   flex: 0 0 44px;
   border-radius: 50%;
-  border: 1px solid #334155;
-  background: #0f172a;
-  color: #f8fafc;
   font-weight: 700;
   cursor: pointer;
 }
+#levelplan-section .lp-card,
+#levelplan-section .lp-goal,
+#levelplan-section .lp-lc {
+  background: rgba(6, 11, 29, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
 #levelplan-section .lp-card {
-  background: #0b1224;
-  border: 1px solid #1e293b;
-  border-radius: 16px;
   padding: 16px;
   min-width: 0;
 }
-#levelplan-section .lp-card > h2,
-#levelplan-section .lp-sheet h2,
-#levelplan-section .lp-sheet h3,
-#levelplan-section .lp-goal__title,
-#levelplan-section .lp-next__title {
-  font-family: inherit;
-  letter-spacing: 0;
-  text-transform: none;
-  text-shadow: none;
-  border: 0;
-  color: #f8fafc;
-}
-#levelplan-section .lp-card > h2,
-#levelplan-section .lp-sheet h2 {
-  font-size: 18px;
-  font-weight: 700;
-  margin: 0 0 12px;
-  padding: 0;
+#levelplan-section .lp-path {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.08), transparent 58%),
+    rgba(6, 11, 29, 0.94);
 }
 #levelplan-section .lp-card__lead,
 #levelplan-section .lp-voluntary,
@@ -13006,94 +13016,128 @@ body.student-app #levelplan-section.card.section {
 #levelplan-section .lp-sheet__goal,
 #levelplan-section .lp-sheet__note {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.45;
-  color: #cbd5e1;
+  color: #94a3b8;
 }
-#levelplan-section .lp-card__lead { margin: -4px 0 12px; }
-#levelplan-section .lp-voluntary { margin-top: 8px; }
+#levelplan-section .lp-card__lead { margin: -4px 0 12px; color: #cbd5e1; }
+#levelplan-section .lp-voluntary {
+  margin-top: 8px;
+  font-size: 12px;
+}
 #levelplan-section .lp-list-note,
-#levelplan-section .lp-lc-note { margin-bottom: 8px; }
-#levelplan-section .lp-tiers { display: flex; flex-direction: column; gap: 12px; }
-#levelplan-section .lp-tier {
+#levelplan-section .lp-lc-note { margin: -4px 0 8px; }
+#levelplan-section .lp-tiers {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  padding-left: 12px;
-  border-left: 3px solid var(--lp-accent, #22d3ee);
-}
-#levelplan-section .lp-tier__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
   gap: 8px;
-  flex-wrap: wrap;
 }
-#levelplan-section .lp-tier__name { font-size: 14px; font-weight: 700; color: #f8fafc; }
-#levelplan-section .lp-tier__stat { font-size: 13px; color: #cbd5e1; text-align: right; }
-#levelplan-section .lp-fill {
-  height: 8px;
-  border-radius: 999px;
-  background: #1e293b;
-  overflow: hidden;
-}
-#levelplan-section .lp-fill > span {
-  display: block;
-  height: 100%;
-  width: 0;
-  background: var(--lp-accent, #22d3ee);
-  border-radius: inherit;
-  transition: width 180ms ease;
-}
-#levelplan-section .lp-mix {
+#levelplan-section .lp-tier {
   display: flex;
-  height: 8px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: #1e293b;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
-#levelplan-section .lp-mix__seg--offen { background: #64748b; }
-#levelplan-section .lp-mix__seg--in_arbeit { background: #fbbf24; }
-#levelplan-section .lp-mix__seg--sicher { background: #22c55e; }
-#levelplan-section .lp-mix__key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  margin: 0;
+#levelplan-section .lp-tier.is-free { opacity: 0.72; }
+#levelplan-section .lp-ring {
+  --lp-progress: 0;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  position: relative;
+  background: conic-gradient(
+    var(--lp-accent, #22d3ee) calc(var(--lp-progress) * 1%),
+    rgba(255, 255, 255, 0.08) 0
+  );
+}
+#levelplan-section .lp-ring::before {
+  content: "";
+  position: absolute;
+  width: 72%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #060b1d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+#levelplan-section .lp-tier.is-active .lp-ring {
+  box-shadow: 0 0 22px color-mix(in srgb, var(--lp-accent, #22d3ee) 42%, transparent);
+}
+#levelplan-section .lp-ring__value {
+  position: relative;
+  z-index: 1;
   font-size: 12px;
-  line-height: 1.4;
-  color: #cbd5e1;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 0;
+}
+#levelplan-section .lp-tier__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+#levelplan-section .lp-tier__name {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lp-accent, #22d3ee) 78%, #fff);
+}
+#levelplan-section .lp-tier__stat {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #94a3b8;
 }
 #levelplan-section .lp-next {
-  border-color: #155e75;
-  box-shadow: 0 0 24px rgba(34, 211, 238, 0.16);
+  border-radius: 16px;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.14), transparent 48%),
+    rgba(8, 14, 35, 0.92);
+  padding: 16px;
+  box-shadow: 0 0 18px rgba(249, 115, 22, 0.12);
+}
+#levelplan-section .lp-next .lp-kicker {
+  margin-bottom: 8px;
+  color: #fdba74;
 }
 #levelplan-section .lp-next__tier {
   margin: 0 0 4px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #a5f3fc;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fdba74;
 }
 #levelplan-section .lp-next__title {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
+  line-height: 1.35;
+  color: #f8fafc;
 }
-#levelplan-section .lp-next__detail { margin-top: 4px; }
+#levelplan-section .lp-next__detail { margin-top: 8px; color: #cbd5e1; }
 #levelplan-section .lp-next__go {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
   min-height: 44px;
-  min-width: 44px;
   margin-top: 12px;
   padding: 8px 16px;
-  border-radius: 999px;
-  background: #155e75;
-  color: #ecfeff;
-  font-weight: 700;
+  border-radius: 12px;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  background: rgba(8, 14, 35, 0.95);
+  color: #fdba74;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   text-decoration: none;
+  box-shadow: 0 0 18px rgba(249, 115, 22, 0.12);
 }
 #levelplan-section .lp-next__miss { margin-top: 8px; }
 #levelplan-section .lp-once {
@@ -13101,21 +13145,20 @@ body.student-app #levelplan-section.card.section {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  padding: 12px;
-  border-radius: 12px;
-  background: #111827;
-  border: 1px solid #334155;
-  color: #e2e8f0;
-  font-size: 14px;
+  margin: 0 0 8px;
+  padding: 0;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.4;
 }
-#levelplan-section .lp-once p { margin: 0; flex: 1 1 200px; }
+#levelplan-section .lp-once p { margin: 0; flex: 1 1 180px; }
 #levelplan-section .lp-once button {
   min-height: 44px;
-  padding: 8px 12px;
+  padding: 8px 16px;
   border-radius: 999px;
-  border: 1px solid #67e8f9;
+  border: 1px solid rgba(255, 255, 255, 0.16);
   background: transparent;
-  color: #ecfeff;
+  color: #e2e8f0;
   font-weight: 700;
   cursor: pointer;
 }
@@ -13126,42 +13169,59 @@ body.student-app #levelplan-section.card.section {
   font-size: 14px;
 }
 #levelplan-section .lp-live:empty { display: none; padding: 0; }
-#levelplan-section .lp-live.is-ok { background: #052e16; color: #bbf7d0; }
-#levelplan-section .lp-live.is-error { background: #450a0a; color: #fecaca; }
+#levelplan-section .lp-live.is-ok {
+  background: rgba(34, 197, 94, 0.12);
+  color: #bbf7d0;
+}
+#levelplan-section .lp-live.is-error {
+  background: rgba(239, 68, 68, 0.14);
+  color: #fecaca;
+}
 #levelplan-section .lp-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 0 12px;
+  margin: 0;
 }
 #levelplan-section .lp-filters button {
   min-height: 44px;
-  padding: 8px 12px;
+  padding: 8px 16px;
   border-radius: 999px;
-  border: 1px solid #475569;
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(6, 11, 29, 0.72);
   color: #e2e8f0;
   font-weight: 700;
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease;
 }
 #levelplan-section .lp-filters button.is-active {
-  background: #164e63;
-  border-color: #67e8f9;
+  border-color: rgba(34, 211, 238, 0.55);
+  background: rgba(34, 211, 238, 0.12);
   color: #ecfeff;
+}
+#levelplan-section .lp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 #levelplan-section .lp-goal {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  padding: 12px 0;
-  border-bottom: 1px solid #1e293b;
+  padding: 16px;
+}
+#levelplan-section .lp-goal.is-next {
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow:
+    0 0 18px rgba(249, 115, 22, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 #levelplan-section .lp-goal.is-plan-focus {
-  outline: 2px solid #22d3ee;
-  outline-offset: 2px;
-  border-radius: 8px;
+  border-color: rgba(34, 211, 238, 0.55);
+  box-shadow:
+    0 0 22px rgba(34, 211, 238, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 #levelplan-section .lp-goal__head {
   display: flex;
@@ -13173,13 +13233,14 @@ body.student-app #levelplan-section.card.section {
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 #levelplan-section .lp-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   flex: 0 0 auto;
   border-radius: 50%;
   background: #fbbf24;
@@ -13190,28 +13251,39 @@ body.student-app #levelplan-section.card.section {
   gap: 8px;
 }
 #levelplan-section .lp-pill {
+  --lp-tier: #94a3b8;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
   min-height: 44px;
   min-width: 44px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: 999px;
-  border: 2px solid var(--lp-tier, #94a3b8);
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--lp-tier) 48%, transparent);
+  background: rgba(6, 11, 29, 0.55);
   color: #e2e8f0;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: background 180ms ease, box-shadow 180ms ease;
 }
 #levelplan-section .lp-pill--rookie { --lp-tier: #22d3ee; }
 #levelplan-section .lp-pill--operator { --lp-tier: #a855f7; }
-#levelplan-section .lp-pill--street_legend { --lp-tier: #d946ef; }
-#levelplan-section .lp-pill--in_arbeit { background: #fbbf24; color: #1c1917; }
-#levelplan-section .lp-pill--sicher { background: #166534; color: #f0fdf4; }
-#levelplan-section .lp-pill.is-open { box-shadow: 0 0 16px var(--lp-tier); }
+#levelplan-section .lp-pill--street_legend { --lp-tier: #f472b6; }
+#levelplan-section .lp-pill--in_arbeit {
+  background: #fbbf24;
+  border-color: #fbbf24;
+  color: #1c1917;
+}
+#levelplan-section .lp-pill--sicher {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.55);
+  color: #bbf7d0;
+}
+#levelplan-section .lp-pill.is-open {
+  border-color: var(--lp-tier);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--lp-tier) 42%, transparent);
+}
 #levelplan-section .lp-pill.is-busy { opacity: 0.55; }
 #levelplan-section .lp-more { display: none; }
 #levelplan-section .lp-sheet-backdrop {
@@ -13233,11 +13305,16 @@ body.student-app #levelplan-section.card.section {
   max-height: min(78vh, 560px);
   overflow: auto;
   box-sizing: border-box;
-  background: #0f172a;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(168, 85, 247, 0.16), transparent 42%),
+    rgba(8, 14, 35, 0.98);
   color: #f8fafc;
-  border-radius: 16px 16px 0 0;
+  border-radius: 20px 20px 0 0;
+  border: 1px solid rgba(34, 211, 238, 0.28);
   padding: 8px 16px 16px;
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 -12px 40px rgba(0, 0, 0, 0.5),
+    0 0 24px rgba(34, 211, 238, 0.08);
 }
 #levelplan-section .lp-sheet:focus { outline: none; }
 #levelplan-section .lp-sheet:focus-visible {
@@ -13249,11 +13326,12 @@ body.student-app #levelplan-section.card.section {
   height: 4px;
   margin: 4px auto 12px;
   border-radius: 999px;
-  background: #475569;
+  background: rgba(255, 255, 255, 0.24);
 }
+#levelplan-section .lp-sheet h2,
 #levelplan-section .lp-sheet h3 {
   margin: 0 0 8px;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
 }
 #levelplan-section .lp-sheet__tiers {
@@ -13266,13 +13344,16 @@ body.student-app #levelplan-section.card.section {
   min-height: 44px;
   min-width: 44px;
   border-radius: 999px;
-  border: 2px solid var(--lp-tier, #64748b);
+  border: 1px solid var(--lp-tier, #64748b);
   background: transparent;
   color: #f8fafc;
   font-weight: 700;
   cursor: pointer;
 }
-#levelplan-section .lp-sheet__tiers button.is-active { background: #1e293b; }
+#levelplan-section .lp-sheet__tiers button.is-active {
+  background: color-mix(in srgb, var(--lp-tier, #22d3ee) 16%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--lp-tier, #22d3ee) 28%, transparent);
+}
 #levelplan-section .lp-sheet__status {
   display: flex;
   flex-direction: column;
@@ -13289,23 +13370,46 @@ body.student-app #levelplan-section.card.section {
   min-height: 44px;
   margin-top: 8px;
   border-radius: 12px;
-  border: 1px solid #334155;
-  background: #0b1224;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(6, 11, 29, 0.92);
   color: #f8fafc;
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
 }
 #levelplan-section .lp-sheet__opt.is-active {
-  border-color: #67e8f9;
-  background: #164e63;
+  border-color: rgba(34, 211, 238, 0.55);
+  background: rgba(34, 211, 238, 0.12);
+  color: #ecfeff;
 }
 #levelplan-section .lp-sheet__note { margin-top: 8px; }
 #levelplan-section .lp-helpbox p + p { margin-top: 8px; }
-#levelplan-section .lp-lc { min-width: 0; padding-top: 12px; border-top: 1px solid #1e293b; }
-#levelplan-section .lp-lc:first-child { padding-top: 0; border-top: 0; }
-#levelplan-section .lp-lc-list { display: flex; flex-direction: column; gap: 12px; }
-#levelplan-section .lp-lc__date { margin: 0; font-size: 15px; font-weight: 700; color: #f8fafc; }
+#levelplan-section .lp-helpbox p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+#levelplan-section .lp-lc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#levelplan-section .lp-lc {
+  min-width: 0;
+  padding: 16px;
+}
+#levelplan-section .lp-lc.is-pass {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+#levelplan-section .lp-lc__date {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
 #levelplan-section .lp-lc__chips {
   display: flex;
   flex-wrap: wrap;
@@ -13318,30 +13422,52 @@ body.student-app #levelplan-section.card.section {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
-  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
   color: #e2e8f0;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.3;
 }
-#levelplan-section .lp-lc__result { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+#levelplan-section .lp-lc__result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
 #levelplan-section .lp-lc__value {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
   min-height: 44px;
   padding: 0;
   border: 0;
   background: transparent;
   color: #f8fafc;
-  font-size: 28px;
+  font-family: "Orbitron", system-ui;
+  font-size: 32px;
   font-weight: 800;
   line-height: 1.1;
+  letter-spacing: 0.04em;
   text-align: left;
   cursor: pointer;
 }
-#levelplan-section .lp-lc__value.is-empty { font-size: 18px; font-weight: 700; color: #e2e8f0; }
-#levelplan-section .lp-lc__unit { font-size: 16px; font-weight: 700; color: #cbd5e1; }
+#levelplan-section .lp-lc__value.is-empty {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #cbd5e1;
+}
+#levelplan-section .lp-lc.is-pass .lp-lc__value { color: #86efac; }
+#levelplan-section .lp-lc__unit {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #94a3b8;
+}
 #levelplan-section .lp-lc__input {
   width: 100%;
   min-height: 44px;
@@ -13350,7 +13476,8 @@ body.student-app #levelplan-section.card.section {
   border-bottom: 2px solid #22d3ee;
   background: transparent;
   color: #f8fafc;
-  font-size: 28px;
+  font-family: "Orbitron", system-ui;
+  font-size: 32px;
   font-weight: 800;
 }
 #levelplan-section .lp-lc__range {
@@ -13364,7 +13491,7 @@ body.student-app #levelplan-section.card.section {
 }
 #levelplan-section .lp-lc__range::-webkit-slider-runnable-track {
   height: 8px;
-  background: #334155;
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
 }
 #levelplan-section .lp-lc__range::-webkit-slider-thumb {
@@ -13379,7 +13506,7 @@ body.student-app #levelplan-section.card.section {
 }
 #levelplan-section .lp-lc__range::-moz-range-track {
   height: 8px;
-  background: #334155;
+  background: rgba(255, 255, 255, 0.08);
   border: 0;
   border-radius: 999px;
 }
@@ -13394,24 +13521,33 @@ body.student-app #levelplan-section.card.section {
 #levelplan-section .lp-lc.is-pass .lp-lc__range::-moz-range-thumb { background: #22c55e; }
 #levelplan-section .lp-lc.is-empty .lp-lc__range::-webkit-slider-thumb,
 #levelplan-section .lp-lc.is-empty .lp-lc__range::-moz-range-thumb {
-  background: #1e293b;
+  background: #0b1224;
   border-color: #cbd5e1;
 }
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
   #levelplan-section .lp-sheet {
     padding-bottom: calc(104px + env(safe-area-inset-bottom));
   }
 }
 @media (min-width: 1024px) {
-  #levelplan-section .lp-bar { flex-wrap: nowrap; }
-  #levelplan-section .lp-bar__primary,
-  #levelplan-section .lp-bar__secondary { flex: 0 1 auto; }
-  #levelplan-section .lp-thema { flex: 0 1 280px; }
-  #levelplan-section .lp-list {
+  #levelplan-section .lp-stage {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 24px;
+    grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
+    grid-template-areas: "rail main";
+    gap: 16px;
+    align-items: start;
   }
+  #levelplan-section .lp-stage:has(.lp-side) {
+    grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(208px, 260px);
+    grid-template-areas: "rail main side";
+  }
+  #levelplan-section .lp-rail { grid-area: rail; }
+  #levelplan-section .lp-main { grid-area: main; }
+  #levelplan-section .lp-side { grid-area: side; }
+  #levelplan-section .lp-bar__primary,
+  #levelplan-section .lp-bar__secondary { flex: 1 1 auto; }
+  #levelplan-section .lp-bar__secondary { justify-content: flex-end; }
+  #levelplan-section .lp-thema { flex: 0 1 280px; }
   #levelplan-section .lp-more {
     display: inline-flex;
     align-items: center;
@@ -13420,14 +13556,17 @@ body.student-app #levelplan-section.card.section {
     height: 44px;
     flex: 0 0 44px;
     border-radius: 12px;
-    border: 1px solid #334155;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     background: transparent;
     color: #f8fafc;
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
   }
-  #levelplan-section .lp-more.is-open { box-shadow: 0 0 16px rgba(34, 211, 238, 0.35); }
+  #levelplan-section .lp-more.is-open {
+    border-color: rgba(34, 211, 238, 0.55);
+    box-shadow: 0 0 16px rgba(34, 211, 238, 0.28);
+  }
   #levelplan-section .lp-sheet-backdrop { background: transparent; }
   #levelplan-section .lp-sheet:not(.lp-sheet--help) { visibility: hidden; }
   #levelplan-section .lp-sheet.is-popover {
@@ -13436,8 +13575,7 @@ body.student-app #levelplan-section.card.section {
     bottom: auto;
     width: min(320px, calc(100vw - 32px));
     max-height: min(70vh, 480px);
-    border-radius: 16px;
-    border: 1px solid #334155;
+    border-radius: 20px;
     padding: 16px;
   }
   #levelplan-section .lp-sheet--help {
@@ -13447,8 +13585,7 @@ body.student-app #levelplan-section.card.section {
     bottom: auto;
     width: min(440px, calc(100vw - 32px));
     transform: translate(-50%, -50%);
-    border-radius: 16px;
-    border: 1px solid #334155;
+    border-radius: 20px;
     padding: 16px;
   }
   #levelplan-section .lp-sheet__grab { display: none; }
@@ -13458,9 +13595,15 @@ body.student-app #levelplan-section.card.section {
   #levelplan-section .lp-seg button,
   #levelplan-section .lp-filters button,
   #levelplan-section .lp-sheet,
-  #levelplan-section .lp-fill > span,
-  #levelplan-section .lp-next {
+  #levelplan-section .lp-next,
+  #levelplan-section .lp-next__go,
+  #levelplan-section .lp-goal {
     transition: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  #levelplan-section .lp-next__go:hover {
+    transform: translateY(-1px);
   }
 }
   </style>
@@ -14018,7 +14161,7 @@ body.student-app #levelplan-section.card.section {
 <script src="/js/logbuch-today.js?v=56"></script>
 <script src="/js/logbuch-ueben.js?v=5"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
-<script src="/js/logbuch-levelplan.js?v=36"></script>
+<script src="/js/logbuch-levelplan.js?v=37"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=34"></script>

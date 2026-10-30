@@ -427,7 +427,7 @@
   }
 
   const HINT_KEY = "sol-levelplan-hint";
-  const TIER_ACCENT = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#d946ef" };
+  const TIER_ACCENT = { rookie: "#22d3ee", operator: "#a855f7", street_legend: "#f472b6" };
   const lcResultSaveTimers = {};
   let sheetKeyHandler = null;
   let ignorePercentBlur = false;
@@ -533,32 +533,23 @@
     else if (pctRequired == null) stat = `${current} von ${needed} sicher`;
     else if (pctRequired >= 100) stat = `${current} von ${needed} sicher · alle nötig`;
     else stat = `${current} von ${needed} · ${pctRequired} % nötig`;
-    return { fill, stat, counts };
+    return { fill, stat, counts, current, needed, free };
   }
 
-  function renderMix(counts) {
-    const total = counts.offen + counts.in_arbeit + counts.sicher;
-    const seg = (key) => {
-      const n = counts[key];
-      if (!n || !total) return "";
-      return `<span class="lp-mix__seg lp-mix__seg--${key}" style="width:${(n / total) * 100}%"></span>`;
-    };
-    return `
-      <div class="lp-mix" aria-hidden="true">${seg("offen")}${seg("in_arbeit")}${seg("sicher")}</div>
-      <p class="lp-mix__key"><span>○ Offen ${counts.offen}</span><span>◑ In Arbeit ${counts.in_arbeit}</span><span>✓ Sicher ${counts.sicher}</span></p>`;
-  }
-
-  function renderTierRow(thema, tier, progress) {
+  function renderTierRow(thema, tier, progress, activeTierId) {
     const stand = tierStand(thema, tier.id, progress);
     const accent = TIER_ACCENT[tier.id] || "#22d3ee";
+    const active = !stand.free && tier.id === activeTierId;
+    const center = stand.free || stand.needed <= 0 ? "–" : `${stand.current}/${stand.needed}`;
     return `
-      <div class="lp-tier" style="--lp-accent:${accent}">
-        <div class="lp-tier__top">
+      <div class="lp-tier ${active ? "is-active" : ""} ${stand.free ? "is-free" : ""}" style="--lp-accent:${accent}">
+        <div class="lp-ring" style="--lp-progress:${stand.free ? 0 : stand.fill}" aria-hidden="true">
+          <span class="lp-ring__value">${escapeHtml(center)}</span>
+        </div>
+        <div class="lp-tier__copy">
           <span class="lp-tier__name">${escapeHtml(tier.label)}</span>
           <span class="lp-tier__stat">${escapeHtml(stand.stat)}</span>
         </div>
-        <div class="lp-fill" aria-hidden="true"><span style="width:${stand.fill}%"></span></div>
-        ${renderMix(stand.counts)}
       </div>`;
   }
 
@@ -606,17 +597,19 @@
       </div>`;
   }
 
-  function renderProgressCard(thema, progress) {
+  function renderProgressCard(thema, progress, activeTierId) {
     const title = progress.hasTarget
       ? `Dein Weg zur Note ${progress.targetGradeLabel}`
       : "Dein Lernstand";
     const lead = progress.hasTarget
       ? ""
       : `<p class="lp-card__lead">Zielnote noch nicht gesetzt.</p>`;
-    const rows = markTiers().map((tier) => renderTierRow(thema, tier, progress)).join("");
+    const rows = markTiers()
+      .map((tier) => renderTierRow(thema, tier, progress, activeTierId))
+      .join("");
     return `
-      <section class="lp-card" aria-labelledby="lp-progress-title">
-        <h2 id="lp-progress-title">${escapeHtml(title)}</h2>
+      <section class="lp-card lp-path" aria-labelledby="lp-progress-title">
+        <h2 id="lp-progress-title" class="lp-kicker">${escapeHtml(title)}</h2>
         ${lead}
         <div class="lp-tiers">${rows}</div>
         ${renderVoluntaryLine(thema)}
@@ -633,6 +626,8 @@
       return {
         title: item.goalText || goal?.text || "Nächstes Unterthema",
         detail: item.taskText || "",
+        goalId: item.goalId || goal?.id || "",
+        tierId: item.tier || "",
         tierLabel: item.tierLabel || "",
         url: info.url || item.practiceUrl || ""
       };
@@ -644,6 +639,8 @@
         return {
           title: goal.text,
           detail,
+          goalId: goal.id,
+          tierId: tier.id,
           tierLabel: tier.label,
           url: materialInfo(goal).url
         };
@@ -652,16 +649,15 @@
     return null;
   }
 
-  function renderNextStep(thema) {
-    const step = nextStepModel(thema);
+  function renderNextStep(step) {
     if (!step) return "";
     const detail = step.detail && step.detail !== step.title && step.detail !== "–" ? step.detail : "";
     const go = step.url
       ? `<a class="lp-next__go" href="${escapeHtml(step.url)}" target="_blank" rel="noopener noreferrer">Loslegen</a>`
       : `<p class="lp-next__miss">Für diesen Schritt ist noch kein Material hinterlegt.</p>`;
     return `
-      <section class="lp-card lp-next" aria-labelledby="lp-next-title">
-        <h2 id="lp-next-title">Dein nächster Schritt</h2>
+      <section class="lp-next" aria-labelledby="lp-next-title">
+        <h2 id="lp-next-title" class="lp-kicker">Dein nächster Schritt</h2>
         ${step.tierLabel ? `<p class="lp-next__tier">${escapeHtml(step.tierLabel)}</p>` : ""}
         <p class="lp-next__title">${escapeHtml(step.title)}</p>
         ${detail ? `<p class="lp-next__detail">${escapeHtml(detail)}</p>` : ""}
@@ -698,11 +694,12 @@
     return `<div class="lp-filters" role="group" aria-label="Status filtern">${buttons}</div>`;
   }
 
-  function renderGoalRow(goal, linked, allLinked) {
+  function renderGoalRow(goal, linked, allLinked, nextGoalId) {
     const sheetForGoal = state.sheet && String(state.sheet.goalId) === String(goal.id);
     const moreOpen = !!(sheetForGoal && state.sheet.via === "more");
     const showDot = !allLinked && linked.has(String(goal.id));
     const focus = String(state.focusGoalId) === String(goal.id);
+    const isNext = nextGoalId && String(goal.id) === String(nextGoalId);
     const pills = markTiers()
       .map((tier) => {
         const raw = tierStatus(goal, tier.id);
@@ -714,7 +711,7 @@
       })
       .join("");
     return `
-      <article class="lp-goal ${focus ? "is-plan-focus" : ""}" data-lp-goal="${escapeHtml(goal.id)}">
+      <article class="lp-goal ${focus ? "is-plan-focus" : ""} ${isNext ? "is-next" : ""}" data-lp-goal="${escapeHtml(goal.id)}">
         <div class="lp-goal__head">
           ${showDot ? `<span class="lp-dot" aria-hidden="true"></span><span class="lp-sr">Im Levelcheck</span>` : ""}
           <h3 class="lp-goal__title">${escapeHtml(goal.text)}</h3>
@@ -724,7 +721,7 @@
       </article>`;
   }
 
-  function renderGoalList(thema) {
+  function renderGoalList(thema, nextGoalId) {
     const allGoals = thema?.goals || [];
     const linked = linkedGoalIdsForThema(thema?.id);
     const allLinked = allGoals.length > 0 && allGoals.every((goal) => linked.has(String(goal.id)));
@@ -740,12 +737,11 @@
       ? `<p class="lp-list-note">Alle Unterthemen sind einem Levelcheck zugeordnet.</p>`
       : "";
     const rows = goals.length
-      ? `<div class="lp-list">${goals.map((goal) => renderGoalRow(goal, linked, allLinked)).join("")}</div>`
+      ? `<div class="lp-list">${goals.map((goal) => renderGoalRow(goal, linked, allLinked, nextGoalId)).join("")}</div>`
       : `<p class="lp-empty">${allGoals.length ? "Für diesen Status gibt es hier keine Unterthemen." : "Für dieses Thema gibt es noch keine Unterthemen."}</p>`;
     return `
-      <section class="lp-card" aria-labelledby="lp-goals-title">
-        <h2 id="lp-goals-title">Unterthemen</h2>
-        ${renderStatusFilters(allGoals)}
+      <section class="lp-block" aria-labelledby="lp-goals-title">
+        <h2 id="lp-goals-title" class="lp-kicker">Unterthemen</h2>
         ${note}
         ${rows}
       </section>`;
@@ -774,7 +770,7 @@
     if (!checks.length) return "";
     const note =
       checks.length > 1
-        ? `<p class="lp-lc-note">Die Termine gehören zu einem Thema und teilen sich ein Ergebnis.</p>`
+        ? `<p class="lp-lc-note">Ein Ergebnis für das ganze Thema.</p>`
         : "";
     const cards = checks
       .map((lc) => {
@@ -800,8 +796,8 @@
       })
       .join("");
     return `
-      <section class="lp-card" aria-labelledby="lp-lc-title">
-        <h2 id="lp-lc-title">Levelchecks · ${checks.length}</h2>
+      <section class="lp-block" aria-labelledby="lp-lc-title">
+        <h2 id="lp-lc-title" class="lp-kicker">Levelchecks · ${checks.length}</h2>
         ${note}
         <div class="lp-lc-list">${cards}</div>
       </section>`;
@@ -821,7 +817,7 @@
           <div class="lp-sheet__grab" aria-hidden="true"></div>
           <h2 id="lp-help-title">So geht der Lernstand</h2>
           <div class="lp-helpbox">
-            <p>Die Balken zeigen, wie viel du schon sicher kannst. Daneben steht, was die Zielnote verlangt, zum Beispiel „alle nötig“ oder „50 % nötig“.</p>
+            <p>Die Ringe zeigen, wie viel du schon sicher kannst. Daneben steht, was die Zielnote verlangt, zum Beispiel „alle nötig“ oder „50 % nötig“.</p>
             <p>Tippe auf eine Stufe und wähle Offen, In Arbeit oder Sicher.</p>
             <p>Ein Punkt am Unterthema heißt: es gehört zu einem Levelcheck. Sind alle dabei, steht ein Hinweis über der Liste.</p>
             <p>Nach einem Tagesziel trägst du hier ein, was in Arbeit ist und was schon sicher läuft.</p>
@@ -923,14 +919,25 @@
       );
     }
     const progress = computeTopicProgress(thema);
+    const step = nextStepModel(thema);
+    const checks = renderLevelchecks(thema);
     return `
-      ${renderBar(thema, progress)}
-      ${renderLive()}
-      ${renderProgressCard(thema, progress)}
-      ${renderNextStep(thema)}
-      ${renderOnceHint()}
-      ${renderGoalList(thema)}
-      ${renderLevelchecks(thema)}
+      <div class="lp-top">
+        ${renderBar(thema, progress)}
+        ${renderLive()}
+        ${renderStatusFilters(thema.goals || [])}
+      </div>
+      <div class="lp-stage">
+        <div class="lp-main">
+          ${renderOnceHint()}
+          ${renderGoalList(thema, step?.goalId || "")}
+        </div>
+        <aside class="lp-rail">
+          ${renderProgressCard(thema, progress, step?.tierId || "")}
+          ${renderNextStep(step)}
+        </aside>
+        ${checks ? `<aside class="lp-side">${checks}</aside>` : ""}
+      </div>
       ${renderOverlay()}`;
   }
 
