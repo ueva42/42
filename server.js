@@ -64,6 +64,7 @@ import {
   cookieClearVariants
 } from "./lib/session-scope.js";
 import { registerTeacherCoachingRoutes } from "./lib/teacher-coaching-api.js";
+import { registerTeacherDashboardRoutes } from "./lib/teacher-dashboard-api.js";
 import { migrateCoachTables, registerCoachRoutes } from "./lib/coach-api.js";
 import {
   parseLevelplanImportText as parseLevelplanImportTextBase,
@@ -5680,6 +5681,14 @@ registerTeacherCoachingRoutes(app, {
   formatGermanDate,
   publicImageUrl,
   getGradeRequirements
+});
+
+registerTeacherDashboardRoutes(app, {
+  pool,
+  isTeacher,
+  getLevelChecksForClass,
+  getGradeRequirements,
+  resolveSchoolDate
 });
 
 registerCoachRoutes(app, { pool, isStudent });
@@ -15752,8 +15761,11 @@ app.get("/teacher", isTeacherShell, (_req, res) => {
 
 const teacherAppPaths = [
   "/teacher/heute",
+  "/teacher/klasse",
   "/teacher/klassen",
+  "/teacher/schuelerinnen",
   "/teacher/lernbegleitung",
+  "/teacher/werkzeuge",
   "/teacher/verlauf",
   "/teacher/profil",
   "/teacher/schueler"
