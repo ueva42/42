@@ -594,12 +594,10 @@
     const ziel = progress.hasTarget ? `Ziel: Note ${progress.targetGradeLabel}` : "Zielnote setzen";
     return `
       <div class="lp-bar">
-        <div class="lp-bar__primary">
-          <div class="lp-seg" role="tablist" aria-label="Fach">${subjectButtons}</div>
-          ${renderThemaControl(themen)}
-        </div>
-        <div class="lp-bar__secondary">
-          ${ka ? `<span class="lp-chip lp-chip--ka" title="${escapeHtml(ka)}">${escapeHtml(ka)}</span>` : ""}
+        <div class="lp-seg" role="tablist" aria-label="Fach">${subjectButtons}</div>
+        ${renderThemaControl(themen)}
+        ${ka ? `<span class="lp-chip lp-chip--ka" title="${escapeHtml(ka)}">${escapeHtml(ka)}</span>` : ""}
+        <div class="lp-bar__ziel">
           <button type="button" class="lp-chip lp-chip--ziel" data-lp-ziel>${escapeHtml(ziel)}</button>
           <button type="button" class="lp-help" data-lp-help aria-expanded="${state.helpOpen ? "true" : "false"}" aria-label="Hinweis zum Lernstand">?</button>
         </div>
@@ -623,12 +621,14 @@
       stagePanel = renderStatusPanel(goal, tier);
     }
     return `
-      <section class="lp-card lp-path" aria-labelledby="lp-progress-title">
+      <section class="lp-block" aria-labelledby="lp-progress-title">
         <h2 id="lp-progress-title" class="lp-kicker">${escapeHtml(title)}</h2>
-        ${lead}
-        <div class="lp-tiers">${rows}</div>
-        ${stagePanel}
-        ${renderVoluntaryLine(thema)}
+        <div class="lp-card lp-path">
+          ${lead}
+          <div class="lp-tiers">${rows}</div>
+          ${stagePanel}
+          ${renderVoluntaryLine(thema)}
+        </div>
       </section>`;
   }
 

@@ -12807,9 +12807,31 @@ body.student-app #levelplan-section.card.section {
   margin: 0 auto 16px;
   min-height: 148px;
   box-sizing: border-box;
+  border: 1px solid transparent;
+  background:
+    radial-gradient(circle at 0% 100%, rgba(168, 85, 247, 0.16), transparent 42%) padding-box,
+    radial-gradient(circle at 100% 0%, rgba(244, 114, 182, 0.14), transparent 36%) padding-box,
+    radial-gradient(circle at 78% 42%, rgba(34, 211, 238, 0.1), transparent 40%) padding-box,
+    linear-gradient(160deg, rgba(8, 14, 35, 0.98), rgba(5, 8, 22, 0.98)) padding-box,
+    linear-gradient(115deg, rgba(34, 211, 238, 0.8), rgba(168, 85, 247, 0.72), rgba(244, 114, 182, 0.7)) border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 #levelplan-section > .page-hero .page-hero__content {
   max-width: min(58%, 520px);
+}
+#levelplan-section > .page-hero .student-section-icon img {
+  filter: hue-rotate(58deg) saturate(0.65) brightness(0.85);
+}
+#levelplan-section > .page-hero.sol-hero--blend .sol-hero__art {
+  background:
+    radial-gradient(circle at 72% 40%, rgba(168, 85, 247, 0.22), transparent 52%),
+    radial-gradient(circle at 92% 78%, rgba(244, 114, 182, 0.16), transparent 46%),
+    linear-gradient(160deg, #071126 0%, #05091a 100%);
+}
+#levelplan-section > .page-hero.sol-hero--blend .sol-hero__art img,
+#levelplan-section > .page-hero.sol-hero--blend .sol-hero__img {
+  opacity: 0.26 !important;
+  filter: hue-rotate(58deg) saturate(0.6) brightness(0.7) contrast(1.05) !important;
 }
 @media (max-width: 720px) {
   #levelplan-section > .page-hero {
@@ -12891,53 +12913,67 @@ body.student-app #levelplan-section.card.section {
 }
 #levelplan-section .lp-kicker {
   margin: 0 0 12px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-family: "Orbitron", system-ui;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #94a3b8;
 }
 #levelplan-section .lp-bar {
   display: flex;
   flex-wrap: wrap;
+  align-items: stretch;
   gap: 8px;
-  align-items: center;
   min-width: 0;
+  max-width: 100%;
 }
-#levelplan-section .lp-bar__primary,
-#levelplan-section .lp-bar__secondary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+#levelplan-section .lp-seg,
+#levelplan-section .lp-thema,
+#levelplan-section .lp-chip,
+#levelplan-section .lp-bar__ziel {
+  flex: 0 1 auto;
   min-width: 0;
-  flex: 1 1 100%;
+  max-width: 100%;
+}
+#levelplan-section .lp-bar__ziel {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 #levelplan-section .lp-seg {
   display: inline-flex;
-  flex: 0 1 auto;
-  min-width: 0;
-  padding: 4px;
-  border-radius: 999px;
+  align-items: stretch;
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
   background: rgba(6, 11, 29, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 #levelplan-section .lp-seg button {
-  min-height: 44px;
+  min-height: 0;
+  height: 100%;
   min-width: 44px;
-  padding: 8px 16px;
+  padding: 8px;
   border: 0;
-  border-radius: 999px;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0;
   background: transparent;
   color: #e2e8f0;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
+#levelplan-section .lp-seg button:last-child { border-right: 0; }
 #levelplan-section .lp-seg button.is-active {
   background: rgba(34, 211, 238, 0.14);
   color: #ecfeff;
+  box-shadow: none;
 }
-#levelplan-section .lp-thema { flex: 1 1 160px; min-width: 0; }
 #levelplan-section .lp-thema select,
 #levelplan-section .lp-chip,
 #levelplan-section .lp-help {
@@ -12946,14 +12982,14 @@ body.student-app #levelplan-section.card.section {
   color: #e2e8f0;
 }
 #levelplan-section .lp-thema select {
-  width: 100%;
+  width: auto;
   min-height: 44px;
   max-width: 100%;
   box-sizing: border-box;
-  border-radius: 999px;
+  border-radius: 14px;
   font-weight: 700;
   font-size: 14px;
-  padding: 0 16px;
+  padding: 8px;
 }
 #levelplan-section .lp-chip {
   display: inline-flex;
@@ -12961,50 +12997,51 @@ body.student-app #levelplan-section.card.section {
   min-height: 44px;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 8px 16px;
-  border-radius: 999px;
+  padding: 8px;
+  border-radius: 14px;
   font-size: 14px;
   font-weight: 700;
 }
 #levelplan-section .lp-chip--ka {
-  flex: 1 1 120px;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #cbd5e1;
 }
 #levelplan-section .lp-chip--ziel {
-  flex: 0 0 auto;
+  min-width: 0;
   border-color: rgba(34, 211, 238, 0.45);
   background: rgba(34, 211, 238, 0.08);
   color: #67e8f9;
   cursor: pointer;
 }
 #levelplan-section .lp-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 44px;
-  height: 44px;
+  min-height: 44px;
   flex: 0 0 44px;
-  border-radius: 50%;
+  padding: 8px;
+  border-radius: 14px;
   font-weight: 700;
   cursor: pointer;
 }
 #levelplan-section .lp-card,
 #levelplan-section .lp-goal,
-#levelplan-section .lp-lc {
+#levelplan-section .lp-lc,
+#levelplan-section .lp-next {
   background: rgba(6, 11, 29, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border-radius: 16px;
+  box-shadow: none;
 }
 #levelplan-section .lp-card {
   padding: 16px;
   min-width: 0;
 }
 #levelplan-section .lp-path {
-  background:
-    radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.08), transparent 58%),
-    rgba(6, 11, 29, 0.94);
+  background: rgba(6, 11, 29, 0.94);
 }
 #levelplan-section .lp-card__lead,
 #levelplan-section .lp-voluntary,
@@ -13043,7 +13080,7 @@ body.student-app #levelplan-section.card.section {
   margin: 0;
   padding: 8px;
   box-sizing: border-box;
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid transparent;
   background: transparent;
   color: inherit;
@@ -13055,7 +13092,10 @@ body.student-app #levelplan-section.card.section {
   z-index: 2;
   pointer-events: auto;
 }
-#levelplan-section button.lp-tier.is-open,
+#levelplan-section button.lp-tier.is-open {
+  border-color: var(--lp-accent, #22d3ee);
+  box-shadow: none;
+}
 #levelplan-section button.lp-tier.is-active {
   border-color: var(--lp-accent, #22d3ee);
   box-shadow: 0 0 16px color-mix(in srgb, var(--lp-accent, #22d3ee) 35%, transparent);
@@ -13064,13 +13104,11 @@ body.student-app #levelplan-section.card.section {
   position: relative;
   z-index: 3;
   margin-top: 8px;
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(34, 211, 238, 0.45);
-  background:
-    radial-gradient(circle at 0 0, rgba(34, 211, 238, 0.12), transparent 46%),
-    rgba(8, 14, 35, 0.98);
-  box-shadow: 0 0 18px rgba(34, 211, 238, 0.14);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   scroll-margin-top: 96px;
   scroll-margin-bottom: 96px;
 }
@@ -13150,9 +13188,10 @@ body.student-app #levelplan-section.card.section {
   min-width: 0;
 }
 #levelplan-section .lp-tier__name {
+  font-family: "Orbitron", system-ui;
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--lp-accent, #22d3ee) 78%, #fff);
 }
@@ -13176,9 +13215,10 @@ body.student-app #levelplan-section.card.section {
 }
 #levelplan-section .lp-next__tier {
   margin: 0 0 4px;
+  font-family: "Orbitron", system-ui;
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #fdba74;
 }
@@ -13198,8 +13238,8 @@ body.student-app #levelplan-section.card.section {
   width: 100%;
   min-height: 44px;
   margin-top: 12px;
-  padding: 8px 16px;
-  border-radius: 12px;
+  padding: 8px;
+  border-radius: 14px;
   border: 1px solid rgba(249, 115, 22, 0.45);
   background: rgba(8, 14, 35, 0.95);
   color: #fdba74;
@@ -13207,7 +13247,7 @@ body.student-app #levelplan-section.card.section {
   font-weight: 800;
   letter-spacing: 0.04em;
   text-decoration: none;
-  box-shadow: 0 0 18px rgba(249, 115, 22, 0.12);
+  box-shadow: none;
 }
 #levelplan-section .lp-next__miss { margin-top: 8px; }
 #levelplan-section .lp-once {
@@ -13224,8 +13264,8 @@ body.student-app #levelplan-section.card.section {
 #levelplan-section .lp-once p { margin: 0; flex: 1 1 180px; }
 #levelplan-section .lp-once button {
   min-height: 44px;
-  padding: 8px 16px;
-  border-radius: 999px;
+  padding: 8px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: transparent;
   color: #e2e8f0;
@@ -13252,14 +13292,17 @@ body.student-app #levelplan-section.card.section {
   flex-wrap: wrap;
   gap: 8px;
   margin: 0;
+  max-width: 100%;
+  min-width: 0;
 }
 #levelplan-section .lp-filters button {
   min-height: 44px;
-  padding: 8px 16px;
-  border-radius: 999px;
+  padding: 8px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(6, 11, 29, 0.72);
   color: #e2e8f0;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -13283,15 +13326,11 @@ body.student-app #levelplan-section.card.section {
 }
 #levelplan-section .lp-goal.is-next {
   border-color: rgba(249, 115, 22, 0.5);
-  box-shadow:
-    0 0 18px rgba(249, 115, 22, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: none;
 }
 #levelplan-section .lp-goal.is-plan-focus {
   border-color: rgba(34, 211, 238, 0.55);
-  box-shadow:
-    0 0 22px rgba(34, 211, 238, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: none;
 }
 #levelplan-section .lp-goal__head {
   display: flex;
@@ -13327,6 +13366,8 @@ body.student-app #levelplan-section.card.section {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  max-width: 100%;
+  min-width: 0;
 }
 #levelplan-section .lp-pill {
   --lp-tier: #94a3b8;
@@ -13336,13 +13377,15 @@ body.student-app #levelplan-section.card.section {
   box-sizing: border-box;
   min-height: 44px;
   min-width: 44px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--lp-tier) 48%, transparent);
-  background: rgba(6, 11, 29, 0.55);
+  max-width: 100%;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--lp-tier) 72%, transparent);
+  background: transparent;
   color: #e2e8f0;
   font-size: 14px;
   font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
   position: relative;
   z-index: 2;
@@ -13352,19 +13395,25 @@ body.student-app #levelplan-section.card.section {
 #levelplan-section .lp-pill--rookie { --lp-tier: #22d3ee; }
 #levelplan-section .lp-pill--operator { --lp-tier: #a855f7; }
 #levelplan-section .lp-pill--street_legend { --lp-tier: #f472b6; }
+#levelplan-section .lp-pill--offen {
+  border-style: dashed;
+  background: transparent;
+}
 #levelplan-section .lp-pill--in_arbeit {
-  background: #fbbf24;
-  border-color: #fbbf24;
-  color: #1c1917;
+  border-style: solid;
+  border-color: var(--lp-tier);
+  background: transparent;
+  color: #f8fafc;
 }
 #levelplan-section .lp-pill--sicher {
-  background: rgba(34, 197, 94, 0.16);
-  border-color: rgba(34, 197, 94, 0.55);
-  color: #bbf7d0;
+  border-style: solid;
+  border-color: var(--lp-tier);
+  background: color-mix(in srgb, var(--lp-tier) 42%, #060b1d);
+  color: #f8fafc;
 }
 #levelplan-section .lp-pill.is-open {
   border-color: var(--lp-tier);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--lp-tier) 42%, transparent);
+  box-shadow: none;
 }
 #levelplan-section .lp-pill.is-busy { opacity: 0.55; }
 #levelplan-section .lp-more { display: none; }
@@ -13387,16 +13436,12 @@ body.student-app #levelplan-section.card.section {
   max-height: min(78vh, 560px);
   overflow: auto;
   box-sizing: border-box;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(168, 85, 247, 0.16), transparent 42%),
-    rgba(8, 14, 35, 0.98);
+  background: rgba(8, 14, 35, 0.98);
   color: #f8fafc;
-  border-radius: 20px 20px 0 0;
-  border: 1px solid rgba(34, 211, 238, 0.28);
+  border-radius: 16px 16px 0 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 8px 16px 16px;
-  box-shadow:
-    0 -12px 40px rgba(0, 0, 0, 0.5),
-    0 0 24px rgba(34, 211, 238, 0.08);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
 }
 #levelplan-section .lp-sheet:focus { outline: none; }
 #levelplan-section .lp-sheet:focus-visible {
@@ -13409,6 +13454,11 @@ body.student-app #levelplan-section.card.section {
   margin: 4px auto 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.24);
+}
+#levelplan-section .lp-sheet h2 {
+  font-family: "Orbitron", system-ui;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 #levelplan-section .lp-sheet h2,
 #levelplan-section .lp-sheet h3 {
@@ -13425,7 +13475,8 @@ body.student-app #levelplan-section.card.section {
   flex: 1;
   min-height: 44px;
   min-width: 44px;
-  border-radius: 999px;
+  padding: 8px;
+  border-radius: 14px;
   border: 1px solid var(--lp-tier, #64748b);
   background: transparent;
   color: #f8fafc;
@@ -13434,7 +13485,7 @@ body.student-app #levelplan-section.card.section {
 }
 #levelplan-section .lp-sheet__tiers button.is-active {
   background: color-mix(in srgb, var(--lp-tier, #22d3ee) 16%, transparent);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--lp-tier, #22d3ee) 28%, transparent);
+  box-shadow: none;
 }
 #levelplan-section .lp-sheet__status {
   display: flex;
@@ -13451,7 +13502,8 @@ body.student-app #levelplan-section.card.section {
   width: 100%;
   min-height: 44px;
   margin-top: 8px;
-  border-radius: 12px;
+  padding: 8px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(6, 11, 29, 0.92);
   color: #f8fafc;
@@ -13505,7 +13557,7 @@ body.student-app #levelplan-section.card.section {
   align-items: center;
   min-height: 28px;
   padding: 4px 8px;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
   color: #e2e8f0;
@@ -13626,10 +13678,6 @@ body.student-app #levelplan-section.card.section {
   #levelplan-section .lp-rail { grid-area: rail; }
   #levelplan-section .lp-main { grid-area: main; }
   #levelplan-section .lp-side { grid-area: side; }
-  #levelplan-section .lp-bar__primary,
-  #levelplan-section .lp-bar__secondary { flex: 1 1 auto; }
-  #levelplan-section .lp-bar__secondary { justify-content: flex-end; }
-  #levelplan-section .lp-thema { flex: 0 1 280px; }
   #levelplan-section .lp-more {
     display: inline-flex;
     align-items: center;
@@ -13637,7 +13685,7 @@ body.student-app #levelplan-section.card.section {
     width: 44px;
     height: 44px;
     flex: 0 0 44px;
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     background: transparent;
     color: #f8fafc;
@@ -13647,7 +13695,7 @@ body.student-app #levelplan-section.card.section {
   }
   #levelplan-section .lp-more.is-open {
     border-color: rgba(34, 211, 238, 0.55);
-    box-shadow: 0 0 16px rgba(34, 211, 238, 0.28);
+    box-shadow: none;
   }
   #levelplan-section .lp-sheet-backdrop { background: transparent; }
   #levelplan-section .lp-sheet:not(.lp-sheet--help) { visibility: hidden; }
@@ -13657,7 +13705,7 @@ body.student-app #levelplan-section.card.section {
     bottom: auto;
     width: min(320px, calc(100vw - 32px));
     max-height: min(70vh, 480px);
-    border-radius: 20px;
+    border-radius: 16px;
     padding: 16px;
   }
   #levelplan-section .lp-sheet--help {
@@ -13667,7 +13715,7 @@ body.student-app #levelplan-section.card.section {
     bottom: auto;
     width: min(440px, calc(100vw - 32px));
     transform: translate(-50%, -50%);
-    border-radius: 20px;
+    border-radius: 16px;
     padding: 16px;
   }
   #levelplan-section .lp-sheet__grab { display: none; }
@@ -14243,7 +14291,7 @@ body.student-app #levelplan-section.card.section {
 <script src="/js/logbuch-today.js?v=56"></script>
 <script src="/js/logbuch-ueben.js?v=5"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
-<script src="/js/logbuch-levelplan.js?v=38"></script>
+<script src="/js/logbuch-levelplan.js?v=39"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=34"></script>
