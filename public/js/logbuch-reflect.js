@@ -90,21 +90,21 @@
   function reflectHandoffStyles() {
     return `<style>
       .plan-handoff-strip{margin:0 0 14px;padding:12px;border-radius:14px;border:1px solid rgba(34,211,238,.45);background:rgba(8,47,73,.55)}
-      .plan-handoff-strip__label{margin:0 0 8px;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#67e8f9}
+      .plan-handoff-strip__label{margin:0 0 8px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#67e8f9}
       .plan-handoff-strip__row{display:flex;flex-wrap:wrap;gap:8px}
-      .plan-handoff-strip__btn{min-height:44px;padding:8px 14px;border-radius:12px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.45);color:#cbd5e1;font-weight:800;font-size:.95rem;cursor:pointer}
+      .plan-handoff-strip__btn{min-height:44px;padding:8px 14px;border-radius:12px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.45);color:#cbd5e1;font-weight:800;font-size:14px;cursor:pointer}
       .plan-handoff-strip__btn.is-active{border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#fff;box-shadow:0 0 0 2px rgba(34,211,238,.3)}
       .plan-handoff-strip__btn.is-done:not(.is-active){border-color:rgba(52,211,153,.55);color:#a7f3d0}
-      .plan-handoff-strip__hint{margin:8px 0 0;font-size:.78rem;color:#94a3b8}
+      .plan-handoff-strip__hint{margin:8px 0 0;font-size:12px;line-height:1.45;color:#94a3b8}
       .pq-handoff{text-align:center}
-      .pq-handoff__name{margin:6px 0 14px;font-size:2.2rem;font-weight:900;line-height:1.1;color:#22d3ee}
-      .pq-handoff .today-app-btn{width:100%;min-height:58px;font-size:1.15rem}
+      .pq-handoff__name{margin:6px 0 14px;font-family:Orbitron,system-ui,sans-serif;font-size:clamp(22px,4vw,30px);font-weight:700;line-height:1.15;letter-spacing:.04em;color:#22d3ee}
+      .pq-handoff .today-app-btn{width:100%;min-height:58px;font-size:14px}
       .pq-dots{display:flex;justify-content:center;gap:8px;margin:10px 0 16px}
       .pq-dots span{width:12px;height:12px;border-radius:50%;background:rgba(148,163,184,.35)}
       .pq-dots span.is-done{background:#34d399}
       .pq-dots span.is-next{background:#22d3ee;box-shadow:0 0 0 3px rgba(34,211,238,.35)}
       .reflect-pick__row{display:flex;flex-direction:column;gap:10px;margin:12px 0 18px}
-      .reflect-pick__btn{min-height:56px;padding:12px 16px;border-radius:14px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.55);color:#e2e8f0;font-weight:800;font-size:1.1rem;cursor:pointer;text-align:left}
+      .reflect-pick__btn{min-height:56px;padding:12px 16px;border-radius:14px;border:2px solid rgba(148,163,184,.4);background:rgba(15,23,42,.55);color:#e2e8f0;font-weight:800;font-size:14px;cursor:pointer;text-align:left}
       .reflect-pick__btn.is-focus{border-color:#22d3ee;background:linear-gradient(145deg,rgba(14,116,144,.95),rgba(8,47,73,.98));color:#fff}
       .reflect-pick__btn.is-done{border-color:rgba(52,211,153,.5);color:#a7f3d0;opacity:.85}
     </style>`;

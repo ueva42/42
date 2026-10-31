@@ -148,8 +148,10 @@
       .logic-coach-title {
         margin: 0;
         font-family: "Orbitron", system-ui, sans-serif;
-        font-size: 18px;
-        letter-spacing: 0.06em;
+        font-size: 17px;
+        font-weight: 700;
+        line-height: 1.25;
+        letter-spacing: 0.05em;
         text-transform: uppercase;
         color: #f5d0fe;
       }

@@ -430,9 +430,12 @@ body.student-app .mobile-header {
 .student-more-title {
   margin: 0;
   font-family: "Orbitron", system-ui;
-  font-size: 14px;
-  letter-spacing: 0.06em;
+  font-size: 17px;
+  line-height: 1.25;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .student-more-close {
@@ -1167,8 +1170,8 @@ body.student-app .notif-panel {
 .hub-identity-name {
   margin: 0;
   font-family: "Orbitron", system-ui;
-  font-size: 18px;
-  line-height: 1.2;
+  font-size: 16px;
+  line-height: 1.25;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #f8fafc;
@@ -1615,9 +1618,11 @@ body.student-app .notif-panel {
 }
 
 .ms-tile__title {
+  font-family: "Orbitron", system-ui;
   font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
   color: #f8fafc;
 }
 
@@ -1845,8 +1850,9 @@ body.student-app .notif-panel {
 
 .hub-mission-title {
   margin: 8px 0 0;
-  font-size: 18px;
-  font-weight: 900;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
   color: #fff;
 }
 
@@ -1858,8 +1864,9 @@ body.student-app .notif-panel {
 
 .hub-block-label {
   margin: 0 0 16px;
-  font-size: 13px;
-  font-weight: 700;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #dce6ff;
@@ -2280,6 +2287,8 @@ body.student-app .notif-panel {
   z-index: 4;
   font-family: "Orbitron", system-ui;
   font-weight: 800;
+  font-size: 16px;
+  line-height: 1.25;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #f1f5ff;
@@ -2287,12 +2296,9 @@ body.student-app .notif-panel {
   opacity: 1;
 }
 
-.hub-tile-lg .hub-tile-title {
-  font-size: 16px;
-}
-
+.hub-tile-lg .hub-tile-title,
 .hub-tile-sm .hub-tile-title {
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .hub-tile-cta {
@@ -2468,7 +2474,7 @@ body.student-app .notif-panel {
 
 .hub-status-card__title {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1.45;
   color: #f8fafc;
@@ -2477,7 +2483,7 @@ body.student-app .notif-panel {
 
 .hub-status-card__meta {
   margin: 8px 0 0;
-  font-size: 14px;
+  font-size: 12px;
   line-height: 1.45;
   color: #e2e8f0;
 }
@@ -5631,9 +5637,10 @@ body.student-app {
 
 .section-block__title {
   margin: 0;
-  font-family: "Orbitron", system-ui;
-  font-size: 12px;
-  letter-spacing: 0.1em;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--accent, #fff) 70%, #fff);
 }
@@ -6181,11 +6188,11 @@ body.student-app .card.section > h2 {
 }
 .plan-overview-mission__title {
   margin: 0;
-  font-family: "Orbitron", system-ui;
-  font-size: clamp(1rem, 2.4vw, 1.25rem);
-  font-weight: 800;
-  line-height: 1.35;
-  letter-spacing: 0.02em;
+  font-family: Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0;
   color: #fff7ed;
 }
 .plan-overview-mission__detail {
@@ -6311,13 +6318,14 @@ body.student-app .card.section > h2 {
 .today-view-plan-btn { margin-top: 8px; width: 100%; }
 .logbuch-field { display: flex; flex-direction: column; gap: 6px; }
 .logbuch-label {
-  font-family: "Bebas Neue", system-ui;
-  font-size: 15px;
-  letter-spacing: 0.1em;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #e5e7eb;
 }
-.logbuch-req { color: #22d3ee; font-size: 14px; }
+.logbuch-req { color: #22d3ee; font-size: 10px; }
 .logbuch-opt { font-size: 11px; opacity: 0.55; text-transform: none; letter-spacing: 0; font-family: system-ui; }
 .logbuch-hint { margin: 0; font-size: 11px; opacity: 0.55; }
 .logbuch-select {
@@ -6493,9 +6501,11 @@ body.student-app .card.section > h2 {
   gap: 6px;
 }
 .logbuch-reflect-subject {
-  font-family: "Bebas Neue", system-ui;
-  font-size: 14px;
-  letter-spacing: 0.1em;
+  font-family: "Orbitron", system-ui;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
   text-transform: uppercase;
   color: #c4b5fd;
 }
@@ -6870,8 +6880,11 @@ body.student-app .card.section > h2 {
 
 .hw-block__title {
   margin: 0;
-  font-size: 1rem;
+  font-family: "Orbitron", system-ui;
+  font-size: 16px;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
   color: #f8fafc;
 }
 
@@ -7384,7 +7397,11 @@ body.student-app .card.section > h2 {
 
 .hw-modal__title {
   margin: 0;
-  font-size: 1.15rem;
+  font-family: "Orbitron", system-ui;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
   color: #f8fafc;
 }
 
@@ -9055,7 +9072,8 @@ body.student-app .card.section > h2 {
 }
 
 .plan-app-hero--compact .plan-app-hero__title {
-  font-size: clamp(1.15rem, 2.6vw, 1.45rem);
+  font-size: clamp(0.95rem, 2.2vw, 1.1rem);
+  line-height: 1.25;
 }
 
 .plan-app-hero--plan {
@@ -9254,8 +9272,9 @@ body.student-app .card.section > h2 {
 .goal-step-card__title {
   margin: 0;
   font-family: "Orbitron", system-ui;
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  font-size: 14px;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #f1f5f9;
 }
@@ -9538,8 +9557,11 @@ body.student-app .card.section > h2 {
 
 .plan-next-modal__title {
   margin: 8px 0 6px;
-  font-size: 22px;
-  line-height: 1.2;
+  font-family: "Orbitron", system-ui;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.05em;
   color: #f8fafc;
 }
 
@@ -10714,8 +10736,9 @@ article.today-subject-tile:hover {
   vertical-align: top;
 }
 .week-table th {
-  font-family: "Bebas Neue", system-ui;
+  font-family: Arial, sans-serif;
   font-size: 11px;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.7;
@@ -10973,8 +10996,11 @@ article.today-subject-tile:hover {
 }
 .lc-subject-title {
   margin: 0 0 10px;
-  font-size: 14px;
-  letter-spacing: 0.14em;
+  font-family: "Orbitron", system-ui;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
   text-transform: uppercase;
   color: #f97316;
 }
@@ -11481,7 +11507,9 @@ article.today-subject-tile:hover {
 #checkpoint-plan-screen-root .mcp-hero__title {
   margin: 6px 0 0;
   font-family: "Orbitron", system-ui, sans-serif;
-  font-size: clamp(1.25rem, 2.6vw, 1.65rem);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--mcp-text);
@@ -11567,15 +11595,17 @@ article.today-subject-tile:hover {
 
 #checkpoint-plan-screen-root .mcp-next__title {
   margin: 6px 0 0;
-  font-size: clamp(1.2rem, 2.4vw, 1.55rem);
+  font-family: Arial, sans-serif;
+  font-size: 15px;
   font-weight: 700;
   color: var(--mcp-text);
-  line-height: 1.25;
+  line-height: 1.45;
 }
 
 #checkpoint-plan-screen-root .mcp-next__meta {
   margin: 8px 0 0;
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1.45;
   color: var(--mcp-muted);
 }
 
@@ -12306,10 +12336,11 @@ h2 {
 
 .char-name {
   margin-top: 10px;
-  font-family: "Bebas Neue", system-ui;
-  letter-spacing: 0.18em;
+  font-family: "Orbitron", system-ui;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
   text-transform: uppercase;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .char-traits {
@@ -12320,10 +12351,11 @@ h2 {
 }
 
 .char-traits b {
-  font-family: "Bebas Neue", system-ui;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-size: 15px;
+  font-family: Arial, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 /* ============================================
@@ -12476,9 +12508,10 @@ h2 {
   border: 1px solid #f97316;
   background: #020617;
   color: #f9fafb;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 800;
   cursor: pointer;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   transition: 0.18s ease;
   box-shadow: 0 6px 14px rgba(0,0,0,0.85);
@@ -12502,9 +12535,10 @@ h2 {
   border-radius: 999px;
   background: linear-gradient(135deg, #22c55e, #a855f7);
   color: #0f172a;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 800;
   cursor: pointer;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   box-shadow: 0 8px 20px rgba(8,47,73,0.95);
   transition: 0.18s ease;
@@ -12561,19 +12595,18 @@ h2 {
 }
 
 .character-overlay-title {
-  font-family: "Bangers", system-ui;
-  font-size: 26px;
-  letter-spacing: 0.22em;
+  font-family: "Orbitron", system-ui;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   text-align: center;
   margin: 0 0 8px 0;
   color: #fef9c3;
-  text-shadow:
-    -2px -2px 0 #000,
-    2px -2px 0 #000,
-    -2px 2px 0 #000,
-    2px 2px 0 #000,
-    0 0 16px rgba(251,191,36,0.95);
+  text-shadow: none;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .character-overlay-sub {
@@ -12634,10 +12667,12 @@ h2 {
 }
 
 .character-choice-name {
-  font-family: "Bebas Neue", system-ui;
-  letter-spacing: 0.16em;
+  font-family: "Orbitron", system-ui;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
   text-transform: uppercase;
   font-size: 14px;
+  font-weight: 700;
   color: #e5e7eb;
 }
 
@@ -12701,10 +12736,12 @@ h2 {
 }
 
 .notif-title{
-  font-family: "Bebas Neue", system-ui;
-  letter-spacing: 0.14em;
+  font-family: "Orbitron", system-ui;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
   text-transform: uppercase;
   font-size: 16px;
+  font-weight: 700;
 }
 
 .notif-close{
@@ -12819,6 +12856,11 @@ body.student-app #levelplan-section.card.section {
 #levelplan-section > .page-hero .page-hero__content {
   max-width: min(58%, 520px);
 }
+#levelplan-section > .page-hero .page-hero__title {
+  text-shadow: none;
+  line-height: 1.25;
+  font-weight: 700;
+}
 #levelplan-section > .page-hero .student-section-icon img {
   filter: hue-rotate(58deg) saturate(0.65) brightness(0.85);
 }
@@ -12913,10 +12955,10 @@ body.student-app #levelplan-section.card.section {
 }
 #levelplan-section .lp-kicker {
   margin: 0 0 12px;
-  font-family: "Orbitron", system-ui;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #94a3b8;
 }
@@ -13189,9 +13231,10 @@ body.student-app #levelplan-section.card.section {
 }
 #levelplan-section .lp-tier__name {
   font-family: "Orbitron", system-ui;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--lp-accent, #22d3ee) 78%, #fff);
 }
@@ -13215,10 +13258,10 @@ body.student-app #levelplan-section.card.section {
 }
 #levelplan-section .lp-next__tier {
   margin: 0 0 4px;
-  font-family: "Orbitron", system-ui;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #fdba74;
 }
@@ -13457,14 +13500,20 @@ body.student-app #levelplan-section.card.section {
 }
 #levelplan-section .lp-sheet h2 {
   font-family: "Orbitron", system-ui;
-  letter-spacing: 0.06em;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 #levelplan-section .lp-sheet h2,
 #levelplan-section .lp-sheet h3 {
   margin: 0 0 8px;
-  font-size: 16px;
   font-weight: 700;
+}
+#levelplan-section .lp-sheet h3 {
+  font-size: 16px;
+  line-height: 1.35;
 }
 #levelplan-section .lp-sheet__tiers {
   display: flex;
@@ -14278,18 +14327,18 @@ body.student-app #levelplan-section.card.section {
 <script src="/js/logbuch-constants.js?v=12"></script>
 <script src="/js/logbuch-strategies.js?v=3"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
-<script src="/js/logbuch-coach.js?v=7"></script>
+<script src="/js/logbuch-coach.js?v=8"></script>
 <script src="/js/logbuch-hub.js?v=46"></script>
 <script src="/js/logbuch-visuals.js?v=19"></script>
 <script src="/js/logbuch-reminders.js?v=6"></script>
-<script src="/js/logbuch-group-invites.js?v=2"></script>
+<script src="/js/logbuch-group-invites.js?v=3"></script>
 <script src="/js/logbuch-swipe.js"></script>
 <script src="/js/student-router.js?v=13"></script>
-<script src="/js/logbuch-plan.js?v=60"></script>
+<script src="/js/logbuch-plan.js?v=61"></script>
 <script src="/js/logbuch-check.js?v=15"></script>
-<script src="/js/logbuch-reflect.js?v=12"></script>
+<script src="/js/logbuch-reflect.js?v=13"></script>
 <script src="/js/logbuch-today.js?v=56"></script>
-<script src="/js/logbuch-ueben.js?v=5"></script>
+<script src="/js/logbuch-ueben.js?v=6"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
 <script src="/js/logbuch-levelplan.js?v=39"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
@@ -14298,7 +14347,7 @@ body.student-app #levelplan-section.card.section {
 <script src="/js/logbuch-checkpoint-plan.js?v=13"></script>
 <script src="/js/logbuch-materialschrank.js?v=8"></script>
 <script src="/js/logbuch-homework.js?v=6"></script>
-<script src="/js/logbuch-gruppenmodus.js?v=35"></script>
+<script src="/js/logbuch-gruppenmodus.js?v=36"></script>
 <script src="/js/logbuch-screens.js?v=12"></script>
 
 <script>
@@ -14851,7 +14900,7 @@ function renderCarousel(id, items, type) {
       <div class="carousel-item ${idx===0?"active":""}">
         ${item.image_url ? `<img class="mission-img" src="${item.image_url}">` : ""}
 
-        <h3 style="margin:8px 0 2px 0;font-family:'Bebas Neue';letter-spacing:0.14em;text-transform:uppercase;">
+        <h3 style="margin:8px 0 2px 0;font-family:Orbitron,system-ui,sans-serif;font-size:16px;font-weight:700;letter-spacing:0.04em;line-height:1.25;text-transform:uppercase;">
           ${item.name}
         </h3>
 

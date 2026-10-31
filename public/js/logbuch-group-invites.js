@@ -33,19 +33,19 @@
         #solGroupInviteModalRoot.is-open{display:flex;pointer-events:auto}
         .sol-invite-backdrop{position:absolute;inset:0;background:rgba(4,12,24,.72);backdrop-filter:blur(8px)}
         .sol-invite-dialog{position:relative;z-index:1;width:min(440px,100%);max-height:min(86vh,720px);overflow:auto;border-radius:22px;border:1px solid rgba(34,211,238,.42);background:linear-gradient(165deg,rgba(10,28,52,.97),rgba(8,18,36,.98));box-shadow:0 24px 64px rgba(0,0,0,.45),0 0 0 1px rgba(168,85,247,.18);padding:22px 20px 18px;color:#e0f2fe}
-        .sol-invite-kicker{margin:0 0 6px;font-family:Orbitron,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;font-size:.72rem;color:#67e8f9}
-        .sol-invite-title{margin:0 0 8px;font-size:1.35rem;line-height:1.25;font-weight:800}
-        .sol-invite-lead{margin:0 0 16px;opacity:.82;line-height:1.45;font-size:.98rem}
+        .sol-invite-kicker{margin:0 0 6px;font-family:Arial,sans-serif;font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:10px;color:#67e8f9}
+        .sol-invite-title{margin:0 0 8px;font-family:Orbitron,system-ui,sans-serif;font-size:17px;line-height:1.25;font-weight:700;letter-spacing:.05em}
+        .sol-invite-lead{margin:0 0 16px;opacity:.82;line-height:1.45;font-size:13px}
         .sol-invite-card{display:grid;gap:6px;padding:14px 14px 12px;border-radius:16px;border:1px solid rgba(148,163,184,.28);background:rgba(8,24,48,.55);margin-bottom:12px}
-        .sol-invite-card__subject{font-weight:800;font-size:1.08rem}
-        .sol-invite-card__meta{opacity:.78;font-size:.92rem}
+        .sol-invite-card__subject{font-family:Orbitron,system-ui,sans-serif;font-weight:700;font-size:16px;letter-spacing:.04em;line-height:1.25}
+        .sol-invite-card__meta{opacity:.78;font-size:12px;line-height:1.45}
         .sol-invite-actions{display:flex;gap:10px;margin-top:8px}
-        .sol-invite-actions button{flex:1;min-height:52px;border-radius:14px;font-size:1.02rem;font-weight:700;cursor:pointer;border:0}
+        .sol-invite-actions button{flex:1;min-height:52px;border-radius:14px;font-size:14px;font-weight:800;letter-spacing:.03em;cursor:pointer;border:0}
         .sol-invite-btn--accept{background:linear-gradient(90deg,#22d3ee,#a855f7);color:#fff;box-shadow:0 8px 28px rgba(34,211,238,.28)}
         .sol-invite-btn--decline{background:transparent;border:1px solid rgba(34,211,238,.4)!important;color:#e0f2fe}
         .sol-invite-btn--accept:disabled,.sol-invite-btn--decline:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
-        .sol-invite-error{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:rgba(220,60,60,.22);color:#fecaca;font-size:.92rem}
-        .sol-invite-ok{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:rgba(34,211,238,.16);border:1px solid rgba(34,211,238,.28);font-size:.92rem}
+        .sol-invite-error{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:rgba(220,60,60,.22);color:#fecaca;font-size:13px;line-height:1.45}
+        .sol-invite-ok{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:rgba(34,211,238,.16);border:1px solid rgba(34,211,238,.28);font-size:13px;line-height:1.45}
         @media (prefers-reduced-motion:reduce){
           .sol-invite-backdrop{backdrop-filter:none}
         }
