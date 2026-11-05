@@ -61,7 +61,8 @@
     saving: null,
     message: "",
     error: "",
-    focusLevelcheckGoals: true
+    focusLevelcheckGoals: true,
+    training: null
   };
 
   let initPromise = null;
@@ -568,6 +569,88 @@
     return `<p class="lp-voluntary">Unterthema frei · Freiwillige Vertiefung${extra}</p>`;
   }
 
+  function trainingForThema(thema) {
+    if (!thema || !state.training) return null;
+    return (
+      (state.training.topics || []).find(
+        (topic) => String(topic.levelCheckId) === String(thema.id)
+      ) || null
+    );
+  }
+
+  function trainingForGoal(thema, goal) {
+    const topic = trainingForThema(thema);
+    if (!topic || !goal) return null;
+    return (topic.goals || []).find((item) => String(item.goalId) === String(goal.id)) || null;
+  }
+
+  function formatTrainingTime(iso) {
+    if (!iso) return "";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
+  function tierWord(tier) {
+    if (tier === "rookie") return "Rookie";
+    if (tier === "operator") return "Operator";
+    return "Street Legend";
+  }
+
+  function vergleichLabel(value) {
+    if (value === "passt") return "Einschätzung passt";
+    if (value === "unterschätzt") return "Einschätzung unterschätzt";
+    if (value === "überschätzt") return "Einschätzung überschätzt";
+    return "";
+  }
+
+  function renderTrainingGoal(item) {
+    if (!item) return "";
+    const parts = [];
+    if (item.stufen) {
+      const bits = ["rookie", "operator", "streetLegend"]
+        .map((tier) => {
+          const anzeige = item.stufen[tier]?.anzeige;
+          return anzeige ? `${tierWord(tier)} ${anzeige}` : "";
+        })
+        .filter(Boolean);
+      const when = formatTrainingTime(item.updatedAt);
+      parts.push(
+        `<p class="lp-train__stand">aus dem Training: ${escapeHtml(bits.join(" · "))}${
+          when ? ` · zuletzt ${escapeHtml(when)}` : ""
+        }</p>`
+      );
+      for (const tier of ["rookie", "operator", "streetLegend"]) {
+        const text = vergleichLabel(item.stufen[tier]?.vergleich);
+        if (!text) continue;
+        parts.push(`<p class="lp-train__cmp">${escapeHtml(tierWord(tier))}: ${escapeHtml(text)}</p>`);
+      }
+    }
+    if (item.trainingUrl) {
+      parts.push(
+        `<a class="lp-train__go" href="${escapeHtml(item.trainingUrl)}" target="_blank" rel="noopener noreferrer">Training starten</a>`
+      );
+    }
+    return parts.length ? `<div class="lp-train">${parts.join("")}</div>` : "";
+  }
+
+  function renderRedeem(thema) {
+    if (!trainingForThema(thema)) return "";
+    return `
+      <form class="lp-redeem" data-lp-redeem>
+        <label>Nachweis einlösen
+          <textarea name="nachweis" rows="3" maxlength="4000" placeholder="JSON aus dem Training"></textarea>
+        </label>
+        <button type="submit">Einlösen</button>
+      </form>`;
+  }
+
   function renderThemaControl(themen) {
     if (themen.length <= 1) {
       return `<span class="lp-chip lp-thema-chip">${escapeHtml(themen[0]?.name || "Thema")}</span>`;
@@ -592,12 +675,17 @@
       .join("");
     const ka = kaLabel(thema);
     const ziel = progress.hasTarget ? `Ziel: Note ${progress.targetGradeLabel}` : "Zielnote setzen";
+    const mapUrl = trainingForThema(thema)?.stadtkarte || "";
+    const map = mapUrl
+      ? `<a class="lp-chip lp-chip--map" href="${escapeHtml(mapUrl)}" target="_blank" rel="noopener noreferrer">Stadtkarte öffnen</a>`
+      : "";
     return `
       <div class="lp-bar">
         <div class="lp-seg" role="tablist" aria-label="Fach">${subjectButtons}</div>
         ${renderThemaControl(themen)}
         ${ka ? `<span class="lp-chip lp-chip--ka" title="${escapeHtml(ka)}">${escapeHtml(ka)}</span>` : ""}
         <div class="lp-bar__ziel">
+          ${map}
           <button type="button" class="lp-chip lp-chip--ziel" data-lp-ziel>${escapeHtml(ziel)}</button>
           <button type="button" class="lp-help" data-lp-help aria-expanded="${state.helpOpen ? "true" : "false"}" aria-label="Hinweis zum Lernstand">?</button>
         </div>
@@ -628,6 +716,11 @@
           <div class="lp-tiers">${rows}</div>
           ${stagePanel}
           ${renderVoluntaryLine(thema)}
+          ${
+            trainingForThema(thema)?.pensum
+              ? `<p class="lp-train-pensum">${escapeHtml(trainingForThema(thema).pensum)}</p>`
+              : ""
+          }
         </div>
       </section>`;
   }
@@ -743,6 +836,7 @@
           ${isNext ? `<span class="lp-goal__badge">Nächste Mission</span>` : ""}
         </div>
         <div class="lp-pills">${pills}</div>
+        ${renderTrainingGoal(trainingForGoal(selectedThema(), goal))}
         ${panel}
       </article>`;
   }
@@ -997,9 +1091,15 @@
     const progress = computeTopicProgress(thema);
     const step = nextStepModel(thema);
     const checks = renderLevelchecks(thema);
+    const training = trainingForThema(thema);
+    const missing = (training?.abweichungen || []).map((item) => item.name).filter(Boolean);
+    const missingLine = missing.length
+      ? `<p class="lp-train-miss">Ohne Trainingsknopf: ${escapeHtml(missing.join(", "))}</p>`
+      : "";
     return `
       <div class="lp-top">
         ${renderBar(thema, progress)}
+        ${missingLine}
         ${renderLive()}
         ${renderStatusFilters(thema.goals || [])}
       </div>
@@ -1011,6 +1111,7 @@
         <aside class="lp-rail">
           ${renderProgressCard(thema, progress, step?.tierId || "")}
           ${renderNextStep(step)}
+          ${renderRedeem(thema)}
         </aside>
         ${checks ? `<aside class="lp-side">${checks}</aside>` : ""}
       </div>
@@ -1175,6 +1276,15 @@
     root.querySelectorAll("[data-lp-ziel]").forEach((btn) => {
       btn.addEventListener("click", () => openZiele());
     });
+
+    const redeemForm = root.querySelector("[data-lp-redeem]");
+    if (redeemForm) {
+      redeemForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const text = new FormData(redeemForm).get("nachweis");
+        redeemTraining(String(text || ""));
+      });
+    }
 
     root.querySelectorAll("[data-lp-help]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -1477,6 +1587,49 @@
     }
   }
 
+  async function redeemTraining(text) {
+    const trimmed = String(text || "").trim();
+    if (!trimmed) return;
+    let body;
+    if (trimmed.startsWith("{")) {
+      try {
+        body = JSON.parse(trimmed);
+      } catch (err) {
+        state.error = "Das JSON ist nicht lesbar.";
+        state.message = "";
+        render();
+        return;
+      }
+    } else {
+      body = { code: trimmed };
+    }
+    state.message = "";
+    state.error = "";
+    try {
+      const res = await fetch("/api/student/training/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        state.error = data.hinweis || "Der Nachweis konnte nicht eingelöst werden.";
+        render();
+        return;
+      }
+      state.message = data.hinweis || "Gespeichert.";
+      try {
+        state.training = await fetchJson("/api/student/training");
+      } catch (err) {
+        /* Der Lernstand bleibt, der Trainingsstand kommt beim nächsten Öffnen. */
+      }
+      render();
+    } catch (err) {
+      state.error = "Der Nachweis konnte nicht eingelöst werden.";
+      render();
+    }
+  }
+
   async function loadData(generation = initGeneration) {
     const requestId = ++loadRequestId;
     try {
@@ -1485,7 +1638,15 @@
       if (!data || typeof data.hasClass !== "boolean" || !Array.isArray(data.grouped)) {
         throw new Error("Ungültige Levelplan-Antwort");
       }
+      let training = null;
+      try {
+        training = await fetchJson("/api/student/training");
+      } catch (err) {
+        training = null;
+      }
+      if (requestId !== loadRequestId || generation !== initGeneration) return;
       state.data = data;
+      state.training = training;
       state.loading = false;
       ensureSelection();
       render();

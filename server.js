@@ -67,6 +67,11 @@ import { registerTeacherCoachingRoutes } from "./lib/teacher-coaching-api.js";
 import { registerTeacherDashboardRoutes } from "./lib/teacher-dashboard-api.js";
 import { migrateCoachTables, registerCoachRoutes } from "./lib/coach-api.js";
 import {
+  captureTrainingResultBody,
+  migrateTrainingTables,
+  registerTrainingRoutes
+} from "./lib/training-api.js";
+import {
   parseLevelplanImportText as parseLevelplanImportTextBase,
   normalizeLevelplanImportRows as normalizeLevelplanImportRowsBase
 } from "./lib/levelplan-import.js";
@@ -2804,6 +2809,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.set("trust proxy", 1);
+app.use(captureTrainingResultBody);
 app.use(bodyParser.json({ limit: "2mb" }));
 app.use(bodyParser.urlencoded({ extended: true, limit: "2mb" }));
 
@@ -2918,7 +2924,9 @@ const SESSIONLESS_PATHS = new Set([
   "/impressum",
   "/impressum.html",
   "/datenschutz",
-  "/datenschutz.html"
+  "/datenschutz.html",
+  "/api/training/results",
+  "/api/training/status"
 ]);
 
 const STATIC_PREFIXES = ["/js/", "/icons/", "/css/", "/characters/", "/assets/"];
@@ -4886,6 +4894,7 @@ async function migrate() {
   }
 
   await migrateCoachTables(pool);
+  await migrateTrainingTables(pool);
 
   console.log("✔️ Migration fertig.");
 }
@@ -5692,6 +5701,15 @@ registerTeacherDashboardRoutes(app, {
 });
 
 registerCoachRoutes(app, { pool, isStudent });
+
+registerTrainingRoutes(app, {
+  pool,
+  isStudent,
+  isTeacher,
+  teacherCanAccessClass,
+  getLevelChecksForClass,
+  recommendedTierCounts
+});
 
 // -------------------------------------------------------
 // STUDENT: FIRST LOGIN – Passwort ändern

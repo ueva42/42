@@ -13057,6 +13057,56 @@ body.student-app #levelplan-section.card.section {
   color: #67e8f9;
   cursor: pointer;
 }
+#levelplan-section .lp-chip--map {
+  min-width: 0;
+  border-color: rgba(163, 230, 53, 0.45);
+  background: rgba(163, 230, 53, 0.1);
+  color: #ecfccb;
+  text-decoration: none;
+  cursor: pointer;
+}
+#levelplan-section .lp-train {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+#levelplan-section .lp-train__stand,
+#levelplan-section .lp-train__cmp,
+#levelplan-section .lp-train-pensum,
+#levelplan-section .lp-train-miss {
+  margin: 0;
+}
+#levelplan-section .lp-train-pensum,
+#levelplan-section .lp-train-miss {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+#levelplan-section .lp-train__go {
+  align-self: flex-start;
+  margin-top: 4px;
+  color: #ecfccb;
+  font-weight: 700;
+}
+#levelplan-section .lp-redeem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+#levelplan-section .lp-redeem textarea {
+  width: 100%;
+  min-height: 72px;
+  margin-top: 6px;
+  box-sizing: border-box;
+}
+#levelplan-section .lp-redeem button {
+  align-self: flex-start;
+}
 #levelplan-section .lp-help {
   display: inline-flex;
   align-items: center;
@@ -14340,7 +14390,7 @@ body.student-app #levelplan-section.card.section {
 <script src="/js/logbuch-today.js?v=56"></script>
 <script src="/js/logbuch-ueben.js?v=6"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
-<script src="/js/logbuch-levelplan.js?v=39"></script>
+<script src="/js/logbuch-levelplan.js?v=40"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=34"></script>

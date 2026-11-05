@@ -17,7 +17,8 @@
     query: "",
     loading: false,
     toast: "",
-    explain: ""
+    explain: "",
+    training: null
   };
 
   const appEl = document.getElementById("app");
@@ -315,7 +316,55 @@
         <button type="button" data-klasse="muster" aria-pressed="${state.klasseMode === "muster" ? "true" : "false"}">Für die nächste Stunde</button>
         <button type="button" data-klasse="stand" aria-pressed="${state.klasseMode === "stand" ? "true" : "false"}">Stand</button>
       </div>
-      ${state.klasseMode === "stand" ? renderStand() : renderMuster()}`;
+      ${state.klasseMode === "stand" ? renderStand() : renderMuster()}
+      ${renderTraining()}`;
+  }
+
+  function renderTraining() {
+    const data = state.training;
+    if (!data) return "";
+    if (data.message && !data.goals) {
+      return `<section class="td-panel" style="margin-top:12px"><p class="td-kicker">Trainingscenter</p><p class="td-muted">${escapeHtml(data.message)}</p></section>`;
+    }
+    if (!data.isFunktionen) return "";
+    const abweichung = (data.abweichungen || []).map((item) => item.name).filter(Boolean);
+    const cards = (data.goals || [])
+      .map((goal) => {
+        const people = (goal.students || [])
+          .map((student) => {
+            const bits = ["rookie", "operator", "streetLegend"]
+              .map((tier) => {
+                const stand = student.stufen?.[tier];
+                if (!stand) return "";
+                const label = tier === "rookie" ? "Rookie" : tier === "operator" ? "Operator" : "Street Legend";
+                return `${label} ${stand.stand}${stand.ueberschaetzt ? " · überschätzt" : ""}`;
+              })
+              .filter(Boolean)
+              .join(" · ");
+            return `<button type="button" class="td-chip" data-open-student="${student.id}">${escapeHtml(student.name)} <span class="td-muted">${escapeHtml(bits)}</span></button>`;
+          })
+          .join("");
+        const empty = goal.wz
+          ? "Noch kein Trainingsstand."
+          : "Kein Halt mit diesem Namen.";
+        return `
+          <article class="td-gap">
+            <h3>${escapeHtml(goal.text)}</h3>
+            <div class="td-chips">${people || `<p class="td-muted">${empty}</p>`}</div>
+          </article>`;
+      })
+      .join("");
+    return `
+      <section class="td-panel" style="margin-top:12px">
+        <p class="td-kicker">Trainingscenter · Funktionen</p>
+        <h2 class="td-title" style="font-size:1.15rem">Was aus dem Training ankommt</h2>
+        ${
+          abweichung.length
+            ? `<p class="td-muted">Ohne Zuordnung: ${escapeHtml(abweichung.join(", "))}</p>`
+            : ""
+        }
+        <div class="td-bars">${cards}</div>
+      </section>`;
   }
 
   function nameButtons(list) {
@@ -648,6 +697,17 @@
       const data = await api(`/api/teacher/regulation?${params.toString()}`);
       state.view = data;
       state.levelCheckId = data.levelCheck?.id || state.levelCheckId;
+      state.training = null;
+      const trainingId = state.levelCheckId;
+      if (trainingId) {
+        try {
+          state.training = await api(
+            `/api/teacher/training?classId=${encodeURIComponent(state.classId)}&levelCheckId=${encodeURIComponent(trainingId)}`
+          );
+        } catch (trainingErr) {
+          state.training = { message: "Training gerade nicht geladen." };
+        }
+      }
       if (state.studentId && !students().some((student) => Number(student.id) === Number(state.studentId))) {
         state.studentId = null;
       }

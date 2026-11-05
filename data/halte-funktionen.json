@@ -1,0 +1,158 @@
+[
+  {
+    "n": 1,
+    "name": "Geraden zeichnen",
+    "wz": "fkt-01",
+    "url": "funktionen/geraden-zeichnen/"
+  },
+  {
+    "n": 2,
+    "name": "Geraden ablesen",
+    "wz": "fkt-02",
+    "url": "funktionen/geraden-ablesen/"
+  },
+  {
+    "n": 3,
+    "name": "m bestimmen, c ablesen",
+    "wz": "fkt-03",
+    "url": "funktionen/m-bestimmen-c-ablesen/"
+  },
+  {
+    "n": 4,
+    "name": "m gegeben, c berechnen",
+    "wz": "fkt-04",
+    "url": "funktionen/m-gegeben-c-berechnen/"
+  },
+  {
+    "n": 5,
+    "name": "m und c berechnen",
+    "wz": "fkt-05",
+    "url": "funktionen/m-und-c-berechnen/"
+  },
+  {
+    "n": 6,
+    "name": "Die Scheitelform",
+    "wz": "fkt-06",
+    "url": "funktionen/die-scheitelform/"
+  },
+  {
+    "n": 7,
+    "name": "Scheitel auf der y-Achse",
+    "wz": "9-05b",
+    "url": "funktionen/scheitel-auf-der-y-achse/"
+  },
+  {
+    "n": 8,
+    "name": "Scheitel auf der x-Achse",
+    "wz": "fkt-08",
+    "url": "funktionen/scheitel-auf-der-x-achse/"
+  },
+  {
+    "n": 9,
+    "name": "Scheitelform überall",
+    "wz": "fkt-09",
+    "url": "funktionen/scheitelform-ueberall/"
+  },
+  {
+    "n": 10,
+    "name": "Von der Scheitelform zur Normalform",
+    "wz": "fkt-10",
+    "url": "funktionen/von-der-scheitelform-zur-normalform/"
+  },
+  {
+    "n": 11,
+    "name": "Von der Normalform zur Scheitelform",
+    "wz": "fkt-11",
+    "url": "funktionen/von-der-normalform-zur-scheitelform/"
+  },
+  {
+    "n": 12,
+    "name": "Schnittpunkt mit der y-Achse",
+    "wz": "fkt-12",
+    "url": "funktionen/schnittpunkt-mit-der-y-achse/"
+  },
+  {
+    "n": 13,
+    "name": "Schnittpunkt mit der x-Achse",
+    "wz": "fkt-13",
+    "url": "funktionen/schnittpunkt-mit-der-x-achse/"
+  },
+  {
+    "n": 14,
+    "name": "Schnittpunkte zweier Graphen",
+    "wz": "fkt-14",
+    "url": "funktionen/schnittpunkte-zweier-graphen/"
+  },
+  {
+    "n": 15,
+    "name": "Funktion grafisch bestimmen",
+    "wz": "fkt-15",
+    "url": "funktionen/funktion-grafisch-bestimmen/"
+  },
+  {
+    "n": 16,
+    "name": "b oder c bestimmen",
+    "wz": "fkt-16",
+    "url": "funktionen/b-oder-c-bestimmen/"
+  },
+  {
+    "n": 17,
+    "name": "b und c bestimmen",
+    "wz": "fkt-17",
+    "url": "funktionen/b-und-c-bestimmen/"
+  },
+  {
+    "n": 18,
+    "name": "Die Produktform",
+    "wz": "fkt-18",
+    "url": "funktionen/die-produktform/"
+  },
+  {
+    "n": 19,
+    "name": "Der Streckfaktor a",
+    "wz": "fkt-19",
+    "url": "funktionen/der-streckfaktor-a/"
+  },
+  {
+    "n": 20,
+    "name": "a grafisch bestimmen",
+    "wz": "fkt-20",
+    "url": "funktionen/a-grafisch-bestimmen/"
+  },
+  {
+    "n": 21,
+    "name": "a oder c bestimmen",
+    "wz": "fkt-21",
+    "url": "funktionen/a-oder-c-bestimmen/"
+  },
+  {
+    "n": 22,
+    "name": "Skizze erstellen",
+    "wz": "fkt-22",
+    "url": "funktionen/skizze-erstellen/"
+  },
+  {
+    "n": 23,
+    "name": "Gleichung bestimmen",
+    "wz": "fkt-23",
+    "url": "funktionen/gleichung-bestimmen/"
+  },
+  {
+    "n": 24,
+    "name": "Höhe oder Weite",
+    "wz": "fkt-24",
+    "url": "funktionen/hoehe-oder-weite/"
+  },
+  {
+    "n": 25,
+    "name": "Typische Aufgaben",
+    "wz": "fkt-25",
+    "url": "funktionen/typische-aufgaben/"
+  },
+  {
+    "n": 26,
+    "name": "Prüfungsaufgaben",
+    "wz": "fkt-26",
+    "url": "funktionen/pruefungsaufgaben/"
+  }
+]
