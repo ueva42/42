@@ -68,6 +68,7 @@ import { registerTeacherDashboardRoutes } from "./lib/teacher-dashboard-api.js";
 import { migrateCoachTables, registerCoachRoutes } from "./lib/coach-api.js";
 import {
   captureTrainingResultBody,
+  cityMapsForGoals,
   migrateTrainingTables,
   registerTrainingRoutes
 } from "./lib/training-api.js";
@@ -4181,6 +4182,7 @@ async function migrate() {
   await ensureColumn("level_check_goals", "material_note", "TEXT");
   await ensureColumn("level_check_goals", "active", "BOOLEAN DEFAULT true");
   await ensureColumn("level_check_goals", "updated_at", "TIMESTAMP DEFAULT NOW()");
+  await ensureColumn("level_check_goals", "training_wz", "TEXT NULL");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS level_check_marks (
@@ -7935,6 +7937,20 @@ app.get("/api/student/log/today", isStudent, async (req, res) => {
       }
     }
 
+    try {
+      const maps = await cityMapsForGoals(
+        pool,
+        studentId,
+        entries.map((entry) => entry.what_goal_id)
+      );
+      for (const entry of entries) {
+        const city = maps.get(String(entry.what_goal_id || ""));
+        if (city) entry.cityMap = city;
+      }
+    } catch (cityErr) {
+      console.error("⚠️ Stadtkarte in /today:", cityErr.message || cityErr);
+    }
+
     res.json({
       date,
       weekday,
@@ -9011,7 +9027,8 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       material_type,
       material_label,
       material_note,
-      active
+      active,
+      training_wz
     FROM level_check_goals
     WHERE level_check_id = ANY($1::uuid[])
       AND COALESCE(active, true) = true
@@ -9063,6 +9080,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
       operatorGoalText: g.operator_goal_text || null,
       streetLegendGoalText: g.street_legend_goal_text || null,
       practicePercent: practiceByGoal[g.id] ?? null,
+      trainingWz: g.training_wz ? String(g.training_wz).trim() : null,
       ...mapGoalMaterialFields(g),
       mark: buildGoalMarkFromRows(marksByGoal[g.id])
     });

@@ -664,6 +664,15 @@
     return `<label class="lp-thema"><span class="lp-sr">Thema</span><select data-lp-thema="${escapeHtml(state.selectedThemaId || "")}">${options}</select></label>`;
   }
 
+  function renderCityMap(thema) {
+    const topic = trainingForThema(thema);
+    if (!topic?.showStadtkarte) return "";
+    if (topic.stadtkarte) {
+      return `<a class="lp-chip lp-chip--map" href="${escapeHtml(topic.stadtkarte)}" target="_blank" rel="noopener noreferrer">Stadtkarte öffnen</a>`;
+    }
+    return `<button type="button" class="lp-chip lp-chip--map" disabled>Stadtkarte öffnen</button><span class="lp-map-hint">Zielnote setzen</span>`;
+  }
+
   function renderBar(thema, progress) {
     const subjects = subjectsWithData();
     const themen = levelChecksForSubject(state.selectedSubject);
@@ -675,10 +684,7 @@
       .join("");
     const ka = kaLabel(thema);
     const ziel = progress.hasTarget ? `Ziel: Note ${progress.targetGradeLabel}` : "Zielnote setzen";
-    const mapUrl = trainingForThema(thema)?.stadtkarte || "";
-    const map = mapUrl
-      ? `<a class="lp-chip lp-chip--map" href="${escapeHtml(mapUrl)}" target="_blank" rel="noopener noreferrer">Stadtkarte öffnen</a>`
-      : "";
+    const map = renderCityMap(thema);
     return `
       <div class="lp-bar">
         <div class="lp-seg" role="tablist" aria-label="Fach">${subjectButtons}</div>

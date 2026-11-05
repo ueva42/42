@@ -11,10 +11,18 @@ import {
   applyTrainingCors,
   bandFromSolved,
   formatZielnote,
+  TRAINING_ASSIGN_TOPIC,
+  TRAINING_GOAL_ASSIGNMENTS,
+  cityUrl,
+  haltForStoredWz,
+  isCityMapTopic,
   loadHalte,
   matchHalteToGoals,
   mergeTraining,
+  normalizeGoalName,
   pensumText,
+  stationUrl,
+  storedTrainingWz,
   topicIsFunktionen,
   trainingAllowOrigin,
   validatePayload,
@@ -180,6 +188,47 @@ assert.equal(
   ambiguous.abweichungen.some((item) => item.wz === "9-05b" && item.grund === "nicht eindeutig"),
   true
 );
+assert.equal(TRAINING_GOAL_ASSIGNMENTS.length, 24);
+const assignWz = TRAINING_GOAL_ASSIGNMENTS.map(([wz]) => wz);
+const assignNames = TRAINING_GOAL_ASSIGNMENTS.map(([, name]) => normalizeGoalName(name));
+assert.equal(new Set(assignWz).size, assignWz.length);
+assert.equal(new Set(assignNames).size, assignNames.length);
+assert.equal(assignWz.includes("fkt-25"), false);
+assert.equal(assignWz.includes("fkt-26"), false);
+assert.equal(assignWz.includes("fkt-07"), false);
+assert.equal(assignWz.includes("9-05b"), true);
+for (const [wz, name] of TRAINING_GOAL_ASSIGNMENTS) {
+  const halt = halte.find((item) => item.wz === wz);
+  assert.equal(halt.name, name);
+  assert.match(halt.url, /^funktionen\/[a-z0-9-]+\/$/);
+  assert.equal(haltForStoredWz(halte, wz).url, halt.url);
+}
+assert.equal(haltForStoredWz(halte, "Geraden zeichnen"), null);
+assert.equal(haltForStoredWz(halte, ""), null);
+assert.equal(storedTrainingWz({ text: "Geraden zeichnen" }), "");
+assert.equal(storedTrainingWz({ trainingWz: " fkt-01 " }), "fkt-01");
+const station = stationUrl(haltForStoredWz(halte, "fkt-01").url, TOKEN, "1,5");
+assert.equal(
+  station,
+  `https://trainingscenter.streetsoflogic.de/funktionen/geraden-zeichnen/?t=${TOKEN}&note=1%2C5`
+);
+assert.equal(station.includes("funktionen/funktionen/"), false);
+assert.equal(
+  normalizeGoalName("  LINEARE   und\tquadratische\nFunktionen "),
+  TRAINING_ASSIGN_TOPIC
+);
+assert.equal(isCityMapTopic("Lineare und quadratische Funktionen"), true);
+assert.equal(isCityMapTopic("  lineare   und quadratische funktionen "), true);
+assert.equal(isCityMapTopic("Funktionen"), false);
+assert.equal(isCityMapTopic("Quadratische Funktionen"), false);
+const city = cityUrl(TOKEN, "1,5");
+assert.equal(
+  city,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=1%2C5&k=10&d=funktionen`
+);
+assert.equal(cityUrl(TOKEN, null), null);
+assert.equal(city.includes("name="), false);
+
 assert.equal(topicIsFunktionen("Quadratische Funktionen", [{ id: "x", text: "anders" }]), true);
 assert.equal(
   topicIsFunktionen("Brüche", [
@@ -264,11 +313,13 @@ function checks() {
   return [
     {
       id: "lc-f",
-      name: "Funktionen",
+      name: "Algebra",
       subject: "Mathematik",
       goals: [
-        { id: "g1", text: "Scheitel auf der y-Achse" },
-        { id: "g2", text: "Geraden zeichnen" }
+        { id: "g1", text: "anderes unterthema", trainingWz: "9-05b" },
+        { id: "g2", text: "noch etwas", trainingWz: "fkt-01" },
+        { id: "g4", text: "drittes", trainingWz: "fkt-08" },
+        { id: "g-name", text: "Geraden ablesen" }
       ]
     },
     {
@@ -404,6 +455,21 @@ try {
   assert.equal(again.merged.ichKann.rookie, "sicher");
   assert.equal(again.merged.ichKann.streetLegend, "sicher");
 
+  const unnamed = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ wz: "fkt-02" }))
+  });
+  assert.equal(unnamed.status, 400);
+  assert.equal(db.results.some((item) => item.wz === "fkt-02"), false);
+
+  db.results.push({
+    student_id: 7,
+    wz: "fkt-02",
+    merged: { wz: "fkt-02", levels: {}, kontrolle: false },
+    last_raw: {},
+    updated_at: new Date().toISOString()
+  });
   db.results.push({
     student_id: 7,
     wz: "fremd-wz",
@@ -425,6 +491,7 @@ try {
   ]);
   assert.deepEqual(Object.keys(status.json.halte["9-05b"].rookie).sort(), ["safe", "solved"]);
   assert.equal(JSON.stringify(status.json).includes("name"), false);
+  db.results = db.results.filter((item) => item.wz !== "fkt-02");
 
   const codeRedeem = await call("/api/student/training/redeem", {
     method: "POST",

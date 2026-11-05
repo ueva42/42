@@ -905,15 +905,26 @@
     }
   }
 
+  function renderCityMap(entry) {
+    if (!entry?.cityMap) return "";
+    const ui = UI();
+    if (entry.cityMap.url) {
+      return `<a class="today-app-btn today-city-map" href="${ui.escapeHtml(entry.cityMap.url)}" target="_blank" rel="noopener noreferrer">Stadtkarte öffnen</a>`;
+    }
+    return `<button type="button" class="today-app-btn today-city-map" disabled>Stadtkarte öffnen</button><p class="today-block-muted">Zielnote setzen</p>`;
+  }
+
   function renderLesson(block, editable) {
     const tile = renderBlock(block, editable);
-    if (!state.coachEnabled) return tile;
-    const entry = block.entry;
-    const subject = entry?.subject || block.slot?.subject;
-    if (!entry || !isMathSubject(subject)) return tile;
-    const card = renderDailyGoalBody(UI(), entry);
-    if (!card) return tile;
-    return `<div class="today-block-stack">${tile}${card}</div>`;
+    const map = renderCityMap(block.entry);
+    let card = "";
+    if (state.coachEnabled) {
+      const entry = block.entry;
+      const subject = entry?.subject || block.slot?.subject;
+      if (entry && isMathSubject(subject)) card = renderDailyGoalBody(UI(), entry);
+    }
+    if (!map && !card) return tile;
+    return `<div class="today-block-stack">${tile}${map}${card}</div>`;
   }
 
   function bindHandlers(root) {

@@ -346,7 +346,7 @@
           .join("");
         const empty = goal.wz
           ? "Noch kein Trainingsstand."
-          : "Kein Halt mit diesem Namen.";
+          : "Kein Training gespeichert.";
         return `
           <article class="td-gap">
             <h3>${escapeHtml(goal.text)}</h3>
