@@ -13088,29 +13088,110 @@ button.today-city-map {
 #levelplan-section .lp-train {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 8px;
-  font-size: 13px;
-  line-height: 1.4;
-  color: #cbd5e1;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+  position: static;
+  z-index: 0;
+  pointer-events: none;
 }
-#levelplan-section .lp-train__stand,
-#levelplan-section .lp-train__cmp,
-#levelplan-section .lp-train-pensum,
+#levelplan-section .lp-train__meters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+#levelplan-section .lp-train__meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  border: 1px solid var(--lp-tier, #22d3ee);
+  background: transparent;
+  color: var(--lp-tier, #22d3ee);
+  box-shadow: none;
+}
+#levelplan-section .lp-train__meter.is-full {
+  border-style: solid;
+  background: color-mix(in srgb, var(--lp-tier, #22d3ee) 42%, #060b1d);
+  color: #f8fafc;
+}
+#levelplan-section .lp-train__num,
+#levelplan-section .lp-train__safe {
+  line-height: 1.2;
+  color: inherit;
+}
+#levelplan-section .lp-train__num {
+  font-family: "Orbitron", system-ui;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+#levelplan-section .lp-train__safe {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+#levelplan-section .lp-train__word {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: none;
+  color: #e2e8f0;
+}
+#levelplan-section .lp-train__when,
 #levelplan-section .lp-train-miss {
   margin: 0;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #94a3b8;
 }
-#levelplan-section .lp-train-pensum,
-#levelplan-section .lp-train-miss {
-  margin-top: 8px;
+#levelplan-section .lp-train-pensum {
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font-family: inherit;
   font-size: 13px;
-  color: #cbd5e1;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+#levelplan-section .lp-train a,
+#levelplan-section .lp-train__go {
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
 }
 #levelplan-section .lp-train__go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   align-self: flex-start;
-  margin-top: 4px;
+  box-sizing: border-box;
+  min-height: 44px;
+  margin-top: 2px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(236, 252, 203, 0.35);
+  background: transparent;
   color: #ecfccb;
+  font-family: inherit;
+  font-size: 13px;
   font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  box-shadow: none;
 }
 #levelplan-section .lp-redeem {
   display: flex;
@@ -14410,7 +14491,7 @@ button.today-city-map {
 <script src="/js/logbuch-today.js?v=57"></script>
 <script src="/js/logbuch-ueben.js?v=6"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
-<script src="/js/logbuch-levelplan.js?v=41"></script>
+<script src="/js/logbuch-levelplan.js?v=42"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=34"></script>

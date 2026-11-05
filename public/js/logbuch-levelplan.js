@@ -597,47 +597,64 @@
     });
   }
 
-  function tierWord(tier) {
-    if (tier === "rookie") return "Rookie";
-    if (tier === "operator") return "Operator";
-    return "Street Legend";
+  const TRAINING_METERS = [
+    { id: "rookie", short: "R", accent: "rookie" },
+    { id: "operator", short: "O", accent: "operator" },
+    { id: "streetLegend", short: "SL", accent: "street_legend" }
+  ];
+
+  function trainingReadout(anzeige) {
+    const text = String(anzeige || "").trim();
+    if (!text) return null;
+    if (text === "sicher") return { label: "sicher", filled: true };
+    const match = text.match(/^(\d+)\s+von\s+(\d+)$/);
+    if (!match) return null;
+    const solved = Number(match[1]);
+    return { label: `${solved}/${match[2]}`, filled: solved >= 6 };
   }
 
-  function vergleichLabel(value) {
-    if (value === "passt") return "Einschätzung passt";
-    if (value === "unterschätzt") return "Einschätzung unterschätzt";
-    if (value === "überschätzt") return "Einschätzung überschätzt";
+  function trainingVerdict(value) {
+    if (value === "passt" || value === "überschätzt" || value === "unterschätzt") return value;
     return "";
+  }
+
+  function trainingPensumLine(raw) {
+    const text = String(raw || "").trim();
+    if (!text) return "";
+    if (text === "Pensum erfüllt") return "Training: Pensum erfüllt";
+    return `Training: ${text.replace(/:\s+/g, " ")}`;
   }
 
   function renderTrainingGoal(item) {
     if (!item) return "";
-    const parts = [];
+    const meters = [];
     if (item.stufen) {
-      const bits = ["rookie", "operator", "streetLegend"]
-        .map((tier) => {
-          const anzeige = item.stufen[tier]?.anzeige;
-          return anzeige ? `${tierWord(tier)} ${anzeige}` : "";
-        })
-        .filter(Boolean);
-      const when = formatTrainingTime(item.updatedAt);
-      parts.push(
-        `<p class="lp-train__stand">aus dem Training: ${escapeHtml(bits.join(" · "))}${
-          when ? ` · zuletzt ${escapeHtml(when)}` : ""
-        }</p>`
-      );
-      for (const tier of ["rookie", "operator", "streetLegend"]) {
-        const text = vergleichLabel(item.stufen[tier]?.vergleich);
-        if (!text) continue;
-        parts.push(`<p class="lp-train__cmp">${escapeHtml(tierWord(tier))}: ${escapeHtml(text)}</p>`);
+      for (const tier of TRAINING_METERS) {
+        const readout = trainingReadout(item.stufen[tier.id]?.anzeige);
+        if (!readout) continue;
+        const verdict = trainingVerdict(item.stufen[tier.id]?.vergleich);
+        const accent = TIER_ACCENT[tier.accent] || "#22d3ee";
+        const value =
+          readout.label === "sicher"
+            ? `<span class="lp-train__num">${escapeHtml(tier.short)}</span><span class="lp-train__safe">sicher</span>`
+            : `<span class="lp-train__num">${escapeHtml(tier.short)} ${escapeHtml(readout.label)}</span>`;
+        meters.push(
+          `<span class="lp-train__meter${readout.filled ? " is-full" : ""}" style="--lp-tier:${accent}">${value}${
+            verdict ? `<span class="lp-train__word">${escapeHtml(verdict)}</span>` : ""
+          }</span>`
+        );
       }
     }
-    if (item.trainingUrl) {
-      parts.push(
-        `<a class="lp-train__go" href="${escapeHtml(item.trainingUrl)}" target="_blank" rel="noopener noreferrer">Training starten</a>`
-      );
+    const link = item.trainingUrl
+      ? `<a class="lp-train__go" href="${escapeHtml(item.trainingUrl)}" target="_blank" rel="noopener noreferrer">Training starten</a>`
+      : "";
+    if (!meters.length) {
+      if (!link) return "";
+      return `<div class="lp-train"><p class="lp-train__when">Noch kein Trainingsstand</p>${link}</div>`;
     }
-    return parts.length ? `<div class="lp-train">${parts.join("")}</div>` : "";
+    const when = formatTrainingTime(item.updatedAt);
+    const line = when ? `aus dem Training · ${when}` : "aus dem Training";
+    return `<div class="lp-train"><div class="lp-train__meters">${meters.join("")}</div><p class="lp-train__when">${escapeHtml(line)}</p>${link}</div>`;
   }
 
   function renderRedeem(thema) {
@@ -714,19 +731,16 @@
       const tier = markTiers().find((entry) => entry.id === state.sheet.tier);
       stagePanel = renderStatusPanel(goal, tier);
     }
+    const pensumLine = trainingPensumLine(trainingForThema(thema)?.pensum);
     return `
       <section class="lp-block" aria-labelledby="lp-progress-title">
         <h2 id="lp-progress-title" class="lp-kicker">${escapeHtml(title)}</h2>
         <div class="lp-card lp-path">
+          ${pensumLine ? `<p class="lp-train-pensum">${escapeHtml(pensumLine)}</p>` : ""}
           ${lead}
           <div class="lp-tiers">${rows}</div>
           ${stagePanel}
           ${renderVoluntaryLine(thema)}
-          ${
-            trainingForThema(thema)?.pensum
-              ? `<p class="lp-train-pensum">${escapeHtml(trainingForThema(thema).pensum)}</p>`
-              : ""
-          }
         </div>
       </section>`;
   }
