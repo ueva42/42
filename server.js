@@ -5710,7 +5710,8 @@ registerTrainingRoutes(app, {
   isTeacher,
   teacherCanAccessClass,
   getLevelChecksForClass,
-  recommendedTierCounts
+  recommendedTierCounts,
+  writeLevelMark: upsertLevelCheckMark
 });
 
 // -------------------------------------------------------
@@ -10106,6 +10107,18 @@ app.post(
   }
 );
 
+async function upsertLevelCheckMark({ schoolId, goalId, userId, tier, status }) {
+  await pool.query(
+    `
+    INSERT INTO level_check_marks (school_id, goal_id, user_id, tier, status, updated_at)
+    VALUES ($1, $2, $3, $4, $5, NOW())
+    ON CONFLICT (goal_id, user_id, tier)
+    DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
+  `,
+    [schoolId, goalId, userId, tier, status]
+  );
+}
+
 app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
   try {
     const studentId = req.session.user.id;
@@ -10150,15 +10163,13 @@ app.post("/api/student/levelcheck-mark", isStudent, async (req, res) => {
         });
       }
 
-      await pool.query(
-        `
-        INSERT INTO level_check_marks (school_id, goal_id, user_id, tier, status, updated_at)
-        VALUES ($1, $2, $3, $4, $5, NOW())
-        ON CONFLICT (goal_id, user_id, tier)
-        DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
-      `,
-        [schoolId, goalId, studentId, tier, status]
-      );
+      await upsertLevelCheckMark({
+        schoolId,
+        goalId,
+        userId: studentId,
+        tier,
+        status
+      });
 
       return res.json({
         success: true,

@@ -62,7 +62,8 @@
     message: "",
     error: "",
     focusLevelcheckGoals: true,
-    training: null
+    training: null,
+    redeemCode: ""
   };
 
   let initPromise = null;
@@ -598,24 +599,28 @@
   }
 
   const TRAINING_METERS = [
-    { id: "rookie", short: "R", accent: "rookie" },
-    { id: "operator", short: "O", accent: "operator" },
-    { id: "streetLegend", short: "SL", accent: "street_legend" }
+    { id: "rookie", short: "R", label: "Rookie", accent: "rookie" },
+    { id: "operator", short: "O", label: "Operator", accent: "operator" },
+    { id: "streetLegend", short: "SL", label: "Street Legend", accent: "street_legend" }
   ];
+  const RING_C = 87.96;
 
-  function trainingReadout(anzeige) {
-    const text = String(anzeige || "").trim();
-    if (!text) return null;
-    if (text === "sicher") return { label: "sicher", filled: true };
+  function trainingSolved(stufe) {
+    if (!stufe) return null;
+    if (Number.isInteger(stufe.solved) && stufe.solved >= 0) return stufe.solved;
+    const text = String(stufe.anzeige || "").trim();
+    if (text === "sicher") return 6;
     const match = text.match(/^(\d+)\s+von\s+(\d+)$/);
-    if (!match) return null;
-    const solved = Number(match[1]);
-    return { label: `${solved}/${match[2]}`, filled: solved >= 6 };
+    return match ? Number(match[1]) : null;
   }
 
-  function trainingVerdict(value) {
-    if (value === "passt" || value === "überschätzt" || value === "unterschätzt") return value;
-    return "";
+  function renderTrainingRing(tier, solved) {
+    const count = Math.max(0, Math.round(Number(solved) || 0));
+    const ratio = Math.min(1, count / 6);
+    const off = (RING_C * (1 - ratio)).toFixed(2);
+    const accent = TIER_ACCENT[tier.accent] || "#22d3ee";
+    const full = ratio >= 1 ? " is-full" : "";
+    return `<span class="lp-ring${full}" style="--lp-tier:${accent};--lp-c:${RING_C};--lp-off:${off}" role="img" aria-label="${escapeHtml(tier.label)} ${count} von 6"><svg viewBox="0 0 36 36" aria-hidden="true"><circle class="lp-ring__track" cx="18" cy="18" r="14"></circle><circle class="lp-ring__arc" cx="18" cy="18" r="14"></circle></svg><span class="lp-ring__mid"><span class="lp-ring__n">${count}</span><span class="lp-ring__k">${escapeHtml(tier.short)}</span></span></span>`;
   }
 
   function trainingPensumLine(raw) {
@@ -627,43 +632,32 @@
 
   function renderTrainingGoal(item) {
     if (!item) return "";
-    const meters = [];
+    const rings = [];
     if (item.stufen) {
       for (const tier of TRAINING_METERS) {
-        const readout = trainingReadout(item.stufen[tier.id]?.anzeige);
-        if (!readout) continue;
-        const verdict = trainingVerdict(item.stufen[tier.id]?.vergleich);
-        const accent = TIER_ACCENT[tier.accent] || "#22d3ee";
-        const value =
-          readout.label === "sicher"
-            ? `<span class="lp-train__num">${escapeHtml(tier.short)}</span><span class="lp-train__safe">sicher</span>`
-            : `<span class="lp-train__num">${escapeHtml(tier.short)} ${escapeHtml(readout.label)}</span>`;
-        meters.push(
-          `<span class="lp-train__meter${readout.filled ? " is-full" : ""}" style="--lp-tier:${accent}">${value}${
-            verdict ? `<span class="lp-train__word">${escapeHtml(verdict)}</span>` : ""
-          }</span>`
-        );
+        const solved = trainingSolved(item.stufen[tier.id]);
+        if (solved == null) continue;
+        rings.push(renderTrainingRing(tier, solved));
       }
     }
     const link = item.trainingUrl
       ? `<a class="lp-train__go" href="${escapeHtml(item.trainingUrl)}" target="_blank" rel="noopener noreferrer">Training starten</a>`
       : "";
-    if (!meters.length) {
+    if (!rings.length) {
       if (!link) return "";
       return `<div class="lp-train"><p class="lp-train__when">Noch kein Trainingsstand</p>${link}</div>`;
     }
     const when = formatTrainingTime(item.updatedAt);
     const line = when ? `aus dem Training · ${when}` : "aus dem Training";
-    return `<div class="lp-train"><div class="lp-train__meters">${meters.join("")}</div><p class="lp-train__when">${escapeHtml(line)}</p>${link}</div>`;
+    return `<div class="lp-train"><div class="lp-train__rings">${rings.join("")}</div><p class="lp-train__when">${escapeHtml(line)}</p>${link}</div>`;
   }
 
   function renderRedeem(thema) {
     if (!trainingForThema(thema)) return "";
     return `
       <form class="lp-redeem" data-lp-redeem>
-        <label>Nachweis einlösen
-          <textarea name="nachweis" rows="3" maxlength="4000" placeholder="JSON aus dem Training"></textarea>
-        </label>
+        <label for="lp-redeem-code">Code einlösen</label>
+        <input id="lp-redeem-code" name="code" type="text" maxlength="80" autocomplete="off" spellcheck="false" autocapitalize="characters" placeholder="9-05B-R65-OP43-SL00-K1-I320-…" value="${escapeHtml(state.redeemCode || "")}">
         <button type="submit">Einlösen</button>
       </form>`;
   }
@@ -1131,10 +1125,10 @@
         <aside class="lp-rail">
           ${renderProgressCard(thema, progress, step?.tierId || "")}
           ${renderNextStep(step)}
-          ${renderRedeem(thema)}
         </aside>
         ${checks ? `<aside class="lp-side">${checks}</aside>` : ""}
       </div>
+      ${renderRedeem(thema)}
       ${renderOverlay()}`;
   }
 
@@ -1299,10 +1293,15 @@
 
     const redeemForm = root.querySelector("[data-lp-redeem]");
     if (redeemForm) {
+      const redeemInput = redeemForm.querySelector("input[name=code]");
+      redeemInput?.addEventListener("input", () => {
+        state.redeemCode = redeemInput.value;
+      });
       redeemForm.addEventListener("submit", (event) => {
         event.preventDefault();
-        const text = new FormData(redeemForm).get("nachweis");
-        redeemTraining(String(text || ""));
+        const text = new FormData(redeemForm).get("code");
+        state.redeemCode = String(text || "");
+        redeemTraining(state.redeemCode);
       });
     }
 
@@ -1609,19 +1608,12 @@
 
   async function redeemTraining(text) {
     const trimmed = String(text || "").trim();
-    if (!trimmed) return;
-    let body;
-    if (trimmed.startsWith("{")) {
-      try {
-        body = JSON.parse(trimmed);
-      } catch (err) {
-        state.error = "Das JSON ist nicht lesbar.";
-        state.message = "";
-        render();
-        return;
-      }
-    } else {
-      body = { code: trimmed };
+    state.redeemCode = trimmed;
+    if (!trimmed) {
+      state.error = "Bitte den Nachweis-Code eintragen.";
+      state.message = "";
+      render();
+      return;
     }
     state.message = "";
     state.error = "";
@@ -1629,23 +1621,34 @@
       const res = await fetch("/api/student/training/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ code: trimmed })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) {
-        state.error = data.hinweis || "Der Nachweis konnte nicht eingelöst werden.";
+        state.error = data.hinweis || "Der Code ist nicht gültig.";
+        state.message = "";
         render();
         return;
       }
-      state.message = data.hinweis || "Gespeichert.";
+      state.redeemCode = "";
+      state.message = "Trainingsstand gespeichert.";
+      state.error = "";
       try {
-        state.training = await fetchJson("/api/student/training");
+        const [plan, training] = await Promise.all([
+          fetchJson("/api/student/levelplan"),
+          fetchJson("/api/student/training")
+        ]);
+        if (plan && typeof plan.hasClass === "boolean" && Array.isArray(plan.grouped)) {
+          state.data = plan;
+        }
+        state.training = training;
       } catch (err) {
-        /* Der Lernstand bleibt, der Trainingsstand kommt beim nächsten Öffnen. */
+        /* Der gespeicherte Stand kommt beim nächsten Öffnen. */
       }
       render();
     } catch (err) {
-      state.error = "Der Nachweis konnte nicht eingelöst werden.";
+      state.error = "Der Code ist nicht gültig.";
+      state.message = "";
       render();
     }
   }

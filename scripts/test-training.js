@@ -7,7 +7,6 @@ import { once } from "node:events";
 import express from "express";
 import {
   TRAINING_ORIGIN,
-  REDEEM_HINWEIS,
   applyTrainingCors,
   bandFromSolved,
   formatZielnote,
@@ -18,10 +17,14 @@ import {
   isCityMapTopic,
   loadHalte,
   matchHalteToGoals,
+  makeProofCode,
   mergeTraining,
   normalizeGoalName,
+  parseProofCode,
+  proofToPayload,
   pensumText,
   stationUrl,
+  statusFromTraining,
   storedTrainingWz,
   topicIsFunktionen,
   trainingAllowOrigin,
@@ -118,6 +121,65 @@ assert.equal(merged.levels.operator.first, 3);
 assert.equal(merged.levels.operator.safe, true);
 assert.equal(merged.kontrolle, true);
 assert.equal(merged.problem, true);
+
+assert.equal(statusFromTraining("offen", { solved: 6, safe: false }), "sicher");
+assert.equal(statusFromTraining("offen", { solved: 4, safe: true }), "sicher");
+assert.equal(statusFromTraining("in_arbeit", { solved: 6, safe: true }), "sicher");
+assert.equal(statusFromTraining("sicher", { solved: 6, safe: true }), null);
+assert.equal(statusFromTraining("offen", { solved: 3, safe: false }), "in_arbeit");
+assert.equal(statusFromTraining("in_arbeit", { solved: 3, safe: false }), null);
+assert.equal(statusFromTraining("sicher", { solved: 3, safe: false }), null);
+assert.equal(statusFromTraining("sicher", { solved: 0, safe: false }), null);
+assert.equal(statusFromTraining("offen", { solved: 0, safe: false }), null);
+assert.equal(statusFromTraining("in_arbeit", { solved: 0 }), null);
+assert.equal(statusFromTraining("offen", { solved: 0, safe: true }), "sicher");
+
+const sampleCode = makeProofCode({
+  wz: "9-05b",
+  solved: [6, 4, 0],
+  first: [5, 3, 0],
+  kontrolle: true,
+  ichKann: ["sicher", "teilweise", null]
+});
+assert.match(sampleCode, /^9-05B-R65-OP43-SL00-K1-I320-[A-Z2-9]{2}$/);
+const sampleParsed = parseProofCode(sampleCode);
+assert.equal(sampleParsed.ok, true);
+assert.equal(sampleParsed.wz, "9-05b");
+assert.deepEqual(sampleParsed.solved, [6, 4, 0]);
+assert.deepEqual(sampleParsed.first, [5, 3, 0]);
+assert.equal(sampleParsed.kontrolle, true);
+assert.deepEqual(sampleParsed.ichKann, ["sicher", "teilweise", null]);
+const samplePayload = proofToPayload(sampleParsed);
+assert.equal(samplePayload.levels.rookie.solved, 6);
+assert.equal(samplePayload.levels.rookie.safe, true);
+assert.equal(samplePayload.levels.operator.solved, 4);
+assert.equal(samplePayload.levels.operator.safe, false);
+assert.equal(samplePayload.levels.streetLegend.solved, 0);
+assert.equal(samplePayload.problem, false);
+const nineCode = makeProofCode({
+  wz: "9-05b",
+  solved: [9, 0, 0],
+  first: [1, 0, 0],
+  kontrolle: false,
+  ichKann: [null, null, null]
+});
+assert.match(nineCode, /^9-05B-R91-OP00-SL00-K0-I000-/);
+const nineParsed = parseProofCode(nineCode);
+assert.deepEqual(nineParsed.solved, [9, 0, 0]);
+assert.equal(proofToPayload(nineParsed).levels.rookie.solved, 9);
+assert.equal(proofToPayload(nineParsed).levels.rookie.safe, true);
+assert.equal(parseProofCode("kein-code").ok, false);
+assert.equal(parseProofCode(sampleCode.slice(0, -1) + (sampleCode.endsWith("A") ? "B" : "A")).error, "pruefzeichen");
+
+function refChecksum(source) {
+  const alph = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let hash = 17;
+  for (const ch of `SOL${source}`) hash = (hash * 31 + ch.charCodeAt(0) + 7) % 1021;
+  return alph[hash % 32] + alph[Math.floor(hash / 32) % 32];
+}
+const clashBody = "905BR56OP00SL00K0I000";
+const clash = `9-05B-R56-OP00-SL00-K0-I000-${refChecksum(clashBody)}`;
+assert.equal(parseProofCode(clash).error, "widerspruch");
 assert.equal(merged.ichKann.rookie, "sicher");
 assert.equal(merged.ichKann.operator, "noch-nicht");
 assert.equal(merged.ichKann.streetLegend, "noch-nicht");
@@ -259,6 +321,7 @@ const full = pensumText(
 );
 assert.equal(full, "Pensum erfüllt");
 
+const markWrites = [];
 const db = {
   tokens: [
     { token: TOKEN, student_id: 7, thema: "funktionen", revoked_at: null },
@@ -317,7 +380,12 @@ function checks() {
       subject: "Mathematik",
       goals: [
         { id: "g1", text: "anderes unterthema", trainingWz: "9-05b" },
-        { id: "g2", text: "noch etwas", trainingWz: "fkt-01" },
+        {
+          id: "g2",
+          text: "noch etwas",
+          trainingWz: "fkt-01",
+          mark: { tiers: { rookie: { status: "sicher" } } }
+        },
         { id: "g4", text: "drittes", trainingWz: "fkt-08" },
         { id: "g-name", text: "Geraden ablesen" }
       ]
@@ -354,6 +422,9 @@ registerTrainingRoutes(app, {
     if (key === "1.5") return { rookie: total, operator: total, street_legend: Math.ceil(total * 0.65) };
     if (key === "3") return { rookie: total, operator: Math.ceil(total * 0.8), street_legend: 0 };
     return null;
+  },
+  async writeLevelMark(row) {
+    markWrites.push(row);
   }
 });
 
@@ -431,6 +502,12 @@ try {
   assert.equal(stored.merged.pensumErfuellt, undefined);
   assert.equal(stored.last_raw.pensumErfuellt, true);
   assert.equal(stored.last_raw.token, undefined);
+  assert.deepEqual(
+    markWrites.map((row) => `${row.goalId}:${row.tier}:${row.status}`).sort(),
+    ["g1:operator:in_arbeit", "g1:rookie:sicher", "g1:street_legend:in_arbeit"]
+  );
+  assert.equal(markWrites[0].userId, 7);
+  assert.equal(markWrites[0].schoolId, 1);
 
   const lower = await call("/api/training/results", {
     method: "POST",
@@ -500,8 +577,8 @@ try {
   });
   assert.equal(codeRedeem.status, 400);
   assert.equal(codeRedeem.json.gespeichert, false);
-  assert.equal(codeRedeem.json.hinweis, REDEEM_HINWEIS);
-  assert.equal(codeRedeem.json.beispiel.v, 1);
+  assert.equal(codeRedeem.json.hinweis, "Der Code ist nicht gültig.");
+  assert.equal(codeRedeem.json.beispiel, undefined);
   assert.equal(db.results.some((item) => item.wz === "fkt-02"), false);
 
   const jsonRedeem = await call("/api/student/training/redeem", {
@@ -513,10 +590,82 @@ try {
       ichKann: { rookie: "teilweise", operator: null, streetLegend: null }
     }))
   });
-  assert.equal(jsonRedeem.status, 200);
-  assert.equal(jsonRedeem.json.ok, true);
-  assert.match(jsonRedeem.json.hinweis, /JSON/);
-  assert.equal(db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved, 6);
+  assert.equal(jsonRedeem.status, 400);
+  assert.equal(jsonRedeem.json.gespeichert, false);
+  assert.equal(jsonRedeem.json.hinweis, "Bitte den Nachweis-Code eintragen.");
+  assert.equal(db.results.some((item) => item.wz === "fkt-01"), false);
+
+  const namedOnly = makeProofCode({
+    wz: "fkt-02",
+    solved: [6, 0, 0],
+    first: [1, 0, 0],
+    kontrolle: true,
+    ichKann: ["sicher", null, null]
+  });
+  const byName = await call("/api/student/training/redeem", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: namedOnly })
+  });
+  assert.equal(byName.status, 400);
+  assert.equal(byName.json.hinweis, "Dieser Code gehört zu keinem Unterthema.");
+  assert.equal(db.results.some((item) => item.wz === "fkt-02"), false);
+  assert.equal(markWrites.some((row) => row.goalId === "g-name"), false);
+
+  markWrites.length = 0;
+  const partialCode = makeProofCode({
+    wz: "fkt-01",
+    solved: [3, 0, 6],
+    first: [1, 0, 2],
+    kontrolle: false,
+    ichKann: [null, null, "sicher"]
+  });
+  const partial = await call("/api/student/training/redeem", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: ` ${partialCode} ` })
+  });
+  assert.equal(partial.status, 200);
+  assert.equal(partial.json.quelle, "code");
+  assert.equal(partial.json.gespeichert, true);
+  const fkt = db.results.find((item) => item.wz === "fkt-01");
+  assert.equal(fkt.merged.levels.rookie.solved, 3);
+  assert.equal(fkt.merged.levels.rookie.safe, false);
+  assert.equal(fkt.merged.levels.operator.solved, 0);
+  assert.equal(fkt.merged.levels.streetLegend.solved, 6);
+  assert.equal(fkt.merged.levels.streetLegend.safe, true);
+  assert.equal(fkt.merged.problem, false);
+  assert.equal(fkt.merged.ichKann.streetLegend, "sicher");
+  assert.deepEqual(
+    markWrites.map((row) => `${row.goalId}:${row.tier}:${row.status}`),
+    ["g2:street_legend:sicher"]
+  );
+
+  markWrites.length = 0;
+  const quietCode = makeProofCode({
+    wz: "fkt-08",
+    solved: [0, 0, 0],
+    first: [0, 0, 0],
+    kontrolle: false,
+    ichKann: [null, null, null]
+  });
+  const quiet = await call("/api/student/training/redeem", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: quietCode })
+  });
+  assert.equal(quiet.status, 200);
+  assert.equal(markWrites.length, 0);
+  assert.equal(db.results.find((item) => item.wz === "fkt-08").merged.levels.rookie.solved, 0);
+
+  const nineRedeem = await call("/api/student/training/redeem", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: nineCode })
+  });
+  assert.equal(nineRedeem.status, 200);
+  assert.equal(db.results.find((item) => item.wz === "9-05b").merged.levels.rookie.solved, 9);
+  assert.equal(db.results.find((item) => item.wz === "9-05b").merged.problem, true);
 
   resetTrainingRateLimit();
   for (let i = 0; i < 60; i += 1) {

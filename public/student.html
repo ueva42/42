@@ -13095,58 +13095,67 @@ button.today-city-map {
   z-index: 0;
   pointer-events: none;
 }
-#levelplan-section .lp-train__meters {
+#levelplan-section .lp-train__rings {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   max-width: 100%;
   min-width: 0;
 }
-#levelplan-section .lp-train__meter {
+#levelplan-section .lp-ring {
+  position: relative;
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  min-height: 28px;
-  padding: 4px 8px;
-  box-sizing: border-box;
-  border-radius: 14px;
-  border: 1px solid var(--lp-tier, #22d3ee);
-  background: transparent;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   color: var(--lp-tier, #22d3ee);
-  box-shadow: none;
 }
-#levelplan-section .lp-train__meter.is-full {
-  border-style: solid;
-  background: color-mix(in srgb, var(--lp-tier, #22d3ee) 42%, #060b1d);
+#levelplan-section .lp-ring svg {
+  width: 44px;
+  height: 44px;
+  display: block;
+}
+#levelplan-section .lp-ring__track,
+#levelplan-section .lp-ring__arc {
+  fill: none;
+  stroke-width: 3;
+}
+#levelplan-section .lp-ring__track {
+  stroke: rgba(255, 255, 255, 0.16);
+}
+#levelplan-section .lp-ring__arc {
+  stroke: var(--lp-tier, #22d3ee);
+  stroke-linecap: round;
+  stroke-dasharray: var(--lp-c, 87.96);
+  stroke-dashoffset: var(--lp-off, 87.96);
+  transform: rotate(-90deg);
+  transform-origin: 18px 18px;
+}
+#levelplan-section .lp-ring.is-full .lp-ring__arc {
+  stroke-linecap: butt;
+}
+#levelplan-section .lp-ring__mid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1;
+  font-family: Arial, sans-serif;
   color: #f8fafc;
+  pointer-events: none;
 }
-#levelplan-section .lp-train__num,
-#levelplan-section .lp-train__safe {
-  line-height: 1.2;
-  color: inherit;
-}
-#levelplan-section .lp-train__num {
-  font-family: "Orbitron", system-ui;
-  font-size: 11px;
+#levelplan-section .lp-ring__n {
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.04em;
 }
-#levelplan-section .lp-train__safe {
-  font-family: inherit;
-  font-size: 12px;
+#levelplan-section .lp-ring__k {
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0;
-  text-transform: none;
-}
-#levelplan-section .lp-train__word {
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
-  line-height: 1.2;
-  text-transform: none;
-  color: #e2e8f0;
+  letter-spacing: 0.02em;
+  color: var(--lp-tier, #22d3ee);
 }
 #levelplan-section .lp-train__when,
 #levelplan-section .lp-train-miss {
@@ -13195,18 +13204,65 @@ button.today-city-map {
 }
 #levelplan-section .lp-redeem {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
-  margin-top: 12px;
+  margin: 4px 0 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
 }
-#levelplan-section .lp-redeem textarea {
-  width: 100%;
-  min-height: 72px;
-  margin-top: 6px;
+#levelplan-section .lp-redeem label {
+  flex: 0 0 auto;
+  margin: 0;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #94a3b8;
+}
+#levelplan-section .lp-redeem input {
+  flex: 1 1 180px;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 12px;
   box-sizing: border-box;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(6, 11, 29, 0.92);
+  color: #e2e8f0;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: none;
+}
+#levelplan-section .lp-redeem input::placeholder {
+  color: #64748b;
+  font-family: Arial, sans-serif;
+  font-weight: 400;
 }
 #levelplan-section .lp-redeem button {
-  align-self: flex-start;
+  flex: 0 0 auto;
+  align-self: center;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: #e2e8f0;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: none;
+  cursor: pointer;
 }
 #levelplan-section .lp-help {
   display: inline-flex;
@@ -13930,11 +13986,21 @@ button.today-city-map {
   #levelplan-section .lp-goal {
     transition: none;
   }
+  #levelplan-section .lp-ring__arc {
+    animation: none;
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
   #levelplan-section .lp-next__go:hover {
     transform: translateY(-1px);
   }
+  #levelplan-section .lp-ring__arc {
+    animation: lp-ring-draw 0.6s ease;
+  }
+}
+@keyframes lp-ring-draw {
+  from { stroke-dashoffset: var(--lp-c, 87.96); }
+  to { stroke-dashoffset: var(--lp-off, 0); }
 }
   </style>
 </head>
@@ -14491,7 +14557,7 @@ button.today-city-map {
 <script src="/js/logbuch-today.js?v=57"></script>
 <script src="/js/logbuch-ueben.js?v=6"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
-<script src="/js/logbuch-levelplan.js?v=42"></script>
+<script src="/js/logbuch-levelplan.js?v=43"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=34"></script>
