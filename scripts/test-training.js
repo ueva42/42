@@ -10,6 +10,11 @@ import {
   applyTrainingCors,
   bandFromSolved,
   formatZielnote,
+  POTENZEN_ASSIGN_TOPIC,
+  POTENZEN_CITY,
+  POTENZEN_GOAL_ASSIGNMENTS,
+  POTENZEN_LEVEL_TEXTS,
+  POTENZEN_THEMA,
   TRAINING_ASSIGN_TOPIC,
   TRAINING_GOAL_ASSIGNMENTS,
   cityUrl,
@@ -34,12 +39,17 @@ import {
 } from "../lib/training-merge.js";
 import {
   allowTrainingMessage,
+  assignPotenzenGoalIds,
+  assignPotenzenLevelTexts,
+  assignTrainingGoalIds,
   captureTrainingResultBody,
+  cityMapsForGoals,
   registerTrainingRoutes,
   resetTrainingRateLimit
 } from "../lib/training-api.js";
 
 const TOKEN = "aaaaaaaaaaaaaaaa";
+const POT = "eeeeeeeeeeeeeeee";
 const REVOKED = "bbbbbbbbbbbbbbbb";
 const RATE = "cccccccccccccccc";
 const UNKNOWN = "dddddddddddddddd";
@@ -73,7 +83,32 @@ assert.equal(halte.some((item) => item.wz === "fkt-07"), false);
 assert.deepEqual(Object.keys(halte[0]).sort(), ["n", "name", "url", "wz"]);
 assert.equal(wzForThema("funktionen").has("9-05b"), true);
 assert.equal(wzForThema("funktionen").has("fkt-01"), true);
+assert.equal(wzForThema("funktionen").has("fkt-25"), true);
+assert.equal(wzForThema("funktionen").has("fkt-26"), true);
 assert.equal(wzForThema("brueche").has("9-05b"), false);
+assert.equal(wzForThema("funktionen").has("pw-01"), false);
+assert.equal(wzForThema("potenzen").has("fkt-01"), false);
+assert.equal(wzForThema("potenzen").has("9-05b"), false);
+
+const potenzen = loadHalte("potenzen");
+const potenzErwartet = [
+  [1, "pw-01", "Potenzen", "potenzen/potenzen/"],
+  [2, "pw-02", "Zehnerpotenzen", "potenzen/zehnerpotenzen/"],
+  [3, "pw-03", "Quadratwurzeln", "potenzen/quadratwurzeln/"],
+  [4, "pw-04", "Quadratwurzeln multiplizieren und dividieren", "potenzen/wurzeln-multiplizieren-dividieren/"],
+  [5, "pw-05", "Quadratwurzeln addieren und subtrahieren", "potenzen/wurzeln-addieren-subtrahieren/"],
+  [6, "pw-06", "Teilweises Wurzelziehen", "potenzen/teilweises-wurzelziehen/"],
+  [7, "pw-07", "Alle Rechenarten zusammen", "potenzen/alle-rechenarten/"]
+];
+assert.equal(potenzen.length, 7);
+assert.deepEqual(
+  potenzen.map((item) => [item.n, item.wz, item.name, item.url]),
+  potenzErwartet
+);
+assert.equal(potenzen.some((item) => String(item.url).includes("potenzen/potenzen/potenzen")), false);
+assert.equal(wzForThema("potenzen").size, 7);
+for (const wz of wzForThema("potenzen")) assert.equal(wzForThema("funktionen").has(wz), false);
+for (const wz of wzForThema("funktionen")) assert.equal(wzForThema("potenzen").has(wz), false);
 
 assert.equal(trainingAllowOrigin(TRAINING_ORIGIN), TRAINING_ORIGIN);
 assert.equal(trainingAllowOrigin("https://evil.example"), "");
@@ -265,8 +300,22 @@ for (const [wz, name] of TRAINING_GOAL_ASSIGNMENTS) {
   assert.match(halt.url, /^funktionen\/[a-z0-9-]+\/$/);
   assert.equal(haltForStoredWz(halte, wz).url, halt.url);
 }
+assert.equal(POTENZEN_GOAL_ASSIGNMENTS.length, 7);
+const potenzWz = POTENZEN_GOAL_ASSIGNMENTS.map(([wz]) => wz);
+const potenzNames = POTENZEN_GOAL_ASSIGNMENTS.map(([, name]) => normalizeGoalName(name));
+assert.equal(new Set(potenzWz).size, potenzWz.length);
+assert.equal(new Set(potenzNames).size, potenzNames.length);
+assert.equal(potenzWz.includes("fkt-01"), false);
+assert.equal(assignWz.includes("pw-01"), false);
+for (const [wz, name] of POTENZEN_GOAL_ASSIGNMENTS) {
+  const halt = potenzen.find((item) => item.wz === wz);
+  assert.equal(halt.name, name);
+  assert.match(halt.url, /^potenzen\/[a-z0-9-]+\/$/);
+  assert.equal(haltForStoredWz(potenzen, wz).url, halt.url);
+}
 assert.equal(haltForStoredWz(halte, "Geraden zeichnen"), null);
 assert.equal(haltForStoredWz(halte, ""), null);
+assert.equal(haltForStoredWz(potenzen, "Potenzen"), null);
 assert.equal(storedTrainingWz({ text: "Geraden zeichnen" }), "");
 assert.equal(storedTrainingWz({ trainingWz: " fkt-01 " }), "fkt-01");
 const station = stationUrl(haltForStoredWz(halte, "fkt-01").url, TOKEN, "1,5");
@@ -283,15 +332,310 @@ assert.equal(isCityMapTopic("Lineare und quadratische Funktionen"), true);
 assert.equal(isCityMapTopic("  lineare   und quadratische funktionen "), true);
 assert.equal(isCityMapTopic("Funktionen"), false);
 assert.equal(isCityMapTopic("Quadratische Funktionen"), false);
+assert.equal(isCityMapTopic("Potenzen und Wurzeln"), true);
+assert.equal(isCityMapTopic("  POTENZEN   und   Wurzeln "), true);
+assert.equal(isCityMapTopic("Potenzen"), false);
+assert.equal(isCityMapTopic("Wurzeln"), false);
+assert.equal(isCityMapTopic("Potenzen und Wurzeln Plus"), false);
 const city = cityUrl(TOKEN, "1,5");
 assert.equal(
   city,
   `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=1%2C5&k=10&d=funktionen`
 );
+assert.equal(city.includes("h="), false);
 assert.equal(cityUrl(TOKEN, null), null);
 assert.equal(city.includes("name="), false);
+const cityHalt = cityUrl(TOKEN, "1,5", 1);
+assert.equal(
+  cityHalt,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=1%2C5&k=10&d=funktionen&h=1`
+);
+assert.equal(cityUrl(TOKEN, "1", haltForStoredWz(halte, "fkt-01").n).endsWith("&h=1"), true);
+assert.equal(cityUrl(TOKEN, "6", haltForStoredWz(halte, "9-05b").n).endsWith("&h=7"), true);
+assert.equal(cityUrl(TOKEN, "1,5", "Geraden zeichnen"), null);
+assert.equal(cityUrl(TOKEN, "1,5", "fkt-01"), null);
+assert.equal(cityHalt.includes("Geraden"), false);
+assert.equal(cityHalt.includes("name="), false);
+const cityPotenz = cityUrl(TOKEN, "2", undefined, POTENZEN_CITY);
+assert.equal(
+  cityPotenz,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=2&k=9&d=potenzen`
+);
+assert.equal(cityPotenz.includes("h="), false);
+assert.equal(cityPotenz.includes("k=10"), false);
+assert.equal(cityPotenz.includes("d=funktionen"), false);
+const cityPotenzHalt = cityUrl(TOKEN, "2", 1, POTENZEN_CITY);
+assert.equal(
+  cityPotenzHalt,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=2&k=9&d=potenzen&h=1`
+);
+const pwStation = stationUrl(haltForStoredWz(potenzen, "pw-01").url, TOKEN, "2");
+assert.equal(
+  pwStation,
+  `https://trainingscenter.streetsoflogic.de/potenzen/potenzen/?t=${TOKEN}&note=2`
+);
+assert.equal(pwStation.includes("potenzen/potenzen/potenzen"), false);
+assert.equal(stationUrl("potenzen/potenzen/potenzen/", TOKEN, "2"), null);
+assert.equal(stationUrl("potenzen/potenzen/zehnerpotenzen/", TOKEN, "2"), null);
+assert.equal(stationUrl("funktionen/funktionen/geraden-zeichnen/", TOKEN, "2"), null);
+assert.equal(validatePayload(body({ wz: "pw-01" })).ok, false);
+assert.equal(
+  validatePayload(body({ wz: "pw-01" }), { allowedWz: wzForThema("potenzen") }).ok,
+  true
+);
+assert.equal(
+  validatePayload(body({ wz: "fkt-01" }), { allowedWz: wzForThema("potenzen") }).ok,
+  false
+);
+assert.equal(validatePayload(body({ wz: "fkt-25" })).ok, true);
+assert.equal(validatePayload(body({ wz: "fkt-26" })).ok, true);
+
+const todayMaps = await cityMapsForGoals(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      if (q.includes("FROM level_check_goals")) {
+        const wanted = new Set(params[0]);
+        const rows = [
+          {
+            id: "g-draw",
+            training_wz: " fkt-01 ",
+            level_check_id: "lc-f",
+            name: "Lineare und quadratische Funktionen"
+          },
+          {
+            id: "g-apex",
+            training_wz: "9-05b",
+            level_check_id: "lc-f",
+            name: "Lineare und quadratische Funktionen"
+          },
+          {
+            id: "g-name",
+            training_wz: null,
+            level_check_id: "lc-f",
+            name: "Lineare und quadratische Funktionen"
+          },
+          {
+            id: "g-label",
+            training_wz: "Geraden zeichnen",
+            level_check_id: "lc-f",
+            name: "Lineare und quadratische Funktionen"
+          },
+          {
+            id: "g-other",
+            training_wz: "fkt-01",
+            level_check_id: "lc-b",
+            name: "Brüche"
+          },
+          {
+            id: "g-none",
+            training_wz: "fkt-02",
+            level_check_id: "lc-empty",
+            name: "Lineare und quadratische Funktionen"
+          }
+        ];
+        return { rows: rows.filter((row) => wanted.has(row.id)) };
+      }
+      if (q.startsWith("SELECT token")) return { rows: [{ token: TOKEN }] };
+      if (q.startsWith("SELECT target_grade_key")) {
+        if (params[1] === "lc-f") return { rows: [{ target_grade_key: "1.5", target_grade: null }] };
+        return { rows: [] };
+      }
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  ["g-draw", "g-apex", "g-name", "g-label", "g-other", "g-none", "g-draw"]
+);
+assert.equal(todayMaps.get("g-draw").url, cityHalt);
+assert.equal(
+  todayMaps.get("g-apex").url,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=1%2C5&k=10&d=funktionen&h=7`
+);
+assert.equal(todayMaps.has("g-name"), false);
+assert.equal(todayMaps.has("g-label"), false);
+assert.equal(todayMaps.has("g-other"), false);
+assert.equal(todayMaps.get("g-none").url, null);
+
+const potenzThemaGelesen = [];
+const potenzMaps = await cityMapsForGoals(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      if (q.includes("FROM level_check_goals")) {
+        return {
+          rows: [
+            {
+              id: "p1",
+              training_wz: "pw-01",
+              level_check_id: "lc-p",
+              name: "Potenzen und Wurzeln"
+            },
+            {
+              id: "p-leer",
+              training_wz: null,
+              level_check_id: "lc-p",
+              name: "Potenzen und Wurzeln"
+            },
+            {
+              id: "p-fkt",
+              training_wz: "fkt-01",
+              level_check_id: "lc-p",
+              name: "Potenzen und Wurzeln"
+            }
+          ].filter((row) => new Set(params[0]).has(row.id))
+        };
+      }
+      if (q.startsWith("SELECT token")) {
+        potenzThemaGelesen.push(params[1]);
+        assert.equal(params[1], "potenzen");
+        return { rows: [{ token: POT }] };
+      }
+      if (q.startsWith("SELECT target_grade_key")) {
+        if (params[1] === "lc-p") return { rows: [{ target_grade_key: "2", target_grade: null }] };
+        return { rows: [] };
+      }
+      if (q.startsWith("INSERT INTO training_tokens")) {
+        throw new Error("vorhandene Potenzen-Kennung soll wiederverwendet werden");
+      }
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  ["p1", "p-leer", "p-fkt"]
+);
+assert.deepEqual(potenzThemaGelesen, ["potenzen"]);
+assert.equal(potenzMaps.get("p1").url, cityPotenzHalt.replaceAll(TOKEN, POT));
+assert.equal(potenzMaps.get("p1").url.includes("k=9"), true);
+assert.equal(potenzMaps.get("p1").url.includes("d=potenzen"), true);
+assert.equal(potenzMaps.get("p1").url.endsWith("&h=1"), true);
+assert.equal(potenzMaps.has("p-leer"), false);
+assert.equal(potenzMaps.has("p-fkt"), false);
+
+const fremdThema = [];
+const fremdMaps = await cityMapsForGoals(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      if (q.includes("FROM level_check_goals")) {
+        return {
+          rows: [
+            {
+              id: "f-name",
+              training_wz: null,
+              level_check_id: "lc-f",
+              name: "Lineare und quadratische Funktionen"
+            },
+            {
+              id: "f-pw",
+              training_wz: "pw-01",
+              level_check_id: "lc-f",
+              name: "Lineare und quadratische Funktionen"
+            }
+          ]
+        };
+      }
+      if (q.startsWith("SELECT token")) {
+        fremdThema.push(params[1]);
+        return { rows: [{ token: TOKEN }] };
+      }
+      if (q.startsWith("SELECT target_grade_key")) {
+        return { rows: [{ target_grade_key: "1.5", target_grade: null }] };
+      }
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  ["f-name", "f-pw"]
+);
+assert.deepEqual(fremdThema, ["funktionen"]);
+assert.equal(fremdMaps.has("f-name"), false);
+assert.equal(fremdMaps.has("f-pw"), false);
+
+const potenzOhneNote = await cityMapsForGoals(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      if (q.includes("FROM level_check_goals")) {
+        return {
+          rows: [
+            {
+              id: "p1",
+              training_wz: "pw-01",
+              level_check_id: "lc-p",
+              name: "Potenzen und Wurzeln"
+            }
+          ]
+        };
+      }
+      if (q.startsWith("SELECT token")) return { rows: [{ token: POT }] };
+      if (q.startsWith("SELECT target_grade_key")) return { rows: [] };
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  ["p1"]
+);
+assert.deepEqual(potenzOhneNote.get("p1"), { url: null });
+
+async function captureAssign(run) {
+  const calls = [];
+  await run({
+    async query(sql, params = []) {
+      calls.push({ sql: sql.replace(/\s+/g, " ").trim(), params });
+      return { rows: [] };
+    }
+  });
+  return calls;
+}
+const fktAssign = await captureAssign(assignTrainingGoalIds);
+assert.equal(fktAssign.length, 1);
+assert.equal(fktAssign[0].params[0], TRAINING_ASSIGN_TOPIC);
+assert.equal(fktAssign[0].params.includes("pw-01"), false);
+assert.equal(fktAssign[0].params.includes("potenzen"), false);
+assert.equal(fktAssign[0].params.includes("fkt-01"), true);
+assert.equal(fktAssign[0].params.includes("9-05b"), true);
+assert.match(fktAssign[0].sql, /training_wz IS NULL/);
+assert.match(fktAssign[0].sql, /g\.training_wz = m\.wz/);
+const pwAssign = await captureAssign(assignPotenzenGoalIds);
+assert.equal(pwAssign.length, 1);
+assert.equal(pwAssign[0].params[0], POTENZEN_ASSIGN_TOPIC);
+assert.equal(pwAssign[0].params.includes("potenzen"), true);
+assert.equal(pwAssign[0].params.includes("pw-01"), true);
+assert.equal(pwAssign[0].params.includes("fkt-01"), false);
+assert.equal(pwAssign[0].params.includes("geraden zeichnen"), false);
+assert.equal(pwAssign[0].params.includes("9-05b"), false);
+assert.match(pwAssign[0].sql, /training_wz IS NULL/);
+const textAssign = await captureAssign(assignPotenzenLevelTexts);
+assert.equal(textAssign.length, 1);
+assert.equal(textAssign[0].params[0], POTENZEN_ASSIGN_TOPIC);
+assert.equal(textAssign[0].params.includes("zehnerpotenzen"), true);
+assert.equal(
+  textAssign[0].params.includes("quadratwurzeln multiplizieren und dividieren"),
+  true
+);
+assert.equal(textAssign[0].params.includes("potenzen"), false);
+assert.equal(textAssign[0].params.includes("quadratwurzeln"), false);
+assert.match(textAssign[0].sql, /SET operator_goal_text = m\.operator_text/);
+assert.match(textAssign[0].sql, /street_legend_goal_text = m\.street_legend_text/);
+assert.doesNotMatch(textAssign[0].sql, /rookie_goal_text/);
+assert.doesNotMatch(textAssign[0].sql, /training_wz/);
+assert.doesNotMatch(textAssign[0].sql, /level_check_marks/);
+for (const row of POTENZEN_LEVEL_TEXTS) {
+  assert.equal(textAssign[0].params.includes(row.operator), true);
+  assert.equal(textAssign[0].params.includes(row.streetLegend), true);
+}
+assert.equal(POTENZEN_LEVEL_TEXTS.length, 2);
+assert.equal(POTENZEN_THEMA, "potenzen");
 
 assert.equal(topicIsFunktionen("Quadratische Funktionen", [{ id: "x", text: "anders" }]), true);
+assert.equal(
+  topicIsFunktionen("Potenzen und Wurzeln", [
+    { id: "p1", text: "Potenzen" },
+    { id: "p2", text: "Zehnerpotenzen" }
+  ]),
+  false
+);
 assert.equal(
   topicIsFunktionen("Brüche", [
     { id: "g2", text: "Geraden zeichnen" },
@@ -326,7 +670,8 @@ const db = {
   tokens: [
     { token: TOKEN, student_id: 7, thema: "funktionen", revoked_at: null },
     { token: REVOKED, student_id: 7, thema: "funktionen", revoked_at: "2026-01-01" },
-    { token: RATE, student_id: 7, thema: "funktionen", revoked_at: null }
+    { token: RATE, student_id: 7, thema: "funktionen", revoked_at: null },
+    { token: POT, student_id: 7, thema: "potenzen", revoked_at: null }
   ],
   results: []
 };
@@ -338,6 +683,21 @@ function memoryPool() {
       if (q.startsWith("SELECT token, student_id")) {
         const row = db.tokens.find((item) => item.token === params[0]);
         return { rows: row ? [row] : [] };
+      }
+      if (q.startsWith("SELECT token")) {
+        const row = db.tokens.find(
+          (item) => item.student_id === params[0] && item.thema === params[1] && !item.revoked_at
+        );
+        return { rows: row ? [{ token: row.token }] : [] };
+      }
+      if (q.startsWith("INSERT INTO training_tokens")) {
+        db.tokens.push({
+          token: params[0],
+          student_id: params[1],
+          thema: params[2],
+          revoked_at: null
+        });
+        return { rows: [] };
       }
       if (q.startsWith("SELECT merged, updated_at")) {
         const row = db.results.find((item) => item.student_id === params[0] && item.wz === params[1]);
@@ -362,6 +722,7 @@ function memoryPool() {
       if (q.startsWith("SELECT target_grade_key")) {
         if (params[1] === "lc-f") return { rows: [{ target_grade_key: "1.5", target_grade: null }] };
         if (params[1] === "lc-b") return { rows: [{ target_grade_key: "6", target_grade: null }] };
+        if (params[1] === "lc-p") return { rows: [{ target_grade_key: "2", target_grade: null }] };
         return { rows: [] };
       }
       if (q.startsWith("SELECT wz, merged")) {
@@ -387,7 +748,18 @@ function checks() {
           mark: { tiers: { rookie: { status: "sicher" } } }
         },
         { id: "g4", text: "drittes", trainingWz: "fkt-08" },
-        { id: "g-name", text: "Geraden ablesen" }
+        { id: "g-name", text: "Geraden ablesen" },
+        { id: "g-pot-name", text: "Potenzen" }
+      ]
+    },
+    {
+      id: "lc-p",
+      name: "Potenzen und Wurzeln",
+      subject: "Mathematik",
+      goals: [
+        { id: "p1", text: "Potenzen", trainingWz: "pw-01" },
+        { id: "p2", text: "Zehnerpotenzen", trainingWz: "pw-02" },
+        { id: "p-offen", text: "Quadratwurzeln" }
       ]
     },
     {
@@ -666,6 +1038,188 @@ try {
   assert.equal(nineRedeem.status, 200);
   assert.equal(db.results.find((item) => item.wz === "9-05b").merged.levels.rookie.solved, 9);
   assert.equal(db.results.find((item) => item.wz === "9-05b").merged.problem, true);
+
+  function potenzBody(extra = {}) {
+    return body({
+      token: POT,
+      wz: "pw-01",
+      levels: levels(
+        { solved: 6, first: 4, safe: true },
+        { solved: 2, first: 1, safe: false },
+        { solved: 0, first: 0, safe: false }
+      ),
+      kontrolle: true,
+      problem: true,
+      ichKann: { rookie: "sicher", operator: "teilweise", streetLegend: null },
+      ...extra
+    });
+  }
+
+  const pwCode = makeProofCode({
+    wz: "pw-01",
+    solved: [6, 0, 0],
+    first: [1, 0, 0],
+    kontrolle: true,
+    ichKann: ["sicher", null, null]
+  });
+  assert.equal(parseProofCode(pwCode).wz, "pw-01");
+  const pwRedeem = await call("/api/student/training/redeem", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: pwCode })
+  });
+  assert.equal(pwRedeem.status, 400);
+  assert.equal(pwRedeem.json.gespeichert, false);
+  assert.equal(db.results.some((item) => item.wz === "pw-01"), false);
+
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ wz: "pw-01" }))
+  })).status, 400);
+  assert.equal(db.results.some((item) => item.wz === "pw-01"), false);
+
+  const fktBefore = db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved;
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ token: POT, wz: "fkt-01" }))
+  })).status, 400);
+  assert.equal(db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved, fktBefore);
+
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(potenzBody({ wz: "pw-99" }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(potenzBody({ wz: "fremd" }))
+  })).status, 400);
+
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(potenzBody({ thema: "funktionen" }))
+  })).status, 400);
+  assert.equal(db.results.some((item) => item.wz === "pw-01"), false);
+
+  const solvedBefore = db.results.find((item) => item.wz === "9-05b").merged.levels.rookie.solved;
+  const contra = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({
+      thema: "potenzen",
+      levels: levels(
+        { solved: 1, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false }
+      )
+    }))
+  });
+  assert.equal(contra.status, 400);
+  assert.equal(db.results.find((item) => item.wz === "9-05b").merged.levels.rookie.solved, solvedBefore);
+
+  const savedPotenz = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain", Origin: TRAINING_ORIGIN },
+    body: JSON.stringify(potenzBody({ thema: "potenzen" }))
+  });
+  assert.equal(savedPotenz.status, 200);
+  assert.equal(savedPotenz.headers.get("access-control-allow-origin"), TRAINING_ORIGIN);
+  const pwStored = db.results.find((item) => item.wz === "pw-01");
+  assert.equal(pwStored.merged.levels.rookie.solved, 6);
+  assert.equal(pwStored.merged.levels.rookie.safe, true);
+  assert.equal(pwStored.merged.kontrolle, true);
+  assert.equal(pwStored.merged.problem, true);
+  assert.equal(pwStored.last_raw.token, undefined);
+
+  const lowerPotenz = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(potenzBody({
+      levels: levels(
+        { solved: 1, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false }
+      ),
+      kontrolle: false,
+      problem: false,
+      ichKann: { rookie: null, operator: null, streetLegend: "noch-nicht" }
+    }))
+  });
+  assert.equal(lowerPotenz.status, 200);
+  const pwAgain = db.results.find((item) => item.wz === "pw-01");
+  assert.equal(pwAgain.merged.levels.rookie.solved, 6);
+  assert.equal(pwAgain.merged.levels.rookie.safe, true);
+  assert.equal(pwAgain.merged.levels.operator.solved, 2);
+  assert.equal(pwAgain.merged.kontrolle, true);
+  assert.equal(pwAgain.merged.problem, true);
+  assert.equal(pwAgain.merged.ichKann.rookie, "sicher");
+  assert.equal(pwAgain.merged.ichKann.streetLegend, "noch-nicht");
+
+  const potenzStatus = await call("/api/training/status?t=" + POT, {
+    headers: { Origin: TRAINING_ORIGIN }
+  });
+  assert.equal(potenzStatus.status, 200);
+  assert.equal(potenzStatus.json.zielnote, "2");
+  assert.deepEqual(Object.keys(potenzStatus.json.halte), ["pw-01"]);
+  for (const key of Object.keys(potenzStatus.json.halte)) {
+    assert.match(key, /^pw-0[1-7]$/);
+  }
+  assert.equal(potenzStatus.json.halte["fkt-01"], undefined);
+  assert.equal(potenzStatus.json.halte["9-05b"], undefined);
+  assert.equal(potenzStatus.json.halte["pw-02"], undefined);
+
+  const potenzStatusThema = await call("/api/training/status?t=" + POT + "&thema=potenzen");
+  assert.equal(potenzStatusThema.status, 200);
+  assert.deepEqual(Object.keys(potenzStatusThema.json.halte), ["pw-01"]);
+  assert.equal((await call("/api/training/status?t=" + POT + "&thema=funktionen")).status, 400);
+  assert.equal((await call("/api/training/status?t=" + TOKEN + "&thema=potenzen")).status, 400);
+
+  const funktionenWeiter = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body())
+  });
+  assert.equal(funktionenWeiter.status, 200);
+  assert.equal(db.results.find((item) => item.wz === "9-05b").merged.levels.rookie.solved, 9);
+  const funktionenStatus = await call("/api/training/status?t=" + TOKEN);
+  assert.equal(funktionenStatus.status, 200);
+  assert.equal(funktionenStatus.json.zielnote, "1,5");
+  assert.equal(funktionenStatus.json.halte["9-05b"] != null, true);
+  assert.equal(Object.keys(funktionenStatus.json.halte).some((key) => key.startsWith("pw-")), false);
+
+  const tokenAnzahl = db.tokens.length;
+  const lernstand = await call("/api/student/training");
+  assert.equal(lernstand.status, 200);
+  assert.equal(db.tokens.length, tokenAnzahl);
+  assert.equal(db.tokens.find((item) => item.thema === "potenzen").token, POT);
+  const potTopic = lernstand.json.topics.find((topic) => topic.name === "Potenzen und Wurzeln");
+  const fTopic = lernstand.json.topics.find((topic) => topic.name === "Algebra");
+  assert.equal(potTopic.showStadtkarte, true);
+  assert.equal(
+    potTopic.stadtkarte,
+    `https://trainingscenter.streetsoflogic.de/?t=${POT}&note=2&k=9&d=potenzen`
+  );
+  assert.equal(potTopic.stadtkarte.includes("h="), false);
+  assert.equal(potTopic.zielnote, "2");
+  assert.equal(
+    potTopic.goals.find((goal) => goal.goalId === "p1").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/potenzen/potenzen/?t=${POT}&note=2`
+  );
+  assert.equal(
+    potTopic.goals.find((goal) => goal.goalId === "p2").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/potenzen/zehnerpotenzen/?t=${POT}&note=2`
+  );
+  assert.equal(potTopic.goals.some((goal) => goal.goalId === "p-offen"), false);
+  assert.equal(potTopic.goals.some((goal) => String(goal.wz || "").startsWith("fkt-")), false);
+  assert.equal(fTopic.stadtkarte, null);
+  assert.equal(fTopic.zielnote, "1,5");
+  assert.equal(fTopic.goals.find((goal) => goal.goalId === "g2").trainingUrl, station);
+  assert.equal(fTopic.goals.some((goal) => goal.goalId === "g-pot-name"), false);
+  assert.equal(fTopic.goals.some((goal) => String(goal.trainingUrl || "").includes("/potenzen/")), false);
 
   resetTrainingRateLimit();
   for (let i = 0; i < 60; i += 1) {

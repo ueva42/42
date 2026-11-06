@@ -1,0 +1,44 @@
+[
+  {
+    "n": 1,
+    "name": "Potenzen",
+    "wz": "pw-01",
+    "url": "potenzen/potenzen/"
+  },
+  {
+    "n": 2,
+    "name": "Zehnerpotenzen",
+    "wz": "pw-02",
+    "url": "potenzen/zehnerpotenzen/"
+  },
+  {
+    "n": 3,
+    "name": "Quadratwurzeln",
+    "wz": "pw-03",
+    "url": "potenzen/quadratwurzeln/"
+  },
+  {
+    "n": 4,
+    "name": "Quadratwurzeln multiplizieren und dividieren",
+    "wz": "pw-04",
+    "url": "potenzen/wurzeln-multiplizieren-dividieren/"
+  },
+  {
+    "n": 5,
+    "name": "Quadratwurzeln addieren und subtrahieren",
+    "wz": "pw-05",
+    "url": "potenzen/wurzeln-addieren-subtrahieren/"
+  },
+  {
+    "n": 6,
+    "name": "Teilweises Wurzelziehen",
+    "wz": "pw-06",
+    "url": "potenzen/teilweises-wurzelziehen/"
+  },
+  {
+    "n": 7,
+    "name": "Alle Rechenarten zusammen",
+    "wz": "pw-07",
+    "url": "potenzen/alle-rechenarten/"
+  }
+]
