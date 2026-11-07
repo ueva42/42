@@ -905,13 +905,19 @@
     }
   }
 
+  function cityMapButtonText(cityMap) {
+    const text = String(cityMap?.beschriftung || "").trim();
+    return text || "Stadtkarte öffnen";
+  }
+
   function renderCityMap(entry) {
     if (!entry?.cityMap) return "";
     const ui = UI();
+    const label = ui.escapeHtml(cityMapButtonText(entry.cityMap));
     if (entry.cityMap.url) {
-      return `<a class="today-app-btn today-city-map" href="${ui.escapeHtml(entry.cityMap.url)}" target="_blank" rel="noopener noreferrer">Stadtkarte öffnen</a>`;
+      return `<a class="today-app-btn today-city-map" href="${ui.escapeHtml(entry.cityMap.url)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
     }
-    return `<button type="button" class="today-app-btn today-city-map" disabled>Stadtkarte öffnen</button><p class="today-block-muted">Zielnote setzen</p>`;
+    return `<button type="button" class="today-app-btn today-city-map" disabled>${label}</button><p class="today-block-muted">Zielnote setzen</p>`;
   }
 
   function renderLesson(block, editable) {

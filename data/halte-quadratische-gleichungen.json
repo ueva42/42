@@ -1,0 +1,32 @@
+[
+  {
+    "n": 1,
+    "name": "Binomische Formeln",
+    "wz": "qg-01",
+    "url": "quadratische-gleichungen/binomische-formeln/"
+  },
+  {
+    "n": 2,
+    "name": "Rein quadratische Gleichungen",
+    "wz": "qg-02",
+    "url": "quadratische-gleichungen/rein-quadratische-gleichungen/"
+  },
+  {
+    "n": 3,
+    "name": "Satz vom Nullprodukt",
+    "wz": "qg-03",
+    "url": "quadratische-gleichungen/satz-vom-nullprodukt/"
+  },
+  {
+    "n": 4,
+    "name": "Quadratische Ergänzung",
+    "wz": "qg-04",
+    "url": "quadratische-gleichungen/quadratische-ergaenzung/"
+  },
+  {
+    "n": 5,
+    "name": "Lösungsformel",
+    "wz": "qg-05",
+    "url": "quadratische-gleichungen/loesungsformel/"
+  }
+]

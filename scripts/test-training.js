@@ -10,13 +10,21 @@ import {
   applyTrainingCors,
   bandFromSolved,
   formatZielnote,
+  BINOM_ASSIGN_TOPIC,
+  BINOM_GOAL_ASSIGNMENTS,
   POTENZEN_ASSIGN_TOPIC,
   POTENZEN_CITY,
   POTENZEN_GOAL_ASSIGNMENTS,
   POTENZEN_LEVEL_TEXTS,
   POTENZEN_THEMA,
+  QG_ASSIGN_TOPIC,
+  QG_CITY,
+  QG_GOAL_ASSIGNMENTS,
+  QG_LEVEL_TEXTS,
+  QG_THEMA,
   TRAINING_ASSIGN_TOPIC,
   TRAINING_GOAL_ASSIGNMENTS,
+  cityMapLabel,
   cityUrl,
   haltForStoredWz,
   isCityMapTopic,
@@ -41,6 +49,8 @@ import {
   allowTrainingMessage,
   assignPotenzenGoalIds,
   assignPotenzenLevelTexts,
+  assignQuadratischeGoalIds,
+  assignQuadratischeLevelTexts,
   assignTrainingGoalIds,
   captureTrainingResultBody,
   cityMapsForGoals,
@@ -50,6 +60,7 @@ import {
 
 const TOKEN = "aaaaaaaaaaaaaaaa";
 const POT = "eeeeeeeeeeeeeeee";
+const QG = "ffffffffffffffff";
 const REVOKED = "bbbbbbbbbbbbbbbb";
 const RATE = "cccccccccccccccc";
 const UNKNOWN = "dddddddddddddddd";
@@ -109,6 +120,36 @@ assert.equal(potenzen.some((item) => String(item.url).includes("potenzen/potenze
 assert.equal(wzForThema("potenzen").size, 7);
 for (const wz of wzForThema("potenzen")) assert.equal(wzForThema("funktionen").has(wz), false);
 for (const wz of wzForThema("funktionen")) assert.equal(wzForThema("potenzen").has(wz), false);
+
+const quadratische = loadHalte("quadratische-gleichungen");
+const quadratErwartet = [
+  [1, "qg-01", "Binomische Formeln", "quadratische-gleichungen/binomische-formeln/"],
+  [2, "qg-02", "Rein quadratische Gleichungen", "quadratische-gleichungen/rein-quadratische-gleichungen/"],
+  [3, "qg-03", "Satz vom Nullprodukt", "quadratische-gleichungen/satz-vom-nullprodukt/"],
+  [4, "qg-04", "Quadratische Ergänzung", "quadratische-gleichungen/quadratische-ergaenzung/"],
+  [5, "qg-05", "Lösungsformel", "quadratische-gleichungen/loesungsformel/"]
+];
+assert.equal(quadratische.length, 5);
+assert.deepEqual(
+  quadratische.map((item) => [item.n, item.wz, item.name, item.url]),
+  quadratErwartet
+);
+assert.equal(
+  quadratische.some((item) => String(item.url).includes("quadratische-gleichungen/quadratische-gleichungen")),
+  false
+);
+assert.equal(wzForThema("quadratische-gleichungen").size, 5);
+assert.equal(QG_THEMA, "quadratische-gleichungen");
+for (const wz of wzForThema("quadratische-gleichungen")) {
+  assert.equal(wzForThema("funktionen").has(wz), false);
+  assert.equal(wzForThema("potenzen").has(wz), false);
+}
+for (const wz of wzForThema("funktionen")) {
+  assert.equal(wzForThema("quadratische-gleichungen").has(wz), false);
+}
+for (const wz of wzForThema("potenzen")) {
+  assert.equal(wzForThema("quadratische-gleichungen").has(wz), false);
+}
 
 assert.equal(trainingAllowOrigin(TRAINING_ORIGIN), TRAINING_ORIGIN);
 assert.equal(trainingAllowOrigin("https://evil.example"), "");
@@ -337,6 +378,11 @@ assert.equal(isCityMapTopic("  POTENZEN   und   Wurzeln "), true);
 assert.equal(isCityMapTopic("Potenzen"), false);
 assert.equal(isCityMapTopic("Wurzeln"), false);
 assert.equal(isCityMapTopic("Potenzen und Wurzeln Plus"), false);
+assert.equal(isCityMapTopic("Quadratische Gleichungen"), true);
+assert.equal(isCityMapTopic("  QUADRATISCHE   Gleichungen "), true);
+assert.equal(isCityMapTopic("Binomische Formeln"), false);
+assert.equal(isCityMapTopic("Quadratische"), false);
+assert.equal(isCityMapTopic("Gleichungen"), false);
 const city = cityUrl(TOKEN, "1,5");
 assert.equal(
   city,
@@ -378,6 +424,47 @@ assert.equal(pwStation.includes("potenzen/potenzen/potenzen"), false);
 assert.equal(stationUrl("potenzen/potenzen/potenzen/", TOKEN, "2"), null);
 assert.equal(stationUrl("potenzen/potenzen/zehnerpotenzen/", TOKEN, "2"), null);
 assert.equal(stationUrl("funktionen/funktionen/geraden-zeichnen/", TOKEN, "2"), null);
+const cityQuadrat = cityUrl(TOKEN, "2", undefined, QG_CITY);
+assert.equal(
+  cityQuadrat,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=2&k=9&d=quadratische-gleichungen`
+);
+assert.equal(cityQuadrat.includes("h="), false);
+assert.equal(cityQuadrat.includes("k=10"), false);
+assert.equal(cityQuadrat.includes("d=funktionen"), false);
+assert.equal(cityQuadrat.includes("d=potenzen"), false);
+assert.equal(cityMapLabel(QG_THEMA), "Stadtkarte öffnen");
+assert.equal(cityMapLabel(POTENZEN_THEMA), "Trainingscenter öffnen");
+assert.equal(cityMapLabel("funktionen"), "Stadtkarte öffnen");
+const qgStation = stationUrl(haltForStoredWz(quadratische, "qg-01").url, TOKEN, "2");
+assert.equal(
+  qgStation,
+  `https://trainingscenter.streetsoflogic.de/quadratische-gleichungen/binomische-formeln/?t=${TOKEN}&note=2`
+);
+assert.equal(qgStation.includes("k="), false);
+assert.equal(qgStation.includes("d="), false);
+assert.equal(qgStation.includes("h="), false);
+assert.equal(
+  stationUrl("quadratische-gleichungen/quadratische-gleichungen/binomische-formeln/", TOKEN, "2"),
+  null
+);
+assert.equal(stationUrl("quadratische-gleichungen/binomische-formeln/extra/", TOKEN, "2"), null);
+assert.equal(
+  validatePayload(body({ wz: "qg-01" }), { allowedWz: wzForThema("quadratische-gleichungen") }).ok,
+  true
+);
+assert.equal(
+  validatePayload(body({ wz: "qg-01" }), { allowedWz: wzForThema("funktionen") }).ok,
+  false
+);
+assert.equal(
+  validatePayload(body({ wz: "fkt-01" }), { allowedWz: wzForThema("quadratische-gleichungen") }).ok,
+  false
+);
+assert.equal(
+  validatePayload(body({ wz: "pw-01" }), { allowedWz: wzForThema("quadratische-gleichungen") }).ok,
+  false
+);
 assert.equal(validatePayload(body({ wz: "pw-01" })).ok, false);
 assert.equal(
   validatePayload(body({ wz: "pw-01" }), { allowedWz: wzForThema("potenzen") }).ok,
@@ -448,6 +535,7 @@ const todayMaps = await cityMapsForGoals(
   ["g-draw", "g-apex", "g-name", "g-label", "g-other", "g-none", "g-draw"]
 );
 assert.equal(todayMaps.get("g-draw").url, cityHalt);
+assert.equal(todayMaps.get("g-draw").beschriftung, "Stadtkarte öffnen");
 assert.equal(
   todayMaps.get("g-apex").url,
   `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=1%2C5&k=10&d=funktionen&h=7`
@@ -456,6 +544,7 @@ assert.equal(todayMaps.has("g-name"), false);
 assert.equal(todayMaps.has("g-label"), false);
 assert.equal(todayMaps.has("g-other"), false);
 assert.equal(todayMaps.get("g-none").url, null);
+assert.equal(todayMaps.get("g-none").beschriftung, "Stadtkarte öffnen");
 
 const potenzThemaGelesen = [];
 const potenzMaps = await cityMapsForGoals(
@@ -506,6 +595,7 @@ const potenzMaps = await cityMapsForGoals(
 );
 assert.deepEqual(potenzThemaGelesen, ["potenzen"]);
 assert.equal(potenzMaps.get("p1").url, cityPotenzHalt.replaceAll(TOKEN, POT));
+assert.equal(potenzMaps.get("p1").beschriftung, "Trainingscenter öffnen");
 assert.equal(potenzMaps.get("p1").url.includes("k=9"), true);
 assert.equal(potenzMaps.get("p1").url.includes("d=potenzen"), true);
 assert.equal(potenzMaps.get("p1").url.endsWith("&h=1"), true);
@@ -576,7 +666,113 @@ const potenzOhneNote = await cityMapsForGoals(
   7,
   ["p1"]
 );
-assert.deepEqual(potenzOhneNote.get("p1"), { url: null });
+assert.deepEqual(potenzOhneNote.get("p1"), {
+  url: null,
+  beschriftung: "Trainingscenter öffnen"
+});
+
+const qgThemaGelesen = [];
+const qgMaps = await cityMapsForGoals(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      if (q.includes("FROM level_check_goals")) {
+        return {
+          rows: [
+            {
+              id: "bin1",
+              training_wz: "qg-01",
+              level_check_id: "lc-bin",
+              name: "Binomische Formeln"
+            },
+            {
+              id: "qg5",
+              training_wz: "qg-05",
+              level_check_id: "lc-qg",
+              name: "Quadratische Gleichungen"
+            },
+            {
+              id: "qg-leer",
+              training_wz: null,
+              level_check_id: "lc-qg",
+              name: "Quadratische Gleichungen"
+            },
+            {
+              id: "bin-fremd",
+              training_wz: "fkt-01",
+              level_check_id: "lc-bin",
+              name: "Binomische Formeln"
+            }
+          ].filter((row) => new Set(params[0]).has(row.id))
+        };
+      }
+      if (q.startsWith("SELECT token")) {
+        qgThemaGelesen.push(params[1]);
+        assert.equal(params[1], "quadratische-gleichungen");
+        return { rows: [{ token: QG }] };
+      }
+      if (q.startsWith("SELECT target_grade_key")) {
+        if (params[1] === "lc-bin") return { rows: [{ target_grade_key: "2", target_grade: null }] };
+        if (params[1] === "lc-qg") return { rows: [{ target_grade_key: "2", target_grade: null }] };
+        return { rows: [] };
+      }
+      if (q.startsWith("INSERT INTO training_tokens")) {
+        throw new Error("vorhandene Kennung für quadratische-gleichungen soll wiederverwendet werden");
+      }
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  ["bin1", "qg5", "qg-leer", "bin-fremd"]
+);
+assert.deepEqual(qgThemaGelesen, ["quadratische-gleichungen"]);
+assert.equal(
+  qgMaps.get("bin1").url,
+  `https://trainingscenter.streetsoflogic.de/?t=${QG}&note=2&k=9&d=quadratische-gleichungen&h=1`
+);
+assert.equal(qgMaps.get("bin1").beschriftung, "Stadtkarte öffnen");
+assert.equal(
+  qgMaps.get("qg5").url,
+  `https://trainingscenter.streetsoflogic.de/?t=${QG}&note=2&k=9&d=quadratische-gleichungen&h=5`
+);
+assert.equal(qgMaps.get("qg5").beschriftung, "Stadtkarte öffnen");
+assert.equal(qgMaps.get("qg5").url.includes("d=potenzen"), false);
+assert.equal(qgMaps.get("qg5").url.includes("d=funktionen"), false);
+assert.equal(qgMaps.get("qg5").url.includes("k=10"), false);
+assert.equal(qgMaps.has("qg-leer"), false);
+assert.equal(qgMaps.has("bin-fremd"), false);
+
+const qgOhneNote = await cityMapsForGoals(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      if (q.includes("FROM level_check_goals")) {
+        return {
+          rows: [
+            {
+              id: "bin1",
+              training_wz: "qg-01",
+              level_check_id: "lc-bin",
+              name: "Binomische Formeln"
+            }
+          ]
+        };
+      }
+      if (q.startsWith("SELECT token")) {
+        assert.equal(params[1], "quadratische-gleichungen");
+        return { rows: [{ token: QG }] };
+      }
+      if (q.startsWith("SELECT target_grade_key")) return { rows: [] };
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  ["bin1"]
+);
+assert.deepEqual(qgOhneNote.get("bin1"), {
+  url: null,
+  beschriftung: "Stadtkarte öffnen"
+});
 
 async function captureAssign(run) {
   const calls = [];
@@ -627,6 +823,64 @@ for (const row of POTENZEN_LEVEL_TEXTS) {
 }
 assert.equal(POTENZEN_LEVEL_TEXTS.length, 2);
 assert.equal(POTENZEN_THEMA, "potenzen");
+
+const qgAssign = await captureAssign(assignQuadratischeGoalIds);
+assert.equal(qgAssign.length, 2);
+assert.equal(qgAssign[0].params[0], BINOM_ASSIGN_TOPIC);
+assert.equal(qgAssign[0].params.includes("qg-01"), true);
+assert.equal(qgAssign[0].params.includes("binomische formeln"), true);
+assert.equal(qgAssign[0].params.includes("qg-02"), false);
+assert.equal(qgAssign[0].params.includes("qg-05"), false);
+assert.equal(qgAssign[0].params.includes("lösungsformel"), false);
+assert.equal(qgAssign[0].params.includes("fkt-01"), false);
+assert.equal(qgAssign[0].params.includes("pw-01"), false);
+assert.equal(qgAssign[0].params.includes("quadratische gleichungen"), false);
+assert.match(qgAssign[0].sql, /training_wz IS NULL/);
+assert.match(qgAssign[0].sql, /g\.training_wz = m\.wz/);
+assert.equal(qgAssign[1].params[0], QG_ASSIGN_TOPIC);
+assert.equal(qgAssign[1].params.includes("qg-02"), true);
+assert.equal(qgAssign[1].params.includes("qg-03"), true);
+assert.equal(qgAssign[1].params.includes("qg-04"), true);
+assert.equal(qgAssign[1].params.includes("qg-05"), true);
+assert.equal(qgAssign[1].params.includes("rein quadratische gleichungen"), true);
+assert.equal(qgAssign[1].params.includes("satz vom nullprodukt"), true);
+assert.equal(qgAssign[1].params.includes("quadratische ergänzung"), true);
+assert.equal(qgAssign[1].params.includes("lösungsformel"), true);
+assert.equal(qgAssign[1].params.includes("qg-01"), false);
+assert.equal(qgAssign[1].params.includes("binomische formeln"), false);
+assert.equal(qgAssign[1].params.includes("fkt-01"), false);
+assert.equal(qgAssign[1].params.includes("pw-01"), false);
+assert.match(qgAssign[1].sql, /training_wz IS NULL/);
+assert.equal(BINOM_GOAL_ASSIGNMENTS.length, 1);
+assert.equal(QG_GOAL_ASSIGNMENTS.length, 4);
+const qgWz = [...BINOM_GOAL_ASSIGNMENTS, ...QG_GOAL_ASSIGNMENTS].map(([wz]) => wz);
+assert.deepEqual(qgWz, ["qg-01", "qg-02", "qg-03", "qg-04", "qg-05"]);
+for (const [wz, name] of BINOM_GOAL_ASSIGNMENTS) {
+  assert.equal(quadratische.find((item) => item.wz === wz).name, name);
+}
+for (const [wz, name] of QG_GOAL_ASSIGNMENTS) {
+  assert.equal(quadratische.find((item) => item.wz === wz).name, name);
+}
+
+const QG_ROOKIE =
+  "Ich kann (a + b)\u00b2 und (a \u2212 b)\u00b2 ausmultiplizieren und bilde dabei das mittlere Glied richtig.";
+assert.equal(QG_LEVEL_TEXTS.length, 1);
+assert.equal(QG_LEVEL_TEXTS[0].name, "Binomische Formeln");
+assert.equal(QG_LEVEL_TEXTS[0].rookie, QG_ROOKIE);
+assert.equal(QG_LEVEL_TEXTS[0].operator, undefined);
+assert.equal(QG_LEVEL_TEXTS[0].streetLegend, undefined);
+const qgText = await captureAssign(assignQuadratischeLevelTexts);
+assert.equal(qgText.length, 1);
+assert.equal(qgText[0].params[0], BINOM_ASSIGN_TOPIC);
+assert.equal(qgText[0].params.includes("binomische formeln"), true);
+assert.equal(qgText[0].params.includes(QG_ROOKIE), true);
+assert.equal(qgText[0].params.includes("quadratische gleichungen"), false);
+assert.equal(qgText[0].params.includes("lösungsformel"), false);
+assert.match(qgText[0].sql, /SET rookie_goal_text = m\.rookie_text/);
+assert.doesNotMatch(qgText[0].sql, /operator_goal_text/);
+assert.doesNotMatch(qgText[0].sql, /street_legend_goal_text/);
+assert.doesNotMatch(qgText[0].sql, /training_wz/);
+assert.doesNotMatch(qgText[0].sql, /level_check_marks/);
 
 assert.equal(topicIsFunktionen("Quadratische Funktionen", [{ id: "x", text: "anders" }]), true);
 assert.equal(
@@ -723,6 +977,8 @@ function memoryPool() {
         if (params[1] === "lc-f") return { rows: [{ target_grade_key: "1.5", target_grade: null }] };
         if (params[1] === "lc-b") return { rows: [{ target_grade_key: "6", target_grade: null }] };
         if (params[1] === "lc-p") return { rows: [{ target_grade_key: "2", target_grade: null }] };
+        if (params[1] === "lc-qg") return { rows: [{ target_grade_key: "2", target_grade: null }] };
+        if (params[1] === "lc-bin") return { rows: [{ target_grade_key: "5", target_grade: null }] };
         return { rows: [] };
       }
       if (q.startsWith("SELECT wz, merged")) {
@@ -771,6 +1027,7 @@ function checks() {
   ];
 }
 
+const extraChecks = [];
 const app = express();
 app.use(captureTrainingResultBody);
 app.use(express.json({ limit: "2mb" }));
@@ -788,7 +1045,7 @@ registerTrainingRoutes(app, {
     return true;
   },
   async getLevelChecksForClass() {
-    return checks();
+    return checks().concat(extraChecks);
   },
   recommendedTierCounts(total, key) {
     if (key === "1.5") return { rookie: total, operator: total, street_legend: Math.ceil(total * 0.65) };
@@ -1199,6 +1456,7 @@ try {
   const potTopic = lernstand.json.topics.find((topic) => topic.name === "Potenzen und Wurzeln");
   const fTopic = lernstand.json.topics.find((topic) => topic.name === "Algebra");
   assert.equal(potTopic.showStadtkarte, true);
+  assert.equal(potTopic.beschriftung, "Trainingscenter öffnen");
   assert.equal(
     potTopic.stadtkarte,
     `https://trainingscenter.streetsoflogic.de/?t=${POT}&note=2&k=9&d=potenzen`
@@ -1220,6 +1478,245 @@ try {
   assert.equal(fTopic.goals.find((goal) => goal.goalId === "g2").trainingUrl, station);
   assert.equal(fTopic.goals.some((goal) => goal.goalId === "g-pot-name"), false);
   assert.equal(fTopic.goals.some((goal) => String(goal.trainingUrl || "").includes("/potenzen/")), false);
+
+  db.tokens.push({
+    token: QG,
+    student_id: 7,
+    thema: "quadratische-gleichungen",
+    revoked_at: null
+  });
+  function kennungenAusserQg() {
+    return db.tokens
+      .filter((item) => item.thema === "funktionen" || item.thema === "potenzen")
+      .map((item) => `${item.token}:${item.thema}:${item.revoked_at || ""}`)
+      .sort();
+  }
+  const kennungenVorher = kennungenAusserQg();
+  extraChecks.push(
+    {
+      id: "lc-qg",
+      name: "Quadratische Gleichungen",
+      subject: "Mathematik",
+      goals: [
+        { id: "qg-decoy", text: "Binomische Formeln" },
+        { id: "qg2", text: "Rein quadratische Gleichungen", trainingWz: "qg-02" },
+        { id: "qg3", text: "Satz vom Nullprodukt", trainingWz: "qg-03" },
+        { id: "qg4", text: "Quadratische Ergänzung", trainingWz: "qg-04" },
+        { id: "qg5", text: "Lösungsformel", trainingWz: "qg-05" }
+      ]
+    },
+    {
+      id: "lc-bin",
+      name: "Binomische Formeln",
+      subject: "Mathematik",
+      goals: [
+        {
+          id: "bin1",
+          text: "Binomische Formeln",
+          trainingWz: "qg-01",
+          mark: { tiers: { rookie: { status: "offen" } } }
+        },
+        { id: "bin-decoy", text: "Lösungsformel" },
+        { id: "bin-x1", text: "Zusatz 1", trainingWz: "zz-01" },
+        { id: "bin-x2", text: "Zusatz 2", trainingWz: "zz-02" },
+        { id: "bin-x3", text: "Zusatz 3", trainingWz: "zz-03" },
+        { id: "bin-x4", text: "Zusatz 4", trainingWz: "zz-04" },
+        { id: "bin-x5", text: "Zusatz 5", trainingWz: "zz-05" }
+      ]
+    }
+  );
+
+  function qgBody(extra = {}) {
+    return body({
+      token: QG,
+      wz: "qg-01",
+      thema: "quadratische-gleichungen",
+      levels: levels(
+        { solved: 6, first: 4, safe: true },
+        { solved: 2, first: 1, safe: false },
+        { solved: 0, first: 0, safe: false }
+      ),
+      kontrolle: true,
+      problem: true,
+      ichKann: { rookie: "sicher", operator: "teilweise", streetLegend: null },
+      ...extra
+    });
+  }
+
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ wz: "qg-01" }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ token: POT, wz: "qg-01" }))
+  })).status, 400);
+  const fktSolved = db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved;
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(qgBody({ wz: "fkt-01", thema: undefined }))
+  })).status, 400);
+  assert.equal(db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved, fktSolved);
+  const pwSolved = db.results.find((item) => item.wz === "pw-01").merged.levels.rookie.solved;
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(qgBody({ wz: "pw-01", thema: undefined }))
+  })).status, 400);
+  assert.equal(db.results.find((item) => item.wz === "pw-01").merged.levels.rookie.solved, pwSolved);
+  assert.equal(db.results.some((item) => item.wz === "qg-01"), false);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(qgBody({ wz: "qg-99" }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(qgBody({ wz: "binomische-formeln" }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(qgBody({ thema: "funktionen" }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(qgBody({ thema: "potenzen" }))
+  })).status, 400);
+
+  markWrites.length = 0;
+  const savedQg = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain", Origin: TRAINING_ORIGIN },
+    body: JSON.stringify(qgBody())
+  });
+  assert.equal(savedQg.status, 200);
+  assert.equal(savedQg.headers.get("access-control-allow-origin"), TRAINING_ORIGIN);
+  const qgStored = db.results.find((item) => item.wz === "qg-01");
+  assert.equal(qgStored.merged.levels.rookie.solved, 6);
+  assert.equal(qgStored.merged.levels.rookie.safe, true);
+  assert.equal(qgStored.merged.kontrolle, true);
+  assert.equal(qgStored.last_raw.token, undefined);
+  assert.equal(
+    markWrites.some((row) => row.goalId === "bin1" && row.tier === "rookie" && row.status === "sicher"),
+    true
+  );
+  assert.equal(markWrites.some((row) => row.goalId === "qg-decoy"), false);
+  assert.equal(markWrites.some((row) => row.goalId === "bin-decoy"), false);
+  assert.equal(markWrites.some((row) => row.goalId === "qg5"), false);
+
+  const lowerQg = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(qgBody({
+      thema: undefined,
+      levels: levels(
+        { solved: 1, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false }
+      ),
+      kontrolle: false,
+      problem: false,
+      ichKann: { rookie: null, operator: null, streetLegend: "noch-nicht" }
+    }))
+  });
+  assert.equal(lowerQg.status, 200);
+  const qgAgain = db.results.find((item) => item.wz === "qg-01");
+  assert.equal(qgAgain.merged.levels.rookie.solved, 6);
+  assert.equal(qgAgain.merged.levels.rookie.safe, true);
+  assert.equal(qgAgain.merged.levels.operator.solved, 2);
+  assert.equal(qgAgain.merged.kontrolle, true);
+  assert.equal(qgAgain.merged.problem, true);
+  assert.equal(qgAgain.merged.ichKann.rookie, "sicher");
+  assert.equal(qgAgain.merged.ichKann.streetLegend, "noch-nicht");
+
+  const savedQg5 = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(qgBody({
+      wz: "qg-05",
+      thema: undefined,
+      levels: levels(
+        { solved: 3, first: 1, safe: false },
+        { solved: 0, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false }
+      )
+    }))
+  });
+  assert.equal(savedQg5.status, 200);
+
+  const qgStatus = await call("/api/training/status?t=" + QG, {
+    headers: { Origin: TRAINING_ORIGIN }
+  });
+  assert.equal(qgStatus.status, 200);
+  assert.equal(qgStatus.json.zielnote, "2");
+  assert.notEqual(qgStatus.json.zielnote, "5");
+  assert.deepEqual(Object.keys(qgStatus.json.halte).sort(), ["qg-01", "qg-05"]);
+  for (const key of Object.keys(qgStatus.json.halte)) assert.match(key, /^qg-0[1-5]$/);
+  assert.equal(qgStatus.json.halte["qg-02"], undefined);
+  assert.equal(qgStatus.json.halte["fkt-01"], undefined);
+  assert.equal(qgStatus.json.halte["9-05b"], undefined);
+  assert.equal(qgStatus.json.halte["pw-01"], undefined);
+  assert.equal(qgStatus.json.halte["zz-01"], undefined);
+  const qgStatusThema = await call("/api/training/status?t=" + QG + "&thema=quadratische-gleichungen");
+  assert.equal(qgStatusThema.status, 200);
+  assert.equal(qgStatusThema.json.zielnote, "2");
+  assert.equal((await call("/api/training/status?t=" + QG + "&thema=funktionen")).status, 400);
+  assert.equal((await call("/api/training/status?t=" + QG + "&thema=potenzen")).status, 400);
+  assert.equal((await call("/api/training/status?t=" + TOKEN + "&thema=quadratische-gleichungen")).status, 400);
+
+  assert.deepEqual(kennungenAusserQg(), kennungenVorher);
+  assert.equal(db.tokens.filter((item) => item.thema === "quadratische-gleichungen").length, 1);
+  assert.equal(db.tokens.some((item) => item.thema === "binomische-formeln"), false);
+
+  const lernstandQg = await call("/api/student/training");
+  assert.equal(lernstandQg.status, 200);
+  assert.deepEqual(kennungenAusserQg(), kennungenVorher);
+  assert.equal(db.tokens.filter((item) => item.thema === "quadratische-gleichungen").length, 1);
+  assert.equal(db.tokens.find((item) => item.thema === "potenzen").token, POT);
+  const qgTopic = lernstandQg.json.topics.find((topic) => topic.name === "Quadratische Gleichungen");
+  const binTopic = lernstandQg.json.topics.find((topic) => topic.name === "Binomische Formeln");
+  const potStill = lernstandQg.json.topics.find((topic) => topic.name === "Potenzen und Wurzeln");
+  const fStill = lernstandQg.json.topics.find((topic) => topic.name === "Algebra");
+  assert.equal(potStill.showStadtkarte, true);
+  assert.equal(potStill.beschriftung, "Trainingscenter öffnen");
+  assert.equal(
+    potStill.stadtkarte,
+    `https://trainingscenter.streetsoflogic.de/?t=${POT}&note=2&k=9&d=potenzen`
+  );
+  assert.equal(fStill.stadtkarte, null);
+  assert.equal(fStill.goals.find((goal) => goal.goalId === "g2").trainingUrl, station);
+  assert.equal(qgTopic.showStadtkarte, true);
+  assert.equal(qgTopic.beschriftung, "Stadtkarte öffnen");
+  assert.equal(qgTopic.zielnote, "2");
+  assert.equal(
+    qgTopic.stadtkarte,
+    `https://trainingscenter.streetsoflogic.de/?t=${QG}&note=2&k=9&d=quadratische-gleichungen`
+  );
+  assert.equal(qgTopic.stadtkarte.includes("h="), false);
+  assert.equal(
+    qgTopic.goals.find((goal) => goal.goalId === "qg5").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/quadratische-gleichungen/loesungsformel/?t=${QG}&note=2`
+  );
+  assert.equal(qgTopic.goals.some((goal) => goal.goalId === "qg-decoy"), false);
+  assert.equal(binTopic.showStadtkarte, false);
+  assert.equal(binTopic.stadtkarte, null);
+  assert.equal(binTopic.beschriftung, null);
+  assert.equal(binTopic.zielnote, "5");
+  assert.equal(
+    binTopic.goals.find((goal) => goal.goalId === "bin1").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/quadratische-gleichungen/binomische-formeln/?t=${QG}&note=5`
+  );
+  assert.equal(binTopic.goals.some((goal) => goal.goalId === "bin-decoy"), false);
+  assert.equal(binTopic.goals.some((goal) => String(goal.wz || "").startsWith("zz-")), false);
+  assert.equal(binTopic.goals.find((goal) => goal.goalId === "bin1").stufen.rookie.solved, 6);
+
+  extraChecks.length = 0;
 
   resetTrainingRateLimit();
   for (let i = 0; i < 60; i += 1) {

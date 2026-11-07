@@ -675,13 +675,19 @@
     return `<label class="lp-thema"><span class="lp-sr">Thema</span><select data-lp-thema="${escapeHtml(state.selectedThemaId || "")}">${options}</select></label>`;
   }
 
+  function cityMapButtonText(source) {
+    const text = String(source?.beschriftung || "").trim();
+    return text || "Stadtkarte öffnen";
+  }
+
   function renderCityMap(thema) {
     const topic = trainingForThema(thema);
     if (!topic?.showStadtkarte) return "";
+    const label = escapeHtml(cityMapButtonText(topic));
     if (topic.stadtkarte) {
-      return `<a class="lp-chip lp-chip--map" href="${escapeHtml(topic.stadtkarte)}" target="_blank" rel="noopener noreferrer">Stadtkarte öffnen</a>`;
+      return `<a class="lp-chip lp-chip--map" href="${escapeHtml(topic.stadtkarte)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
     }
-    return `<button type="button" class="lp-chip lp-chip--map" disabled>Stadtkarte öffnen</button><span class="lp-map-hint">Zielnote setzen</span>`;
+    return `<button type="button" class="lp-chip lp-chip--map" disabled>${label}</button><span class="lp-map-hint">Zielnote setzen</span>`;
   }
 
   function renderBar(thema, progress) {
