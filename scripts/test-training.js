@@ -46,6 +46,7 @@ import {
   pensumText,
   stationUrl,
   statusFromTraining,
+  trainingOpenUrl,
   storedTrainingWz,
   topicIsFunktionen,
   trainingAllowOrigin,
@@ -392,15 +393,33 @@ assert.equal(
   ambiguous.abweichungen.some((item) => item.wz === "9-05b" && item.grund === "nicht eindeutig"),
   true
 );
-assert.equal(TRAINING_GOAL_ASSIGNMENTS.length, 24);
+assert.equal(TRAINING_GOAL_ASSIGNMENTS.length, 26);
 const assignWz = TRAINING_GOAL_ASSIGNMENTS.map(([wz]) => wz);
 const assignNames = TRAINING_GOAL_ASSIGNMENTS.map(([, name]) => normalizeGoalName(name));
 assert.equal(new Set(assignWz).size, assignWz.length);
 assert.equal(new Set(assignNames).size, assignNames.length);
-assert.equal(assignWz.includes("fkt-25"), false);
-assert.equal(assignWz.includes("fkt-26"), false);
+assert.equal(assignWz.includes("fkt-25"), true);
+assert.equal(assignWz.includes("fkt-26"), true);
 assert.equal(assignWz.includes("fkt-07"), false);
 assert.equal(assignWz.includes("9-05b"), true);
+assert.deepEqual(TRAINING_GOAL_ASSIGNMENTS.slice(0, 24).map(([wz]) => wz), [
+  "fkt-01", "fkt-02", "fkt-03", "fkt-04", "fkt-05", "fkt-06", "9-05b",
+  "fkt-08", "fkt-09", "fkt-10", "fkt-11", "fkt-12", "fkt-13", "fkt-14",
+  "fkt-15", "fkt-16", "fkt-17", "fkt-18", "fkt-19", "fkt-20", "fkt-21",
+  "fkt-22", "fkt-23", "fkt-24"
+]);
+assert.deepEqual(TRAINING_GOAL_ASSIGNMENTS.slice(24), [
+  ["fkt-25", "Typische Aufgaben"],
+  ["fkt-26", "Prüfungsaufgaben"]
+]);
+assert.equal(TRAINING_GOAL_ASSIGNMENTS.find(([wz]) => wz === "fkt-01")[1], "Geraden zeichnen");
+assert.equal(TRAINING_GOAL_ASSIGNMENTS.find(([wz]) => wz === "9-05b")[1], "Scheitel auf der y-Achse");
+assert.equal(halte.find((item) => item.wz === "fkt-01").n, 1);
+assert.equal(halte.find((item) => item.wz === "fkt-01").url, "funktionen/geraden-zeichnen/");
+assert.equal(halte.find((item) => item.wz === "9-05b").n, 7);
+assert.equal(halte.find((item) => item.wz === "9-05b").url, "funktionen/scheitel-auf-der-y-achse/");
+assert.equal(halte.find((item) => item.wz === "fkt-25").n, 25);
+assert.equal(halte.find((item) => item.wz === "fkt-26").n, 26);
 for (const [wz, name] of TRAINING_GOAL_ASSIGNMENTS) {
   const halt = halte.find((item) => item.wz === wz);
   assert.equal(halt.name, name);
@@ -470,6 +489,8 @@ assert.equal(
 );
 assert.equal(cityUrl(TOKEN, "1", haltForStoredWz(halte, "fkt-01").n).endsWith("&h=1"), true);
 assert.equal(cityUrl(TOKEN, "6", haltForStoredWz(halte, "9-05b").n).endsWith("&h=7"), true);
+assert.equal(cityUrl(TOKEN, "4", haltForStoredWz(halte, "fkt-25").n).endsWith("&h=25"), true);
+assert.equal(cityUrl(TOKEN, "4", haltForStoredWz(halte, "fkt-26").n).endsWith("&h=26"), true);
 assert.equal(cityUrl(TOKEN, "1,5", "Geraden zeichnen"), null);
 assert.equal(cityUrl(TOKEN, "1,5", "fkt-01"), null);
 assert.equal(cityHalt.includes("Geraden"), false);
@@ -540,6 +561,32 @@ assert.equal(
 );
 assert.equal(trigArchiv.includes("trigonometrie/pruefungsaufgaben"), false);
 assert.equal(pruefungsarchivUrl(TOKEN, null), null);
+const fkt25Link = trainingOpenUrl(haltForStoredWz(halte, "fkt-25"), TOKEN, "2");
+assert.equal(
+  fkt25Link,
+  `https://trainingscenter.streetsoflogic.de/funktionen/typische-aufgaben/?t=${TOKEN}&note=2`
+);
+assert.match(fkt25Link, /\/funktionen\/typische-aufgaben\/\?/);
+assert.equal(fkt25Link.includes("pruefungsarchiv"), false);
+const fkt26Link = trainingOpenUrl(haltForStoredWz(halte, "fkt-26"), TOKEN, "2");
+assert.equal(
+  fkt26Link,
+  `https://trainingscenter.streetsoflogic.de/pruefungsarchiv/?thema=funktionen&k=10&d=funktionen&h=26&t=${TOKEN}&note=2`
+);
+assert.equal(fkt26Link.includes("funktionen/pruefungsaufgaben"), false);
+assert.equal(fkt26Link.includes("h=26"), true);
+assert.equal(
+  trainingOpenUrl(haltForStoredWz(halte, "fkt-01"), TOKEN, "1,5"),
+  station
+);
+assert.equal(
+  trainingOpenUrl(haltForStoredWz(halte, "9-05b"), TOKEN, "1,5"),
+  stationUrl("funktionen/scheitel-auf-der-y-achse/", TOKEN, "1,5")
+);
+assert.equal(
+  trainingOpenUrl(haltForStoredWz(trigonometrie, "trig-07"), TOKEN, "3"),
+  trigArchiv
+);
 assert.equal(
   cityUrl(TOKEN, "1,5"),
   `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=1%2C5&k=10&d=funktionen`
@@ -627,6 +674,18 @@ const todayMaps = await cityMapsForGoals(
             training_wz: "fkt-02",
             level_check_id: "lc-empty",
             name: "Lineare und quadratische Funktionen"
+          },
+          {
+            id: "g-typ",
+            training_wz: "fkt-25",
+            level_check_id: "lc-f",
+            name: "Lineare und quadratische Funktionen"
+          },
+          {
+            id: "g-pruef",
+            training_wz: "fkt-26",
+            level_check_id: "lc-f",
+            name: "Lineare und quadratische Funktionen"
           }
         ];
         return { rows: rows.filter((row) => wanted.has(row.id)) };
@@ -640,7 +699,7 @@ const todayMaps = await cityMapsForGoals(
     }
   },
   7,
-  ["g-draw", "g-apex", "g-name", "g-label", "g-other", "g-none", "g-draw"]
+  ["g-draw", "g-apex", "g-name", "g-label", "g-other", "g-none", "g-typ", "g-pruef", "g-draw"]
 );
 assert.equal(todayMaps.get("g-draw").url, cityHalt);
 assert.equal(todayMaps.get("g-draw").beschriftung, "Stadtkarte öffnen");
@@ -653,6 +712,19 @@ assert.equal(todayMaps.has("g-label"), false);
 assert.equal(todayMaps.has("g-other"), false);
 assert.equal(todayMaps.get("g-none").url, null);
 assert.equal(todayMaps.get("g-none").beschriftung, "Stadtkarte öffnen");
+assert.equal(
+  todayMaps.get("g-typ").url,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=1%2C5&k=10&d=funktionen&h=25`
+);
+assert.equal(todayMaps.get("g-typ").beschriftung, "Stadtkarte öffnen");
+assert.equal(todayMaps.get("g-typ").url.includes("h=25"), true);
+assert.equal(
+  todayMaps.get("g-pruef").url,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=1%2C5&k=10&d=funktionen&h=26`
+);
+assert.equal(todayMaps.get("g-pruef").beschriftung, "Stadtkarte öffnen");
+assert.equal(todayMaps.get("g-draw").url.includes("h=1"), true);
+assert.equal(todayMaps.get("g-apex").url.includes("h=7"), true);
 
 const potenzThemaGelesen = [];
 const potenzMaps = await cityMapsForGoals(
@@ -996,8 +1068,15 @@ assert.equal(fktAssign[0].params.includes("pw-01"), false);
 assert.equal(fktAssign[0].params.includes("potenzen"), false);
 assert.equal(fktAssign[0].params.includes("fkt-01"), true);
 assert.equal(fktAssign[0].params.includes("9-05b"), true);
+assert.equal(fktAssign[0].params.includes("fkt-25"), true);
+assert.equal(fktAssign[0].params.includes("fkt-26"), true);
+assert.equal(fktAssign[0].params.includes(normalizeGoalName("  TYPISCHE   Aufgaben ")), true);
+assert.equal(fktAssign[0].params.includes(normalizeGoalName("Prüfungsaufgaben")), true);
+assert.equal(fktAssign[0].params.includes("trig-07"), false);
 assert.match(fktAssign[0].sql, /training_wz IS NULL/);
 assert.match(fktAssign[0].sql, /g\.training_wz = m\.wz/);
+assert.match(fktAssign[0].sql, /^UPDATE level_check_goals/);
+assert.doesNotMatch(fktAssign[0].sql, /INSERT INTO level_check/);
 const pwAssign = await captureAssign(assignPotenzenGoalIds);
 assert.equal(pwAssign.length, 1);
 assert.equal(pwAssign[0].params[0], POTENZEN_ASSIGN_TOPIC);
@@ -1386,6 +1465,7 @@ function memoryPool() {
         if (params[1] === "lc-qg") return { rows: [{ target_grade_key: "2", target_grade: null }] };
         if (params[1] === "lc-bin") return { rows: [{ target_grade_key: "5", target_grade: null }] };
         if (params[1] === "lc-trig") return { rows: [{ target_grade_key: "3", target_grade: null }] };
+        if (params[1] === "lc-lin") return { rows: [{ target_grade_key: "4", target_grade: null }] };
         return { rows: [] };
       }
       if (q.startsWith("SELECT wz, merged")) {
@@ -2311,6 +2391,161 @@ try {
 
   extraChecks.length = 0;
   db.results = db.results.filter((item) => item.wz !== "trig-99");
+
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ wz: "fkt-25" }))
+  })).status, 400);
+  assert.equal(db.results.some((item) => item.wz === "fkt-25"), false);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ wz: "fkt-26" }))
+  })).status, 400);
+
+  extraChecks.push({
+    id: "lc-lin",
+    name: "Lineare und quadratische Funktionen",
+    subject: "Mathematik",
+    goals: [
+      {
+        id: "f25",
+        text: "Typische Aufgaben",
+        trainingWz: "fkt-25",
+        mark: { tiers: { rookie: { status: "sicher" } } }
+      },
+      { id: "f26", text: "Prüfungsaufgaben", trainingWz: "fkt-26" }
+    ]
+  });
+  const statusOhneStand = await call("/api/training/status?t=" + TOKEN);
+  assert.equal(statusOhneStand.status, 200);
+  assert.equal(statusOhneStand.json.zielnote, "1,5");
+  assert.equal(statusOhneStand.json.halte["fkt-25"], undefined);
+  assert.equal(statusOhneStand.json.halte["fkt-26"], undefined);
+  assert.equal(statusOhneStand.json.halte["9-05b"] != null, true);
+  assert.equal(statusOhneStand.json.halte["fkt-01"] != null, true);
+
+  const fkt01Vorher = db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved;
+  const apexVorher = db.results.find((item) => item.wz === "9-05b").merged.levels.rookie.solved;
+  const markenVorher = markWrites.filter((row) => row.goalId === "f25").length;
+  const saved25 = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({
+      wz: "fkt-25",
+      levels: levels(
+        { solved: 6, first: 4, safe: true },
+        { solved: 2, first: 1, safe: false },
+        { solved: 0, first: 0, safe: false }
+      )
+    }))
+  });
+  assert.equal(saved25.status, 200);
+  const saved26 = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({
+      wz: "fkt-26",
+      levels: levels(
+        { solved: 3, first: 1, safe: false },
+        { solved: 0, first: 0, safe: false },
+        { solved: 1, first: 0, safe: false }
+      ),
+      kontrolle: false,
+      problem: false
+    }))
+  });
+  assert.equal(saved26.status, 200);
+  const schlechter = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({
+      wz: "fkt-25",
+      levels: levels(
+        { solved: 1, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false }
+      ),
+      kontrolle: false,
+      problem: false
+    }))
+  });
+  assert.equal(schlechter.status, 200);
+  const stand25 = db.results.find((item) => item.wz === "fkt-25");
+  assert.equal(stand25.merged.levels.rookie.solved, 6);
+  assert.equal(stand25.merged.levels.rookie.safe, true);
+  assert.equal(stand25.merged.levels.operator.solved, 2);
+  assert.equal(markWrites.filter((row) => row.goalId === "f25" && row.tier === "rookie").length, markenVorher);
+  assert.equal(db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved, fkt01Vorher);
+  assert.equal(db.results.find((item) => item.wz === "9-05b").merged.levels.rookie.solved, apexVorher);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ wz: "pw-01" }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ wz: "trig-07" }))
+  })).status, 400);
+
+  const statusMitStand = await call("/api/training/status?t=" + TOKEN);
+  assert.equal(statusMitStand.status, 200);
+  assert.equal(statusMitStand.json.zielnote, "1,5");
+  for (const wz of ["fkt-25", "fkt-26"]) {
+    assert.deepEqual(Object.keys(statusMitStand.json.halte[wz]).sort(), [
+      "kontrolle",
+      "operator",
+      "rookie",
+      "streetLegend"
+    ]);
+    for (const tier of ["rookie", "operator", "streetLegend"]) {
+      assert.deepEqual(Object.keys(statusMitStand.json.halte[wz][tier]).sort(), ["safe", "solved"]);
+    }
+  }
+  assert.equal(statusMitStand.json.halte["fkt-25"].rookie.solved, 6);
+  assert.equal(statusMitStand.json.halte["fkt-25"].rookie.safe, true);
+  assert.equal(statusMitStand.json.halte["fkt-26"].rookie.solved, 3);
+  assert.equal(statusMitStand.json.halte["fkt-26"].rookie.safe, false);
+  assert.equal(statusMitStand.json.halte["fkt-01"].rookie.solved, fkt01Vorher);
+  assert.equal(statusMitStand.json.halte["9-05b"].rookie.solved, apexVorher);
+
+  const lernstandLin = await call("/api/student/training");
+  const linTopic = lernstandLin.json.topics.find(
+    (topic) => topic.name === "Lineare und quadratische Funktionen"
+  );
+  const algebraNoch = lernstandLin.json.topics.find((topic) => topic.name === "Algebra");
+  assert.equal(linTopic.showStadtkarte, true);
+  assert.equal(linTopic.beschriftung, "Stadtkarte öffnen");
+  assert.equal(linTopic.zielnote, "4");
+  assert.equal(
+    linTopic.stadtkarte,
+    `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=4&k=10&d=funktionen`
+  );
+  assert.equal(linTopic.stadtkarte.includes("h="), false);
+  assert.equal(
+    linTopic.goals.find((goal) => goal.goalId === "f25").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/funktionen/typische-aufgaben/?t=${TOKEN}&note=4`
+  );
+  assert.equal(
+    linTopic.goals.find((goal) => goal.goalId === "f26").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/pruefungsarchiv/?thema=funktionen&k=10&d=funktionen&h=26&t=${TOKEN}&note=4`
+  );
+  assert.equal(
+    linTopic.goals.find((goal) => goal.goalId === "f26").trainingUrl.includes("funktionen/pruefungsaufgaben"),
+    false
+  );
+  assert.equal(
+    algebraNoch.goals.find((goal) => goal.goalId === "g2").trainingUrl,
+    station
+  );
+  assert.equal(
+    algebraNoch.goals.find((goal) => goal.goalId === "g1").trainingUrl,
+    stationUrl("funktionen/scheitel-auf-der-y-achse/", TOKEN, "1,5")
+  );
+
+  extraChecks.length = 0;
 
   resetTrainingRateLimit();
   for (let i = 0; i < 60; i += 1) {
