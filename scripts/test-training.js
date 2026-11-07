@@ -24,11 +24,19 @@ import {
   QG_THEMA,
   TRAINING_ASSIGN_TOPIC,
   TRAINING_GOAL_ASSIGNMENTS,
+  TRIG_ASSIGN_TOPIC,
+  TRIG_CITY,
+  TRIG_GOAL_ASSIGNMENTS,
+  TRIG_LEVEL_TEXTS,
+  TRIG_PRACTICE_MARKER,
+  TRIG_THEMA,
   cityMapLabel,
   cityUrl,
   haltForStoredWz,
   isCityMapTopic,
   loadHalte,
+  normalizeDashGoalName,
+  pruefungsarchivUrl,
   matchHalteToGoals,
   makeProofCode,
   mergeTraining,
@@ -49,9 +57,13 @@ import {
   allowTrainingMessage,
   assignPotenzenGoalIds,
   assignPotenzenLevelTexts,
+  applyTrigPracticeLinks,
   assignQuadratischeGoalIds,
   assignQuadratischeLevelTexts,
   assignTrainingGoalIds,
+  assignTrigonometrieGoalIds,
+  assignTrigonometrieLevelTexts,
+  assignTrigonometriePracticeLinks,
   captureTrainingResultBody,
   cityMapsForGoals,
   registerTrainingRoutes,
@@ -61,6 +73,7 @@ import {
 const TOKEN = "aaaaaaaaaaaaaaaa";
 const POT = "eeeeeeeeeeeeeeee";
 const QG = "ffffffffffffffff";
+const TRIG = "gggggggggggggggg";
 const REVOKED = "bbbbbbbbbbbbbbbb";
 const RATE = "cccccccccccccccc";
 const UNKNOWN = "dddddddddddddddd";
@@ -150,6 +163,59 @@ for (const wz of wzForThema("funktionen")) {
 for (const wz of wzForThema("potenzen")) {
   assert.equal(wzForThema("quadratische-gleichungen").has(wz), false);
 }
+
+const trigonometrie = loadHalte("trigonometrie");
+const trigErwartet = [
+  [1, "trig-01", "Startklar? (Wiederholung)", "trigonometrie/startklar/"],
+  [2, "trig-02", "Sinus, Kosinus, Tangens", "trigonometrie/sinus-kosinus-tangens/"],
+  [3, "trig-03", "Berechnungen am rechtwinkligen Dreieck", "trigonometrie/rechtwinkliges-dreieck/"],
+  [4, "trig-04", "Berechnungen am allgemeinen Dreieck", "trigonometrie/allgemeines-dreieck/"],
+  [5, "trig-05", "Trigonometrie in der Ebene", "trigonometrie/trigonometrie-ebene/"],
+  [6, "trig-06", "Einheitskreis \u2013 nur Sinus", "trigonometrie/einheitskreis/"],
+  [7, "trig-07", "Prüfungsaufgaben", null]
+];
+assert.equal(trigonometrie.length, 7);
+assert.deepEqual(
+  trigonometrie.map((item) => [item.n, item.wz, item.name, item.url || null]),
+  trigErwartet
+);
+assert.equal(trigonometrie.find((item) => item.wz === "trig-07").url == null, true);
+assert.equal(
+  trigonometrie.some((item) => String(item.url || "").includes("pruefungsaufgaben")),
+  false
+);
+assert.equal(
+  trigonometrie.some((item) => String(item.url || "").includes("trigonometrie/trigonometrie/")),
+  false
+);
+assert.equal(wzForThema("trigonometrie").size, 7);
+assert.equal(TRIG_THEMA, "trigonometrie");
+assert.equal(wzForThema("funktionen").has("trig-01"), false);
+assert.equal(wzForThema("potenzen").has("trig-01"), false);
+assert.equal(wzForThema("quadratische-gleichungen").has("trig-01"), false);
+assert.equal(wzForThema("trigonometrie").has("fkt-01"), false);
+assert.equal(wzForThema("trigonometrie").has("pw-01"), false);
+assert.equal(wzForThema("trigonometrie").has("qg-01"), false);
+assert.equal(wzForThema("trigonometrie").has("fkt-26"), false);
+for (const wz of wzForThema("trigonometrie")) {
+  assert.equal(wzForThema("funktionen").has(wz), false);
+  assert.equal(wzForThema("potenzen").has(wz), false);
+  assert.equal(wzForThema("quadratische-gleichungen").has(wz), false);
+}
+assert.equal(
+  normalizeDashGoalName("Einheitskreis \u2013 nur Sinus"),
+  normalizeDashGoalName("Einheitskreis - nur Sinus")
+);
+assert.equal(
+  normalizeDashGoalName("Einheitskreis \u2014 nur Sinus"),
+  "einheitskreis - nur sinus"
+);
+assert.equal(
+  normalizeDashGoalName("Einheitskreis \u2212 nur Sinus"),
+  "einheitskreis - nur sinus"
+);
+assert.notEqual(normalizeDashGoalName("Einheitskreis"), "einheitskreis - nur sinus");
+assert.equal(haltForStoredWz(trigonometrie, "trig-02").url, "trigonometrie/sinus-kosinus-tangens/");
 
 assert.equal(trainingAllowOrigin(TRAINING_ORIGIN), TRAINING_ORIGIN);
 assert.equal(trainingAllowOrigin("https://evil.example"), "");
@@ -383,6 +449,12 @@ assert.equal(isCityMapTopic("  QUADRATISCHE   Gleichungen "), true);
 assert.equal(isCityMapTopic("Binomische Formeln"), false);
 assert.equal(isCityMapTopic("Quadratische"), false);
 assert.equal(isCityMapTopic("Gleichungen"), false);
+assert.equal(isCityMapTopic("TRIGONOMETRIE"), true);
+assert.equal(isCityMapTopic("  trigonometrie "), true);
+assert.equal(isCityMapTopic("Trigonometrie in der Ebene"), false);
+assert.equal(isCityMapTopic("Einheitskreis"), false);
+assert.equal(isCityMapTopic("Einheitskreis \u2013 nur Sinus"), false);
+assert.equal(isCityMapTopic("Einheitskreis - nur Sinus"), false);
 const city = cityUrl(TOKEN, "1,5");
 assert.equal(
   city,
@@ -436,6 +508,42 @@ assert.equal(cityQuadrat.includes("d=potenzen"), false);
 assert.equal(cityMapLabel(QG_THEMA), "Stadtkarte öffnen");
 assert.equal(cityMapLabel(POTENZEN_THEMA), "Trainingscenter öffnen");
 assert.equal(cityMapLabel("funktionen"), "Stadtkarte öffnen");
+assert.equal(cityMapLabel(TRIG_THEMA), "Stadtkarte öffnen");
+const cityTrig = cityUrl(TOKEN, "3", undefined, TRIG_CITY);
+assert.equal(
+  cityTrig,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=3&k=10&d=trigonometrie`
+);
+assert.equal(cityTrig.includes("h="), false);
+assert.equal(cityTrig.includes("d=funktionen"), false);
+assert.equal(cityTrig.includes("d=potenzen"), false);
+assert.equal(cityTrig.includes("k=9"), false);
+const cityTrigHalt = cityUrl(TOKEN, "3", 1, TRIG_CITY);
+assert.equal(
+  cityTrigHalt,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=3&k=10&d=trigonometrie&h=1`
+);
+assert.equal(cityUrl(TOKEN, "3", 7, TRIG_CITY).endsWith("&h=7"), true);
+const trigStation = stationUrl(haltForStoredWz(trigonometrie, "trig-02").url, TOKEN, "3");
+assert.equal(
+  trigStation,
+  `https://trainingscenter.streetsoflogic.de/trigonometrie/sinus-kosinus-tangens/?t=${TOKEN}&note=3`
+);
+assert.equal(trigStation.includes("k="), false);
+assert.equal(trigStation.includes("h="), false);
+assert.equal(stationUrl("trigonometrie/trigonometrie/startklar/", TOKEN, "3"), null);
+assert.equal(stationUrl("trigonometrie/startklar/extra/", TOKEN, "3"), null);
+const trigArchiv = pruefungsarchivUrl(TOKEN, "3");
+assert.equal(
+  trigArchiv,
+  `https://trainingscenter.streetsoflogic.de/pruefungsarchiv/?thema=trigonometrie&k=10&d=trigonometrie&h=7&t=${TOKEN}&note=3`
+);
+assert.equal(trigArchiv.includes("trigonometrie/pruefungsaufgaben"), false);
+assert.equal(pruefungsarchivUrl(TOKEN, null), null);
+assert.equal(
+  cityUrl(TOKEN, "1,5"),
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=1%2C5&k=10&d=funktionen`
+);
 const qgStation = stationUrl(haltForStoredWz(quadratische, "qg-01").url, TOKEN, "2");
 assert.equal(
   qgStation,
@@ -774,6 +882,103 @@ assert.deepEqual(qgOhneNote.get("bin1"), {
   beschriftung: "Stadtkarte öffnen"
 });
 
+const trigThemaGelesen = [];
+const trigMaps = await cityMapsForGoals(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      if (q.includes("FROM level_check_goals")) {
+        return {
+          rows: [
+            {
+              id: "t1",
+              training_wz: "trig-01",
+              level_check_id: "lc-trig",
+              name: "TRIGONOMETRIE"
+            },
+            {
+              id: "t7",
+              training_wz: "trig-07",
+              level_check_id: "lc-trig",
+              name: "Trigonometrie"
+            },
+            {
+              id: "t-ebene",
+              training_wz: "trig-05",
+              level_check_id: "lc-ebene",
+              name: "Trigonometrie in der Ebene"
+            },
+            {
+              id: "t-einheit",
+              training_wz: "trig-06",
+              level_check_id: "lc-kreis",
+              name: "Einheitskreis"
+            }
+          ].filter((row) => new Set(params[0]).has(row.id))
+        };
+      }
+      if (q.startsWith("SELECT token")) {
+        trigThemaGelesen.push(params[1]);
+        assert.equal(params[1], "trigonometrie");
+        return { rows: [{ token: TRIG }] };
+      }
+      if (q.startsWith("SELECT target_grade_key")) {
+        if (params[1] === "lc-trig") return { rows: [{ target_grade_key: "3", target_grade: null }] };
+        return { rows: [] };
+      }
+      if (q.startsWith("INSERT INTO training_tokens")) {
+        throw new Error("vorhandene Kennung für trigonometrie soll wiederverwendet werden");
+      }
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  ["t1", "t7", "t-ebene", "t-einheit"]
+);
+assert.deepEqual(trigThemaGelesen, ["trigonometrie"]);
+assert.equal(trigMaps.get("t1").beschriftung, "Stadtkarte öffnen");
+assert.equal(
+  trigMaps.get("t1").url,
+  `https://trainingscenter.streetsoflogic.de/?t=${TRIG}&note=3&k=10&d=trigonometrie&h=1`
+);
+assert.equal(trigMaps.get("t7").beschriftung, "Stadtkarte öffnen");
+assert.equal(
+  trigMaps.get("t7").url,
+  `https://trainingscenter.streetsoflogic.de/?t=${TRIG}&note=3&k=10&d=trigonometrie&h=7`
+);
+assert.equal(trigMaps.get("t7").url.includes("Trainingscenter"), false);
+assert.equal(trigMaps.has("t-ebene"), false);
+assert.equal(trigMaps.has("t-einheit"), false);
+
+const trigOhneNote = await cityMapsForGoals(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      if (q.includes("FROM level_check_goals")) {
+        return {
+          rows: [
+            {
+              id: "t1",
+              training_wz: "trig-01",
+              level_check_id: "lc-trig",
+              name: "Trigonometrie"
+            }
+          ]
+        };
+      }
+      if (q.startsWith("SELECT token")) return { rows: [{ token: TRIG }] };
+      if (q.startsWith("SELECT target_grade_key")) return { rows: [] };
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  ["t1"]
+);
+assert.deepEqual(trigOhneNote.get("t1"), {
+  url: null,
+  beschriftung: "Stadtkarte öffnen"
+});
+
 async function captureAssign(run) {
   const calls = [];
   await run({
@@ -882,6 +1087,207 @@ assert.doesNotMatch(qgText[0].sql, /street_legend_goal_text/);
 assert.doesNotMatch(qgText[0].sql, /training_wz/);
 assert.doesNotMatch(qgText[0].sql, /level_check_marks/);
 
+assert.equal(TRIG_GOAL_ASSIGNMENTS.length, 7);
+assert.equal(TRIG_ASSIGN_TOPIC, "trigonometrie");
+const trigAssign = await captureAssign(assignTrigonometrieGoalIds);
+assert.equal(trigAssign.length, 1);
+assert.equal(trigAssign[0].params[0], TRIG_ASSIGN_TOPIC);
+for (const wz of ["trig-01", "trig-02", "trig-03", "trig-04", "trig-05", "trig-06", "trig-07"]) {
+  assert.equal(trigAssign[0].params.includes(wz), true);
+}
+assert.equal(trigAssign[0].params.includes("startklar? (wiederholung)"), true);
+assert.equal(trigAssign[0].params.includes("einheitskreis - nur sinus"), true);
+assert.equal(trigAssign[0].params.includes("prüfungsaufgaben"), true);
+assert.equal(trigAssign[0].params.includes("trigonometrie in der ebene"), true);
+assert.equal(trigAssign[0].params.includes("fkt-01"), false);
+assert.equal(trigAssign[0].params.includes("fkt-26"), false);
+assert.equal(trigAssign[0].params.includes("pw-01"), false);
+assert.equal(trigAssign[0].params.includes("qg-01"), false);
+assert.equal(trigAssign[0].params.includes("9-05b"), false);
+assert.match(trigAssign[0].sql, /training_wz IS NULL/);
+assert.match(trigAssign[0].sql, /g\.training_wz = m\.wz/);
+assert.match(trigAssign[0].sql, /\u2013/);
+assert.equal(trigAssign[0].sql.includes("LIKE"), false);
+for (const [wz, name] of TRIG_GOAL_ASSIGNMENTS) {
+  const halt = trigonometrie.find((item) => item.wz === wz);
+  assert.equal(normalizeDashGoalName(halt.name), normalizeDashGoalName(name));
+  if (wz === "trig-07") assert.equal(halt.url == null, true);
+  else assert.match(halt.url, /^trigonometrie\/[a-z0-9-]+\/$/);
+}
+
+assert.equal(TRIG_LEVEL_TEXTS.length, 1);
+assert.equal(TRIG_LEVEL_TEXTS[0].name, "Startklar? (Wiederholung)");
+assert.equal(
+  TRIG_LEVEL_TEXTS[0].rookie,
+  "Ich benenne im rechtwinkligen Dreieck die Seiten (Katheten, Hypotenuse) und wende den Satz des Pythagoras an, um eine fehlende Seite zu berechnen. Im gleichschenkligen Dreieck erkenne ich die gleich langen Schenkel und die gleich großen Basiswinkel."
+);
+assert.equal(
+  TRIG_LEVEL_TEXTS[0].operator,
+  "Ich nutze die Winkelsumme im Dreieck (180°), um fehlende Winkel zu bestimmen, auch die Basiswinkel im gleichschenkligen Dreieck, und stelle meinen Taschenrechner sicher auf DEG (Grad) ein."
+);
+assert.equal(
+  TRIG_LEVEL_TEXTS[0].streetLegend,
+  "Ich entscheide bei einer Aufgabe selbst, ob ich den Satz des Pythagoras oder die Winkelsumme brauche, und begründe meine Wahl. Im gleichschenkligen Dreieck zeichne ich die Höhe auf die Basis ein und berechne sie in einem der zwei gleich großen rechtwinkligen Dreiecke."
+);
+const trigText = await captureAssign(assignTrigonometrieLevelTexts);
+assert.equal(trigText.length, 1);
+assert.equal(trigText[0].params[0], TRIG_ASSIGN_TOPIC);
+assert.equal(trigText[0].params.includes("startklar? (wiederholung)"), true);
+assert.equal(trigText[0].params.includes(TRIG_LEVEL_TEXTS[0].rookie), true);
+assert.equal(trigText[0].params.includes(TRIG_LEVEL_TEXTS[0].operator), true);
+assert.equal(trigText[0].params.includes(TRIG_LEVEL_TEXTS[0].streetLegend), true);
+assert.equal(trigText[0].params.includes("sinus, kosinus, tangens"), false);
+assert.equal(trigText[0].params.includes("prüfungsaufgaben"), false);
+assert.match(trigText[0].sql, /rookie_goal_text = m\.rookie_text/);
+assert.match(trigText[0].sql, /operator_goal_text = m\.operator_text/);
+assert.match(trigText[0].sql, /street_legend_goal_text = m\.street_legend_text/);
+assert.doesNotMatch(trigText[0].sql, /training_wz/);
+assert.doesNotMatch(trigText[0].sql, /level_check_marks/);
+
+const trigPractice = await captureAssign(assignTrigonometriePracticeLinks);
+assert.equal(trigPractice.length, 1);
+assert.equal(trigPractice[0].params[0], TRIG_ASSIGN_TOPIC);
+assert.equal(trigPractice[0].params[1], TRIG_PRACTICE_MARKER);
+assert.equal(TRIG_PRACTICE_MARKER.includes("http"), false);
+assert.equal(TRIG_PRACTICE_MARKER.includes("trainingscenter"), false);
+assert.deepEqual(
+  trigPractice[0].params[2],
+  TRIG_GOAL_ASSIGNMENTS.map(([, name]) => normalizeDashGoalName(name))
+);
+assert.match(trigPractice[0].sql, /forschendphaenomenal/);
+assert.match(trigPractice[0].sql, /practice_url = \$2/);
+assert.doesNotMatch(trigPractice[0].sql, /trainingscenter/);
+assert.doesNotMatch(trigPractice[0].sql, /training_wz/);
+assert.doesNotMatch(trigPractice[0].sql, /level_check_marks/);
+
+const practiceQueries = [];
+const practiceGoals = [
+  {
+    id: "alt-sinus",
+    text: "Sinus, Kosinus, Tangens",
+    trainingWz: "trig-02",
+    practiceUrl: "https://forschendphaenomenal.de/alt-sinus/",
+    material: { type: "url", url: "https://forschendphaenomenal.de/alt-sinus/" }
+  },
+  {
+    id: "alt-pruef",
+    text: "Prüfungsaufgaben",
+    trainingWz: "trig-07",
+    practiceUrl: "https://www.forschendphaenomenal.de/pruefung",
+    material: { type: "url", url: "https://www.forschendphaenomenal.de/pruefung" }
+  },
+  {
+    id: "alt-strich",
+    text: "Einheitskreis - nur Sinus",
+    trainingWz: "trig-06",
+    practiceUrl: TRIG_PRACTICE_MARKER,
+    material: { type: "url", url: TRIG_PRACTICE_MARKER }
+  },
+  {
+    id: "alt-bleibt",
+    text: "Startklar? (Wiederholung)",
+    trainingWz: "trig-01",
+    practiceUrl: "https://example.com/bleibt",
+    material: { type: "url", url: "https://example.com/bleibt" }
+  },
+  {
+    id: "alt-kurz",
+    text: "Einheitskreis",
+    practiceUrl: "https://forschendphaenomenal.de/nur-einheitskreis/",
+    material: { type: "url", url: "https://forschendphaenomenal.de/nur-einheitskreis/" }
+  }
+];
+await applyTrigPracticeLinks(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      practiceQueries.push(q);
+      if (q.startsWith("SELECT token")) {
+        assert.equal(params[1], "trigonometrie");
+        return { rows: [{ token: TRIG }] };
+      }
+      if (q.startsWith("SELECT target_grade_key")) {
+        assert.equal(params[1], "lc-trig");
+        return { rows: [{ target_grade_key: "3", target_grade: null }] };
+      }
+      if (q.startsWith("INSERT") || q.startsWith("UPDATE")) {
+        throw new Error("Materiallink darf keine Kennung speichern");
+      }
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  [
+    {
+      id: "lc-trig",
+      name: "Trigonometrie",
+      goals: practiceGoals
+    },
+    {
+      id: "lc-optik",
+      name: "Optik",
+      goals: [
+        {
+          id: "optik",
+          text: "Startklar",
+          practiceUrl: "https://forschendphaenomenal.de/9pystart/",
+          material: { type: "url", url: "https://forschendphaenomenal.de/9pystart/" }
+        }
+      ]
+    }
+  ]
+);
+assert.equal(
+  practiceGoals.find((goal) => goal.id === "alt-sinus").practiceUrl,
+  `https://trainingscenter.streetsoflogic.de/trigonometrie/sinus-kosinus-tangens/?t=${TRIG}&note=3`
+);
+assert.equal(
+  practiceGoals.find((goal) => goal.id === "alt-pruef").material.url,
+  trigArchiv.replaceAll(TOKEN, TRIG)
+);
+assert.equal(
+  practiceGoals.find((goal) => goal.id === "alt-strich").practiceUrl,
+  `https://trainingscenter.streetsoflogic.de/trigonometrie/einheitskreis/?t=${TRIG}&note=3`
+);
+assert.equal(
+  practiceGoals.find((goal) => goal.id === "alt-bleibt").practiceUrl,
+  "https://example.com/bleibt"
+);
+assert.equal(
+  practiceGoals.find((goal) => goal.id === "alt-kurz").practiceUrl,
+  "https://forschendphaenomenal.de/nur-einheitskreis/"
+);
+assert.equal(practiceQueries.some((q) => q.startsWith("INSERT")), false);
+assert.equal(practiceQueries.some((q) => q.startsWith("UPDATE")), false);
+assert.equal(practiceQueries.filter((q) => q.startsWith("SELECT token")).length, 1);
+
+const ohneNoteQueries = [];
+const ohneNoteGoal = {
+  id: "alt-leer",
+  text: "Startklar? (Wiederholung)",
+  trainingWz: "trig-01",
+  practiceUrl: "https://forschendphaenomenal.de/start/",
+  material: { type: "url", url: "https://forschendphaenomenal.de/start/" }
+};
+await applyTrigPracticeLinks(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      ohneNoteQueries.push(`${q} ${params.join(",")}`);
+      if (q.startsWith("SELECT target_grade_key")) return { rows: [] };
+      if (q.startsWith("SELECT token") || q.startsWith("INSERT")) {
+        throw new Error("ohne Zielnote keine Kennung");
+      }
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  [{ id: "lc-trig", name: "Trigonometrie", goals: [ohneNoteGoal] }]
+);
+assert.equal(ohneNoteGoal.practiceUrl, null);
+assert.equal(ohneNoteGoal.material.url, null);
+assert.equal(ohneNoteQueries.some((q) => q.startsWith("SELECT token")), false);
+
 assert.equal(topicIsFunktionen("Quadratische Funktionen", [{ id: "x", text: "anders" }]), true);
 assert.equal(
   topicIsFunktionen("Potenzen und Wurzeln", [
@@ -979,6 +1385,7 @@ function memoryPool() {
         if (params[1] === "lc-p") return { rows: [{ target_grade_key: "2", target_grade: null }] };
         if (params[1] === "lc-qg") return { rows: [{ target_grade_key: "2", target_grade: null }] };
         if (params[1] === "lc-bin") return { rows: [{ target_grade_key: "5", target_grade: null }] };
+        if (params[1] === "lc-trig") return { rows: [{ target_grade_key: "3", target_grade: null }] };
         return { rows: [] };
       }
       if (q.startsWith("SELECT wz, merged")) {
@@ -1717,6 +2124,193 @@ try {
   assert.equal(binTopic.goals.find((goal) => goal.goalId === "bin1").stufen.rookie.solved, 6);
 
   extraChecks.length = 0;
+
+  db.tokens.push({
+    token: TRIG,
+    student_id: 7,
+    thema: "trigonometrie",
+    revoked_at: null
+  });
+  const kennungenVorTrig = db.tokens
+    .filter((item) => item.thema !== "trigonometrie")
+    .map((item) => `${item.token}:${item.thema}:${item.revoked_at || ""}`)
+    .sort();
+  extraChecks.push({
+    id: "lc-trig",
+    name: "Trigonometrie",
+    subject: "Mathematik",
+    goals: [
+      {
+        id: "t1",
+        text: "Startklar? (Wiederholung)",
+        trainingWz: "trig-01",
+        mark: { tiers: { rookie: { status: "sicher" } } }
+      },
+      { id: "t2", text: "Sinus, Kosinus, Tangens", trainingWz: "trig-02" },
+      { id: "t7", text: "Prüfungsaufgaben", trainingWz: "trig-07" },
+      { id: "t-kurz", text: "Einheitskreis" },
+      { id: "t-ebene-ohne", text: "Trigonometrie in der Ebene" }
+    ]
+  });
+
+  function trigBody(extra = {}) {
+    return body({
+      token: TRIG,
+      wz: "trig-01",
+      thema: "trigonometrie",
+      levels: levels(
+        { solved: 6, first: 4, safe: true },
+        { solved: 2, first: 1, safe: false },
+        { solved: 0, first: 0, safe: false }
+      ),
+      kontrolle: true,
+      problem: true,
+      ichKann: { rookie: "sicher", operator: "teilweise", streetLegend: null },
+      ...extra
+    });
+  }
+
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ wz: "trig-01" }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(trigBody({ wz: "fkt-01", thema: undefined }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(trigBody({ thema: "funktionen" }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(trigBody({ wz: "trig-99" }))
+  })).status, 400);
+  assert.equal(db.results.some((item) => item.wz === "trig-01"), false);
+  const fktVorTrig = db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved;
+
+  const savedTrig = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain", Origin: TRAINING_ORIGIN },
+    body: JSON.stringify(trigBody({ thema: undefined }))
+  });
+  assert.equal(savedTrig.status, 200);
+  assert.equal(savedTrig.headers.get("access-control-allow-origin"), TRAINING_ORIGIN);
+  const trigStored = db.results.find((item) => item.wz === "trig-01");
+  assert.equal(trigStored.merged.levels.rookie.solved, 6);
+  assert.equal(trigStored.merged.levels.rookie.safe, true);
+  assert.equal(trigStored.last_raw.token, undefined);
+  assert.equal(db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved, fktVorTrig);
+
+  const lowerTrig = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(trigBody({
+      thema: undefined,
+      levels: levels(
+        { solved: 1, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false }
+      ),
+      kontrolle: false,
+      problem: false
+    }))
+  });
+  assert.equal(lowerTrig.status, 200);
+  const trigAgain = db.results.find((item) => item.wz === "trig-01");
+  assert.equal(trigAgain.merged.levels.rookie.solved, 6);
+  assert.equal(trigAgain.merged.levels.rookie.safe, true);
+  assert.equal(trigAgain.merged.levels.operator.solved, 2);
+  assert.equal(trigAgain.merged.kontrolle, true);
+  assert.equal(trigAgain.merged.problem, true);
+
+  db.results.push({
+    student_id: 7,
+    wz: "trig-99",
+    merged: { wz: "trig-99", levels: {}, kontrolle: false },
+    last_raw: {},
+    updated_at: new Date().toISOString()
+  });
+  const trigStatus = await call("/api/training/status?t=" + TRIG, {
+    headers: { Origin: TRAINING_ORIGIN }
+  });
+  assert.equal(trigStatus.status, 200);
+  assert.equal(trigStatus.json.zielnote, "3");
+  assert.notEqual(trigStatus.json.zielnote, "1,5");
+  assert.notEqual(trigStatus.json.zielnote, "2");
+  assert.deepEqual(Object.keys(trigStatus.json.halte), ["trig-01"]);
+  for (const key of Object.keys(trigStatus.json.halte)) assert.match(key, /^trig-0[1-7]$/);
+  assert.equal(trigStatus.json.halte["fkt-01"], undefined);
+  assert.equal(trigStatus.json.halte["pw-01"], undefined);
+  assert.equal(trigStatus.json.halte["qg-01"], undefined);
+  assert.equal(trigStatus.json.halte["trig-99"], undefined);
+  assert.equal(trigStatus.json.halte["trig-02"], undefined);
+  assert.deepEqual(Object.keys(trigStatus.json.halte["trig-01"]).sort(), [
+    "kontrolle",
+    "operator",
+    "rookie",
+    "streetLegend"
+  ]);
+  assert.deepEqual(Object.keys(trigStatus.json.halte["trig-01"].rookie).sort(), ["safe", "solved"]);
+  const trigStatusThema = await call("/api/training/status?t=" + TRIG + "&thema=trigonometrie");
+  assert.equal(trigStatusThema.status, 200);
+  assert.equal(trigStatusThema.json.zielnote, "3");
+  assert.equal((await call("/api/training/status?t=" + TRIG + "&thema=funktionen")).status, 400);
+  assert.equal((await call("/api/training/status?t=" + TOKEN + "&thema=trigonometrie")).status, 400);
+  assert.equal((await call("/api/training/status?t=" + POT + "&thema=trigonometrie")).status, 400);
+  assert.equal((await call("/api/training/status?t=" + QG + "&thema=trigonometrie")).status, 400);
+
+  assert.deepEqual(
+    db.tokens
+      .filter((item) => item.thema !== "trigonometrie")
+      .map((item) => `${item.token}:${item.thema}:${item.revoked_at || ""}`)
+      .sort(),
+    kennungenVorTrig
+  );
+  assert.equal(db.tokens.filter((item) => item.thema === "trigonometrie").length, 1);
+
+  const lernstandTrig = await call("/api/student/training");
+  assert.equal(lernstandTrig.status, 200);
+  assert.equal(db.tokens.filter((item) => item.thema === "trigonometrie").length, 1);
+  assert.equal(db.tokens.find((item) => item.thema === "potenzen").token, POT);
+  assert.equal(db.tokens.find((item) => item.thema === "quadratische-gleichungen").token, QG);
+  const trigTopic = lernstandTrig.json.topics.find((topic) => topic.name === "Trigonometrie");
+  const potNachTrig = lernstandTrig.json.topics.find((topic) => topic.name === "Potenzen und Wurzeln");
+  assert.equal(potNachTrig.beschriftung, "Trainingscenter öffnen");
+  assert.equal(
+    potNachTrig.stadtkarte,
+    `https://trainingscenter.streetsoflogic.de/?t=${POT}&note=2&k=9&d=potenzen`
+  );
+  assert.equal(trigTopic.showStadtkarte, true);
+  assert.equal(trigTopic.beschriftung, "Stadtkarte öffnen");
+  assert.equal(trigTopic.zielnote, "3");
+  assert.equal(
+    trigTopic.stadtkarte,
+    `https://trainingscenter.streetsoflogic.de/?t=${TRIG}&note=3&k=10&d=trigonometrie`
+  );
+  assert.equal(trigTopic.stadtkarte.includes("h="), false);
+  assert.equal(
+    trigTopic.goals.find((goal) => goal.goalId === "t1").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/trigonometrie/startklar/?t=${TRIG}&note=3`
+  );
+  assert.equal(
+    trigTopic.goals.find((goal) => goal.goalId === "t2").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/trigonometrie/sinus-kosinus-tangens/?t=${TRIG}&note=3`
+  );
+  assert.equal(
+    trigTopic.goals.find((goal) => goal.goalId === "t7").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/pruefungsarchiv/?thema=trigonometrie&k=10&d=trigonometrie&h=7&t=${TRIG}&note=3`
+  );
+  assert.equal(trigTopic.goals.some((goal) => goal.goalId === "t-kurz"), false);
+  assert.equal(trigTopic.goals.some((goal) => goal.goalId === "t-ebene-ohne"), false);
+  assert.equal(trigTopic.goals.some((goal) => String(goal.wz || "").startsWith("fkt-")), false);
+
+  extraChecks.length = 0;
+  db.results = db.results.filter((item) => item.wz !== "trig-99");
 
   resetTrainingRateLimit();
   for (let i = 0; i < 60; i += 1) {

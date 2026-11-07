@@ -1,0 +1,43 @@
+[
+  {
+    "n": 1,
+    "name": "Startklar? (Wiederholung)",
+    "wz": "trig-01",
+    "url": "trigonometrie/startklar/"
+  },
+  {
+    "n": 2,
+    "name": "Sinus, Kosinus, Tangens",
+    "wz": "trig-02",
+    "url": "trigonometrie/sinus-kosinus-tangens/"
+  },
+  {
+    "n": 3,
+    "name": "Berechnungen am rechtwinkligen Dreieck",
+    "wz": "trig-03",
+    "url": "trigonometrie/rechtwinkliges-dreieck/"
+  },
+  {
+    "n": 4,
+    "name": "Berechnungen am allgemeinen Dreieck",
+    "wz": "trig-04",
+    "url": "trigonometrie/allgemeines-dreieck/"
+  },
+  {
+    "n": 5,
+    "name": "Trigonometrie in der Ebene",
+    "wz": "trig-05",
+    "url": "trigonometrie/trigonometrie-ebene/"
+  },
+  {
+    "n": 6,
+    "name": "Einheitskreis \u2013 nur Sinus",
+    "wz": "trig-06",
+    "url": "trigonometrie/einheitskreis/"
+  },
+  {
+    "n": 7,
+    "name": "Prüfungsaufgaben",
+    "wz": "trig-07"
+  }
+]

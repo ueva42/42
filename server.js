@@ -67,6 +67,7 @@ import { registerTeacherCoachingRoutes } from "./lib/teacher-coaching-api.js";
 import { registerTeacherDashboardRoutes } from "./lib/teacher-dashboard-api.js";
 import { migrateCoachTables, registerCoachRoutes } from "./lib/coach-api.js";
 import {
+  applyTrigPracticeLinks,
   captureTrainingResultBody,
   cityMapsForGoals,
   migrateTrainingTables,
@@ -9107,7 +9108,7 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
     }
   }
 
-  return checksRes.rows.map((c) => ({
+  const checks = checksRes.rows.map((c) => ({
     id: c.id,
     subject: c.subject,
     name: c.name,
@@ -9119,6 +9120,8 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
     checkpoints: checkpointsByCheck[c.id] || [],
     goals: goalsByCheck[c.id] || []
   }));
+  if (studentId) await applyTrigPracticeLinks(pool, studentId, checks);
+  return checks;
 }
 
 function groupLevelChecksBySubject(checks) {
