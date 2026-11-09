@@ -1,7 +1,7 @@
 /**
- * SRL-Logbuch – Levelplan / Mein Lernstand.
- * Die Termin-Regler zeigen level_check_targets.levelcheck_percent.
- * Das ist eine Zahl pro Thema (level_check_id, user_id), nicht pro Termin.
+ * SRL-Logbuch – Lernstand als Strecke.
+ * Eine Prozentzahl pro Thema, nur im Chip „Levelcheck“.
+ * Offen, In Arbeit und Sicher speichern weiter über /api/student/levelcheck-mark.
  */
 (function () {
   const TIER_META = [
@@ -690,7 +690,7 @@
     return `<button type="button" class="lp-chip lp-chip--map" disabled>${label}</button><span class="lp-map-hint">Zielnote setzen</span>`;
   }
 
-  function renderBar(thema, progress) {
+  function renderBar(thema, progress, options) {
     const subjects = subjectsWithData();
     const themen = levelChecksForSubject(state.selectedSubject);
     const subjectButtons = subjects
@@ -699,7 +699,7 @@
         return `<button type="button" role="tab" class="${on ? "is-active" : ""}" data-lp-subject="${escapeHtml(group.subject)}" aria-selected="${on ? "true" : "false"}">${escapeHtml(group.subject)}</button>`;
       })
       .join("");
-    const ka = kaLabel(thema);
+    const ka = options?.hideKa ? "" : kaLabel(thema);
     const ziel = progress.hasTarget ? `Ziel: Note ${progress.targetGradeLabel}` : "Zielnote setzen";
     const map = renderCityMap(thema);
     return `
@@ -1008,11 +1008,11 @@
           <div class="lp-sheet__grab" aria-hidden="true"></div>
           <h2 id="lp-help-title">So geht der Lernstand</h2>
           <div class="lp-helpbox">
-            <p>Die Ringe zeigen, wie viel du schon sicher kannst. Daneben steht, was die Zielnote verlangt, zum Beispiel „alle nötig“ oder „50 % nötig“.</p>
-            <p>Tippe auf eine Stufe und wähle Offen, In Arbeit oder Sicher.</p>
-            <p>Ein Punkt am Unterthema heißt: es gehört zu einem Levelcheck. Sind alle dabei, steht ein Hinweis über der Liste.</p>
-            <p>Nach einem Tagesziel trägst du hier ein, was in Arbeit ist und was schon sicher läuft.</p>
-            <p>Das Prozent-Ergebnis gilt für das ganze Thema. Mehrere Termine teilen sich diese eine Zahl.</p>
+            <p>Die Straße zeigt deine Missionen. DU steht auf der Mission, die für deine Zielnote als Nächstes dran ist. PLAN zeigt den nächsten Levelcheck.</p>
+            <p>Unter „Jetzt dran“ startest du das Training und meldest die Stufe als sicher.</p>
+            <p>Im Logbuch tippst du eine Stufe an. Sie wechselt von Offen zu In Arbeit zu Sicher und wird gespeichert. Die Straße zieht sofort mit.</p>
+            <p>Pensum zeigt, wie viele Stufen deine Zielnote verlangt.</p>
+            <p>Die Prozentzahl im Chip Levelcheck gilt für das ganze Thema. Sie wird hier nur angezeigt.</p>
           </div>
           <button type="button" class="lp-sheet__close" data-lp-sheet-close>Schließen</button>
         </div>
@@ -1079,6 +1079,563 @@
     window.location.assign("/student/zielsetzung");
   }
 
+  function todayIsoLocal() {
+    const date = new Date();
+    const z = (n) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${z(date.getMonth() + 1)}-${z(date.getDate())}`;
+  }
+
+  function topicLevelcheckPercent(thema) {
+    const direct = storedPercent({ levelcheckPercent: thema?.target?.levelcheckPercent });
+    if (direct != null) return direct;
+    for (const lc of levelcheckRecordsForThema(thema?.id)) {
+      const n = storedPercent(lc);
+      if (n != null) return n;
+    }
+    return null;
+  }
+
+  const ROUTE_STACK_WIDTH = 1100;
+  const NEXT_STATUS = { offen: "in_arbeit", in_arbeit: "sicher", sicher: "offen" };
+
+  function routeStackWidth() {
+    const section = document.getElementById("levelplan-section");
+    const measured = section?.getBoundingClientRect?.().width || 0;
+    if (measured > 0) return measured;
+    return window.innerWidth || 1280;
+  }
+
+  function routeIsNarrow() {
+    const next = routeStackWidth() < ROUTE_STACK_WIDTH;
+    ensureRouteResize.narrow = next;
+    return next;
+  }
+
+  function ensureRouteResize() {
+    if (ensureRouteResize.bound) return;
+    ensureRouteResize.bound = true;
+    let timer = 0;
+    window.addEventListener("resize", () => {
+      const next = routeStackWidth() < ROUTE_STACK_WIDTH;
+      if (next === ensureRouteResize.narrow) return;
+      ensureRouteResize.narrow = next;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (document.getElementById("levelplan-screen-root") && state.data) render();
+      }, 80);
+    });
+  }
+
+  function levelchecksSorted(thema) {
+    return levelcheckRecordsForThema(thema?.id)
+      .slice()
+      .sort((a, b) => {
+        const da = String(a.date || "");
+        const db = String(b.date || "");
+        if (da && db) return da.localeCompare(db);
+        if (da) return -1;
+        if (db) return 1;
+        return 0;
+      });
+  }
+
+  function kaDaysChip(thema) {
+    const iso = String(thema?.target?.checkpointDate || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+    const date = new Date(`${iso}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return null;
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const days = Math.round((date.getTime() - today.getTime()) / 86400000);
+    if (days > 1) return { label: "KA in", value: `${days} Tagen` };
+    if (days === 1) return { label: "KA in", value: "1 Tag" };
+    if (days === 0) return { label: "KA", value: "heute" };
+    if (days === -1) return { label: "KA", value: "gestern" };
+    return { label: "KA", value: `vor ${Math.abs(days)} Tagen` };
+  }
+
+  function buildRouteModel(thema, progress) {
+    const api = window.LogbuchLevelplanRoute;
+    const goals = thema?.goals || [];
+    if (!api || !goals.length) return null;
+    const rules = progress.hasTarget
+      ? window.LOGBUCH?.getGradeRequirements?.(progress.targetGrade) || null
+      : null;
+    const statusOf = (goal, tierId) => tierStatus(goal, tierId);
+    const cur = api.currentMissionIndex(goals, rules, statusOf);
+    const narrow = routeIsNarrow();
+    const layout = api.routeLayout(goals.length, narrow ? { direction: "up" } : null);
+    if (!layout) return null;
+    const plan = api.planState({
+      goalIds: goals.map((goal) => goal.id),
+      levelchecks: levelcheckRecordsForThema(thema.id),
+      today: todayIsoLocal(),
+      kaDate: thema?.target?.checkpointDate || "",
+      currentIndex: cur
+    });
+    const checks = levelchecksSorted(thema);
+    const checkIndexByGoal = new Map();
+    checks.forEach((lc, index) => {
+      for (const id of lc.linkedGoalIds || []) {
+        const key = String(id);
+        if (!checkIndexByGoal.has(key)) checkIndexByGoal.set(key, index);
+      }
+    });
+    const allowed = new Set(markTiers().map((tier) => tier.id));
+    const required = api.requiredTiersForMission(cur, goals.length, rules);
+    const tierPool = required.filter((id) => allowed.has(id));
+    const activeTierId =
+      (tierPool.length ? tierPool : required).find((id) => statusOf(goals[cur], id) !== "sicher") ||
+      null;
+    return {
+      api,
+      goals,
+      rules,
+      statusOf,
+      cur,
+      layout,
+      plan,
+      checks,
+      checkIndexByGoal,
+      activeTierId,
+      narrow
+    };
+  }
+
+  function levelcheckPhrase(model, goalId) {
+    const index = model.checkIndexByGoal.get(String(goalId));
+    if (index == null) return "";
+    const lc = model.checks[index];
+    const when = model.api.formatShortDate(lc?.date);
+    return when ? `Levelcheck ${index + 1} · ${when}` : `Levelcheck ${index + 1}`;
+  }
+
+  function missionTag(model, index, done) {
+    if (index === model.cur) return { text: "JETZT", kind: "now" };
+    if (model.plan.showPin && index === model.plan.planIndex) return { text: "PLAN", kind: "plan" };
+    if (done) return { text: "GESCHAFFT", kind: "done" };
+    const lc = model.checkIndexByGoal.get(String(model.goals[index]?.id));
+    if (lc == null) return { text: "", kind: "none" };
+    return { text: `LC ${lc + 1}`, kind: "lc" };
+  }
+
+  function missionShortLabel(text, count) {
+    const raw = String(text || "").trim() || "Mission";
+    const max = count >= 16 ? 12 : 18;
+    if (raw.length <= max) return raw;
+    return `${raw.slice(0, max - 1).trimEnd()}…`;
+  }
+
+  function renderRouteMap(thema, progress, model) {
+    const ctx = model || buildRouteModel(thema, progress);
+    if (!ctx) return "";
+    const { api, goals, rules, statusOf, cur, layout, plan } = ctx;
+    const up = layout.direction === "up";
+    const etappen = progress.hasTarget ? api.etappenCounts(goals, rules, statusOf) : { sicher: 0, all: 0 };
+    const pct = topicLevelcheckPercent(thema);
+    const tiers = [
+      { id: "rookie", label: "Rookie", color: TIER_ACCENT.rookie },
+      { id: "operator", label: "Operator", color: TIER_ACCENT.operator },
+      { id: "street_legend", label: "Street Legend", color: TIER_ACCENT.street_legend }
+    ];
+    const chips = [];
+    if (etappen.all > 0) {
+      chips.push(
+        `<span class="lp-route__chip lp-route__chip--etappen"><span>Etappen</span><strong>${etappen.sicher}/${etappen.all}</strong></span>`
+      );
+    }
+    if (plan.showPace) {
+      chips.push(
+        `<span class="lp-route__chip lp-route__chip--pace"><span>Pace</span><strong>${escapeHtml(plan.paceLabel)}</strong></span>`
+      );
+    }
+    const kaChip = kaDaysChip(thema);
+    if (kaChip) {
+      chips.push(
+        `<span class="lp-route__chip lp-route__chip--ka"><span>${escapeHtml(kaChip.label)}</span><strong>${escapeHtml(kaChip.value)}</strong></span>`
+      );
+    }
+    chips.push(
+      `<span class="lp-route__chip lp-route__chip--check"><span>Levelcheck</span><strong data-lp-route-pct data-topic-id="${escapeHtml(thema.id)}">${pct == null ? "–" : `${pct} %`}</strong></span>`
+    );
+    const legend = tiers
+      .map(
+        (tier) =>
+          `<li><span class="lp-route__swatch" style="background:${tier.color}"></span>${escapeHtml(tier.label)}</li>`
+      )
+      .join("");
+    const skyline = [];
+    let skyX = 48;
+    for (let i = 0; skyX < layout.width - 70 && i < 48; i++) {
+      const w = 18 + ((i * 17) % 26);
+      const h = 28 + ((i * 29) % 52);
+      const y = 8 + ((i * 11) % 16);
+      skyline.push(`<rect x="${skyX}" y="${y}" width="${w}" height="${h}"></rect>`);
+      skyX += w + 36 + ((i * 23) % 48);
+    }
+    const nodes = goals
+      .map((goal, i) => {
+        const point = layout.missions[i];
+        const done = api.missionIsDone(goal, i, goals.length, rules, statusOf);
+        const edge = i === cur ? "#22d3ee" : done ? "#5ee38a" : "#2a335c";
+        const arcs = tiers
+          .map((tier, k) => {
+            const raw = statusOf(goal, tier.id);
+            const st = raw === "sicher" || raw === "in_arbeit" ? raw : "offen";
+            const color = st === "offen" ? "#2a335c" : tier.color;
+            const opacity = st === "in_arbeit" ? "0.4" : "1";
+            const offset = k ? ` stroke-dashoffset="${-100 * k}"` : "";
+            return `<circle r="17" fill="none" stroke="${color}" stroke-opacity="${opacity}" stroke-width="5" pathLength="300" stroke-dasharray="88 212"${offset} transform="rotate(-90)"></circle>`;
+          })
+          .join("");
+        const name = String(goal.text || "").trim() || "Mission";
+        const detail = tiers
+          .map((tier) => {
+            const raw = statusOf(goal, tier.id);
+            const st = STATUS_META[raw] ? raw : "offen";
+            return `${tier.label} ${STATUS_META[st].label}`;
+          })
+          .join(", ");
+        const size = i + 1 > 9 ? 12 : 14;
+        const nameAttrs = up
+          ? `x="32" y="4" text-anchor="start"`
+          : `y="46" text-anchor="middle"`;
+        return `<g transform="translate(${point.x} ${point.y})"><title>Mission ${i + 1} ${escapeHtml(name)}. ${escapeHtml(detail)}.</title><circle r="23" fill="#0b1022" stroke="${edge}" stroke-width="2"></circle>${arcs}<text y="5" fill="#ffffff" font-family="Orbitron, sans-serif" font-size="${size}" font-weight="800" text-anchor="middle">${i + 1}</text><text ${nameAttrs} fill="#e8ecff" font-size="12" font-weight="600" stroke="#060914" stroke-width="4" paint-order="stroke">${escapeHtml(missionShortLabel(name, goals.length))}</text></g>`;
+      })
+      .join("");
+    const records = levelcheckRecordsForThema(thema.id)
+      .slice()
+      .sort((a, b) => {
+        const da = String(a.date || "");
+        const db = String(b.date || "");
+        if (da && db) return da.localeCompare(db);
+        if (da) return -1;
+        if (db) return 1;
+        return 0;
+      });
+    const brackets = [];
+    records.forEach((lc, recordIndex) => {
+      const linked = new Set((lc.linkedGoalIds || []).map(String));
+      const found = [];
+      goals.forEach((goal, i) => {
+        if (linked.has(String(goal.id))) found.push(i);
+      });
+      if (!found.length) return;
+      const leftPoint = layout.missions[found[0]];
+      const rightPoint = layout.missions[found[found.length - 1]];
+      let x1 = leftPoint.x;
+      let x2 = rightPoint.x;
+      if (x2 - x1 < 56) {
+        const mid = (x1 + x2) / 2;
+        x1 = mid - 28;
+        x2 = mid + 28;
+      }
+      const when = api.formatShortDate(lc.date);
+      const text = when
+        ? `Levelcheck ${recordIndex + 1} · ${when}`
+        : `Levelcheck ${recordIndex + 1}`;
+      brackets.push({
+        x1,
+        x2,
+        y1: leftPoint.y,
+        y2: rightPoint.y,
+        title: `Levelcheck ${recordIndex + 1}`,
+        when: when || "",
+        text
+      });
+    });
+    let height = layout.height;
+    let bracketSvg = "";
+    if (up) {
+      const x = Math.max(336, layout.width - 124);
+      let textY = -999;
+      bracketSvg = brackets
+        .map((bracket) => {
+          let top = Math.min(bracket.y1, bracket.y2);
+          let bot = Math.max(bracket.y1, bracket.y2);
+          if (bot - top < 32) {
+            const mid = (top + bot) / 2;
+            top = mid - 16;
+            bot = mid + 16;
+          }
+          let labelY = (top + bot) / 2 - (bracket.when ? 6 : 0);
+          if (labelY < textY + 30) labelY = textY + 30;
+          textY = labelY + (bracket.when ? 14 : 0);
+          const date = bracket.when
+            ? `<tspan x="${x + 12}" dy="14">${escapeHtml(bracket.when)}</tspan>`
+            : "";
+          return `<path d="M${x} ${roundRoute(bot)} H${x + 8} V${roundRoute(top)} H${x}" fill="none" stroke="#5ee38a" stroke-width="2"></path><text x="${x + 12}" y="${roundRoute(labelY)}" fill="#8de8a9" font-size="11" font-weight="700" letter-spacing="0.04em" text-anchor="start">${escapeHtml(bracket.title)}${date}</text>`;
+        })
+        .join("");
+    } else {
+      const lanes = [];
+      brackets.forEach((bracket) => {
+        const left = Math.min(bracket.x1, bracket.x2) - 90;
+        const right = Math.max(bracket.x1, bracket.x2) + 90;
+        let lane = lanes.findIndex((segs) => segs.every((seg) => right < seg.left || left > seg.right));
+        if (lane < 0) {
+          lane = lanes.length;
+          lanes.push([]);
+        }
+        lanes[lane].push({ left, right });
+        bracket.lane = lane;
+      });
+      const lowY = Math.max(...layout.missions.map((m) => m.y), layout.start.y);
+      const bracketBase = lowY + 68;
+      const laneCount = Math.max(1, lanes.length);
+      height = Math.max(layout.height, bracketBase + 28 + Math.max(0, laneCount - 1) * 32 + 8);
+      bracketSvg = brackets
+        .map((bracket) => {
+          const y = bracketBase + bracket.lane * 32;
+          const mid = roundRoute((bracket.x1 + bracket.x2) / 2);
+          return `<path d="M${roundRoute(bracket.x1)} ${y} V${y + 8} H${roundRoute(bracket.x2)} V${y}" fill="none" stroke="#5ee38a" stroke-width="2"></path><text x="${mid}" y="${y + 22}" fill="#8de8a9" font-size="11" font-weight="700" letter-spacing="0.08em" text-anchor="middle">${escapeHtml(bracket.text)}</text>`;
+        })
+        .join("");
+    }
+    const curPct = api.missionFraction(layout, cur);
+    const planPct = plan.showPin ? api.missionFraction(layout, plan.planIndex) : 0;
+    const du = layout.missions[cur];
+    let planPin = "";
+    if (plan.showPin && layout.missions[plan.planIndex]) {
+      const point = layout.missions[plan.planIndex];
+      const same = plan.planIndex === cur;
+      const lift = !up && Math.abs(point.x - du.x) < 40 ? 72 : 0;
+      const w = Math.max(112, Math.round(20 + plan.pinLabel.length * 6.6));
+      const half = w / 2;
+      const boxX = up ? -w - 18 : -half;
+      const boxY = up && same ? 18 : -78 - lift;
+      const textY = boxY + 17;
+      const subY = boxY + 33;
+      const tipY = up && same ? 8 : -26 - lift;
+      const tipBase = up && same ? -6 : -40 - lift;
+      planPin = `<g transform="translate(${point.x} ${point.y})"><path d="M0 ${tipY} L-9 ${tipBase} L9 ${tipBase} Z" fill="#a855f7" opacity="0.85"></path><rect x="${boxX}" y="${boxY}" width="${w}" height="40" rx="12" fill="#120d2c" stroke="#a855f7" stroke-width="2" stroke-dasharray="5 4"></rect><text x="${boxX + half}" y="${textY}" fill="#d4c2ff" font-family="Orbitron, sans-serif" font-size="12" font-weight="800" text-anchor="middle">PLAN</text><text x="${boxX + half}" y="${subY}" fill="#d4c2ff" font-size="11" font-weight="600" text-anchor="middle">${escapeHtml(plan.pinLabel)}</text></g>`;
+    }
+    const kaShort = api.formatShortDate(thema?.target?.checkpointDate || "");
+    const flagWhen = kaShort ? `KA · ${kaShort}` : "KA";
+    const duBox = up
+      ? `<rect x="-132" y="-70" width="88" height="40" rx="12" fill="#22d3ee"></rect><text x="-88" y="-53" fill="#060914" font-family="Orbitron, sans-serif" font-size="13" font-weight="800" text-anchor="middle">DU</text><text x="-88" y="-37" fill="#060914" font-size="11" font-weight="700" text-anchor="middle">jetzt</text>`
+      : `<rect x="-44" y="-78" width="88" height="40" rx="12" fill="#22d3ee"></rect><text y="-61" fill="#060914" font-family="Orbitron, sans-serif" font-size="13" font-weight="800" text-anchor="middle">DU</text><text y="-45" fill="#060914" font-size="11" font-weight="700" text-anchor="middle">jetzt</text>`;
+    const flagMarkup = up
+      ? `<g transform="translate(${layout.flag.x} ${layout.flag.y})"><line x1="0" y1="22" x2="0" y2="-36" stroke="#e8ecff" stroke-width="3"></line><rect x="0" y="-36" width="34" height="22" fill="url(#lpRouteCheck)"></rect><text x="42" y="-20" fill="#f472b6" font-family="Orbitron, sans-serif" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1">ZIEL</text><text x="42" y="-4" fill="#c4cae6" font-size="12" text-anchor="start">${escapeHtml(flagWhen)}</text></g>`
+      : `<g transform="translate(${layout.flag.x} ${layout.flag.y})"><line x1="0" y1="0" x2="0" y2="-64" stroke="#e8ecff" stroke-width="3"></line><rect x="0" y="-64" width="36" height="24" fill="url(#lpRouteCheck)"></rect><text x="0" y="36" fill="#f472b6" font-family="Orbitron, sans-serif" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1">ZIEL</text><text x="0" y="52" fill="#c4cae6" font-size="12" text-anchor="middle">${escapeHtml(flagWhen)}</text></g>`;
+    const startLabelY = up ? layout.start.y + 16 : layout.start.y + 34;
+    const subject = state.selectedSubject || "";
+    const aria = [
+      `Route ${thema.name || ""}, ${goals.length} Missionen.`,
+      `Du bist bei Mission ${cur + 1}.`,
+      plan.showPin ? `Plan ${plan.pinLabel}, Mission ${plan.planIndex + 1}.` : "Kein Plan-Pin."
+    ].join(" ");
+    return `
+      <section class="lp-route${up ? " is-up" : ""}" aria-label="Route ${escapeHtml(thema.name || "Thema")}">
+        <div class="lp-route__head">
+          <div class="lp-route__titles">
+            <p class="lp-route__kicker">Mein Lernstand${subject ? ` · ${escapeHtml(subject)}` : ""}</p>
+            <h2 class="lp-route__title">${escapeHtml(thema.name || "Thema")}</h2>
+            <div class="lp-route__chips">${chips.join("")}</div>
+          </div>
+          <ul class="lp-route__legend">${legend}</ul>
+          <p class="lp-route__now">
+            <span class="lp-route__now-kicker">Du bist bei</span>
+            <span class="lp-route__now-num">Mission ${cur + 1}<span> / ${goals.length}</span></span>
+          </p>
+        </div>
+        <div class="lp-route__road"${up ? "" : ` style="--lp-route-min:${layout.width}px"`}>
+          <svg viewBox="0 0 ${layout.width} ${height}" role="img" aria-label="${escapeHtml(aria)}">
+            <defs>
+              <linearGradient id="lpRouteProg" x1="0" y1="${up ? 1 : 0}" x2="${up ? 0 : 1}" y2="0">
+                <stop offset="0" stop-color="#22d3ee"></stop>
+                <stop offset="1" stop-color="#a855f7"></stop>
+              </linearGradient>
+              <pattern id="lpRouteGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M40 0H0V40" fill="none" stroke="#1a2148" stroke-width="1"></path>
+              </pattern>
+              <pattern id="lpRouteCheck" width="8" height="8" patternUnits="userSpaceOnUse">
+                <rect width="8" height="8" fill="#e8ecff"></rect>
+                <rect width="4" height="4" fill="#060914"></rect>
+                <rect x="4" y="4" width="4" height="4" fill="#060914"></rect>
+              </pattern>
+            </defs>
+            <rect width="${layout.width}" height="${height}" fill="url(#lpRouteGrid)" opacity="0.55"></rect>
+            <g opacity="0.4" fill="#1d1640">${skyline.join("")}</g>
+            <path d="${layout.path}" fill="none" stroke="#252e58" stroke-width="38" stroke-linecap="round"></path>
+            <path d="${layout.path}" fill="none" stroke="#11162e" stroke-width="32" stroke-linecap="round"></path>
+            <path d="${layout.path}" fill="none" stroke="#3a4475" stroke-width="2" stroke-dasharray="14 12"></path>
+            <path d="${layout.path}" fill="none" stroke="#a855f7" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="${api.planDash(curPct, planPct)}" opacity="0.8"></path>
+            <path d="${layout.path}" fill="none" stroke="#22d3ee" stroke-width="14" stroke-linecap="round" pathLength="100" stroke-dasharray="${api.progressDash(curPct)}" opacity="0.18"></path>
+            <path d="${layout.path}" fill="none" stroke="url(#lpRouteProg)" stroke-width="6" stroke-linecap="round" pathLength="100" stroke-dasharray="${api.progressDash(curPct)}"></path>
+            <text x="${layout.start.x}" y="${startLabelY}" fill="#9aa3c7" font-family="Orbitron, sans-serif" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="2">START</text>
+            ${nodes}
+            ${flagMarkup}
+            ${planPin}
+            <g transform="translate(${du.x} ${du.y})">
+              <circle r="34" fill="#22d3ee" opacity="0.16"></circle>
+              <path d="M0 -26 L-9 -40 L9 -40 Z" fill="#22d3ee"></path>
+              ${duBox}
+            </g>
+            ${bracketSvg}
+          </svg>
+        </div>
+      </section>`;
+  }
+
+  function roundRoute(n) {
+    return Math.round(n * 10) / 10;
+  }
+
+  function renderJetzt(thema, model) {
+    const goal = model.goals[model.cur];
+    const tier = markTiers().find((entry) => entry.id === model.activeTierId) || null;
+    const lcIndex = model.checkIndexByGoal.get(String(goal.id));
+    const after = lcIndex == null ? "" : ` · danach Levelcheck ${lcIndex + 1}`;
+    const raw = tier ? model.statusOf(goal, tier.id) : "sicher";
+    const status = STATUS_META[raw] ? raw : "offen";
+    const color = tier ? TIER_ACCENT[tier.id] || "#f5a547" : "#5ee38a";
+    const chip = tier
+      ? `<span class="lp-now__chip" style="background:${color}">${escapeHtml(tier.label)}</span><span class="lp-now__status">${escapeHtml(STATUS_META[status].label)}</span>`
+      : `<span class="lp-now__chip lp-now__chip--done">Sicher</span>`;
+    const blurb = tier
+      ? `Trainiere im Trainingscenter, bis du die ${tier.label}-Aufgaben ohne Hilfe schaffst. Dann meldest du die Stufe als sicher.`
+      : "Die Stufen für deine Zielnote sind auf dieser Mission sicher. Im Logbuch kannst du eine Stufe weiter anpassen.";
+    const url = trainingForGoal(thema, goal)?.trainingUrl || "";
+    const train = url
+      ? `<a class="lp-now__go" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Training starten →</a>`
+      : `<p class="lp-now__miss">Für diese Mission ist noch kein Training hinterlegt.</p>`;
+    const busy = !!(tier && state.saving === `${goal.id}_${tier.id}`);
+    const safe = tier
+      ? `<button type="button" class="lp-now__safe" data-lp-mark-safe="${escapeHtml(goal.id)}" data-lp-tier="${escapeHtml(tier.id)}" ${busy ? "disabled" : ""}>${escapeHtml(tier.label)} als sicher melden</button>`
+      : "";
+    return `
+      <section class="lp-now" aria-labelledby="lp-now-title">
+        <div class="lp-now__stripe" aria-hidden="true"></div>
+        <div class="lp-now__copy">
+          <span class="lp-now__flag">Jetzt dran</span>
+          <div class="lp-now__meta">${chip}</div>
+          <p class="lp-now__where">Mission ${model.cur + 1} von ${model.goals.length}${escapeHtml(after)}</p>
+          <h2 id="lp-now-title" class="lp-now__title">${escapeHtml(goal.text || "Mission")}</h2>
+          <p class="lp-now__text">${escapeHtml(blurb)}</p>
+        </div>
+        <div class="lp-now__actions">
+          ${train}
+          ${safe}
+        </div>
+      </section>`;
+  }
+
+  function renderPensum(thema, progress) {
+    const total = (thema?.goals || []).length;
+    const rules = progress.hasTarget
+      ? window.LOGBUCH?.getGradeRequirements?.(progress.targetGrade)
+      : null;
+    const bars = markTiers()
+      .map((tier) => {
+        const sicher = tierCounts(thema, tier.id).sicher;
+        const ratio = rules ? Number(rules[tier.id]) || 0 : 1;
+        const needed = progress.hasTarget ? Math.ceil(total * ratio) : total;
+        const free = progress.hasTarget && needed <= 0;
+        const fill = !free && needed > 0 ? Math.min(100, Math.round((sicher / needed) * 100)) : 0;
+        const count = free
+          ? "nicht nötig"
+          : needed < total
+            ? `${sicher} / ${total} · ${needed} nötig`
+            : `${sicher} / ${total}`;
+        const color = TIER_ACCENT[tier.id] || "#22d3ee";
+        return `
+          <div class="lp-pensum__bar">
+            <div class="lp-pensum__labels">
+              <span style="color:${color}">${escapeHtml(tier.label)}</span>
+              <span>${escapeHtml(count)}</span>
+            </div>
+            <div class="lp-pensum__track" aria-hidden="true"><span class="lp-pensum__fill" style="width:${fill}%;background:${color}"></span></div>
+          </div>`;
+      })
+      .join("");
+    const title = progress.hasTarget ? `Pensum Note ${progress.targetGradeLabel}` : "Pensum";
+    const change = progress.hasTarget ? "Ziel ändern" : "Ziel setzen";
+    return `
+      <section class="lp-pensum" aria-labelledby="lp-pensum-title">
+        <div class="lp-pensum__head">
+          <h2 id="lp-pensum-title" class="lp-kicker">${escapeHtml(title)}</h2>
+          <button type="button" class="lp-pensum__change" data-lp-ziel>${change}</button>
+        </div>
+        ${bars}
+      </section>`;
+  }
+
+  function renderMissionRail(model) {
+    const tiers = markTiers();
+    const rows = model.goals
+      .map((goal, index) => {
+        const done = model.api.missionIsDone(goal, index, model.goals.length, model.rules, model.statusOf);
+        const tag = missionTag(model, index, done);
+        const dots = tiers
+          .map((tier) => {
+            const raw = model.statusOf(goal, tier.id);
+            const st = STATUS_META[raw] ? raw : "offen";
+            return `<span class="lp-mdot lp-mdot--${tier.id} lp-mdot--${st}"></span>`;
+          })
+          .join("");
+        const aria = tiers
+          .map((tier) => {
+            const raw = model.statusOf(goal, tier.id);
+            const st = STATUS_META[raw] ? raw : "offen";
+            return `${tier.label} ${STATUS_META[st].label}`;
+          })
+          .join(", ");
+        const tagHtml = tag.text
+          ? `<span class="lp-mission__tag lp-mission__tag--${tag.kind}">${escapeHtml(tag.text)}</span>`
+          : "";
+        const name = goal.text || "Mission";
+        return `
+          <div class="lp-mission${index === model.cur ? " is-now" : ""}${done && index !== model.cur ? " is-done" : ""}">
+            <span class="lp-mission__n">${index + 1}</span>
+            <span class="lp-mission__name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+            <span class="lp-mission__dots" aria-label="${escapeHtml(aria)}">${dots}</span>
+            ${tagHtml}
+          </div>`;
+      })
+      .join("");
+    return `
+      <section class="lp-missions" aria-labelledby="lp-missions-title">
+        <h2 id="lp-missions-title" class="lp-kicker">Deine Missionen</h2>
+        ${rows}
+      </section>`;
+  }
+
+  function renderLogbook(model) {
+    const tiers = markTiers();
+    const rows = model.goals
+      .map((goal, index) => {
+        const done = model.api.missionIsDone(goal, index, model.goals.length, model.rules, model.statusOf);
+        const phrase = levelcheckPhrase(model, goal.id) || "Ohne Levelcheck";
+        const buttons = tiers
+          .map((tier) => {
+            const raw = model.statusOf(goal, tier.id);
+            const st = STATUS_META[raw] ? raw : "offen";
+            const busy = state.saving === `${goal.id}_${tier.id}`;
+            return `<button type="button" class="lp-log__btn lp-log__btn--${tier.id} lp-log__btn--${st}" data-lp-cycle="${escapeHtml(goal.id)}" data-lp-tier="${escapeHtml(tier.id)}" data-lp-status="${st}" aria-label="${escapeHtml(tier.label)}: ${escapeHtml(STATUS_META[st].label)}. Antippen zum Ändern." ${busy ? "disabled" : ""}><span class="lp-mdot lp-mdot--${tier.id} lp-mdot--${st}" aria-hidden="true"></span>${tierShort(tier.id)} · ${escapeHtml(STATUS_META[st].label)}</button>`;
+          })
+          .join("");
+        return `
+          <div class="lp-log__row${index === model.cur ? " is-now" : ""}" data-lp-goal="${escapeHtml(goal.id)}">
+            <span class="lp-log__n${index === model.cur ? " is-now" : ""}${done && index !== model.cur ? " is-done" : ""}">${index + 1}</span>
+            <div class="lp-log__copy">
+              <div class="lp-log__name">${escapeHtml(goal.text || "Mission")}</div>
+              <div class="lp-log__lc">${escapeHtml(phrase)}</div>
+            </div>
+            <div class="lp-log__tiers">${buttons}</div>
+          </div>`;
+      })
+      .join("");
+    return `
+      <section class="lp-log" aria-labelledby="lp-log-title">
+        <div>
+          <h2 id="lp-log-title" class="lp-kicker">Logbuch · Stufen eintragen</h2>
+          <p class="lp-log__lead">Tippe auf eine Stufe, um sie auf Offen, In Arbeit oder Sicher zu stellen. Die Route oben zieht sofort mit.</p>
+        </div>
+        ${rows}
+      </section>`;
+  }
+
   function renderBody() {
     const visuals = V();
     if (!state.data?.hasClass) {
@@ -1109,36 +1666,28 @@
       );
     }
     const progress = computeTopicProgress(thema);
-    const step = nextStepModel(thema);
-    const checks = renderLevelchecks(thema);
+    const model = buildRouteModel(thema, progress);
     const training = trainingForThema(thema);
     const missing = (training?.abweichungen || []).map((item) => item.name).filter(Boolean);
     const missingLine = missing.length
       ? `<p class="lp-train-miss">Ohne Trainingsknopf: ${escapeHtml(missing.join(", "))}</p>`
       : "";
+    const strecke = model
+      ? `<div class="lp-cockpit${model.narrow ? " is-stack" : ""}">${renderRouteMap(thema, progress, model)}<div class="lp-deck">${renderJetzt(thema, model)}${renderPensum(thema, progress)}${renderMissionRail(model)}</div></div>${renderLogbook(model)}`
+      : `<p class="lp-empty">Für dieses Thema gibt es noch keine Missionen.</p>`;
     return `
       <div class="lp-top">
-        ${renderBar(thema, progress)}
+        ${renderBar(thema, progress, { hideKa: !!model })}
         ${missingLine}
         ${renderLive()}
-        ${renderStatusFilters(thema.goals || [])}
       </div>
-      <div class="lp-stage">
-        <div class="lp-main">
-          ${renderOnceHint()}
-          ${renderGoalList(thema, step?.goalId || "")}
-        </div>
-        <aside class="lp-rail">
-          ${renderProgressCard(thema, progress, step?.tierId || "")}
-          ${renderNextStep(step)}
-        </aside>
-        ${checks ? `<aside class="lp-side">${checks}</aside>` : ""}
-      </div>
+      ${strecke}
       ${renderRedeem(thema)}
       ${renderOverlay()}`;
   }
 
   function render() {
+    ensureRouteResize();
     const root = document.getElementById("levelplan-screen-root");
     if (!root) return;
     const visuals = V();
@@ -1156,6 +1705,15 @@
     scrollOpenPanel();
     placeSheet(root);
     focusOverlay(root);
+    if (render.posted) return;
+    render.posted = true;
+    requestAnimationFrame(() => {
+      render.posted = false;
+      const next = routeStackWidth() < ROUTE_STACK_WIDTH;
+      if (next === ensureRouteResize.narrow) return;
+      ensureRouteResize.narrow = next;
+      if (document.getElementById("levelplan-screen-root") && state.data) render();
+    });
   }
 
   function scrollOpenPanel() {
@@ -1326,6 +1884,22 @@
       });
     });
 
+    root.querySelectorAll("[data-lp-cycle]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const goalId = btn.dataset.lpCycle;
+        const tier = btn.dataset.lpTier;
+        const current = btn.dataset.lpStatus || "offen";
+        setStatus(goalId, tier, NEXT_STATUS[current] || "offen");
+      });
+    });
+
+    root.querySelectorAll("[data-lp-mark-safe]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!btn.dataset.lpMarkSafe || !btn.dataset.lpTier) return;
+        setStatus(btn.dataset.lpMarkSafe, btn.dataset.lpTier, "sicher");
+      });
+    });
+
     root.querySelectorAll("[data-lp-pill]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const goalId = btn.dataset.lpPill;
@@ -1460,6 +2034,10 @@
           : "Ergebnis eintragen";
       }
     });
+    const chip = root.querySelector("[data-lp-route-pct]");
+    if (chip && chip.dataset.topicId === String(topicId)) {
+      chip.textContent = hasValue ? `${pct} %` : "–";
+    }
   }
 
   function syncTopicPercent(topicId) {

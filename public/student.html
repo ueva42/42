@@ -31,7 +31,7 @@
   <title>Streets of Logic – XP Edition</title>
 
   <!-- GTA-ähnliche Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Bangers&family=Inter:wght@400;600;700&family=Orbitron:wght@500;700;800&display=swap" rel="stylesheet">
 
   <style>
 /* ============================================
@@ -12893,9 +12893,9 @@ body.student-app #levelplan-section.card.section {
   min-width: 0;
 }
 #levelplan-section .lp-top {
-  position: sticky;
-  top: 0;
-  z-index: 6;
+  position: static;
+  top: auto;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -14002,6 +14002,576 @@ button.today-city-map {
   from { stroke-dashoffset: var(--lp-c, 87.96); }
   to { stroke-dashoffset: var(--lp-off, 0); }
 }
+
+/* Route nur in der Lernstand-Karte. Ziele-Ringe bleiben bei .lp-ring. */
+#levelplan-section .lp-route {
+  border: 1px solid rgba(167, 123, 255, 0.4);
+  border-radius: 30px 8px 30px 30px;
+  background:
+    radial-gradient(900px 420px at 50% -20%, rgba(120, 70, 220, 0.18), transparent 58%),
+    linear-gradient(200deg, #1a1040 0%, #0b1230 45%, #070a18 100%);
+  box-shadow: 0 0 80px rgba(120, 70, 220, 0.16);
+  overflow: hidden;
+  min-width: 0;
+  color: #e8ecff;
+  font-family: Inter, system-ui, sans-serif;
+}
+#levelplan-section .lp-route__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 24px;
+  padding: 20px 24px 4px;
+}
+#levelplan-section .lp-route__titles { flex: 1 1 280px; min-width: 0; }
+#levelplan-section .lp-route__kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: #5ee38a;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+#levelplan-section .lp-route__title {
+  margin: 6px 0 12px;
+  font-family: Orbitron, sans-serif;
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  text-transform: uppercase;
+  color: #e8ecff;
+  overflow-wrap: anywhere;
+}
+#levelplan-section .lp-route__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#levelplan-section .lp-route__chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  border-radius: 8px;
+  padding: 5px 10px;
+  background: rgba(6, 9, 20, 0.6);
+  font-size: 12px;
+}
+#levelplan-section .lp-route__chip span {
+  color: #9aa3c7;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+#levelplan-section .lp-route__chip strong {
+  font-family: Orbitron, sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+}
+#levelplan-section .lp-route__chip--etappen { border: 1px solid rgba(94, 227, 138, 0.45); }
+#levelplan-section .lp-route__chip--etappen strong { color: #5ee38a; }
+#levelplan-section .lp-route__chip--pace { border: 1px solid rgba(245, 165, 71, 0.5); }
+#levelplan-section .lp-route__chip--pace strong { color: #f5a547; }
+#levelplan-section .lp-route__chip--ka { border: 1px solid rgba(244, 114, 182, 0.45); }
+#levelplan-section .lp-route__chip--ka strong { color: #f472b6; }
+#levelplan-section .lp-route__chip--check { border: 1px solid rgba(120, 140, 255, 0.3); }
+#levelplan-section .lp-route__chip--check strong { color: #e8ecff; }
+#levelplan-section .lp-route__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0;
+  padding: 0 0 6px;
+  list-style: none;
+  font-size: 11px;
+  color: #b4bbdb;
+}
+#levelplan-section .lp-route__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+#levelplan-section .lp-route__swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 8px;
+}
+#levelplan-section .lp-route__now {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 18px;
+  border-radius: 16px 4px 16px 16px;
+  background: rgba(34, 211, 238, 0.12);
+  border: 2px solid #22d3ee;
+  box-shadow: 0 0 30px rgba(34, 211, 238, 0.22);
+}
+#levelplan-section .lp-route__now-kicker {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #9beaf6;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+#levelplan-section .lp-route__now-num {
+  font-family: Orbitron, sans-serif;
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  color: #e8ecff;
+}
+#levelplan-section .lp-route__now-num span {
+  font-size: 15px;
+  color: #9aa3c7;
+}
+#levelplan-section .lp-route__road {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+#levelplan-section .lp-route__road svg {
+  display: block;
+  width: 100%;
+  min-width: var(--lp-route-min, 860px);
+  height: auto;
+}
+#levelplan-section .lp-route.is-up .lp-route__road {
+  overflow: hidden;
+}
+#levelplan-section .lp-route.is-up .lp-route__road svg {
+  min-width: 0;
+  width: min(100%, 480px);
+  margin: 0 auto;
+}
+#levelplan-section .lp-cockpit { min-width: 0; }
+#levelplan-section .lp-deck {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 340px);
+  grid-template-areas:
+    "now missions"
+    "pensum missions";
+  column-gap: 18px;
+  row-gap: 14px;
+  align-items: start;
+  padding: 0 0 0 28px;
+  min-width: 0;
+}
+#levelplan-section .lp-now {
+  grid-area: now;
+  position: relative;
+  overflow: hidden;
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  align-items: center;
+  padding: 24px;
+  border: 1px solid rgba(245, 165, 71, 0.65);
+  border-radius: 8px 28px 28px 28px;
+  background: linear-gradient(160deg, #2a1806 0%, #120c06 55%, #0b1022 100%);
+  box-shadow: 0 0 50px rgba(245, 165, 71, 0.14);
+  color: #e8ecff;
+}
+#levelplan-section .lp-now__stripe {
+  position: absolute;
+  top: -40px;
+  right: -60px;
+  width: 220px;
+  height: 90px;
+  background: repeating-linear-gradient(135deg, rgba(245, 165, 71, 0.22) 0 10px, transparent 10px 22px);
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+#levelplan-section .lp-now__copy {
+  position: relative;
+  flex: 999 1 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#levelplan-section .lp-now__flag {
+  align-self: flex-start;
+  transform: skewX(-12deg);
+  background: #f5a547;
+  color: #1a0f02;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 6px 12px;
+}
+#levelplan-section .lp-now__meta,
+#levelplan-section .lp-now__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#levelplan-section .lp-now__chip {
+  font-family: Orbitron, sans-serif;
+  font-weight: 800;
+  font-size: 11px;
+  color: #060914;
+  border-radius: 7px;
+  padding: 4px 8px;
+}
+#levelplan-section .lp-now__chip--done {
+  background: #5ee38a;
+}
+#levelplan-section .lp-now__status,
+#levelplan-section .lp-now__where,
+#levelplan-section .lp-now__text,
+#levelplan-section .lp-now__miss {
+  margin: 0;
+  color: #c4cae6;
+  font-size: 13px;
+  line-height: 1.45;
+}
+#levelplan-section .lp-now__title {
+  margin: 0;
+  font-family: Orbitron, sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: #e8ecff;
+}
+#levelplan-section .lp-now__actions {
+  position: relative;
+  flex: 1 1 220px;
+  flex-direction: column;
+  align-items: stretch;
+}
+#levelplan-section .lp-now__go,
+#levelplan-section .lp-now__safe,
+#levelplan-section .lp-pensum__change {
+  box-sizing: border-box;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#levelplan-section .lp-now__go {
+  background: #f5a547;
+  color: #1a0f02;
+  text-decoration: none;
+  font-weight: 800;
+  border-radius: 12px 4px 12px 12px;
+  padding: 12px 16px;
+  font-size: 15px;
+  text-align: center;
+}
+#levelplan-section .lp-now__safe {
+  background: transparent;
+  color: #f9d3a3;
+  border: 1px solid rgba(245, 165, 71, 0.55);
+  border-radius: 12px;
+  padding: 0 16px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+#levelplan-section .lp-now__safe:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+#levelplan-section .lp-pensum {
+  grid-area: pensum;
+  margin-right: 10%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 28px;
+  padding: 16px 20px;
+  background: rgba(8, 12, 28, 0.85);
+  border: 1px solid rgba(120, 140, 255, 0.22);
+  border-radius: 18px 18px 18px 4px;
+  color: #e8ecff;
+}
+#levelplan-section .lp-pensum__head {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+#levelplan-section .lp-pensum .lp-kicker { margin: 0; }
+#levelplan-section .lp-pensum__change {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #22d3ee;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+#levelplan-section .lp-pensum__bar {
+  flex: 1 1 140px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#levelplan-section .lp-pensum__labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: #c4cae6;
+}
+#levelplan-section .lp-pensum__labels span:first-child {
+  font-family: Orbitron, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+#levelplan-section .lp-pensum__track {
+  height: 8px;
+  border-radius: 4px;
+  background: #1c2447;
+  overflow: hidden;
+}
+#levelplan-section .lp-pensum__fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+#levelplan-section .lp-missions {
+  grid-area: missions;
+  margin-top: -34px;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 380px;
+  padding: 16px;
+  background: rgba(8, 12, 28, 0.95);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  border-radius: 18px 4px 18px 18px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  color: #e8ecff;
+}
+#levelplan-section .lp-missions .lp-kicker { margin: 0 0 4px; }
+#levelplan-section .lp-mission {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+#levelplan-section .lp-mission.is-now {
+  background: rgba(34, 211, 238, 0.1);
+  border-color: rgba(34, 211, 238, 0.5);
+}
+#levelplan-section .lp-mission.is-done { opacity: 0.75; }
+#levelplan-section .lp-mission__n,
+#levelplan-section .lp-log__n {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  font-family: Orbitron, sans-serif;
+  font-weight: 800;
+}
+#levelplan-section .lp-mission__n {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #141a36;
+  color: #c4cae6;
+  font-size: 12px;
+}
+#levelplan-section .lp-mission.is-now .lp-mission__n {
+  background: #22d3ee;
+  color: #060914;
+}
+#levelplan-section .lp-mission.is-done .lp-mission__n {
+  background: rgba(94, 227, 138, 0.18);
+  color: #5ee38a;
+}
+#levelplan-section .lp-mission__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#levelplan-section .lp-mission__dots {
+  display: flex;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+#levelplan-section .lp-mdot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  flex: 0 0 9px;
+}
+#levelplan-section .lp-mdot--rookie { --lp-c: #22d3ee; }
+#levelplan-section .lp-mdot--operator { --lp-c: #a855f7; }
+#levelplan-section .lp-mdot--street_legend { --lp-c: #f472b6; }
+#levelplan-section .lp-mdot--offen {
+  border: 2px solid #3a4475;
+  background: transparent;
+}
+#levelplan-section .lp-mdot--in_arbeit {
+  border: 2px solid var(--lp-c, #22d3ee);
+  background: linear-gradient(90deg, var(--lp-c, #22d3ee) 50%, transparent 50%);
+}
+#levelplan-section .lp-mdot--sicher {
+  background: var(--lp-c, #22d3ee);
+  border: 0;
+}
+#levelplan-section .lp-mission__tag {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+#levelplan-section .lp-mission__tag--now {
+  background: #22d3ee;
+  color: #060914;
+}
+#levelplan-section .lp-mission__tag--plan {
+  border: 1px dashed #a855f7;
+  color: #d4c2ff;
+}
+#levelplan-section .lp-mission__tag--done {
+  color: #5ee38a;
+  border: 1px solid rgba(94, 227, 138, 0.5);
+}
+#levelplan-section .lp-mission__tag--lc {
+  color: #8de8a9;
+  border: 1px solid rgba(94, 227, 138, 0.25);
+}
+#levelplan-section .lp-log {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid rgba(120, 140, 255, 0.18);
+  border-radius: 20px;
+  background: #0b1022;
+  color: #e8ecff;
+}
+#levelplan-section .lp-log__lead {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #b4bbdb;
+  line-height: 1.45;
+}
+#levelplan-section .lp-log__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(6, 9, 20, 0.5);
+  border: 1px solid rgba(120, 140, 255, 0.1);
+}
+#levelplan-section .lp-log__row.is-now {
+  background: rgba(34, 211, 238, 0.07);
+  border-color: rgba(34, 211, 238, 0.5);
+}
+#levelplan-section .lp-log__n {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #141a36;
+  color: #c4cae6;
+  border: 1px solid #2a335c;
+  font-size: 15px;
+}
+#levelplan-section .lp-log__n.is-now {
+  background: #22d3ee;
+  color: #060914;
+  border-color: #22d3ee;
+}
+#levelplan-section .lp-log__n.is-done {
+  background: rgba(94, 227, 138, 0.18);
+  color: #5ee38a;
+  border-color: #5ee38a;
+}
+#levelplan-section .lp-log__copy { flex: 1 1 220px; min-width: 0; }
+#levelplan-section .lp-log__name { font-weight: 700; font-size: 15px; }
+#levelplan-section .lp-log__lc { margin-top: 3px; font-size: 12px; color: #9aa3c7; }
+#levelplan-section .lp-log__tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#levelplan-section .lp-log__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #9aa3c7;
+  background: transparent;
+  border: 1px solid #2a335c;
+}
+#levelplan-section .lp-log__btn:disabled { opacity: 0.55; cursor: default; }
+#levelplan-section .lp-log__btn--rookie { --lp-c: #22d3ee; --lp-rgb: 34, 211, 238; }
+#levelplan-section .lp-log__btn--operator { --lp-c: #a855f7; --lp-rgb: 168, 85, 247; }
+#levelplan-section .lp-log__btn--street_legend { --lp-c: #f472b6; --lp-rgb: 244, 114, 182; }
+#levelplan-section .lp-log__btn--sicher {
+  background: rgba(var(--lp-rgb), 0.18);
+  border: 1px solid var(--lp-c);
+  color: #ffffff;
+}
+#levelplan-section .lp-log__btn--in_arbeit {
+  background: repeating-linear-gradient(135deg, rgba(var(--lp-rgb), 0.14) 0 6px, transparent 6px 12px);
+  border: 1px dashed var(--lp-c);
+  color: #e8ecff;
+}
+#levelplan-section .lp-cockpit.is-stack .lp-deck {
+  display: flex;
+  flex-direction: column;
+  padding-left: 0;
+  gap: 14px;
+}
+#levelplan-section .lp-cockpit.is-stack .lp-now { order: 1; margin-top: 14px; }
+#levelplan-section .lp-cockpit.is-stack .lp-missions {
+  order: 2;
+  margin-top: 0;
+  max-width: none;
+}
+#levelplan-section .lp-cockpit.is-stack .lp-pensum { order: 3; margin-right: 0; }
+@media (max-width: 700px) {
+  #levelplan-section .lp-deck {
+    display: flex;
+    flex-direction: column;
+    padding-left: 0;
+    gap: 14px;
+  }
+  #levelplan-section .lp-now { order: 1; margin-top: 14px; }
+  #levelplan-section .lp-missions {
+    order: 2;
+    margin-top: 0;
+    max-width: none;
+  }
+  #levelplan-section .lp-pensum { order: 3; margin-right: 0; }
+}
   </style>
 </head>
 
@@ -14557,7 +15127,8 @@ button.today-city-map {
 <script src="/js/logbuch-today.js?v=58"></script>
 <script src="/js/logbuch-ueben.js?v=6"></script>
 <script src="/js/logbuch-week.js?v=10"></script>
-<script src="/js/logbuch-levelplan.js?v=44"></script>
+<script type="module" src="/js/levelplan-route.js?v=2"></script>
+<script src="/js/logbuch-levelplan.js?v=46"></script>
 <script src="/js/logbuch-start-briefing.js?v=3"></script>
 <script src="/js/logbuch-taktik-deck.js?v=7"></script>
 <script src="/js/logbuch-zielsetzung.js?v=34"></script>
