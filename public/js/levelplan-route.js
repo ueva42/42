@@ -268,6 +268,115 @@ export function missionFraction(layout, missionIndex) {
   return Math.max(0, Math.min(100, (walked / total) * 100));
 }
 
+export function selectedMissionIndex(goalIds, selectedId, fallbackIndex) {
+  const ids = Array.isArray(goalIds) ? goalIds.map(String) : [];
+  const fallback = Math.max(0, Math.min(ids.length - 1, Number(fallbackIndex) || 0));
+  if (selectedId == null || selectedId === "") return fallback;
+  const index = ids.indexOf(String(selectedId));
+  return index >= 0 ? index : fallback;
+}
+
+export function focusTier({ goal, index, total, rules, statusOf, allowed }) {
+  const pool = Array.isArray(allowed) && allowed.length ? allowed : TIERS;
+  const open = (id) => statusOf(goal, id) !== "sicher";
+  const required = requiredTiersForMission(index, total, rules).filter((id) => pool.includes(id));
+  const need = required.find(open);
+  if (need) return { id: need, extra: false };
+  const bonus = TIERS.filter((id) => pool.includes(id) && !required.includes(id)).find(open);
+  return bonus ? { id: bonus, extra: true } : null;
+}
+
+/* Ringstücke um eine Mission wie im Trainingscenter: Rookie oben, Operator rechts, Street Legend links. */
+export const TIER_ARCS = { rookie: [212, 328], operator: [338, 92], street_legend: [102, 202] };
+
+export function nodeArc(r, a0, a1) {
+  const at = (a) => [Math.cos((a * Math.PI) / 180) * r, Math.sin((a * Math.PI) / 180) * r];
+  const [s, e] = [at(a0), at(a1)];
+  return `M${s[0].toFixed(2)} ${s[1].toFixed(2)}A${r} ${r} 0 0 1 ${e[0].toFixed(2)} ${e[1].toFixed(2)}`;
+}
+
+function seeded(seed) {
+  let a = seed >>> 0 || 1;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function cityBackdrop(layout, height) {
+  if (!layout?.width) return null;
+  const W = layout.width;
+  const H = Math.max(Number(height) || 0, layout.height || 0);
+  const up = layout.direction === "up";
+  const pad = 14;
+  const sx = up ? 92 : 104;
+  const sy = up ? 84 : 76;
+  const rnd = seeded(Math.round(W * 7 + H * 13));
+  const xs = [];
+  const ys = [];
+  for (let x = pad + 22; x < W - pad; x += sx) xs.push(round1(x));
+  for (let y = pad + 20; y < H - pad; y += sy) ys.push(round1(y));
+  const streets = [];
+  xs.forEach((x, i) => streets.push({ d: `M${x} ${pad}V${round1(H - pad)}`, major: i % 3 === 1 }));
+  ys.forEach((y, i) => streets.push({ d: `M${pad} ${y}H${round1(W - pad)}`, major: i % 3 === 1 }));
+  const rp = up
+    ? [[pad, H * 0.58], [W * 0.35, H * 0.52], [W * 0.6, H * 0.66], [W - pad, H * 0.6]]
+    : [[W * 0.42, pad], [W * 0.36, H * 0.35], [W * 0.5, H * 0.65], [W * 0.45, H - pad]];
+  const riverPts = [];
+  for (let k = 0; k <= 40; k++) {
+    const t = k / 40;
+    const u = 1 - t;
+    const w0 = u * u * u;
+    const w1 = 3 * u * u * t;
+    const w2 = 3 * u * t * t;
+    const w3 = t * t * t;
+    riverPts.push([
+      w0 * rp[0][0] + w1 * rp[1][0] + w2 * rp[2][0] + w3 * rp[3][0],
+      w0 * rp[0][1] + w1 * rp[1][1] + w2 * rp[2][1] + w3 * rp[3][1]
+    ]);
+  }
+  const nearRiver = (x, y, w, h) =>
+    riverPts.some(([px, py]) => px > x - 16 && px < x + w + 16 && py > y - 16 && py < y + h + 16);
+  const blocks = [];
+  const parks = [];
+  const cols = [pad, ...xs, W - pad];
+  const rows = [pad, ...ys, H - pad];
+  for (let r = 0; r < rows.length - 1; r++) {
+    for (let c = 0; c < cols.length - 1; c++) {
+      const x0 = cols[c] + 7;
+      const y0 = rows[r] + 7;
+      const w = cols[c + 1] - cols[c] - 14;
+      const h = rows[r + 1] - rows[r] - 14;
+      if (w < 18 || h < 18) continue;
+      const roll = rnd();
+      if (nearRiver(x0, y0, w, h)) continue;
+      if (roll < 0.12) {
+        parks.push({ x: round1(x0), y: round1(y0), w: round1(w), h: round1(h) });
+        continue;
+      }
+      if (roll < 0.2) continue;
+      const split = rnd() < 0.55 && w > 44;
+      const parts = split ? [[x0, (w - 6) * 0.55], [x0 + (w - 6) * 0.55 + 6, (w - 6) * 0.45]] : [[x0, w]];
+      for (const [bx, bw] of parts) {
+        const inset = Math.round(rnd() * 6);
+        blocks.push({
+          x: round1(bx),
+          y: round1(y0 + inset),
+          w: round1(bw),
+          h: round1(h - inset),
+          shade: Math.floor(rnd() * 4)
+        });
+      }
+    }
+  }
+  const [p0, p1, p2, p3] = rp.map(([x, y]) => `${round1(x)} ${round1(y)}`);
+  const river = `M${p0} C${p1} ${p2} ${p3}`;
+  return { width: W, height: H, pad, streets, blocks, parks, river };
+}
+
 export function progressDash(percent) {
   const pct = Math.max(0, Math.min(100, Number(percent) || 0));
   return `${pct.toFixed(1)} 200`;
@@ -303,6 +412,11 @@ const api = {
   roadPath,
   routeLayout,
   missionFraction,
+  selectedMissionIndex,
+  focusTier,
+  TIER_ARCS,
+  nodeArc,
+  cityBackdrop,
   progressDash,
   planDash
 };

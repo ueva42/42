@@ -63,7 +63,9 @@
     error: "",
     focusLevelcheckGoals: true,
     training: null,
-    redeemCode: ""
+    redeemCode: "",
+    selectedGoalId: null,
+    focusSelect: null
   };
 
   let initPromise = null;
@@ -238,6 +240,7 @@
       if (found) {
         state.expandedGoalId = state.pendingGoalId;
         state.focusGoalId = state.pendingGoalId;
+        state.selectedGoalId = state.pendingGoalId;
       }
     }
     state.pendingSubject = null;
@@ -1181,23 +1184,31 @@
         if (!checkIndexByGoal.has(key)) checkIndexByGoal.set(key, index);
       }
     });
-    const allowed = new Set(markTiers().map((tier) => tier.id));
-    const required = api.requiredTiersForMission(cur, goals.length, rules);
-    const tierPool = required.filter((id) => allowed.has(id));
-    const activeTierId =
-      (tierPool.length ? tierPool : required).find((id) => statusOf(goals[cur], id) !== "sicher") ||
-      null;
+    const sel = api.selectedMissionIndex(
+      goals.map((goal) => goal.id),
+      state.selectedGoalId,
+      cur
+    );
+    const focus = api.focusTier({
+      goal: goals[sel],
+      index: sel,
+      total: goals.length,
+      rules,
+      statusOf,
+      allowed: markTiers().map((tier) => tier.id)
+    });
     return {
       api,
       goals,
       rules,
       statusOf,
       cur,
+      sel,
+      focus,
       layout,
       plan,
       checks,
       checkIndexByGoal,
-      activeTierId,
       narrow
     };
   }
@@ -1211,7 +1222,7 @@
   }
 
   function missionTag(model, index, done) {
-    if (index === model.cur) return { text: "JETZT", kind: "now" };
+    if (index === model.cur) return { text: "DU", kind: "now" };
     if (model.plan.showPin && index === model.plan.planIndex) return { text: "PLAN", kind: "plan" };
     if (done) return { text: "GESCHAFFT", kind: "done" };
     const lc = model.checkIndexByGoal.get(String(model.goals[index]?.id));
@@ -1229,7 +1240,7 @@
   function renderRouteMap(thema, progress, model) {
     const ctx = model || buildRouteModel(thema, progress);
     if (!ctx) return "";
-    const { api, goals, rules, statusOf, cur, layout, plan } = ctx;
+    const { api, goals, rules, statusOf, cur, sel, layout, plan } = ctx;
     const up = layout.direction === "up";
     const etappen = progress.hasTarget ? api.etappenCounts(goals, rules, statusOf) : { sicher: 0, all: 0 };
     const pct = topicLevelcheckPercent(thema);
@@ -1258,34 +1269,29 @@
     chips.push(
       `<span class="lp-route__chip lp-route__chip--check"><span>Levelcheck</span><strong data-lp-route-pct data-topic-id="${escapeHtml(thema.id)}">${pct == null ? "–" : `${pct} %`}</strong></span>`
     );
-    const legend = tiers
-      .map(
-        (tier) =>
-          `<li><span class="lp-route__swatch" style="background:${tier.color}"></span>${escapeHtml(tier.label)}</li>`
-      )
-      .join("");
-    const skyline = [];
-    let skyX = 48;
-    for (let i = 0; skyX < layout.width - 70 && i < 48; i++) {
-      const w = 18 + ((i * 17) % 26);
-      const h = 28 + ((i * 29) % 52);
-      const y = 8 + ((i * 11) % 16);
-      skyline.push(`<rect x="${skyX}" y="${y}" width="${w}" height="${h}"></rect>`);
-      skyX += w + 36 + ((i * 23) % 48);
-    }
+    const legend =
+      tiers
+        .map(
+          (tier) =>
+            `<li><i class="lp-route__swatch" style="border-color:${tier.color}"></i>${escapeHtml(tier.label)}</li>`
+        )
+        .join("") + `<li><i class="lp-route__dot"></i>Training bereit</li>`;
     const nodes = goals
       .map((goal, i) => {
         const point = layout.missions[i];
         const done = api.missionIsDone(goal, i, goals.length, rules, statusOf);
-        const edge = i === cur ? "#22d3ee" : done ? "#5ee38a" : "#2a335c";
-        const arcs = tiers
-          .map((tier, k) => {
+        const need = new Set(api.requiredTiersForMission(i, goals.length, rules));
+        const rings = tiers
+          .map((tier) => {
             const raw = statusOf(goal, tier.id);
-            const st = raw === "sicher" || raw === "in_arbeit" ? raw : "offen";
-            const color = st === "offen" ? "#2a335c" : tier.color;
-            const opacity = st === "in_arbeit" ? "0.4" : "1";
-            const offset = k ? ` stroke-dashoffset="${-100 * k}"` : "";
-            return `<circle r="17" fill="none" stroke="${color}" stroke-opacity="${opacity}" stroke-width="5" pathLength="300" stroke-dasharray="88 212"${offset} transform="rotate(-90)"></circle>`;
+            const [a0, a1] = api.TIER_ARCS[tier.id];
+            const d = api.nodeArc(21, a0, a1);
+            if (raw === "sicher") return `<path d="${d}" stroke="${tier.color}" stroke-width="6.5"></path>`;
+            if (raw === "in_arbeit") return `<path d="${d}" stroke="${tier.color}" stroke-width="3.5"></path>`;
+            if (need.has(tier.id)) {
+              return `<path d="${d}" stroke="${tier.color}" stroke-width="3" stroke-dasharray="3.5 3"></path>`;
+            }
+            return `<path d="${d}" stroke="#64748b" stroke-width="2" stroke-opacity="0.8" stroke-dasharray="1 4"></path>`;
           })
           .join("");
         const name = String(goal.text || "").trim() || "Mission";
@@ -1296,23 +1302,14 @@
             return `${tier.label} ${STATUS_META[st].label}`;
           })
           .join(", ");
-        const size = i + 1 > 9 ? 12 : 14;
-        const nameAttrs = up
-          ? `x="32" y="4" text-anchor="start"`
-          : `y="46" text-anchor="middle"`;
-        return `<g transform="translate(${point.x} ${point.y})"><title>Mission ${i + 1} ${escapeHtml(name)}. ${escapeHtml(detail)}.</title><circle r="23" fill="#0b1022" stroke="${edge}" stroke-width="2"></circle>${arcs}<text y="5" fill="#ffffff" font-family="Orbitron, sans-serif" font-size="${size}" font-weight="800" text-anchor="middle">${i + 1}</text><text ${nameAttrs} fill="#e8ecff" font-size="12" font-weight="600" stroke="#060914" stroke-width="4" paint-order="stroke">${escapeHtml(missionShortLabel(name, goals.length))}</text></g>`;
+        const hasTraining = !!trainingForGoal(thema, goal)?.trainingUrl;
+        const isSel = i === sel;
+        const nameAttrs = up ? `x="32" y="5" text-anchor="start"` : `y="48" text-anchor="middle"`;
+        const where = i === cur ? " Du bist hier." : "";
+        return `<g class="lp-node${isSel ? " is-selected" : ""}${i === cur ? " is-now" : ""}${done ? " is-done" : ""}" transform="translate(${point.x} ${point.y})" role="button" tabindex="0" data-lp-select="${escapeHtml(goal.id)}" data-lp-src="route" aria-pressed="${isSel ? "true" : "false"}" aria-label="Mission ${i + 1}: ${escapeHtml(name)}. ${escapeHtml(detail)}.${where} Antippen zum Üben."><title>Mission ${i + 1} ${escapeHtml(name)}</title><circle class="lp-node__hit" r="34" fill="transparent"></circle>${i === cur ? `<circle class="lp-here" r="30" fill="none" stroke="#22d3ee" stroke-width="3"></circle>` : ""}${isSel ? `<circle class="lp-node__sel" r="30" fill="none" stroke="#f5a547" stroke-width="3"></circle>` : ""}<g fill="none" stroke-linecap="round">${rings}</g><circle r="15" fill="${done ? "#5ee38a" : "#0b1330"}" stroke="${done ? "#000000" : "#ffffff"}" stroke-width="2.5"></circle><text y="5" text-anchor="middle" font-size="14" font-weight="700" fill="${done ? "#05091a" : "#ffffff"}">${i + 1}</text>${hasTraining && !done ? `<circle cx="12" cy="-12" r="5" fill="#f472b6" stroke="#000000" stroke-width="1.4"></circle>` : ""}<text class="lp-node__name" ${nameAttrs} font-size="12.5" font-weight="600" stroke="#061430" stroke-width="4" paint-order="stroke">${escapeHtml(missionShortLabel(name, goals.length))}</text></g>`;
       })
       .join("");
-    const records = levelcheckRecordsForThema(thema.id)
-      .slice()
-      .sort((a, b) => {
-        const da = String(a.date || "");
-        const db = String(b.date || "");
-        if (da && db) return da.localeCompare(db);
-        if (da) return -1;
-        if (db) return 1;
-        return 0;
-      });
+    const records = levelchecksSorted(thema);
     const brackets = [];
     records.forEach((lc, recordIndex) => {
       const linked = new Set((lc.linkedGoalIds || []).map(String));
@@ -1344,6 +1341,7 @@
         text
       });
     });
+    const bracketText = `fill="#8de8a9" font-size="11.5" font-weight="700" stroke="#061430" stroke-width="3.5" paint-order="stroke"`;
     let height = layout.height;
     let bracketSvg = "";
     if (up) {
@@ -1364,7 +1362,7 @@
           const date = bracket.when
             ? `<tspan x="${x + 12}" dy="14">${escapeHtml(bracket.when)}</tspan>`
             : "";
-          return `<path d="M${x} ${roundRoute(bot)} H${x + 8} V${roundRoute(top)} H${x}" fill="none" stroke="#5ee38a" stroke-width="2"></path><text x="${x + 12}" y="${roundRoute(labelY)}" fill="#8de8a9" font-size="11" font-weight="700" letter-spacing="0.04em" text-anchor="start">${escapeHtml(bracket.title)}${date}</text>`;
+          return `<path d="M${x} ${roundRoute(bot)} H${x + 8} V${roundRoute(top)} H${x}" fill="none" stroke="#5ee38a" stroke-width="2.5"></path><text x="${x + 12}" y="${roundRoute(labelY)}" ${bracketText} text-anchor="start">${escapeHtml(bracket.title)}${date}</text>`;
         })
         .join("");
     } else {
@@ -1388,7 +1386,7 @@
         .map((bracket) => {
           const y = bracketBase + bracket.lane * 32;
           const mid = roundRoute((bracket.x1 + bracket.x2) / 2);
-          return `<path d="M${roundRoute(bracket.x1)} ${y} V${y + 8} H${roundRoute(bracket.x2)} V${y}" fill="none" stroke="#5ee38a" stroke-width="2"></path><text x="${mid}" y="${y + 22}" fill="#8de8a9" font-size="11" font-weight="700" letter-spacing="0.08em" text-anchor="middle">${escapeHtml(bracket.text)}</text>`;
+          return `<path d="M${roundRoute(bracket.x1)} ${y} V${y + 8} H${roundRoute(bracket.x2)} V${y}" fill="none" stroke="#5ee38a" stroke-width="2.5"></path><text x="${mid}" y="${y + 22}" ${bracketText} text-anchor="middle">${escapeHtml(bracket.text)}</text>`;
         })
         .join("");
     }
@@ -1403,28 +1401,59 @@
       const w = Math.max(112, Math.round(20 + plan.pinLabel.length * 6.6));
       const half = w / 2;
       const boxX = up ? -w - 18 : -half;
-      const boxY = up && same ? 18 : -78 - lift;
-      const textY = boxY + 17;
-      const subY = boxY + 33;
-      const tipY = up && same ? 8 : -26 - lift;
-      const tipBase = up && same ? -6 : -40 - lift;
-      planPin = `<g transform="translate(${point.x} ${point.y})"><path d="M0 ${tipY} L-9 ${tipBase} L9 ${tipBase} Z" fill="#a855f7" opacity="0.85"></path><rect x="${boxX}" y="${boxY}" width="${w}" height="40" rx="12" fill="#120d2c" stroke="#a855f7" stroke-width="2" stroke-dasharray="5 4"></rect><text x="${boxX + half}" y="${textY}" fill="#d4c2ff" font-family="Orbitron, sans-serif" font-size="12" font-weight="800" text-anchor="middle">PLAN</text><text x="${boxX + half}" y="${subY}" fill="#d4c2ff" font-size="11" font-weight="600" text-anchor="middle">${escapeHtml(plan.pinLabel)}</text></g>`;
+      const boxY = up && same ? 18 : -82 - lift;
+      const textY = boxY + 18;
+      const subY = boxY + 34;
+      const tipY = up && same ? 8 : -30 - lift;
+      const tipBase = up && same ? -6 : -42 - lift;
+      planPin = `<g class="lp-pin" transform="translate(${point.x} ${point.y})"><path d="M0 ${tipY} L-8 ${tipBase} L8 ${tipBase} Z" fill="#a855f7"></path><rect x="${boxX}" y="${boxY}" width="${w}" height="40" rx="8" fill="#060914" stroke="#a855f7" stroke-width="2" stroke-dasharray="5 4"></rect><text class="lp-svg-shout" x="${boxX + half}" y="${textY}" fill="#d4c2ff" font-size="15" text-anchor="middle">PLAN</text><text x="${boxX + half}" y="${subY}" fill="#d4c2ff" font-size="11" font-weight="600" text-anchor="middle">${escapeHtml(plan.pinLabel)}</text></g>`;
     }
     const kaShort = api.formatShortDate(thema?.target?.checkpointDate || "");
     const flagWhen = kaShort ? `KA · ${kaShort}` : "KA";
-    const duBox = up
-      ? `<rect x="-132" y="-70" width="88" height="40" rx="12" fill="#22d3ee"></rect><text x="-88" y="-53" fill="#060914" font-family="Orbitron, sans-serif" font-size="13" font-weight="800" text-anchor="middle">DU</text><text x="-88" y="-37" fill="#060914" font-size="11" font-weight="700" text-anchor="middle">jetzt</text>`
-      : `<rect x="-44" y="-78" width="88" height="40" rx="12" fill="#22d3ee"></rect><text y="-61" fill="#060914" font-family="Orbitron, sans-serif" font-size="13" font-weight="800" text-anchor="middle">DU</text><text y="-45" fill="#060914" font-size="11" font-weight="700" text-anchor="middle">jetzt</text>`;
-    const flagMarkup = up
-      ? `<g transform="translate(${layout.flag.x} ${layout.flag.y})"><line x1="0" y1="22" x2="0" y2="-36" stroke="#e8ecff" stroke-width="3"></line><rect x="0" y="-36" width="34" height="22" fill="url(#lpRouteCheck)"></rect><text x="42" y="-20" fill="#f472b6" font-family="Orbitron, sans-serif" font-size="12" font-weight="800" text-anchor="start" letter-spacing="1">ZIEL</text><text x="42" y="-4" fill="#c4cae6" font-size="12" text-anchor="start">${escapeHtml(flagWhen)}</text></g>`
-      : `<g transform="translate(${layout.flag.x} ${layout.flag.y})"><line x1="0" y1="0" x2="0" y2="-64" stroke="#e8ecff" stroke-width="3"></line><rect x="0" y="-64" width="36" height="24" fill="url(#lpRouteCheck)"></rect><text x="0" y="36" fill="#f472b6" font-family="Orbitron, sans-serif" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1">ZIEL</text><text x="0" y="52" fill="#c4cae6" font-size="12" text-anchor="middle">${escapeHtml(flagWhen)}</text></g>`;
-    const startLabelY = up ? layout.start.y + 16 : layout.start.y + 34;
+    const duSign = up
+      ? `<path d="M-40 -8 L-29 0 L-40 8 Z" fill="#22d3ee"></path><rect x="-152" y="-15" width="112" height="30" rx="8" fill="#060914" stroke="#22d3ee" stroke-width="2"></rect><text x="-96" y="5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">DU BIST HIER</text>`
+      : `<path d="M-8 -44 L0 -31 L8 -44 Z" fill="#22d3ee"></path><rect x="-60" y="-74" width="120" height="30" rx="8" fill="#060914" stroke="#22d3ee" stroke-width="2"></rect><text y="-54" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">DU BIST HIER</text>`;
+    const checker = `<rect x="-11" y="-11" width="22" height="22" rx="3" fill="#ffffff" stroke="#000000" stroke-width="2"></rect><path d="M-11 -11h7.3v7.3h-7.3zM3.7 -11h7.3v7.3h-7.3zM-3.7 -3.7h7.4v7.4h-7.4zM-11 3.7h7.3v7.3h-7.3zM3.7 3.7h7.3v7.3h-7.3z" fill="#000000"></path>`;
+    const flagText = up
+      ? `<text class="lp-svg-shout" x="20" y="0" fill="#ffffff" font-size="18" text-anchor="start" stroke="#000000" stroke-width="4" paint-order="stroke">ZIEL</text><text x="20" y="16" fill="#cffafe" font-size="12" font-weight="600" text-anchor="start" stroke="#061430" stroke-width="3.5" paint-order="stroke">${escapeHtml(flagWhen)}</text>`
+      : `<text class="lp-svg-shout" y="36" fill="#ffffff" font-size="18" text-anchor="middle" stroke="#000000" stroke-width="4" paint-order="stroke">ZIEL</text><text y="52" fill="#cffafe" font-size="12" font-weight="600" text-anchor="middle" stroke="#061430" stroke-width="3.5" paint-order="stroke">${escapeHtml(flagWhen)}</text>`;
+    const flagMarkup = `<g class="lp-flag" transform="translate(${layout.flag.x} ${layout.flag.y})">${checker}${flagText}</g>`;
+    const startText = up
+      ? `<text x="20" y="5" text-anchor="start" font-size="13" font-weight="700" fill="#ecfccb" stroke="#061430" stroke-width="3.5" paint-order="stroke">START</text>`
+      : `<text y="34" text-anchor="middle" font-size="13" font-weight="700" fill="#ecfccb" stroke="#061430" stroke-width="3.5" paint-order="stroke">START</text>`;
+    const startMarkup = `<g class="lp-flag" transform="translate(${layout.start.x} ${layout.start.y})"><circle r="11" fill="#5ee38a" stroke="#000000" stroke-width="2"></circle>${startText}</g>`;
+    const city = api.cityBackdrop(layout, height);
+    const shades = ["#18224a", "#1b2650", "#162045", "#1d2955"];
+    const minor = city.streets.filter((s) => !s.major).map((s) => s.d).join("");
+    const major = city.streets.filter((s) => s.major).map((s) => s.d).join("");
+    const parks = city.parks
+      .map((p) => {
+        const trees = [0.25, 0.6, 0.8]
+          .map((f, k) => {
+            const cx = roundRoute(p.x + p.w * f);
+            const cy = roundRoute(p.y + p.h * (k === 1 ? 0.35 : 0.65));
+            return `<circle cx="${cx}" cy="${cy}" r="${Math.min(9, p.h / 5).toFixed(1)}" fill="#165038"></circle>`;
+          })
+          .join("");
+        return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="#0f2e22" stroke="#2f6b47" stroke-opacity="0.45"></rect>${trees}`;
+      })
+      .join("");
+    const blocks = city.blocks
+      .map((b) => `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="2" fill="${shades[b.shade]}" stroke="#222c58"></rect>`)
+      .join("");
+    const waves = [];
+    for (let y = 14; y < height; y += 40) waves.push(`M0 ${y}h${layout.width}`);
+    const pad = city.pad;
     const subject = state.selectedSubject || "";
     const aria = [
       `Route ${thema.name || ""}, ${goals.length} Missionen.`,
       `Du bist bei Mission ${cur + 1}.`,
-      plan.showPin ? `Plan ${plan.pinLabel}, Mission ${plan.planIndex + 1}.` : "Kein Plan-Pin."
-    ].join(" ");
+      sel !== cur ? `Gewählt ist Mission ${sel + 1}.` : "",
+      plan.showPin ? `Plan ${plan.pinLabel}, Mission ${plan.planIndex + 1}.` : "",
+      "Tippe auf eine Mission, um sie zu üben."
+    ]
+      .filter(Boolean)
+      .join(" ");
     return `
       <section class="lp-route${up ? " is-up" : ""}" aria-label="Route ${escapeHtml(thema.name || "Thema")}">
         <div class="lp-route__head">
@@ -1433,47 +1462,51 @@
             <h2 class="lp-route__title">${escapeHtml(thema.name || "Thema")}</h2>
             <div class="lp-route__chips">${chips.join("")}</div>
           </div>
-          <ul class="lp-route__legend">${legend}</ul>
           <p class="lp-route__now">
             <span class="lp-route__now-kicker">Du bist bei</span>
             <span class="lp-route__now-num">Mission ${cur + 1}<span> / ${goals.length}</span></span>
           </p>
         </div>
         <div class="lp-route__road"${up ? "" : ` style="--lp-route-min:${layout.width}px"`}>
-          <svg viewBox="0 0 ${layout.width} ${height}" role="img" aria-label="${escapeHtml(aria)}">
+          <svg viewBox="0 0 ${layout.width} ${height}" role="group" aria-label="${escapeHtml(aria)}">
             <defs>
-              <linearGradient id="lpRouteProg" x1="0" y1="${up ? 1 : 0}" x2="${up ? 0 : 1}" y2="0">
-                <stop offset="0" stop-color="#22d3ee"></stop>
-                <stop offset="1" stop-color="#a855f7"></stop>
-              </linearGradient>
-              <pattern id="lpRouteGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path d="M40 0H0V40" fill="none" stroke="#1a2148" stroke-width="1"></path>
-              </pattern>
-              <pattern id="lpRouteCheck" width="8" height="8" patternUnits="userSpaceOnUse">
-                <rect width="8" height="8" fill="#e8ecff"></rect>
-                <rect width="4" height="4" fill="#060914"></rect>
-                <rect x="4" y="4" width="4" height="4" fill="#060914"></rect>
-              </pattern>
+              <linearGradient id="lpRouteProg" x1="0" y1="${up ? 1 : 0}" x2="${up ? 0 : 1}" y2="0"><stop offset="0" stop-color="#22d3ee"></stop><stop offset="1" stop-color="#a855f7"></stop></linearGradient>
+              <clipPath id="lpCityClip"><rect x="${pad}" y="${pad}" width="${layout.width - pad * 2}" height="${height - pad * 2}" rx="26"></rect></clipPath>
             </defs>
-            <rect width="${layout.width}" height="${height}" fill="url(#lpRouteGrid)" opacity="0.55"></rect>
-            <g opacity="0.4" fill="#1d1640">${skyline.join("")}</g>
-            <path d="${layout.path}" fill="none" stroke="#252e58" stroke-width="38" stroke-linecap="round"></path>
-            <path d="${layout.path}" fill="none" stroke="#11162e" stroke-width="32" stroke-linecap="round"></path>
-            <path d="${layout.path}" fill="none" stroke="#3a4475" stroke-width="2" stroke-dasharray="14 12"></path>
-            <path d="${layout.path}" fill="none" stroke="#a855f7" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="${api.planDash(curPct, planPct)}" opacity="0.8"></path>
-            <path d="${layout.path}" fill="none" stroke="#22d3ee" stroke-width="14" stroke-linecap="round" pathLength="100" stroke-dasharray="${api.progressDash(curPct)}" opacity="0.18"></path>
-            <path d="${layout.path}" fill="none" stroke="url(#lpRouteProg)" stroke-width="6" stroke-linecap="round" pathLength="100" stroke-dasharray="${api.progressDash(curPct)}"></path>
-            <text x="${layout.start.x}" y="${startLabelY}" fill="#9aa3c7" font-family="Orbitron, sans-serif" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="2">START</text>
-            ${nodes}
-            ${flagMarkup}
-            ${planPin}
-            <g transform="translate(${du.x} ${du.y})">
-              <circle r="34" fill="#22d3ee" opacity="0.16"></circle>
-              <path d="M0 -26 L-9 -40 L9 -40 Z" fill="#22d3ee"></path>
-              ${duBox}
+            <rect width="${layout.width}" height="${height}" fill="#061430"></rect>
+            <path d="${waves.join("")}" stroke="#081a3d" stroke-width="1"></path>
+            <rect x="${pad}" y="${pad}" width="${layout.width - pad * 2}" height="${height - pad * 2}" rx="26" fill="#0d1430" stroke="#163a73" stroke-width="5"></rect>
+            <g clip-path="url(#lpCityClip)" aria-hidden="true">
+              <path d="${city.river}" fill="none" stroke="#11406f" stroke-width="34" stroke-linecap="round"></path>
+              <path d="${city.river}" fill="none" stroke="#0a2b52" stroke-width="28" stroke-linecap="round"></path>
+              <g fill="none" stroke-linecap="round">
+                <path d="${minor}" stroke="#070c20" stroke-width="10"></path>
+                <path d="${major}" stroke="#070c20" stroke-width="15"></path>
+                <path d="${minor}" stroke="#1c2650" stroke-width="6.5"></path>
+                <path d="${major}" stroke="#25315f" stroke-width="10.5"></path>
+              </g>
+              ${parks}
+              ${blocks}
             </g>
-            ${bracketSvg}
+            <g fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="${layout.path}" stroke="#070c20" stroke-width="32"></path>
+              <path d="${layout.path}" stroke="#3c4c90" stroke-width="24"></path>
+              <path d="${layout.path}" stroke="#7cc4ef" stroke-opacity="0.8" stroke-width="4" stroke-dasharray="1 9"></path>
+              <path d="${layout.path}" stroke="#a855f7" stroke-width="5" pathLength="100" stroke-dasharray="${api.planDash(curPct, planPct)}" opacity="0.85"></path>
+              <path d="${layout.path}" stroke="#22d3ee" stroke-opacity="0.25" stroke-width="18" pathLength="100" stroke-dasharray="${api.progressDash(curPct)}"></path>
+              <path d="${layout.path}" stroke="url(#lpRouteProg)" stroke-width="7" pathLength="100" stroke-dasharray="${api.progressDash(curPct)}"></path>
+            </g>
+            <g aria-hidden="true">${bracketSvg}${startMarkup}${flagMarkup}</g>
+            ${nodes}
+            <g class="lp-signs" aria-hidden="true">
+              ${planPin}
+              <g transform="translate(${du.x} ${du.y})">${duSign}</g>
+            </g>
           </svg>
+        </div>
+        <div class="lp-route__foot">
+          <p class="lp-route__hint">Tippe auf eine Mission, um sie zu üben.</p>
+          <ul class="lp-route__legend">${legend}</ul>
         </div>
       </section>`;
   }
@@ -1483,19 +1516,27 @@
   }
 
   function renderJetzt(thema, model) {
-    const goal = model.goals[model.cur];
-    const tier = markTiers().find((entry) => entry.id === model.activeTierId) || null;
+    const goal = model.goals[model.sel];
+    const picked = model.sel !== model.cur;
+    const tier = markTiers().find((entry) => entry.id === model.focus?.id) || null;
+    const extra = !!model.focus?.extra;
     const lcIndex = model.checkIndexByGoal.get(String(goal.id));
     const after = lcIndex == null ? "" : ` · danach Levelcheck ${lcIndex + 1}`;
     const raw = tier ? model.statusOf(goal, tier.id) : "sicher";
     const status = STATUS_META[raw] ? raw : "offen";
     const color = tier ? TIER_ACCENT[tier.id] || "#f5a547" : "#5ee38a";
     const chip = tier
-      ? `<span class="lp-now__chip" style="background:${color}">${escapeHtml(tier.label)}</span><span class="lp-now__status">${escapeHtml(STATUS_META[status].label)}</span>`
+      ? `<span class="lp-now__chip" style="background:${color}">${escapeHtml(tier.label)}</span>${extra ? `<span class="lp-now__bonus">Bonus</span>` : ""}<span class="lp-now__status">${escapeHtml(STATUS_META[status].label)}</span>`
       : `<span class="lp-now__chip lp-now__chip--done">Sicher</span>`;
-    const blurb = tier
-      ? `Trainiere im Trainingscenter, bis du die ${tier.label}-Aufgaben ohne Hilfe schaffst. Dann meldest du die Stufe als sicher.`
-      : "Die Stufen für deine Zielnote sind auf dieser Mission sicher. Im Logbuch kannst du eine Stufe weiter anpassen.";
+    const blurb = !tier
+      ? "Alle Stufen dieser Mission sind sicher. Im Logbuch kannst du eine Stufe weiter anpassen."
+      : extra
+        ? `Für deine Zielnote ist diese Mission schon sicher. Wenn du willst, trainierst du ${tier.label} als Bonus.`
+        : `Trainiere im Trainingscenter, bis du die ${tier.label}-Aufgaben ohne Hilfe schaffst. Dann meldest du die Stufe als sicher.`;
+    const flag = picked ? "Deine Wahl" : "Jetzt dran";
+    const back = picked
+      ? `<button type="button" class="lp-now__back" data-lp-select="${escapeHtml(model.goals[model.cur].id)}" data-lp-src="now">Zurück zu Mission ${model.cur + 1} (du bist hier)</button>`
+      : "";
     const url = trainingForGoal(thema, goal)?.trainingUrl || "";
     const train = url
       ? `<a class="lp-now__go" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Training starten →</a>`
@@ -1505,18 +1546,19 @@
       ? `<button type="button" class="lp-now__safe" data-lp-mark-safe="${escapeHtml(goal.id)}" data-lp-tier="${escapeHtml(tier.id)}" ${busy ? "disabled" : ""}>${escapeHtml(tier.label)} als sicher melden</button>`
       : "";
     return `
-      <section class="lp-now" aria-labelledby="lp-now-title">
+      <section class="lp-now${picked ? " is-picked" : ""}" aria-labelledby="lp-now-title" aria-live="polite">
         <div class="lp-now__stripe" aria-hidden="true"></div>
         <div class="lp-now__copy">
-          <span class="lp-now__flag">Jetzt dran</span>
+          <span class="lp-now__flag">${flag}</span>
           <div class="lp-now__meta">${chip}</div>
-          <p class="lp-now__where">Mission ${model.cur + 1} von ${model.goals.length}${escapeHtml(after)}</p>
+          <p class="lp-now__where">Mission ${model.sel + 1} von ${model.goals.length}${escapeHtml(after)}</p>
           <h2 id="lp-now-title" class="lp-now__title">${escapeHtml(goal.text || "Mission")}</h2>
           <p class="lp-now__text">${escapeHtml(blurb)}</p>
         </div>
         <div class="lp-now__actions">
           ${train}
           ${safe}
+          ${back}
         </div>
       </section>`;
   }
@@ -1561,7 +1603,7 @@
       </section>`;
   }
 
-  function renderMissionRail(model) {
+  function renderMissionRail(thema, model) {
     const tiers = markTiers();
     const rows = model.goals
       .map((goal, index) => {
@@ -1585,12 +1627,21 @@
           ? `<span class="lp-mission__tag lp-mission__tag--${tag.kind}">${escapeHtml(tag.text)}</span>`
           : "";
         const name = goal.text || "Mission";
+        const isSel = index === model.sel;
+        const url = trainingForGoal(thema, goal)?.trainingUrl || "";
+        const train = url
+          ? `<a class="lp-mission__train" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="Mission ${index + 1} im Trainingscenter trainieren">Trainieren →</a>`
+          : "";
         return `
-          <div class="lp-mission${index === model.cur ? " is-now" : ""}${done && index !== model.cur ? " is-done" : ""}">
-            <span class="lp-mission__n">${index + 1}</span>
-            <span class="lp-mission__name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
-            <span class="lp-mission__dots" aria-label="${escapeHtml(aria)}">${dots}</span>
-            ${tagHtml}
+          <div class="lp-mission${index === model.cur ? " is-now" : ""}${isSel ? " is-selected" : ""}${done && index !== model.cur ? " is-done" : ""}">
+            <button type="button" class="lp-mission__pick" data-lp-select="${escapeHtml(goal.id)}" data-lp-src="rail" aria-pressed="${isSel ? "true" : "false"}" aria-label="Mission ${index + 1}: ${escapeHtml(name)}. ${escapeHtml(aria)}. Auswählen.">
+              <span class="lp-mission__n">${index + 1}</span>
+              <span class="lp-mission__body">
+                <span class="lp-mission__name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+                <span class="lp-mission__meta"><span class="lp-mission__dots" aria-hidden="true">${dots}</span>${tagHtml}</span>
+              </span>
+            </button>
+            ${train}
           </div>`;
       })
       .join("");
@@ -1616,12 +1667,14 @@
           })
           .join("");
         return `
-          <div class="lp-log__row${index === model.cur ? " is-now" : ""}" data-lp-goal="${escapeHtml(goal.id)}">
-            <span class="lp-log__n${index === model.cur ? " is-now" : ""}${done && index !== model.cur ? " is-done" : ""}">${index + 1}</span>
-            <div class="lp-log__copy">
-              <div class="lp-log__name">${escapeHtml(goal.text || "Mission")}</div>
-              <div class="lp-log__lc">${escapeHtml(phrase)}</div>
-            </div>
+          <div class="lp-log__row${index === model.cur ? " is-now" : ""}${index === model.sel ? " is-selected" : ""}" data-lp-goal="${escapeHtml(goal.id)}">
+            <button type="button" class="lp-log__pick" data-lp-select="${escapeHtml(goal.id)}" data-lp-src="log" aria-pressed="${index === model.sel ? "true" : "false"}" aria-label="Mission ${index + 1}: ${escapeHtml(goal.text || "Mission")}. Auswählen zum Üben.">
+              <span class="lp-log__n${index === model.cur ? " is-now" : ""}${done && index !== model.cur ? " is-done" : ""}">${index + 1}</span>
+              <span class="lp-log__copy">
+                <span class="lp-log__name">${escapeHtml(goal.text || "Mission")}</span>
+                <span class="lp-log__lc">${escapeHtml(phrase)}</span>
+              </span>
+            </button>
             <div class="lp-log__tiers">${buttons}</div>
           </div>`;
       })
@@ -1630,7 +1683,7 @@
       <section class="lp-log" aria-labelledby="lp-log-title">
         <div>
           <h2 id="lp-log-title" class="lp-kicker">Logbuch · Stufen eintragen</h2>
-          <p class="lp-log__lead">Tippe auf eine Stufe, um sie auf Offen, In Arbeit oder Sicher zu stellen. Die Route oben zieht sofort mit.</p>
+          <p class="lp-log__lead">Tippe auf eine Mission, um sie oben zum Üben zu wählen. Tippe auf eine Stufe, um sie auf Offen, In Arbeit oder Sicher zu stellen. Die Route oben zieht sofort mit.</p>
         </div>
         ${rows}
       </section>`;
@@ -1673,7 +1726,7 @@
       ? `<p class="lp-train-miss">Ohne Trainingsknopf: ${escapeHtml(missing.join(", "))}</p>`
       : "";
     const strecke = model
-      ? `<div class="lp-cockpit${model.narrow ? " is-stack" : ""}">${renderRouteMap(thema, progress, model)}<div class="lp-deck">${renderJetzt(thema, model)}${renderPensum(thema, progress)}${renderMissionRail(model)}</div></div>${renderLogbook(model)}`
+      ? `<div class="lp-cockpit${model.narrow ? " is-stack" : ""}">${renderRouteMap(thema, progress, model)}<div class="lp-deck">${renderJetzt(thema, model)}${renderPensum(thema, progress)}${renderMissionRail(thema, model)}</div></div>${renderLogbook(model)}`
       : `<p class="lp-empty">Für dieses Thema gibt es noch keine Missionen.</p>`;
     return `
       <div class="lp-top">
@@ -1686,10 +1739,47 @@
       ${renderOverlay()}`;
   }
 
+  function selectMission(goalId, src) {
+    if (!goalId) return;
+    const thema = selectedThema();
+    const model = thema ? buildRouteModel(thema, computeTopicProgress(thema)) : null;
+    const curId = model ? String(model.goals[model.cur]?.id) : "";
+    state.selectedGoalId = String(goalId) === curId ? null : String(goalId);
+    state.focusSelect = { goalId: String(goalId), src: src || "" };
+    state.focusGoalId = null;
+    closeOverlay();
+    render();
+  }
+
+  function restoreSelection(root, roadScroll) {
+    const road = root.querySelector(".lp-route__road");
+    if (road && roadScroll) {
+      road.scrollLeft = roadScroll.left;
+      road.scrollTop = roadScroll.top;
+    }
+    const pending = state.focusSelect;
+    if (!pending) return;
+    state.focusSelect = null;
+    const id = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(pending.goalId) : pending.goalId.replace(/"/g, "");
+    const src = pending.src === "now" ? "rail" : pending.src;
+    const target =
+      root.querySelector(`[data-lp-select="${id}"][data-lp-src="${src}"]`) ||
+      root.querySelector(`[data-lp-select="${id}"]`);
+    try {
+      target?.focus({ preventScroll: true });
+    } catch (err) {
+      target?.focus();
+    }
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    root.querySelector(".lp-now")?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
+  }
+
   function render() {
     ensureRouteResize();
     const root = document.getElementById("levelplan-screen-root");
     if (!root) return;
+    const oldRoad = root.querySelector(".lp-route__road");
+    const roadScroll = oldRoad ? { left: oldRoad.scrollLeft, top: oldRoad.scrollTop } : null;
     const visuals = V();
     if (state.loading && !state.data) {
       root.innerHTML = `<div class="logbuch-loading">Lade Levelplan…</div>`;
@@ -1701,6 +1791,7 @@
     }
     root.innerHTML = visuals?.pageShell(`<div class="lp-wrap">${renderBody()}</div>`) || "";
     bindHandlers(root);
+    restoreSelection(root, roadScroll);
     scrollFocusGoalIntoView();
     scrollOpenPanel();
     placeSheet(root);
@@ -1815,6 +1906,7 @@
       btn.addEventListener("click", () => {
         state.selectedSubject = btn.dataset.lpSubject;
         state.selectedThemaId = null;
+        state.selectedGoalId = null;
         state.expandedGoalId = null;
         state.focusGoalId = null;
         closeOverlay();
@@ -1830,6 +1922,7 @@
       const apply = () => {
         const id = el.tagName === "SELECT" ? el.value : el.dataset.lpThema;
         state.selectedThemaId = id;
+        state.selectedGoalId = null;
         state.expandedGoalId = null;
         state.focusGoalId = null;
         closeOverlay();
@@ -1890,6 +1983,16 @@
         const tier = btn.dataset.lpTier;
         const current = btn.dataset.lpStatus || "offen";
         setStatus(goalId, tier, NEXT_STATUS[current] || "offen");
+      });
+    });
+
+    root.querySelectorAll("[data-lp-select]").forEach((el) => {
+      el.addEventListener("click", () => selectMission(el.dataset.lpSelect, el.dataset.lpSrc));
+      if (el.tagName === "BUTTON") return;
+      el.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        selectMission(el.dataset.lpSelect, el.dataset.lpSrc);
       });
     });
 

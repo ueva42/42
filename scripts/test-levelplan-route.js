@@ -196,7 +196,58 @@ function testRoadsForThreeSevenAndMany() {
   assert(route.planDash(70, 30) === "0 200", "no plan line backwards");
 }
 
+function testSelectedMissionFallsBackToDu() {
+  const ids = goals(5).map((g) => g.id);
+  assert(route.selectedMissionIndex(ids, null, 2) === 2, "ohne Wahl gilt DU");
+  assert(route.selectedMissionIndex(ids, "g5", 2) === 4, "frei gewählte Mission 5");
+  assert(route.selectedMissionIndex(ids, "g1", 3) === 0, "auch zurück zu Mission 1");
+  assert(route.selectedMissionIndex(ids, "fremd", 1) === 1, "fremde Kennung fällt auf DU zurück");
+  assert(route.selectedMissionIndex(ids, 3, 0) === 0, "Zahl ohne passende Kennung bleibt bei DU");
+}
+
+function testFocusTierForAnyMission() {
+  const list = goals(7);
+  const all = list.map((g) => g.id);
+  const status = statusFrom(allSecure(all, { g3: { operator: "offen" } }));
+  const pick = (i, allowed) =>
+    route.focusTier({ goal: list[i], index: i, total: 7, rules: NOTE2, statusOf: status, allowed });
+  assert(pick(2).id === "operator" && pick(2).extra === false, "Mission 3: Operator ist Pflicht und offen");
+  assert(pick(0) === null, "Mission 1 komplett sicher");
+  const late = statusFrom(allSecure(all, { g7: { street_legend: "offen" } }));
+  const bonus = route.focusTier({ goal: list[6], index: 6, total: 7, rules: NOTE2, statusOf: late });
+  assert(bonus.id === "street_legend" && bonus.extra === true, "SL auf Mission 7 nur als Bonus");
+  const noSl = route.focusTier({
+    goal: list[6],
+    index: 6,
+    total: 7,
+    rules: NOTE2,
+    statusOf: late,
+    allowed: ["rookie", "operator"]
+  });
+  assert(noSl === null, "ohne aktive SL-Stufe kein Bonus");
+}
+
+function testNodeArcsAndCity() {
+  const arc = route.nodeArc(21, ...route.TIER_ARCS.rookie);
+  assert(/^M-?\d+\.\d+ -?\d+\.\d+A21 21 0 0 1 /.test(arc), `arc ${arc}`);
+  for (const [n, opts] of [[3, null], [7, null], [7, { direction: "up" }], [24, null]]) {
+    const layout = route.routeLayout(n, opts);
+    const city = route.cityBackdrop(layout, layout.height + 40);
+    assert(city.streets.length > 4, `${n} streets`);
+    assert(city.blocks.length > 4, `${n} blocks`);
+    for (const b of city.blocks) {
+      assert(b.x >= city.pad && b.y >= city.pad, `${n} block inside`);
+      assert(b.x + b.w <= city.width - city.pad + 0.5 && b.y + b.h <= city.height - city.pad + 0.5, `${n} block fits`);
+    }
+    const again = route.cityBackdrop(layout, layout.height + 40);
+    assert(JSON.stringify(again) === JSON.stringify(city), `${n} city stays the same on re-render`);
+  }
+}
+
 testNextLevelcheckIsLastLinkedMission();
+testSelectedMissionFallsBackToDu();
+testFocusTierForAnyMission();
+testNodeArcsAndCity();
 testUpcomingKeepsLaterChecksWaiting();
 testAllLevelchecksPastUsesKa();
 testAllPastWithoutKaDate();
