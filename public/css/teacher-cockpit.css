@@ -193,6 +193,9 @@ button.ck-kpi:hover { border-color: rgba(34, 211, 238, 0.45); }
 .ck-tri i.o.w { border: 1.5px solid var(--ck-violet); }
 .ck-tri i.l.s { background: var(--ck-pink); border: 0; }
 .ck-tri i.l.w { border: 1.5px solid var(--ck-pink); }
+.ck-tri i.u.s { background: #34d399; border: 0; }
+.ck-tri i.u.w { border: 1.5px solid #34d399; }
+.ck-tri--1 { min-width: 22px; }
 .ck-flag { position: absolute; top: -4px; right: -3px; font-size: 0.62rem; font-weight: 800; width: 13px; height: 13px; border-radius: 50%; display: grid; place-items: center; }
 .ck-flag--static { position: static; }
 .ck-flag--over { background: var(--ck-amber); color: #1a1200; }

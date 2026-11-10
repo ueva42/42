@@ -332,6 +332,7 @@ body.td-shell {
 .td-lv--r { --lv: #22d3ee; }
 .td-lv--o { --lv: #8b5cf6; }
 .td-lv--s { --lv: #f472b6; }
+.td-lv--u { --lv: #34d399; }
 .td-lv--work { border-style: solid; border-color: var(--lv); color: var(--lv); }
 .td-lv--fill { border-style: solid; background: var(--lv); color: #0b1020; border-color: var(--lv); }
 

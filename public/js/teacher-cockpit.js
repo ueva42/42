@@ -6,8 +6,20 @@
 (function () {
   const REFRESH_MS = 60000;
   const TIERS = ["rookie", "operator", "street_legend"];
-  const TIER_LABEL = { rookie: "Rookie", operator: "Operator", street_legend: "Street Legend" };
-  const TIER_COLOR = { rookie: "#22d3ee", operator: "#8b5cf6", street_legend: "#f472b6" };
+  const TIER_LABEL = {
+    unterthema: "Unterthema",
+    rookie: "Rookie",
+    operator: "Operator",
+    street_legend: "Street Legend"
+  };
+  const TIER_SHORT = { unterthema: "U", rookie: "R", operator: "O", street_legend: "SL" };
+  const TIER_COLOR = {
+    unterthema: "#34d399",
+    rookie: "#22d3ee",
+    operator: "#8b5cf6",
+    street_legend: "#f472b6"
+  };
+  const TIER_CSS = { unterthema: "u", rookie: "r", operator: "o", street_legend: "l" };
   const PACE_COLOR = { ok: "#22d3ee", mid: "#fbbf24", low: "#f97316", none: "#64748b" };
   const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
   const VIEW_TITLE = {
@@ -118,6 +130,45 @@
 
   function goals() {
     return ck.data?.goals || [];
+  }
+
+  function levels() {
+    const d = ck.data || {};
+    const markTiers = Array.isArray(d.markTiers)
+      ? d.markTiers.filter((t) => TIERS.includes(t))
+      : TIERS.slice();
+    const stagesEnabled = d.stagesEnabled !== false && markTiers.length > 0;
+    const displayTiers = Array.isArray(d.displayTiers) && d.displayTiers.length
+      ? d.displayTiers
+      : stagesEnabled
+        ? markTiers
+        : ["unterthema"];
+    const missionTiers = stagesEnabled ? markTiers : ["unterthema"];
+    return {
+      activeLevels: Array.isArray(d.activeLevels) ? d.activeLevels : displayTiers,
+      markTiers,
+      displayTiers,
+      missionTiers,
+      stagesEnabled,
+      unterthemaOnly: d.unterthemaOnly === true || (!stagesEnabled && displayTiers.includes("unterthema"))
+    };
+  }
+
+  function markStatus(marks, goalId, tierIndex) {
+    const row = marks?.[goalId];
+    if (!Array.isArray(row)) return "offen";
+    return row[tierIndex] || "offen";
+  }
+
+  function expertTierIndex() {
+    const { displayTiers, stagesEnabled } = levels();
+    if (!stagesEnabled) return displayTiers.indexOf("unterthema");
+    const order = ["street_legend", "operator", "rookie"];
+    for (const tier of order) {
+      const i = displayTiers.indexOf(tier);
+      if (i >= 0) return i;
+    }
+    return displayTiers.length - 1;
   }
 
   function goalById(id) {
@@ -356,7 +407,7 @@
           <div class="ck-lane ck-lane--goal"><header>Noch kein Tagesziel <span class="ck-count">${live.noGoal.length}</span></header>
             <div class="ck-chips">${noGoal || `<p class="ck-muted ck-small">Niemand in dieser Spur.</p>`}</div></div>
           <div class="ck-lane ck-lane--run"><header>Läuft <span class="ck-count">${live.runningCount}</span></header>
-            <p class="ck-muted ck-small">Expert:innen heute (Street Legend sicher am heutigen Thema):</p>
+            <p class="ck-muted ck-small">Expert:innen heute (${esc(expertHintLabel())} sicher am heutigen Thema):</p>
             <div class="ck-chips">${experts || `<p class="ck-muted ck-small">Heute noch niemand.</p>`}</div></div>
         </div>
       </aside>`;
@@ -384,46 +435,71 @@
       </section>`;
   }
 
+  function expertHintLabel() {
+    const { displayTiers, stagesEnabled, unterthemaOnly } = levels();
+    if (unterthemaOnly || !stagesEnabled) return "Unterthema";
+    const idx = expertTierIndex();
+    return TIER_LABEL[displayTiers[idx]] || "höchste Stufe";
+  }
+
   function renderHeat() {
     const d = ck.data;
     const gs = goals();
+    const { displayTiers, stagesEnabled, unterthemaOnly } = levels();
     const list = [...students()].sort((a, b) => a.name.localeCompare(b.name, "de"));
     const N = list.length || 1;
     const shares = new Map((d.shares || []).map((s) => [String(s.goalId), s]));
     const planIndex = d.unit?.target ? d.unit.target.planIndex : -1;
     const over = overSet();
     const idle = idleMap();
+    const shareTier = displayTiers[0] || "rookie";
+    const shareShort = TIER_SHORT[shareTier] || shareTier;
     const head = gs
       .map((goal, i) => {
-        const pct = Math.round(((Number(shares.get(String(goal.id))?.rookie) || 0) / N) * 100);
-        return `<th class="${i === planIndex + 1 ? "ck-lcline" : ""}"><div class="ck-colhead" title="${esc(goal.text)}">${goal.number} · ${esc(clip(goal.text, 22))}<span class="ck-colpct"><b style="width:${pct}%"></b></span><span class="ck-muted">${pct} % R</span></div></th>`;
+        const pct = Math.round(((Number(shares.get(String(goal.id))?.[shareTier]) || 0) / N) * 100);
+        return `<th class="${i === planIndex + 1 ? "ck-lcline" : ""}"><div class="ck-colhead" title="${esc(goal.text)}">${goal.number} · ${esc(clip(goal.text, 22))}<span class="ck-colpct"><b style="width:${pct}%"></b></span><span class="ck-muted">${pct} % ${esc(shareShort)}</span></div></th>`;
       })
       .join("");
     const cls = (st) => (st === "sicher" ? "s" : st === "in_arbeit" ? "w" : "");
+    const boxes = (mk) =>
+      displayTiers
+        .map((tier, ti) => `<i class="${TIER_CSS[tier] || "u"} ${cls(mk[ti])}"></i>`)
+        .join("");
     const rows = list
       .map((s) => {
         const cells = gs
           .map((goal, i) => {
-            const mk = s.marks?.[goal.id] || ["offen", "offen", "offen"];
-            const isOver = over.get(Number(s.id))?.has(String(goal.id));
-            const isIdle = idle.get(Number(s.id))?.goalId === String(goal.id);
+            const mk = s.marks?.[goal.id] || displayTiers.map(() => "offen");
+            const isOver = stagesEnabled && over.get(Number(s.id))?.has(String(goal.id));
+            const isIdle = stagesEnabled && idle.get(Number(s.id))?.goalId === String(goal.id);
             const now = s.today?.goalId === String(goal.id);
             return `<td class="ck-cell ${now ? "ck-cell--now" : ""} ${i === planIndex + 1 ? "ck-lcline" : ""}" title="${esc(goal.text)}">
-              <div class="ck-tri"><i class="r ${cls(mk[0])}"></i><i class="o ${cls(mk[1])}"></i><i class="l ${cls(mk[2])}"></i></div>
+              <div class="ck-tri ck-tri--${displayTiers.length}">${boxes(mk)}</div>
               ${isOver ? `<span class="ck-flag ck-flag--over">!</span>` : isIdle ? `<span class="ck-flag ck-flag--idle">z</span>` : ""}</td>`;
           })
           .join("");
         return `<tr><td class="ck-nm"><button type="button" class="ck-link" data-ck-open="${esc(s.id)}">${esc(s.name)}</button> <span class="ck-muted">· ${esc(s.targetGrade ? s.targetGrade.replace(".", ",") : "–")}</span></td>${cells}<td><span class="ck-pace ck-pace--${esc(s.pace)}">${esc(s.paceText)}</span></td></tr>`;
       })
       .join("");
+    const stageLegend = displayTiers
+      .map(
+        (tier) =>
+          `<span><i class="ck-lg" style="background:${TIER_COLOR[tier] || "#94a3b8"};border-radius:3px"></i>${esc(TIER_LABEL[tier] || tier)}</span>`
+      )
+      .join("");
     return `
       <div class="ck-heat-wrap"><table class="ck-heat"><thead><tr><th class="ck-nm">Schüler:in · Zielnote</th>${head}<th>bis ${esc(d.unit?.target?.label || "Termin")}</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="ck-legend">
+        ${stageLegend}
         <span><i class="ck-lg" style="background:var(--ck-cyan);border-radius:3px"></i>gefüllt = sicher</span>
         <span><i class="ck-lg" style="border:1.5px solid var(--ck-cyan);border-radius:3px"></i>Rand = in Arbeit</span>
         <span><i class="ck-lg" style="border:1px dashed #64748b;border-radius:3px"></i>gestrichelt = offen</span>
-        <span><span class="ck-flag ck-flag--over ck-flag--static">!</span> schätzt sich im Training sicherer ein, als die gelösten Aufgaben zeigen</span>
-        <span><span class="ck-flag ck-flag--idle ck-flag--static">z</span> Training angefangen, seit 5+ Tagen keine Bewegung</span>
+        ${
+          stagesEnabled
+            ? `<span><span class="ck-flag ck-flag--over ck-flag--static">!</span> schätzt sich im Training sicherer ein, als die gelösten Aufgaben zeigen</span>
+        <span><span class="ck-flag ck-flag--idle ck-flag--static">z</span> Training angefangen, seit 5+ Tagen keine Bewegung</span>`
+            : `<span>${unterthemaOnly ? "Nur Unterthema aktiv – eine Box pro Mission" : "Aktive Level der Klasse"}</span>`
+        }
         <span>weißer Rahmen = heute daran · alphabetisch sortiert</span>
       </div>`;
   }
@@ -433,6 +509,10 @@
     const list = students();
     const help = helpIds();
     const visit = visitIds();
+    const { displayTiers, stagesEnabled, unterthemaOnly } = levels();
+    const activeSet = new Set(displayTiers);
+    const expertIdx = expertTierIndex();
+    const tipExpert = expertHintLabel();
     const cards = gs
       .map((goal) => {
         const here = list
@@ -440,18 +520,33 @@
           .sort((a, b) => a.name.localeCompare(b.name, "de"));
         const stuck = here.filter((s) => help.has(Number(s.id)) || visit.has(Number(s.id))).length;
         const experts = list.filter(
-          (s) => s.today && s.today.goalId !== String(goal.id) && s.marks?.[goal.id]?.[2] === "sicher"
+          (s) =>
+            s.today &&
+            s.today.goalId !== String(goal.id) &&
+            expertIdx >= 0 &&
+            markStatus(s.marks, goal.id, expertIdx) === "sicher"
         );
-        const levels = { rookie: 0, operator: 0, street_legend: 0 };
-        for (const s of here) if (levels[s.today.level] != null) levels[s.today.level] += 1;
+        const levelCounts = Object.fromEntries(displayTiers.map((t) => [t, 0]));
+        for (const s of here) {
+          const lvl = s.today.level;
+          if (lvl && levelCounts[lvl] != null) levelCounts[lvl] += 1;
+          else if (unterthemaOnly && lvl === "unterthema") levelCounts.unterthema = (levelCounts.unterthema || 0) + 1;
+        }
         const chips = ck.beamer
-          ? `<div class="ck-levels">${TIERS.filter((t) => levels[t])
-              .map((t) => `<span><i class="ck-lvl" style="background:${TIER_COLOR[t]}"></i>${levels[t]} ${TIER_LABEL[t]}</span>`)
+          ? `<div class="ck-levels">${displayTiers
+              .filter((t) => levelCounts[t])
+              .map((t) => `<span><i class="ck-lvl" style="background:${TIER_COLOR[t]}"></i>${levelCounts[t]} ${TIER_LABEL[t]}</span>`)
               .join("")}</div>`
           : `<div class="ck-chips">${here
               .map((s) => {
                 const tone = help.has(Number(s.id)) ? "ck-chip--help" : visit.has(Number(s.id)) ? "ck-chip--visit" : "";
-                return `<button type="button" class="ck-chip ${tone}" data-ck-open="${esc(s.id)}"><i class="ck-lvl" style="background:${TIER_COLOR[s.today.level] || "#64748b"}"></i>${esc(s.name)}</button>`;
+                const color =
+                  s.today.level && activeSet.has(s.today.level)
+                    ? TIER_COLOR[s.today.level]
+                    : unterthemaOnly
+                      ? TIER_COLOR.unterthema
+                      : "#64748b";
+                return `<button type="button" class="ck-chip ${tone}" data-ck-open="${esc(s.id)}"><i class="ck-lvl" style="background:${color}"></i>${esc(s.name)}</button>`;
               })
               .join("")}</div>`;
         return `<div class="ck-mcard ${!ck.beamer && stuck >= 2 ? "ck-mcard--stuck" : ""}">
@@ -463,9 +558,12 @@
       })
       .join("");
     const free = list.filter((s) => s.today && !s.today.goalId).length;
+    const tipExtra = stagesEnabled
+      ? `„Könnten erklären“ = heute da und ${tipExpert} sicher.`
+      : `„Könnten erklären“ = heute da und Unterthema sicher.`;
     return `<div class="ck-now-grid">${cards}
       ${free ? `<div class="ck-mcard"><div class="ck-mnum">EIGENES ZIEL</div><h3>Ohne Mission</h3><div class="ck-small ck-muted">${free} mit einem freien Tagesziel</div></div>` : ""}
-      ${ck.beamer ? "" : `<div class="ck-mcard ck-mcard--tip"><div class="ck-mnum">TIPP</div><h3>Mini-Input planen</h3><div class="ck-small ck-muted">Hängen 2 oder mehr an derselben Mission, wird die Karte gelb. Ein 5-Minuten-Input für diese Gruppe spart Einzelrunden. „Könnten erklären“ = heute da und Street Legend sicher.</div></div>`}
+      ${ck.beamer ? "" : `<div class="ck-mcard ck-mcard--tip"><div class="ck-mnum">TIPP</div><h3>Mini-Input planen</h3><div class="ck-small ck-muted">Hängen 2 oder mehr an derselben Mission, wird die Karte gelb. Ein 5-Minuten-Input für diese Gruppe spart Einzelrunden. ${esc(tipExtra)}</div></div>`}
     </div>`;
   }
 
@@ -475,10 +573,14 @@
     const d = ck.data;
     const training = d.training || { missions: [], self: {}, idle: [], over: [] };
     const N = students().length || 1;
+    const { markTiers, stagesEnabled } = levels();
+    if (stagesEnabled && !markTiers.includes(ck.tier)) ck.tier = markTiers[0] || "rookie";
     const tier = ck.tier;
-    const color = TIER_COLOR[tier];
+    const color = TIER_COLOR[tier] || TIER_COLOR.rookie;
     let trainingBody;
-    if (!training.missions.length) {
+    if (!stagesEnabled) {
+      trainingBody = `<p class="ck-muted ck-small">Für diese Klasse sind keine Stufen (Rookie / Operator / Street Legend) aktiv. Der Lernstand läuft über Unterthema – siehe Heatmap und „Jetzt an der Mission“.</p>`;
+    } else if (!training.missions.length) {
       trainingBody = `<p class="ck-muted ck-small">Diese Einheit ist nicht mit dem Trainingscenter verbunden. Verknüpft sind Funktionen, Potenzen, Quadratische Gleichungen und Trigonometrie.</p>`;
     } else {
       trainingBody = training.missions
@@ -545,21 +647,27 @@
           ${idle || `<p class="ck-muted ck-small">Niemand. Alle angefangenen Stufen haben sich in den letzten 5 Tagen bewegt.</p>`}
         </div>
       </details>`;
+    const tierTabs = stagesEnabled
+      ? `<div class="ck-tier-tabs" role="group" aria-label="Stufe">
+            ${markTiers.map((t) => `<button type="button" data-ck-tier="${t}" aria-pressed="${t === tier ? "true" : "false"}" class="ck-tier-${t}">${TIER_LABEL[t]}</button>`).join("")}
+          </div>`
+      : "";
+    const legend = stagesEnabled
+      ? `<div class="ck-legend">
+            <span><i class="ck-lg" style="background:${color}"></i>sicher (6 von 6)</span>
+            <span><i class="ck-lg" style="background:rgba(148,163,184,.55)"></i>teilweise (3–5)</span>
+            <span><i class="ck-lg" style="background:rgba(148,163,184,.28)"></i>noch nicht (1–2)</span>
+          </div>`
+      : "";
     return `
       <aside class="ck-col">
         <div class="ck-panel">
           <h2><span>Trainingscenter</span><span class="td-kicker">diese Einheit</span></h2>
-          <div class="ck-tier-tabs" role="group" aria-label="Stufe">
-            ${TIERS.map((t) => `<button type="button" data-ck-tier="${t}" aria-pressed="${t === tier ? "true" : "false"}" class="ck-tier-${t}">${TIER_LABEL[t]}</button>`).join("")}
-          </div>
+          ${tierTabs}
           ${trainingBody}
-          <div class="ck-legend">
-            <span><i class="ck-lg" style="background:${color}"></i>sicher (6 von 6)</span>
-            <span><i class="ck-lg" style="background:rgba(148,163,184,.55)"></i>teilweise (3–5)</span>
-            <span><i class="ck-lg" style="background:rgba(148,163,184,.28)"></i>noch nicht (1–2)</span>
-          </div>
+          ${legend}
         </div>
-        ${secondary}
+        ${stagesEnabled ? secondary : ""}
       </aside>`;
   }
 
@@ -751,7 +859,11 @@
             )
             .join("")}</div>
           <div class="ck-form-row">
-            <label>Stufe <select class="ck-input" data-ck-form="tier">${TIERS.map((t) => `<option value="${t}" ${f.tier === t ? "selected" : ""}>${TIER_LABEL[t]}</option>`).join("")}</select></label>
+            ${
+              levels().missionTiers.length > 1 || levels().stagesEnabled
+                ? `<label>Stufe <select class="ck-input" data-ck-form="tier">${levels().missionTiers.map((t) => `<option value="${t}" ${f.tier === t ? "selected" : ""}>${TIER_LABEL[t]}</option>`).join("")}</select></label>`
+                : `<input type="hidden" data-ck-form="tier" value="unterthema"><p class="ck-small ck-muted">Stufe: Unterthema (keine R/O/SL aktiv)</p>`
+            }
             <label>bis <input type="date" class="ck-input" data-ck-form="due" value="${esc(f.dueDate || "")}"></label>
           </div>
           <label class="ck-form-full">Eigener Titel (optional)<input type="text" class="ck-input" maxlength="160" data-ck-form="title" value="${esc(f.title || "")}" placeholder="${esc(formTitle(f))}"></label>
@@ -765,13 +877,13 @@
         <p class="ck-small"><strong>${esc(m.title)}</strong></p>
         <div class="ck-goalbar"><b style="width:${pct.toFixed(1)}%"></b></div>
         <p class="ck-small ${complete ? "ck-win" : "ck-muted"}">${complete ? `Geschafft! Alle ${m.total} haben es.` : `${m.done} von ${m.total} geschafft · noch ${m.total - m.done}`}</p>
-        <p class="ck-tiny ck-muted">Nur Zahlen, keine Namen. Zählt ${esc(m.tierLabel)} oder höher als sicher.${m.dueDate ? ` Bis ${esc(fmtDate(m.dueDate))}.` : ""}</p>
+        <p class="ck-tiny ck-muted">Nur Zahlen, keine Namen. ${m.tier === "unterthema" ? "Zählt Unterthema als sicher." : `Zählt ${esc(m.tierLabel)} oder höher als sicher.`}${m.dueDate ? ` Bis ${esc(fmtDate(m.dueDate))}.` : ""}</p>
         <div class="ck-acts ck-private"><button type="button" class="ck-btn ck-btn-sm" data-ck-mission="close" data-id="${esc(m.id)}">Beenden</button>
         <button type="button" class="ck-btn ck-btn-sm" data-ck-mission="new">Neue Klassen-Mission</button></div>`;
     } else {
       body = `
         ${m ? `<p class="ck-small ck-muted">Zuletzt: ${esc(m.title)} · ${m.done} von ${m.total} geschafft.</p>` : ""}
-        <p class="ck-small ck-muted">Ein gemeinsames Lernziel für alle, zum Beispiel „bis Dienstag alle Mission 1–2 auf Rookie sicher“. Die Klasse sieht nur, wie viele es schon haben.</p>
+        <p class="ck-small ck-muted">Ein gemeinsames Lernziel für alle, zum Beispiel „bis Dienstag alle Mission 1–2${levels().stagesEnabled ? " auf Rookie" : ""} sicher“. Die Klasse sieht nur, wie viele es schon haben.</p>
         <div class="ck-acts ck-private"><button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-ck-mission="new" ${goals().length ? "" : "disabled"}>Klassen-Mission anlegen</button></div>`;
     }
     return `
@@ -786,6 +898,9 @@
       .filter((g) => f.goalIds.includes(String(g.id)))
       .map((g) => g.number);
     const when = f.dueDate ? `Bis ${fmtDate(f.dueDate)}` : "Gemeinsam";
+    if (f.tier === "unterthema" || !levels().stagesEnabled) {
+      return `${when} haben alle ${missionsText(nums) || "die Missionen"} sicher.`;
+    }
     return `${when} haben alle ${missionsText(nums) || "die Missionen"} auf ${TIER_LABEL[f.tier] || "Rookie"} sicher.`;
   }
 
@@ -903,34 +1018,56 @@
     const visit = live.visit.find((v) => Number(v.studentId) === Number(s.id));
     const over = (d.training?.over || []).find((o) => Number(o.studentId) === Number(s.id));
     const idle = idleMap().get(Number(s.id));
+    const { displayTiers, stagesEnabled, markTiers } = levels();
     const st = (v) => (v === "sicher" ? "✔" : v === "in_arbeit" ? "…" : "·");
+    const tierColors = {
+      unterthema: "#6ee7b7",
+      rookie: "#67e8f9",
+      operator: "#c4b5fd",
+      street_legend: "#f9a8d4"
+    };
     const rows = goals()
       .map((g, i) => {
-        const mk = s.marks?.[g.id] || ["offen", "offen", "offen"];
+        const mk = s.marks?.[g.id] || displayTiers.map(() => "offen");
         const tr = s.training?.[g.id];
-        const cell = (k) => `${st(mk[k])}${tr && tr.solved[k] ? ` ${Math.min(tr.solved[k], 6)}/6` : ""}`;
+        const cells = displayTiers
+          .map((tier, ti) => {
+            const markIdx = ti;
+            const trainIdx = stagesEnabled ? markTiers.indexOf(tier) : -1;
+            const trainBit =
+              trainIdx >= 0 && tr?.solved?.[trainIdx] ? ` ${Math.min(tr.solved[trainIdx], 6)}/6` : "";
+            return `<td style="color:${tierColors[tier] || "#e2e8f0"}">${st(mk[markIdx])}${trainBit}</td>`;
+          })
+          .join("");
         return `<tr class="${i === s.current && !s.allDone ? "ck-row-now" : ""}"><td>${g.number} · ${esc(clip(g.text, 24))}</td>
-          <td style="color:#67e8f9">${cell(0)}</td><td style="color:#c4b5fd">${cell(1)}</td><td style="color:#f9a8d4">${cell(2)}</td>
+          ${cells}
           <td class="ck-muted">${tr?.updated ? (tr.updated === d.date ? "heute" : `vor ${daysBetween(tr.updated, d.date)} T.`) : "–"}</td></tr>`;
       })
       .join("");
     const today = s.today;
+    const todayLevel =
+      today?.level && (stagesEnabled ? TIERS.includes(today.level) : true)
+        ? ` auf ${esc(TIER_LABEL[today.level] || today.level)}`
+        : "";
     const todayText = today
-      ? `${today.goalId ? `${esc(missionLabel(today.goalId))} „${esc(clip(goalById(today.goalId)?.text || "", 40))}“` : "Freies Tagesziel"}${today.level ? ` auf ${esc(TIER_LABEL[today.level] || today.level)}` : ""}${today.confidence != null ? ` · Sicherheitsgefühl ${today.confidence}/5` : ""}${today.reflected ? " · Tag abgeschlossen" : ""}`
+      ? `${today.goalId ? `${esc(missionLabel(today.goalId))} „${esc(clip(goalById(today.goalId)?.text || "", 40))}“` : "Freies Tagesziel"}${todayLevel}${today.confidence != null ? ` · Sicherheitsgefühl ${today.confidence}/5` : ""}${today.reflected ? " · Tag abgeschlossen" : ""}`
       : "noch kein Tagesziel in diesem Fach";
     const notes = [];
     if (help) notes.push(`<div class="ck-note ck-note--help"><strong>Hilfe angefragt</strong>${help.waitMinutes != null ? ` seit ${help.waitMinutes} min` : ""}${help.concern ? `: „${esc(help.concern)}“` : ""}</div>`);
     if (visit) notes.push(`<div class="ck-note"><strong>Mal vorbeischauen:</strong> ${(visit.reasons || []).map((r) => esc(r.label)).join(" · ")}</div>`);
-    if (over) {
+    if (stagesEnabled && over) {
       const item = over.items[0];
       const g = goalById(item.goalId);
       notes.push(`<div class="ck-note"><strong>Selbstbild:</strong> sagt im Training bei Mission ${g ? g.number : "?"} (${esc(TIER_LABEL[item.tier])}) „ich kann das“, hat aber erst ${item.solved} von 6 Aufgaben gelöst. Impuls: „Zeig mir eine Aufgabe, bei der du sicher bist.“</div>`);
     }
-    if (idle) {
+    if (stagesEnabled && idle) {
       const g = goalById(idle.goalId);
       notes.push(`<div class="ck-note"><strong>Liegen geblieben:</strong> Mission ${g ? g.number : "?"} (${esc(TIER_LABEL[idle.tier])}) seit ${idle.days} Tagen ohne neuen Trainingsstand.</div>`);
     }
     if (!notes.length) notes.push(`<div class="ck-note ck-note--good"><strong>Läuft.</strong> Kein Hinweis mit genug Belegen.</div>`);
+    const headCols = displayTiers
+      .map((tier) => `<th>${esc(tier === "street_legend" ? "Street L." : TIER_LABEL[tier] || tier)}</th>`)
+      .join("");
     return `
       <div class="ck-drawer-layer" role="dialog" aria-modal="true" aria-label="Schüler:in">
         <button type="button" class="ck-drawer-backdrop" data-ck-close aria-label="Schließen"></button>
@@ -946,8 +1083,8 @@
           <p class="ck-small ck-muted">Rang ${esc(base.rang || "–")} · ${num(base.xp)} XP</p>
           <div class="ck-note ck-note--good"><strong>Heute:</strong> ${todayText}</div>
           ${notes.join("")}
-          <table><thead><tr><th>Mission</th><th>Rookie</th><th>Operator</th><th>Street L.</th><th>Training</th></tr></thead><tbody>${rows}</tbody></table>
-          <p class="ck-small ck-muted">✔ sicher · … in Arbeit · · offen. Zahlen = gelöste Aufgaben im Trainingscenter (sicher ab 6).</p>
+          <table><thead><tr><th>Mission</th>${headCols}<th>Training</th></tr></thead><tbody>${rows}</tbody></table>
+          <p class="ck-small ck-muted">✔ sicher · … in Arbeit · · offen.${stagesEnabled ? " Zahlen = gelöste Aufgaben im Trainingscenter (sicher ab 6)." : ""}</p>
           <div class="ck-acts">
             <button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-open-student="${esc(s.id)}">Profil öffnen</button>
             <button type="button" class="ck-btn ck-btn-sm" data-ck-close>Schließen</button>
@@ -1065,7 +1202,12 @@
       const firstTwo = goals()
         .slice(0, Math.min(2, goals().length))
         .map((g) => String(g.id));
-      ck.form = { goalIds: firstTwo, tier: "rookie", dueDate: target?.date || "", title: "" };
+      ck.form = {
+        goalIds: firstTwo,
+        tier: levels().missionTiers[0] || "rookie",
+        dueDate: target?.date || "",
+        title: ""
+      };
       render();
       return;
     }

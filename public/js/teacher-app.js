@@ -131,11 +131,40 @@
     return "noch nicht einschätzbar";
   }
 
+  function classLevels() {
+    const view = state.view || {};
+    const fromView = Array.isArray(view.activeLevels) ? view.activeLevels : null;
+    const cls = (state.classes || []).find((c) => Number(c.id) === Number(state.classId));
+    const raw = fromView || cls?.activeLevels || [];
+    const ids = (Array.isArray(raw) ? raw : [])
+      .map((t) => (typeof t === "string" ? t : t?.id))
+      .filter(Boolean);
+    const markTiers = ["rookie", "operator", "street_legend"].filter((t) => ids.includes(t));
+    const stagesEnabled =
+      view.stagesEnabled != null ? Boolean(view.stagesEnabled) && markTiers.length > 0 : markTiers.length > 0;
+    const unterthemaOnly =
+      view.unterthemaOnly === true || (!stagesEnabled && ids.includes("unterthema"));
+    return {
+      activeLevels: ids.length ? ids : ["rookie", "operator", "street_legend"],
+      markTiers: stagesEnabled ? markTiers : [],
+      stagesEnabled,
+      unterthemaOnly,
+      expertLabel: stagesEnabled
+        ? markTiers.includes("street_legend")
+          ? "Street Legend"
+          : markTiers.includes("operator")
+            ? "Operator"
+            : "Rookie"
+        : "Unterthema"
+    };
+  }
+
   function levelChip(stand) {
     if (!stand?.tier || !stand.status) {
       return `<span class="td-lv td-lv--open">offen</span>`;
     }
-    const tone = stand.tier === "rookie" ? "r" : stand.tier === "operator" ? "o" : "s";
+    const tone =
+      stand.tier === "rookie" ? "r" : stand.tier === "operator" ? "o" : stand.tier === "unterthema" ? "u" : "s";
     const mode = stand.status === "sicher" ? "fill" : "work";
     const stateLabel = stand.status === "sicher" ? "sicher" : "in Arbeit";
     return `<span class="td-lv td-lv--${tone} td-lv--${mode}">${escapeHtml(stand.short || "")} · ${escapeHtml(stand.tierLabel || "")} · ${stateLabel}</span>`;
@@ -265,7 +294,7 @@
         <section class="td-lane td-lane--run" aria-label="Läuft">
           <header><h2>Läuft</h2><span class="td-count">${live.runningCount}</span></header>
           <p>Expert:innen heute</p>
-          <div class="td-chips">${experts || `<p class="td-muted">Niemand mit Street Legend sicher am heutigen Unterthema.</p>`}</div>
+          <div class="td-chips">${experts || `<p class="td-muted">Niemand mit ${escapeHtml(classLevels().expertLabel)} sicher am heutigen Unterthema.</p>`}</div>
         </section>
       </div>`;
   }
@@ -330,16 +359,24 @@
       return `<section class="td-panel" style="margin-top:12px"><p class="td-kicker">Trainingscenter</p><p class="td-muted">${escapeHtml(data.message)}</p></section>`;
     }
     if (!data.isFunktionen) return "";
+    const { stagesEnabled, markTiers } = classLevels();
+    if (!stagesEnabled) {
+      return `<section class="td-panel" style="margin-top:12px"><p class="td-kicker">Trainingscenter</p><p class="td-muted">Für diese Klasse sind keine Stufen (Rookie / Operator / Street Legend) aktiv. Der Lernstand läuft über Unterthema.</p></section>`;
+    }
+    const trainingKeys = [
+      ["rookie", "Rookie"],
+      ["operator", "Operator"],
+      ["streetLegend", "Street Legend"]
+    ].filter(([key]) => markTiers.includes(key === "streetLegend" ? "street_legend" : key));
     const abweichung = (data.abweichungen || []).map((item) => item.name).filter(Boolean);
     const cards = (data.goals || [])
       .map((goal) => {
         const people = (goal.students || [])
           .map((student) => {
-            const bits = ["rookie", "operator", "streetLegend"]
-              .map((tier) => {
+            const bits = trainingKeys
+              .map(([tier, label]) => {
                 const stand = student.stufen?.[tier];
                 if (!stand) return "";
-                const label = tier === "rookie" ? "Rookie" : tier === "operator" ? "Operator" : "Street Legend";
                 return `${label} ${stand.stand}${stand.ueberschaetzt ? " · überschätzt" : ""}`;
               })
               .filter(Boolean)
@@ -499,8 +536,11 @@
           </article>`;
       })
       .join("");
+    const levelHint = classLevels().stagesEnabled
+      ? "Offen ist gestrichelt. In Arbeit hat einen farbigen Rand. Sicher ist gefüllt. Daneben steht immer das Level im Wort."
+      : "Offen ist gestrichelt. In Arbeit hat einen farbigen Rand. Sicher ist gefüllt. Angezeigt wird der Unterthema-Stand (keine Rookie/Operator/Street-Legend-Stufen aktiv).";
     return `<div class="td-stand-list" style="margin-top:12px">${cards}</div>
-      <p class="td-muted">Offen ist gestrichelt. In Arbeit hat einen farbigen Rand. Sicher ist gefüllt. Daneben steht immer das Level im Wort.</p>`;
+      <p class="td-muted">${levelHint}</p>`;
   }
 
   function renderListe() {
@@ -547,10 +587,30 @@
     const neutral = (student.neutral || [])
       .map((item) => `<p class="td-note">${escapeHtml(item.text)}</p>`)
       .join("");
+    const { stagesEnabled, markTiers } = classLevels();
     const path = student.path
-      ? `Zielpfad zu Note ${escapeHtml(student.targetGradeLabel || "")}: Rookie ${Math.round(student.path.rookie * 100)} %, Operator ${Math.round(student.path.operator * 100)} %, Street Legend ${Math.round(student.path.street_legend * 100)} %.`
+      ? stagesEnabled
+        ? `Zielpfad zu Note ${escapeHtml(student.targetGradeLabel || "")}: ${[
+            markTiers.includes("rookie") ? `Rookie ${Math.round(student.path.rookie * 100)} %` : "",
+            markTiers.includes("operator") ? `Operator ${Math.round(student.path.operator * 100)} %` : "",
+            markTiers.includes("street_legend")
+              ? `Street Legend ${Math.round(student.path.street_legend * 100)} %`
+              : ""
+          ]
+            .filter(Boolean)
+            .join(", ")}.`
+        : `Zielpfad zu Note ${escapeHtml(student.targetGradeLabel || "")}: Lernstand über Unterthema (keine Stufen aktiv).`
       : "Kein Zielpfad, weil keine Zielnote gespeichert ist.";
     const sicher = student.sicher || {};
+    const sicherLine = stagesEnabled
+      ? `Sichere Level: ${[
+          markTiers.includes("rookie") ? `Rookie ${sicher.rookie || 0}` : "",
+          markTiers.includes("operator") ? `Operator ${sicher.operator || 0}` : "",
+          markTiers.includes("street_legend") ? `Street Legend ${sicher.street_legend || 0}` : ""
+        ]
+          .filter(Boolean)
+          .join(", ")} von ${student.totalGoals || 0} Unterthemen. ${escapeHtml(student.prognosisReason || "")}.`
+      : `Lernstand über Unterthema (${student.totalGoals || 0} Unterthemen). ${escapeHtml(student.prognosisReason || "")}.`;
     const week = (student.week || [])
       .map((day) => {
         const label = ["", "Mo", "Di", "Mi", "Do", "Fr"][new Date(`${day.date}T12:00:00`).getDay()] || day.date;
@@ -595,7 +655,7 @@
         <summary><span class="td-kicker">Ziele setzen</span><strong>${escapeHtml(prognosisLabel(student.prognosis))}${student.standGradeLabel ? ` · Stand Note ${escapeHtml(student.standGradeLabel)}` : ""}</strong></summary>
         <div class="td-fold-body">
           <p>${escapeHtml(path)}</p>
-          <p>Sichere Level: Rookie ${sicher.rookie || 0}, Operator ${sicher.operator || 0}, Street Legend ${sicher.street_legend || 0} von ${student.totalGoals || 0} Unterthemen. ${escapeHtml(student.prognosisReason || "")}.</p>
+          <p>${sicherLine}</p>
         </div>
       </details>
       <details class="td-fold">

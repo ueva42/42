@@ -7,19 +7,23 @@ import express from "express";
 import {
   classMissionDone,
   classMissionTitle,
+  filterGradeRules,
   ghostDone,
   lessonsUntil,
   missionNumbersText,
+  normalizeActiveLevels,
   normalizeGameXp,
   paceStatus,
   paceText,
   pickWinner,
   planTarget,
   raffleEligible,
+  resolveClassLevels,
   studentPosition,
   teamStats,
   trainingBoard,
-  unitTimeline
+  unitTimeline,
+  wrapStatusForLevels
 } from "../lib/teacher-cockpit.js";
 import { registerTeacherCockpitRoutes } from "../lib/teacher-cockpit-api.js";
 
@@ -45,6 +49,42 @@ assert.equal(missionNumbersText([1, 3, 5]), "Mission 1, 3 und 5");
 assert.equal(
   classMissionTitle({ numbers: [1, 2], tier: "rookie", dueDate: "2026-11-17" }),
   "Bis Di., 17.11. haben alle Mission 1–2 auf Rookie sicher."
+);
+assert.equal(
+  classMissionTitle({ numbers: [1, 2], tier: "unterthema", dueDate: "2026-11-17" }),
+  "Bis Di., 17.11. haben alle Mission 1–2 sicher."
+);
+
+assert.deepEqual(normalizeActiveLevels(["unterthema"]), ["unterthema"]);
+assert.deepEqual(normalizeActiveLevels(["rookie", "operator"]), ["rookie", "operator"]);
+assert.deepEqual(normalizeActiveLevels([]), ["rookie", "operator", "street_legend"]);
+const onlyTopic = resolveClassLevels(["unterthema"]);
+assert.equal(onlyTopic.stagesEnabled, false);
+assert.equal(onlyTopic.unterthemaOnly, true);
+assert.deepEqual(onlyTopic.displayTiers, ["unterthema"]);
+assert.deepEqual(onlyTopic.missionTiers, ["unterthema"]);
+const partial = resolveClassLevels(["rookie", "operator"]);
+assert.equal(partial.stagesEnabled, true);
+assert.deepEqual(partial.markTiers, ["rookie", "operator"]);
+assert.deepEqual(partial.displayTiers, ["rookie", "operator"]);
+assert.deepEqual(filterGradeRules({ rookie: 1, operator: 0.8, street_legend: 0.5 }, ["rookie", "operator"]), {
+  rookie: 1,
+  operator: 0.8,
+  street_legend: 0
+});
+assert.equal(classMissionDone(["a"], "unterthema", (g, t) => (t === "unterthema" ? "sicher" : "offen")), true);
+assert.equal(classMissionDone(["a"], "unterthema", () => "offen"), false);
+
+const statusMap = { rookie: "sicher", operator: "offen", street_legend: "offen", unterthema: "sicher" };
+const wrappedPartial = wrapStatusForLevels((goal, tier) => statusMap[tier] || "offen", partial);
+assert.equal(wrappedPartial({}, "street_legend"), "sicher", "inaktive Stufe blockiert Fortschritt nicht");
+assert.equal(wrappedPartial({}, "operator"), "offen");
+const wrappedTopic = wrapStatusForLevels((goal, tier) => statusMap[tier] || "offen", onlyTopic);
+assert.equal(wrappedTopic({}, "rookie"), "sicher", "nur Unterthema: Status kommt vom Unterthema");
+assert.equal(
+  studentPosition([{ id: "g1" }, { id: "g2" }], null, wrappedTopic).done,
+  2,
+  "Unterthema sicher = Missionen geschafft"
 );
 
 const unit = unitTimeline(CHECK, TODAY);
@@ -118,6 +158,7 @@ const db = {
     { id: 12, name: "Amir", xp: 40, rang: "Rookie" },
     { id: 13, name: "Mila", xp: 220, rang: "Fixer" }
   ],
+  activeLevels: ["rookie", "operator", "street_legend"],
   reflected: [],
   marks: [
     { user_id: 11, goal_id: goalIds[0], tier: "rookie", status: "sicher", updated_at: new Date(`${TODAY}T09:40:00`) },
@@ -188,7 +229,12 @@ const pool = {
   async query(sql, params = []) {
     const s = sql.replace(/\s+/g, " ");
     if (s.includes("teacher_class_assignments")) return { rows: Number(params[1]) === 1 ? [{ x: 1 }] : [] };
-    if (s.includes("FROM classes WHERE id")) return { rows: [{ id: 1, name: "9b" }] };
+    if (s.includes("SELECT active_levels FROM classes")) {
+      return { rows: [{ active_levels: db.activeLevels }] };
+    }
+    if (s.includes("FROM classes WHERE id")) {
+      return { rows: [{ id: 1, name: "9b", active_levels: db.activeLevels }] };
+    }
     if (s.includes("LEFT JOIN levels l")) return { rows: db.students };
     if (s.includes("UNION")) return { rows: db.reflected.map((id) => ({ id })) };
     if (s.includes("FROM level_check_marks") && s.includes("GROUP BY user_id")) {
@@ -368,6 +414,10 @@ try {
   assert.equal(r.status, 200);
   const d = r.body;
   assert.equal(d.goals.length, 5);
+  assert.deepEqual(d.activeLevels, ["rookie", "operator", "street_legend"]);
+  assert.equal(d.stagesEnabled, true);
+  assert.deepEqual(d.markTiers, ["rookie", "operator", "street_legend"]);
+  assert.deepEqual(d.displayTiers, ["rookie", "operator", "street_legend"]);
   assert.equal(d.unit.target.kind, "levelcheck");
   assert.equal(d.unit.target.planIndex, 3);
   assert.equal(d.unit.lessonsUntilTarget, 2, "Do 12.11. und Mo 16.11.");
@@ -481,6 +531,66 @@ try {
   assert.equal(r.body.game.mission.total, 3);
   assert.equal(r.body.game.raffle.drawn.winnerId, 13);
   assert.equal(r.body.game.team.name, "Team Blau");
+
+  // Nur Unterthema aktiv: keine R/O/SL in markTiers, Heatmap nutzt displayTiers=["unterthema"]
+  db.activeLevels = ["unterthema"];
+  db.marks.push(
+    { user_id: 11, goal_id: goalIds[0], tier: "unterthema", status: "sicher", updated_at: new Date("2026-11-04T10:00:00") },
+    { user_id: 11, goal_id: goalIds[1], tier: "unterthema", status: "sicher", updated_at: new Date("2026-11-04T10:00:00") },
+    { user_id: 11, goal_id: goalIds[2], tier: "unterthema", status: "sicher", updated_at: new Date("2026-11-04T10:00:00") },
+    { user_id: 11, goal_id: goalIds[3], tier: "unterthema", status: "sicher", updated_at: new Date("2026-11-04T10:00:00") },
+    { user_id: 11, goal_id: goalIds[4], tier: "unterthema", status: "sicher", updated_at: new Date("2026-11-04T10:00:00") }
+  );
+  user = { id: 5, role: "teacher", school_id: 1 };
+  r = await call("GET", "/api/teacher/cockpit?classId=1");
+  assert.equal(r.status, 200);
+  assert.equal(r.body.stagesEnabled, false);
+  assert.equal(r.body.unterthemaOnly, true);
+  assert.deepEqual(r.body.markTiers, []);
+  assert.deepEqual(r.body.displayTiers, ["unterthema"]);
+  assert.equal(r.body.shares[0].unterthema, 1);
+  assert.equal(r.body.shares[0].rookie, undefined, "keine Rookie-Spalte wenn Stufen aus");
+  assert.deepEqual(r.body.studentsDetail.find((s) => s.id === 11).marks[goalIds[0]], ["sicher"]);
+  assert.deepEqual(Object.keys(r.body.training.missions[0]?.tiers || {}), [], "Trainingscenter ohne aktive Stufen");
+
+  r = await call("POST", "/api/teacher/cockpit/class-mission", {
+    classId: 1,
+    levelCheckId: "lc-1",
+    goalIds: [goalIds[0]],
+    tier: "street_legend",
+    title: ""
+  });
+  assert.equal(r.status, 200);
+  assert.equal(db.missions.find((m) => m.active)?.tier, "unterthema", "Street Legend wird auf Unterthema korrigiert");
+  assert.match(db.missions.find((m) => m.active).title, /sicher\.$/, "Titel ohne Rookie/Operator/Street Legend");
+
+  // Teilweise Stufen: Rookie + Operator ohne Street Legend
+  db.activeLevels = ["rookie", "operator"];
+  r = await call("GET", "/api/teacher/cockpit?classId=1");
+  assert.equal(r.body.stagesEnabled, true);
+  assert.deepEqual(r.body.markTiers, ["rookie", "operator"]);
+  assert.deepEqual(r.body.displayTiers, ["rookie", "operator"]);
+  assert.equal(r.body.shares[0].street_legend, undefined);
+  assert.equal(r.body.shares[0].rookie, 1);
+  assert.deepEqual(r.body.studentsDetail.find((s) => s.id === 11).marks[goalIds[0]], ["sicher", "offen"]);
+  r = await call("POST", "/api/teacher/cockpit/class-mission", {
+    classId: 1,
+    levelCheckId: "lc-1",
+    goalIds: [goalIds[0]],
+    tier: "street_legend"
+  });
+  assert.equal(db.missions.find((m) => m.active).tier, "rookie", "inaktive Street Legend fällt auf erste aktive Stufe");
+
+  db.activeLevels = ["rookie", "operator", "street_legend"];
+  // Operator-Mission wiederherstellen (wie vor den activeLevels-Tests), damit Schüler-Ansicht unverändert prüfbar bleibt
+  r = await call("POST", "/api/teacher/cockpit/class-mission", {
+    classId: 1,
+    levelCheckId: "lc-1",
+    goalIds: [goalIds[0]],
+    tier: "operator",
+    title: "Alle Mission 1 auf Operator"
+  });
+  assert.equal(r.status, 200);
 
   user = { id: 12, role: "student", school_id: 1, class_id: 1 };
   r = await call("GET", "/api/student/class-game");
