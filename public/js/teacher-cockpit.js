@@ -7,13 +7,10 @@
   const REFRESH_MS = 60000;
   const TIERS = ["rookie", "operator", "street_legend"];
   const TIER_LABEL = { rookie: "Rookie", operator: "Operator", street_legend: "Street Legend" };
-  const TIER_SHORT = { rookie: "R", operator: "O", street_legend: "SL" };
   const TIER_COLOR = { rookie: "#22d3ee", operator: "#8b5cf6", street_legend: "#f472b6" };
   const PACE_COLOR = { ok: "#22d3ee", mid: "#fbbf24", low: "#f97316", none: "#64748b" };
-  const ARCS = { rookie: [212, 328], operator: [338, 92], street_legend: [102, 202] };
   const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
   const VIEW_TITLE = {
-    road: "Straße der Klasse",
     heat: "Missionen × Schüler:innen",
     now: "Wer ist gerade an welcher Mission?"
   };
@@ -31,10 +28,11 @@
     error: "",
     toast: "",
     updatedAt: null,
-    view: "road",
+    view: "now",
     tier: "rookie",
     beamer: false,
     drawerId: null,
+    moreOpen: false,
     form: null,
     raffleXp: 10,
     teamXp: 10,
@@ -91,11 +89,6 @@
     return t.length > max ? `${t.slice(0, Math.max(1, max - 1))}…` : t;
   }
 
-  function initials(name) {
-    const first = String(name || "?").split(/[.\s_-]+/).filter(Boolean)[0] || "?";
-    return first.charAt(0).toUpperCase() + first.slice(1, 2);
-  }
-
   function missionsText(numbers) {
     const list = [...new Set((numbers || []).map(Number).filter((n) => n > 0))].sort((a, b) => a - b);
     if (!list.length) return "";
@@ -115,13 +108,6 @@
         pathLength="100" stroke-dasharray="${p.toFixed(1)} 100" transform="rotate(-90 ${c} ${c})"/>
       <text x="${c}" y="${c + size / 14}" text-anchor="middle" fill="#f8fafc" font-size="${Math.round(size / 5)}" font-weight="700" font-family="Orbitron, system-ui">${esc(label)}</text>
     </svg>`;
-  }
-
-  function arcPath(r, a0, a1) {
-    const at = (a) => [Math.cos((a * Math.PI) / 180) * r, Math.sin((a * Math.PI) / 180) * r];
-    const [s, e] = [at(a0), at(a1)];
-    const sweep = (a1 - a0 + 360) % 360 > 180 ? 1 : 0;
-    return `M${s[0].toFixed(2)} ${s[1].toFixed(2)}A${r} ${r} 0 ${sweep} 1 ${e[0].toFixed(2)} ${e[1].toFixed(2)}`;
   }
 
   /* ---------- Daten ---------- */
@@ -289,15 +275,9 @@
     for (const s of list) pace[s.pace || "none"] += 1;
     const target = d?.unit?.target;
     const days = target ? daysBetween(d.date, target.date) : null;
-    const game = d?.game?.klassenziel || {};
-    const goalPct = game.target ? Math.min(100, (game.total / game.target) * 100) : 0;
     const bar = (count, color) => (n ? `<span style="width:${((count / n) * 100).toFixed(1)}%;background:${color}"></span>` : "");
     return `
       <section class="ck-kpis" aria-label="Kennzahlen">
-        <button type="button" class="ck-kpi" data-ck-view="now">
-          ${ring(n ? (withGoal / n) * 100 : 0, "#22d3ee", 58, 7, String(withGoal))}
-          <div><div class="ck-kpi-lbl">arbeiten an einem Tagesziel</div><div class="ck-kpi-sub">${withGoal} von ${n} · Anwesenheit kennt die App nicht</div></div>
-        </button>
         <div class="ck-kpi ck-kpi--help ck-private">
           <div><div class="ck-num">${live.help.length}</div><div class="ck-kpi-lbl">Hilfe angefragt</div>
           <div class="ck-kpi-sub">${live.help.length ? `längste Wartezeit <span class="ck-wait">${maxWait} min</span>` : "gerade niemand"}</div></div>
@@ -305,21 +285,16 @@
         <div class="ck-kpi ck-kpi--visit ck-private">
           <div><div class="ck-num">${live.visit.length}</div><div class="ck-kpi-lbl">mal vorbeischauen</div><div class="ck-kpi-sub">Stillstand, Unsicherheit, Muster</div></div>
         </div>
-        <div class="ck-kpi ck-kpi--goal ck-private">
-          <div><div class="ck-num">${live.lesson ? live.noGoal.length : "–"}</div><div class="ck-kpi-lbl">noch ohne Tagesziel</div>
-          <div class="ck-kpi-sub">${live.lesson ? "zählt nach Stundenbeginn" : "nur während einer Stunde im Plan"}</div></div>
-        </div>
-        <button type="button" class="ck-kpi ck-kpi--stack" data-ck-view="road">
+        <button type="button" class="ck-kpi ck-kpi--goal ck-private" data-ck-view="now">
+          <div><div class="ck-num">${live.lesson ? live.noGoal.length : withGoal}</div>
+          <div class="ck-kpi-lbl">${live.lesson ? "noch ohne Tagesziel" : "mit Tagesziel"}</div>
+          <div class="ck-kpi-sub">${live.lesson ? "zählt nach Stundenbeginn" : `${withGoal} von ${n}`}</div></div>
+        </button>
+        <div class="ck-kpi ck-kpi--stack">
           <div class="ck-row-between"><span class="ck-num ck-num--ok">${pace.ok}<span class="ck-of">/${n}</span></span>
           <span class="ck-kpi-sub">${target ? `${esc(target.label)} ${days === 0 ? "heute" : `in ${days} Tagen`}` : "kein Termin"}</span></div>
           <div class="ck-kpi-lbl">auf Kurs ${target ? `zum ${esc(target.label)}` : ""}</div>
           <div class="ck-bar">${bar(pace.ok, PACE_COLOR.ok)}${bar(pace.mid, PACE_COLOR.mid)}${bar(pace.low, PACE_COLOR.low)}${bar(pace.none, "rgba(100,116,139,.6)")}</div>
-        </button>
-        <div class="ck-kpi ck-kpi--stack">
-          <div class="ck-row-between"><span class="ck-num">+${num(game.xpToday)} <span class="ck-of">XP heute</span></span>
-          <span class="ck-kpi-sub">${num(game.peopleWeek)} von ${num(game.students)} diese Woche dabei</span></div>
-          <div class="ck-kpi-lbl">${game.target ? `Klassenziel ${num(game.total)} / ${num(game.target)} XP` : `Klassen-XP ${num(game.total)}`}</div>
-          <div class="ck-bar"><span style="width:${goalPct.toFixed(1)}%;background:linear-gradient(90deg,#22d3ee,#8b5cf6,#f472b6)"></span></div>
         </div>
       </section>`;
   }
@@ -390,172 +365,23 @@
   /* ---------- Mitte ---------- */
 
   function renderCenter() {
-    const views = ck.beamer ? ["road", "now"] : ["road", "heat", "now"];
-    if (!views.includes(ck.view)) ck.view = "road";
-    const label = { road: "Straße", heat: "Heatmap", now: "Jetzt an der Mission" };
-    let body = "";
-    if (ck.view === "road") body = renderRoad();
-    else if (ck.view === "heat") body = renderHeat();
-    else body = renderNow();
+    const views = ck.beamer ? ["now"] : ["now", "heat"];
+    if (!views.includes(ck.view)) ck.view = "now";
+    const label = { heat: "Heatmap", now: "Jetzt an der Mission" };
+    const body = ck.view === "heat" ? renderHeat() : renderNow();
     return `
       <section class="ck-panel ck-center">
         <h2><span>${esc(VIEW_TITLE[ck.view])}</span>
-          <span class="td-seg ck-seg" role="group" aria-label="Ansicht">
+          ${
+            views.length > 1
+              ? `<span class="td-seg ck-seg" role="group" aria-label="Ansicht">
             ${views.map((v) => `<button type="button" data-ck-view="${v}" aria-pressed="${ck.view === v ? "true" : "false"}">${label[v]}</button>`).join("")}
-          </span>
+          </span>`
+              : ""
+          }
         </h2>
         ${body}
       </section>`;
-  }
-
-  function roadGeometry(n) {
-    const W = 760;
-    const left = 80;
-    const right = W - 70;
-    const pts = [];
-    for (let i = 0; i < n; i++) {
-      const x = n === 1 ? (left + right) / 2 : left + ((right - left) * i) / (n - 1);
-      pts.push({ x, y: 165 + Math.sin((i + 0.35) * Math.PI) * 38 });
-    }
-    const start = { x: 22, y: (pts[0]?.y || 165) + 14 };
-    const flag = { x: W - 16, y: pts[n - 1]?.y || 165 };
-    const all = [start, ...pts, flag];
-    let d = `M${all[0].x} ${all[0].y}`;
-    for (let i = 1; i < all.length; i++) {
-      const a = all[i - 1];
-      const b = all[i];
-      const mx = (a.x + b.x) / 2;
-      d += ` C${mx.toFixed(1)} ${a.y.toFixed(1)} ${mx.toFixed(1)} ${b.y.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
-    }
-    return { W, pts, start, flag, d, gap: n > 1 ? (right - left) / (n - 1) : 300 };
-  }
-
-  function pointAt(geo, index) {
-    const n = geo.pts.length;
-    if (index >= n) return { x: geo.flag.x - 30, y: geo.flag.y };
-    const i = Math.max(0, Math.min(n - 1, index));
-    const a = geo.pts[Math.floor(i)];
-    const b = geo.pts[Math.min(n - 1, Math.ceil(i))];
-    const t = i - Math.floor(i);
-    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-  }
-
-  function renderRoad() {
-    const d = ck.data;
-    const gs = goals();
-    const list = students();
-    const n = gs.length;
-    if (!n) return `<p class="ck-muted">Diese Einheit hat noch keine Missionen.</p>`;
-    const N = list.length || 1;
-    const geo = roadGeometry(n);
-    const help = helpIds();
-    const target = d.unit?.target;
-    const shares = new Map((d.shares || []).map((s) => [String(s.goalId), s]));
-    const cols = Math.max(1, Math.min(4, Math.floor(geo.gap / 28)));
-    const groups = new Map();
-    for (const s of list) {
-      const key = s.allDone ? n : Math.min(s.current, n - 1);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(s);
-    }
-    let maxRows = 1;
-    for (const g of groups.values()) maxRows = Math.max(maxRows, Math.ceil(g.length / cols));
-    const H = Math.max(425, 292 + maxRows * 30 + 40);
-    const labelChars = Math.max(8, Math.floor(geo.gap / 6.2));
-    const finalEvent = (d.unit?.events || []).filter((e) => e.type !== "levelcheck").slice(-1)[0];
-    let svg = `
-      <defs><linearGradient id="ckRoadG" x1="0" x2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset=".55" stop-color="#8b5cf6"/><stop offset="1" stop-color="#f472b6"/></linearGradient></defs>
-      <path d="${geo.d}" fill="none" stroke="rgba(2,4,12,.9)" stroke-width="34" stroke-linecap="round"/>
-      <path d="${geo.d}" fill="none" stroke="url(#ckRoadG)" stroke-opacity=".35" stroke-width="30" stroke-linecap="round"/>
-      <path d="${geo.d}" fill="none" stroke="rgba(248,250,252,.5)" stroke-width="2" stroke-dasharray="10 12"/>
-      <text x="${geo.start.x}" y="${geo.start.y + 34}" fill="#94a3b8" font-size="11">Start ${esc(fmtShort(d.unit?.start))}</text>
-      <text x="${geo.flag.x}" y="${geo.flag.y - 26}" fill="#f9a8d4" font-size="11" text-anchor="end">${finalEvent ? `${esc(finalEvent.label)} ${esc(fmtShort(finalEvent.date))}` : "Ziel"} 🏁</text>`;
-    if (d.unit?.ghost != null) {
-      const g = pointAt(geo, d.unit.ghost);
-      svg += `
-        <g transform="translate(${g.x.toFixed(1)},${g.y.toFixed(1)})">
-          <rect x="-15" y="-34" width="30" height="68" rx="10" fill="rgba(248,250,252,.06)" stroke="#f8fafc" stroke-dasharray="4 4"/>
-          <text y="50" text-anchor="middle" fill="#f8fafc" font-size="11">Plan heute</text>
-          <title>Plan-Geist: bei gleichmäßigem Tempo wären heute ${dec(d.unit.ghost)} Missionen geschafft.</title>
-        </g>`;
-    }
-    if (target && target.kind === "levelcheck") {
-      const p = geo.pts[Math.min(n - 1, target.planIndex)];
-      svg += `
-        <g transform="translate(${(p.x + 34).toFixed(1)},${(p.y - 92).toFixed(1)})">
-          <path d="M0 0 L0 32" stroke="#fbbf24" stroke-width="2"/><path d="M0 0 L22 6 L0 12Z" fill="#fbbf24"/>
-          <text x="0" y="-6" text-anchor="middle" fill="#fde68a" font-size="11" font-weight="700">Levelcheck ${esc(fmtDate(target.date))}</text>
-        </g>`;
-    }
-    gs.forEach((goal, i) => {
-      const p = geo.pts[i];
-      const share = shares.get(String(goal.id)) || {};
-      let arcs = "";
-      for (const tier of TIERS) {
-        const [a0, a1] = ARCS[tier];
-        const path = arcPath(25, a0, a1);
-        const pct = ((Number(share[tier]) || 0) / N) * 100;
-        arcs += `<path d="${path}" fill="none" stroke="rgba(148,163,184,.22)" stroke-width="6" stroke-linecap="round"/>
-          <path d="${path}" fill="none" stroke="${TIER_COLOR[tier]}" stroke-width="6" stroke-linecap="round" pathLength="100" stroke-dasharray="${pct.toFixed(1)} 100"/>`;
-      }
-      const r = Math.round(((Number(share.rookie) || 0) / N) * 100);
-      const up = i % 2 === 1;
-      svg += `<g transform="translate(${p.x.toFixed(1)},${p.y.toFixed(1)})">${arcs}
-        <circle r="17" fill="#0b1428" stroke="rgba(248,250,252,.7)" stroke-width="1.5"/>
-        <text y="5" text-anchor="middle" fill="#f8fafc" font-family="Orbitron, system-ui" font-size="13" font-weight="700">${goal.number}</text>
-        <text y="${up ? -40 : 46}" text-anchor="middle" fill="#cbd5e1" font-size="11">${esc(clip(goal.text, labelChars))}<title>${esc(goal.text)}</title></text>
-        <text y="${up ? -28 : 58}" text-anchor="middle" fill="#67e8f9" font-size="10">Rookie ${r} %</text>
-      </g>`;
-    });
-    for (const [key, group] of groups) {
-      const p = key >= n ? { x: geo.flag.x - 40, y: geo.flag.y } : geo.pts[key];
-      const width = (Math.min(cols, group.length) - 1) * 28;
-      group.forEach((s, j) => {
-        const row = Math.floor(j / cols);
-        const c = j % cols;
-        const x = Math.min(geo.W - 14, Math.max(14, p.x - width / 2 + c * 28));
-        const y = 292 + row * 30;
-        const fill = PACE_COLOR[s.pace] || PACE_COLOR.none;
-        const active = !!s.today;
-        const ringHtml =
-          !ck.beamer && help.has(Number(s.id))
-            ? `<circle r="15" fill="none" stroke="#f97316" stroke-width="2"><animate attributeName="r" values="13;17;13" dur="1.6s" repeatCount="indefinite"/></circle>`
-            : "";
-        svg += `<g class="ck-dot" ${ck.beamer ? "" : `data-ck-open="${esc(s.id)}"`} transform="translate(${x.toFixed(1)},${y})">
-          ${ringHtml}
-          <circle class="ck-dot-body" r="11" fill="${fill}" fill-opacity="${active ? 1 : 0.35}" stroke="${active ? "#f8fafc" : "rgba(248,250,252,.3)"}" stroke-width="${active ? 1.5 : 1}" ${active ? "" : `stroke-dasharray="3 2"`}/>
-          ${ck.beamer ? "" : `<text y="4" text-anchor="middle" fill="#041018" font-size="9" font-weight="700">${esc(initials(s.name))}</text><title>${esc(s.name)} · ${esc(s.paceText)}</title>`}
-        </g>`;
-      });
-      const lineTop = key >= n ? p.y + 26 : p.y + (key % 2 ? 26 : 64);
-      svg += `<line x1="${p.x.toFixed(1)}" y1="${lineTop.toFixed(1)}" x2="${p.x.toFixed(1)}" y2="276" stroke="rgba(148,163,184,.25)" stroke-dasharray="2 3"/>`;
-    }
-    svg += `<text x="16" y="${H - 13}" fill="#94a3b8" font-size="11">Punkt = Schüler:in an der nächsten offenen Mission (nach Zielnote). Farbe = Abstand zum Plan-Geist.${ck.beamer ? "" : " Pulsierender Ring = Hilfe angefragt."}</text>`;
-
-    const planIndex = target ? target.planIndex : -1;
-    const fill = gs
-      .map((goal, i) => {
-        const share = shares.get(String(goal.id)) || {};
-        const rows = TIERS.map((tier) => {
-          const pct = Math.round(((Number(share[tier]) || 0) / N) * 100);
-          return `<div class="ck-fill-row"><span style="color:${TIER_COLOR[tier]}">${TIER_SHORT[tier]}</span><div class="ck-fill-bar"><b style="width:${pct}%;background:${TIER_COLOR[tier]}"></b></div><span>${pct}%</span></div>`;
-        }).join("");
-        return `<div class="ck-fill-col ${i <= planIndex ? "ck-fill-col--lc" : ""}" title="${esc(goal.text)}${i <= planIndex ? ` · gehört zum ${esc(target.label)}` : ""}">
-          <div class="ck-fill-t">${goal.number} · ${esc(goal.text)}</div>${rows}</div>`;
-      })
-      .join("");
-    return `
-      <div class="ck-road"><svg width="100%" viewBox="0 0 ${geo.W} ${H}" role="img" aria-label="Straße der Klasse">${svg}</svg></div>
-      <p class="td-kicker ck-sub">Füllstand je Mission · Anteil der Klasse sicher</p>
-      <div class="ck-fill-grid" style="grid-template-columns:repeat(${Math.min(n, 7)}, minmax(0, 1fr))">${fill}</div>
-      <div class="ck-legend">
-        <span><i class="ck-lg" style="background:${PACE_COLOR.ok}"></i>auf Kurs</span>
-        <span><i class="ck-lg" style="background:${PACE_COLOR.mid}"></i>knapp hinter dem Plan</span>
-        <span><i class="ck-lg" style="background:${PACE_COLOR.low}"></i>deutlich hinter dem Plan</span>
-        <span><i class="ck-lg" style="border:2px solid #fff"></i>hat heute ein Tagesziel</span>
-        <span><i class="ck-lg" style="border:2px dashed #fff;border-radius:3px"></i>Plan-Geist: hier wäre die Klasse heute bei gleichmäßigem Tempo</span>
-        <span>Ringe: Anteil der Klasse sicher · <b style="color:${TIER_COLOR.rookie}">Rookie</b> oben, <b style="color:${TIER_COLOR.operator}">Operator</b> rechts, <b style="color:${TIER_COLOR.street_legend}">Street Legend</b> links</span>
-      </div>`;
   }
 
   function renderHeat() {
@@ -693,21 +519,10 @@
         return `<button type="button" class="ck-idle-row" data-ck-open="${esc(s.id)}"><span><strong>${esc(s.name)}</strong> · M${g ? g.number : "?"} ${esc(TIER_LABEL[i.tier])} ${i.solved} von 6</span><span class="ck-muted">seit ${i.days} Tagen</span></button>`;
       })
       .join("");
-    return `
-      <aside class="ck-col">
-        <div class="ck-panel">
-          <h2><span>Trainingscenter</span><span class="td-kicker">diese Einheit</span></h2>
-          <div class="ck-tier-tabs" role="group" aria-label="Stufe">
-            ${TIERS.map((t) => `<button type="button" data-ck-tier="${t}" aria-pressed="${t === tier ? "true" : "false"}" class="ck-tier-${t}">${TIER_LABEL[t]}</button>`).join("")}
-          </div>
-          ${trainingBody}
-          <div class="ck-legend">
-            <span><i class="ck-lg" style="background:${color}"></i>sicher (6 von 6)</span>
-            <span><i class="ck-lg" style="background:rgba(148,163,184,.55)"></i>teilweise (3–5)</span>
-            <span><i class="ck-lg" style="background:rgba(148,163,184,.28)"></i>noch nicht (1–2)</span>
-          </div>
-        </div>
-        <div class="ck-panel">
+    const secondary = `
+      <details class="ck-fold">
+        <summary>Selbstbild &amp; liegen geblieben</summary>
+        <div class="ck-panel ck-panel--nested">
           <h2><span>Selbstbild vs. Training</span><span class="td-kicker">Ich-kann</span></h2>
           ${
             tot
@@ -724,13 +539,27 @@
             </div>`
               : `<p class="ck-muted ck-small">Noch keine Ich-kann-Angaben im Training zu dieser Einheit.</p>`
           }
-          <p class="ck-muted ck-small">Vergleicht die Ich-kann-Einschätzung im Training mit den gelösten Aufgaben.</p>
         </div>
-        <div class="ck-panel ck-private">
+        <div class="ck-panel ck-panel--nested ck-private">
           <h2><span>Liegen geblieben</span><span class="td-kicker">Training</span></h2>
           ${idle || `<p class="ck-muted ck-small">Niemand. Alle angefangenen Stufen haben sich in den letzten 5 Tagen bewegt.</p>`}
-          ${idle ? `<p class="ck-muted ck-small">Angefangen, aber seit 5 Tagen kein neuer Trainingsstand.</p>` : ""}
         </div>
+      </details>`;
+    return `
+      <aside class="ck-col">
+        <div class="ck-panel">
+          <h2><span>Trainingscenter</span><span class="td-kicker">diese Einheit</span></h2>
+          <div class="ck-tier-tabs" role="group" aria-label="Stufe">
+            ${TIERS.map((t) => `<button type="button" data-ck-tier="${t}" aria-pressed="${t === tier ? "true" : "false"}" class="ck-tier-${t}">${TIER_LABEL[t]}</button>`).join("")}
+          </div>
+          ${trainingBody}
+          <div class="ck-legend">
+            <span><i class="ck-lg" style="background:${color}"></i>sicher (6 von 6)</span>
+            <span><i class="ck-lg" style="background:rgba(148,163,184,.55)"></i>teilweise (3–5)</span>
+            <span><i class="ck-lg" style="background:rgba(148,163,184,.28)"></i>noch nicht (1–2)</span>
+          </div>
+        </div>
+        ${secondary}
       </aside>`;
   }
 
@@ -991,16 +820,18 @@
   function renderTeamCard() {
     const teams = ck.data.teams || [];
     const award = ck.data.game?.team;
+    const info = ck.data.teamsInfo || {};
+    const sourceLabel = info.source === "work" ? "laufende Gruppenarbeit" : "Gruppenarbeit";
     let body;
     if (award) {
       body = `
         <div class="ck-raffle-win"><span class="ck-raffle-star">🏆</span><strong>${esc(award.name)}</strong><span class="ck-small">+${award.xpEach} XP für alle ${award.memberCount}</span></div>
         <p class="ck-small ck-muted">${award.reflectedCount} von ${award.memberCount} hatten den Tag abgeschlossen${award.goalReached ? " · Teamziel erreicht" : ""}.</p>`;
     } else if (!teams.length) {
-      body = `<p class="ck-small ck-muted">Noch keine Stammgruppen in dieser Klasse. Lege sie im Gruppenmodus an, dann erscheinen sie hier.</p>`;
+      body = `<p class="ck-small ck-muted">${esc(info.emptyReason || "Keine Gruppenarbeit angelegt. Lege Gruppen im Gruppenmodus an – dann gilt die Team-Challenge.")}</p>`;
     } else {
       body = `
-        <p class="ck-tiny ck-muted">Teamziel: alle im Team haben heute den Tag abgeschlossen. Gezählt wird der Anteil, nicht die Summe. Du bestätigst.</p>
+        <p class="ck-tiny ck-muted">${esc(info.subject || "Fach")}: Gruppen aus der ${esc(sourceLabel)}. Teamziel: alle im Team haben heute den Tag abgeschlossen (Anteil, nicht Summe).</p>
         <div class="ck-teams">${teams
           .map((t) => {
             const pct = Math.round(t.share * 100);
@@ -1016,7 +847,7 @@
     }
     return `
       <div class="ck-panel ck-game-card">
-        <h2><span>Team des Tages</span><span class="td-kicker">Stammgruppen</span></h2>
+        <h2><span>Team des Tages</span><span class="td-kicker">Gruppenarbeit</span></h2>
         ${body}
       </div>`;
   }
@@ -1073,18 +904,28 @@
     }
     if (!notes.length) notes.push(`<div class="ck-note ck-note--good"><strong>Läuft.</strong> Kein Hinweis mit genug Belegen.</div>`);
     return `
-      <aside class="ck-drawer" aria-label="Schüler:in">
-        <button type="button" class="ck-btn ck-btn-sm ck-drawer-close" data-ck-close>Schließen</button>
-        <p class="td-kicker">${esc(d.class?.name || "")} · ${esc(d.levelCheck?.subject || "")} · ${esc(d.levelCheck?.name || "")}</p>
-        <h3>${esc(s.name)}</h3>
-        <p class="ck-small ck-muted">Zielnote ${esc(s.targetGrade ? s.targetGrade.replace(".", ",") : "–")} · <span class="ck-pace ck-pace--${esc(s.pace)}">${esc(s.paceText)}</span>${d.unit?.target ? ` bis ${esc(d.unit.target.label)}` : ""}</p>
-        <p class="ck-small ck-muted">Rang ${esc(base.rang || "–")} · ${num(base.xp)} XP</p>
-        <div class="ck-note ck-note--good"><strong>Heute:</strong> ${todayText}</div>
-        ${notes.join("")}
-        <table><thead><tr><th>Mission</th><th>Rookie</th><th>Operator</th><th>Street L.</th><th>Training</th></tr></thead><tbody>${rows}</tbody></table>
-        <p class="ck-small ck-muted">✔ sicher · … in Arbeit · · offen. Zahlen = gelöste Aufgaben im Trainingscenter (sicher ab 6).</p>
-        <div class="ck-acts"><button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-open-student="${esc(s.id)}">Profil öffnen</button></div>
-      </aside>`;
+      <div class="ck-drawer-layer" role="dialog" aria-modal="true" aria-label="Schüler:in">
+        <button type="button" class="ck-drawer-backdrop" data-ck-close aria-label="Schließen"></button>
+        <aside class="ck-drawer">
+          <header class="ck-drawer-head">
+            <div>
+              <p class="td-kicker">${esc(d.class?.name || "")} · ${esc(d.levelCheck?.subject || "")} · ${esc(d.levelCheck?.name || "")}</p>
+              <h3>${esc(s.name)}</h3>
+            </div>
+            <button type="button" class="ck-drawer-x" data-ck-close aria-label="Schließen" title="Schließen (Esc)">×</button>
+          </header>
+          <p class="ck-small ck-muted">Zielnote ${esc(s.targetGrade ? s.targetGrade.replace(".", ",") : "–")} · <span class="ck-pace ck-pace--${esc(s.pace)}">${esc(s.paceText)}</span>${d.unit?.target ? ` bis ${esc(d.unit.target.label)}` : ""}</p>
+          <p class="ck-small ck-muted">Rang ${esc(base.rang || "–")} · ${num(base.xp)} XP</p>
+          <div class="ck-note ck-note--good"><strong>Heute:</strong> ${todayText}</div>
+          ${notes.join("")}
+          <table><thead><tr><th>Mission</th><th>Rookie</th><th>Operator</th><th>Street L.</th><th>Training</th></tr></thead><tbody>${rows}</tbody></table>
+          <p class="ck-small ck-muted">✔ sicher · … in Arbeit · · offen. Zahlen = gelöste Aufgaben im Trainingscenter (sicher ab 6).</p>
+          <div class="ck-acts">
+            <button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-open-student="${esc(s.id)}">Profil öffnen</button>
+            <button type="button" class="ck-btn ck-btn-sm" data-ck-close>Schließen</button>
+          </div>
+        </aside>
+      </div>`;
   }
 
   /* ---------- Gesamt ---------- */
@@ -1116,10 +957,13 @@
           ${renderCenter()}
           ${renderRight()}
         </section>
-        <section class="ck-bottom">
-          ${renderPulse()}${renderRecent()}${renderTimeline()}
-        </section>
         ${renderGame()}
+        <details class="ck-fold ck-fold--wide" ${ck.moreOpen ? "open" : ""} data-ck-more>
+          <summary>Puls, Stunden &amp; Termine</summary>
+          <section class="ck-bottom">
+            ${renderPulse()}${renderRecent()}${renderTimeline()}
+          </section>
+        </details>
         ${renderDrawer()}
       </div>`;
   }
@@ -1289,9 +1133,16 @@
     }
     const open = t.closest("[data-ck-open]");
     if (open && !ck.beamer) {
-      ck.drawerId = Number(open.getAttribute("data-ck-open"));
+      const id = Number(open.getAttribute("data-ck-open"));
+      ck.drawerId = Number(ck.drawerId) === id ? null : id;
       render();
     }
+  }
+
+  function onToggle(event) {
+    if (!ck.active) return;
+    const more = event.target.closest?.("[data-ck-more]");
+    if (more) ck.moreOpen = !!more.open;
   }
 
   function onFormInput(event) {
@@ -1326,6 +1177,7 @@
     if (ck.bound || !ck.el) return;
     ck.bound = true;
     ck.el.addEventListener("click", onClick);
+    ck.el.addEventListener("toggle", onToggle, true);
     ck.el.addEventListener("change", onFormInput);
     ck.el.addEventListener("input", onFormInput);
     document.addEventListener("keydown", onKey);

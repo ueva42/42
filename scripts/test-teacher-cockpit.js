@@ -125,11 +125,41 @@ const db = {
     { user_id: 13, goal_id: goalIds[0], tier: "operator", status: "sicher", updated_at: new Date("2026-11-04T10:00:00") },
     { user_id: 13, goal_id: goalIds[1], tier: "rookie", status: "sicher", updated_at: new Date("2026-11-04T10:00:00") }
   ],
+  // Physik-Gruppenarbeit (work) hat Vorrang; Mathe-Stammgruppen dienen als Fallback-Test.
   rosters: [
-    { id: "r-1", subject: "Mathe", group_name: "Team Blau" },
-    { id: "r-2", subject: "Mathe", group_name: "Team Grün" }
+    {
+      id: "r-phys-1",
+      subject: "Physik",
+      group_name: "Labor A",
+      session_kind: "work",
+      status: "active"
+    },
+    {
+      id: "r-phys-2",
+      subject: "Physik",
+      group_name: "Labor B",
+      session_kind: "work",
+      status: "active"
+    },
+    {
+      id: "r-1",
+      subject: "Mathe",
+      group_name: "Team Blau",
+      session_kind: "roster",
+      status: "standing"
+    },
+    {
+      id: "r-2",
+      subject: "Mathe",
+      group_name: "Team Grün",
+      session_kind: "roster",
+      status: "standing"
+    }
   ],
   members: [
+    { session_id: "r-phys-1", user_id: 11, display_name_snapshot: "Zoe" },
+    { session_id: "r-phys-1", user_id: 12, display_name_snapshot: "Amir" },
+    { session_id: "r-phys-2", user_id: 13, display_name_snapshot: "Mila" },
     { session_id: "r-1", user_id: 11, display_name_snapshot: "Zoe" },
     { session_id: "r-1", user_id: 12, display_name_snapshot: "Amir" },
     { session_id: "r-2", user_id: 13, display_name_snapshot: "Mila" }
@@ -160,8 +190,20 @@ const pool = {
     if (s.includes("FROM level_check_marks")) {
       return { rows: db.marks.filter((m) => params[0].includes(m.user_id) && params[1].includes(m.goal_id)) };
     }
-    if (s.includes("FROM group_sessions gs")) return { rows: db.rosters };
-    if (s.includes("FROM group_session_members")) return { rows: db.members };
+    if (s.includes("FROM group_sessions gs")) {
+      const subject = params[2];
+      const rows = db.rosters.filter((row) => {
+        if (subject && String(subject).trim()) {
+          return String(row.subject).toLowerCase() === String(subject).toLowerCase();
+        }
+        return true;
+      });
+      return { rows };
+    }
+    if (s.includes("FROM group_session_members")) {
+      const ids = params[0] || [];
+      return { rows: db.members.filter((m) => ids.includes(m.session_id) || ids.map(String).includes(String(m.session_id))) };
+    }
     if (s.includes("FROM class_reward_rounds")) {
       return { rows: [{ id: 1, title: "Kinonachmittag", target_xp: 1500, is_active: true, fixed_option_id: null }] };
     }
@@ -333,13 +375,34 @@ try {
   assert.equal(d.game.raffle.eligibleCount, 2);
   assert.equal(d.game.klassenziel.total, 1240);
   assert.equal(d.game.klassenziel.target, 1500);
+  // CHECK.subject = Mathe → Stammgruppen-Fallback (keine Mathe-work-Sessions)
+  assert.equal(d.teamsInfo.source, "roster");
+  assert.equal(d.teamsInfo.subject, "Mathe");
   const blau = d.teams.find((t) => t.name === "Team Blau");
   const gruen = d.teams.find((t) => t.name === "Team Grün");
   assert.equal(blau.share, 0.5);
   assert.equal(blau.goalReached, false);
   assert.equal(gruen.goalReached, true, "Ein-Personen-Team mit Tagesabschluss erreicht das Ziel");
+  assert.equal(
+    d.teams.some((t) => t.name === "Labor A"),
+    false,
+    "Physik-Gruppenarbeit erscheint nicht bei Mathe-Einheit"
+  );
   assert.ok(d.events.some((e) => e.kind === "ziel"));
   assert.ok(d.events.some((e) => e.kind === "sicher"));
+
+  // Physik-Einheit: Team-Challenge nutzt die angelegte Gruppenarbeit (work)
+  CHECK.subject = "Physik";
+  CHECK.name = "Kräfte";
+  r = await call("GET", "/api/teacher/cockpit?classId=1");
+  assert.equal(r.body.teamsInfo.source, "work");
+  assert.equal(r.body.teamsInfo.subject, "Physik");
+  assert.equal(r.body.teams.length, 2);
+  assert.equal(r.body.teams[0].name, "Labor A");
+  assert.equal(r.body.teams.find((t) => t.name === "Labor A").share, 0.5);
+  assert.equal(r.body.teams.find((t) => t.name === "Labor B").goalReached, true);
+  CHECK.subject = "Mathe";
+  CHECK.name = "Potenzen und Wurzeln";
 
   r = await call("POST", "/api/teacher/cockpit/raffle", { classId: 1, xp: 15 });
   assert.equal(r.status, 200);

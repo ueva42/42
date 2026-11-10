@@ -4,7 +4,7 @@
  */
 (function () {
   const state = {
-    tab: "heute",
+    tab: "cockpit",
     me: null,
     classes: [],
     classId: null,
@@ -62,21 +62,22 @@
   }
 
   function tabFromPath(path) {
-    if (path.includes("/werkzeuge") || path.includes("/lernbegleitung") || path.includes("/verlauf") || path.includes("/profil")) {
+    const p = String(path || "");
+    if (p.includes("/werkzeuge") || p.includes("/lernbegleitung") || p.includes("/verlauf") || p.includes("/profil")) {
       return "werkzeuge";
     }
-    if (path.includes("/schueler")) return "schueler";
-    if (path.includes("/klasse")) return "klasse";
-    if (path.includes("/cockpit")) return "cockpit";
-    return "heute";
+    if (p.includes("/schueler")) return "schueler";
+    if (p.includes("/klasse")) return "klasse";
+    if (p.includes("/heute")) return "heute";
+    return "cockpit";
   }
 
   function pathFor(tab) {
-    if (tab === "cockpit") return "/teacher/cockpit";
+    if (tab === "heute") return "/teacher/heute";
     if (tab === "klasse") return "/teacher/klasse";
     if (tab === "schueler") return "/teacher/schuelerinnen";
     if (tab === "werkzeuge") return "/teacher/werkzeuge";
-    return "/teacher/heute";
+    return "/teacher/cockpit";
   }
 
   function syncUrl(replace) {

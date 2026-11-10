@@ -87,7 +87,7 @@ body.ck-wide .td-main {
 .ck-panel h2 .td-kicker { margin: 0; }
 
 /* KPI */
-.ck-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.ck-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
 .ck-kpi {
   border-radius: 18px;
   padding: 12px;
@@ -166,11 +166,6 @@ button.ck-kpi:hover { border-color: rgba(34, 211, 238, 0.45); }
 .ck-chip--visit { border-color: var(--ck-amber); }
 
 /* Mitte */
-.ck-road { border-radius: 18px; background: rgba(3, 6, 18, 0.55); border: 1px solid rgba(148, 163, 184, 0.12); overflow: hidden; }
-.ck-road svg { display: block; }
-.ck-road text { font-family: "IBM Plex Sans", system-ui, sans-serif; }
-.ck-dot[data-ck-open] { cursor: pointer; }
-.ck-dot[data-ck-open]:hover .ck-dot-body { stroke: #fff; stroke-width: 2; }
 .ck-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 0.74rem; color: var(--ck-muted); }
 .ck-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .ck-lg { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
@@ -318,22 +313,83 @@ button.ck-kpi:hover { border-color: rgba(34, 211, 238, 0.45); }
 .ck-team { border-radius: 12px; border: 1px solid var(--ck-line); background: rgba(5, 8, 22, 0.5); padding: 6px 8px; font-size: 0.8rem; }
 .ck-team--ok { border-color: rgba(52, 211, 153, 0.55); }
 
+/* Einklappbare Nebenblöcke */
+.ck-fold {
+  margin-top: 10px;
+  border-radius: 18px;
+  border: 1px solid var(--ck-line);
+  background: rgba(8, 12, 28, 0.55);
+  padding: 0 12px 10px;
+}
+.ck-fold--wide { margin-top: 14px; }
+.ck-fold > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 4px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #cbd5e1;
+}
+.ck-fold > summary::-webkit-details-marker { display: none; }
+.ck-fold > summary::before {
+  content: "▸ ";
+  color: var(--ck-cyan);
+}
+.ck-fold[open] > summary::before { content: "▾ "; }
+.ck-panel--nested {
+  margin-top: 8px;
+  box-shadow: none;
+}
+
 /* Schublade */
-.ck-drawer {
+.ck-drawer-layer {
   position: fixed;
-  top: 0;
-  right: 0;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: flex-end;
+}
+.ck-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(2, 6, 18, 0.55);
+  cursor: pointer;
+}
+.ck-drawer {
+  position: relative;
   width: min(440px, 100vw);
-  height: 100vh;
-  z-index: 50;
-  background: rgba(6, 10, 24, 0.97);
+  height: 100%;
+  background: rgba(6, 10, 24, 0.98);
   border-left: 1px solid rgba(34, 211, 238, 0.3);
   padding: 18px;
   overflow-y: auto;
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+.ck-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 .ck-drawer h3 { font-family: Orbitron, system-ui, sans-serif; margin: 0 0 4px; }
-.ck-drawer-close { float: right; }
+.ck-drawer-x {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  font-size: 1.55rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.ck-drawer-x:hover { border-color: var(--ck-cyan); color: var(--ck-cyan); }
 .ck-drawer table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 8px; }
 .ck-drawer td, .ck-drawer th { padding: 5px 4px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); text-align: left; }
 .ck-row-now { background: rgba(34, 211, 238, 0.07); }
@@ -343,7 +399,7 @@ button.ck-kpi:hover { border-color: rgba(34, 211, 238, 0.45); }
 
 /* Beamer-Ansicht: keine Namen, keine Hilfe-Spalte */
 .ck--beamer .ck-private { display: none !important; }
-.ck--beamer .ck-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ck--beamer .ck-kpis { grid-template-columns: minmax(0, 1fr); }
 body.ck-beamer .td-top { opacity: 0.35; }
 body.ck-beamer .td-top:hover { opacity: 1; }
 
@@ -351,7 +407,7 @@ body.ck-beamer .td-top:hover { opacity: 1; }
   .ck-grid { grid-template-columns: 260px minmax(0, 1fr); }
   .ck-grid > .ck-col:last-child { grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
   .ck--beamer .ck-grid { grid-template-columns: minmax(0, 1fr); }
-  .ck-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ck-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ck-game-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 

@@ -500,7 +500,7 @@
       cards.push(classGameCard(
         "Team des Tages",
         "Noch kein Team ausgezeichnet",
-        "Die Lehrkraft wählt im Cockpit ein Team des Tages.",
+        "Bei aktiver Gruppenarbeit wählt die Lehrkraft im Cockpit ein Team des Tages.",
         { empty: true }
       ));
     }
