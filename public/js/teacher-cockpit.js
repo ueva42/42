@@ -51,7 +51,9 @@
     teamXp: 10,
     busy: false,
     reveal: null,
-    timer: null
+    timer: null,
+    /** `${classId}:${date}` nach erfolgreicher Auto-Ziehung oder wenn schon gezogen. */
+    autoRaffleDoneKey: null
   };
 
   function esc(value) {
@@ -238,12 +240,19 @@
       }
       ck.error = "";
       ck.updatedAt = new Date();
+      if (ck.data?.game?.raffle?.drawn) {
+        const key = raffleAutoKey();
+        if (key) ck.autoRaffleDoneKey = key;
+      }
     } catch (err) {
       if (seq !== ck.seq) return;
       ck.error = err.message || "Das Cockpit konnte nicht geladen werden.";
     } finally {
       if (seq === ck.seq) ck.loading = false;
-      if (ck.active) render();
+      if (ck.active) {
+        render();
+        if (!ck.error) maybeAutoRaffle();
+      }
     }
   }
 
@@ -688,6 +697,50 @@
     return `${Math.floor(minutes / 60)}.${String(minutes % 60).padStart(2, "0")}`;
   }
 
+  function lessonEndAt(lesson, now = new Date()) {
+    const endM = clockMinutes(lesson?.end);
+    if (endM == null) return null;
+    const d = new Date(now);
+    d.setHours(Math.floor(endM / 60), endM % 60, 0, 0);
+    return d;
+  }
+
+  /** Spiegel von shouldAutoRaffle / autoRaffleStatus aus lib/teacher-cockpit.js */
+  function raffleAutoStatus(now = new Date()) {
+    const r = ck.data?.game?.raffle || {};
+    const lesson = liveData().lesson;
+    const end = lessonEndAt(lesson, now);
+    if (r.drawn) return { kind: "drawn" };
+    if (!end) return { kind: "idle" };
+    const msLeft = end.getTime() - now.getTime();
+    if (msLeft < 0) return { kind: "ended" };
+    const minutesLeft = Math.max(0, Math.ceil(msLeft / 60000));
+    const inWindow = msLeft <= 5 * 60 * 1000;
+    if (!inWindow) return { kind: "countdown", minutesLeft };
+    if (!(Number(r.eligibleCount) > 0)) return { kind: "waiting_eligible", minutesLeft };
+    return { kind: "ready", minutesLeft };
+  }
+
+  function raffleAutoKey() {
+    if (!ck.classId || !ck.data?.date) return null;
+    return `${ck.classId}:${ck.data.date}`;
+  }
+
+  function maybeAutoRaffle() {
+    if (!ck.active || ck.busy || ck.form || document.hidden) return;
+    const r = ck.data?.game?.raffle;
+    if (!r || r.drawn) {
+      const key = raffleAutoKey();
+      if (key) ck.autoRaffleDoneKey = key;
+      return;
+    }
+    const key = raffleAutoKey();
+    if (!key || ck.autoRaffleDoneKey === key) return;
+    const status = raffleAutoStatus();
+    if (status.kind !== "ready") return;
+    runRaffle({ auto: true });
+  }
+
   function renderPulse() {
     const live = liveData();
     const events = ck.data.events || [];
@@ -910,6 +963,23 @@
     return `${when} haben alle ${missionsText(nums) || "die Missionen"} auf ${TIER_LABEL[f.tier] || "Rookie"} sicher.`;
   }
 
+  function raffleAutoHint() {
+    const status = raffleAutoStatus();
+    if (status.kind === "countdown" && status.minutesLeft != null) {
+      return `<p class="ck-tiny ck-muted">Auto-Ziehung in ${status.minutesLeft} Min (5 Min vor Stundenende).</p>`;
+    }
+    if (status.kind === "waiting_eligible") {
+      return `<p class="ck-tiny ck-muted">Automatik wartet auf Abschlüsse – Lostopf noch leer.</p>`;
+    }
+    if (status.kind === "ready") {
+      return `<p class="ck-tiny ck-amber">Auto-Ziehung startet gleich …</p>`;
+    }
+    if (status.kind === "ended" && !(ck.data?.game?.raffle?.drawn)) {
+      return `<p class="ck-tiny ck-muted">Stundenende vorbei – Automatik zieht nicht mehr nach. Manuell möglich.</p>`;
+    }
+    return "";
+  }
+
   function renderRaffleCard() {
     const r = ck.data.game?.raffle || {};
     const n = (ck.data.students || []).length;
@@ -928,6 +998,7 @@
       body = `
         <p class="ck-big">${r.eligibleCount || 0} <span class="ck-muted ck-small">von ${n} im Lostopf</span></p>
         <p class="ck-small ck-muted">Im Lostopf ist, wer heute den Tagesabschluss gemacht hat. Jedes Los zählt gleich.</p>
+        ${raffleAutoHint()}
         <div class="ck-acts">${xpPicker("raffle", ck.raffleXp)}</div>
         <div class="ck-acts"><button type="button" class="ck-btn ck-btn-go" data-ck-raffle ${r.eligibleCount && !ck.busy ? "" : "disabled"}>Ziehung starten</button></div>`;
     }
@@ -1374,24 +1445,43 @@
     }, 5000);
   }
 
-  async function runRaffle() {
+  async function runRaffle(opts = {}) {
+    const auto = opts.auto === true;
     const r = ck.data?.game?.raffle;
     if (!r || r.drawn || ck.busy) return;
-    if (!window.confirm(`Glücks-Ziehung starten? Im Lostopf: ${r.eligibleCount}. Gewinn: ${ck.raffleXp} XP. Es gibt eine Ziehung pro Tag.`)) return;
+    if (!auto) {
+      if (
+        !window.confirm(
+          `Glücks-Ziehung starten? Im Lostopf: ${r.eligibleCount}. Gewinn: ${ck.raffleXp} XP. Es gibt eine Ziehung pro Tag.`
+        )
+      ) {
+        return;
+      }
+    } else if (!(Number(r.eligibleCount) > 0)) {
+      return;
+    }
+    const doneKey = raffleAutoKey();
     ck.busy = true;
     ck.reveal = "rolling";
     render();
     try {
       const [res] = await Promise.all([
-        post("/api/teacher/cockpit/raffle", { classId: ck.classId, xp: ck.raffleXp }),
-        new Promise((resolve) => setTimeout(resolve, 1400))
+        post("/api/teacher/cockpit/raffle", { classId: ck.classId, xp: ck.raffleXp, auto }),
+        new Promise((resolve) => setTimeout(resolve, auto ? 1800 : 1400))
       ]);
+      if (doneKey) ck.autoRaffleDoneKey = doneKey;
       ck.reveal = "show";
       await load(false);
       flash(res.message || "Gezogen.");
     } catch (err) {
       ck.reveal = null;
-      flash(err.message || "Die Ziehung hat nicht geklappt.");
+      const msg = err.message || "Die Ziehung hat nicht geklappt.";
+      if (auto && /schon gezogen/i.test(msg) && doneKey) {
+        ck.autoRaffleDoneKey = doneKey;
+        await load(false);
+      } else if (!auto || !/Lostopf|niemand/i.test(msg)) {
+        flash(msg);
+      }
     } finally {
       ck.busy = false;
       setTimeout(() => {

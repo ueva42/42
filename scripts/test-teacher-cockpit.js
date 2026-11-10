@@ -15,12 +15,14 @@ import {
   normalizeGameXp,
   paceStatus,
   paceText,
+  autoRaffleStatus,
   pickWinner,
   planTarget,
   raffleEligible,
   rankCatchUpLeaders,
   rankProgressLeaders,
   resolveClassLevels,
+  shouldAutoRaffle,
   studentPosition,
   teamStats,
   trainingBoard,
@@ -146,6 +148,92 @@ assert.deepEqual(
 );
 assert.equal(catchUp[0].sicherToday, 3);
 assert.deepEqual(rankCatchUpLeaders({ students: podiumPeople, sicherById: sicherMap, ghost: null }), []);
+
+const lessonEnd = new Date("2026-11-10T10:15:00");
+assert.equal(
+  shouldAutoRaffle({
+    now: new Date("2026-11-10T10:10:00"),
+    lessonEnd,
+    drawn: false,
+    eligibleCount: 3
+  }),
+  true,
+  "genau 5 Min vorher mit Lostopf"
+);
+assert.equal(
+  shouldAutoRaffle({
+    now: new Date("2026-11-10T10:14:30"),
+    lessonEnd,
+    drawn: false,
+    eligibleCount: 3
+  }),
+  true,
+  "innerhalb der letzten 5 Min"
+);
+assert.equal(
+  shouldAutoRaffle({
+    now: new Date("2026-11-10T10:09:59"),
+    lessonEnd,
+    drawn: false,
+    eligibleCount: 3
+  }),
+  false,
+  "früher als T-5"
+);
+assert.equal(
+  shouldAutoRaffle({
+    now: new Date("2026-11-10T10:16:00"),
+    lessonEnd,
+    drawn: false,
+    eligibleCount: 3
+  }),
+  false,
+  "nach Stundenende nicht nachziehen"
+);
+assert.equal(
+  shouldAutoRaffle({
+    now: new Date("2026-11-10T10:12:00"),
+    lessonEnd,
+    drawn: false,
+    eligibleCount: 0
+  }),
+  false,
+  "leerer Lostopf"
+);
+assert.equal(
+  shouldAutoRaffle({
+    now: new Date("2026-11-10T10:12:00"),
+    lessonEnd,
+    drawn: true,
+    eligibleCount: 3
+  }),
+  false,
+  "schon gezogen"
+);
+assert.equal(
+  autoRaffleStatus({
+    now: new Date("2026-11-10T10:00:00"),
+    lessonEnd,
+    eligibleCount: 2
+  }).kind,
+  "countdown"
+);
+assert.equal(
+  autoRaffleStatus({
+    now: new Date("2026-11-10T10:12:00"),
+    lessonEnd,
+    eligibleCount: 0
+  }).kind,
+  "waiting_eligible"
+);
+assert.equal(
+  autoRaffleStatus({
+    now: new Date("2026-11-10T10:12:00"),
+    lessonEnd,
+    eligibleCount: 2
+  }).kind,
+  "ready"
+);
 
 const small = teamStats([1, 2], new Set([1, 2]), new Map([[1, 1]]));
 const big = teamStats([3, 4, 5, 6], new Set([3, 4, 5]), new Map([[3, 2], [4, 2]]));
