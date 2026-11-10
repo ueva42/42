@@ -817,26 +817,54 @@
       </div>`;
   }
 
+  /** Mitgliederliste für Team des Tages (Lehrkraft sieht, wer den Tag abgeschlossen hat). */
+  function teamMembersHtml(members) {
+    const list = Array.isArray(members) ? members : [];
+    if (!list.length) return `<p class="ck-tiny ck-muted">Keine Mitglieder hinterlegt.</p>`;
+    const done = list.filter((m) => m.reflected);
+    const open = list.filter((m) => !m.reflected);
+    const chip = (m, ok) =>
+      `<span class="ck-team-chip ${ok ? "ck-team-chip--ok" : "ck-team-chip--open"}" title="${ok ? "Tag abgeschlossen" : "Tag noch offen"}">${ok ? "✔" : "·"} ${esc(m.name || "?")}</span>`;
+    const summary =
+      open.length && done.length
+        ? `Fertig: ${done.map((m) => m.name).join(", ")} · Offen: ${open.map((m) => m.name).join(", ")}`
+        : open.length
+          ? `Noch offen: ${open.map((m) => m.name).join(", ")}`
+          : `Alle fertig: ${done.map((m) => m.name).join(", ")}`;
+    return `<div class="ck-team-members" aria-label="${esc(summary)}">
+      ${done.map((m) => chip(m, true)).join("")}
+      ${open.map((m) => chip(m, false)).join("")}
+    </div>`;
+  }
+
   function renderTeamCard() {
     const teams = ck.data.teams || [];
     const award = ck.data.game?.team;
     const info = ck.data.teamsInfo || {};
-    const sourceLabel = info.source === "work" ? "laufende Gruppenarbeit" : "Gruppenarbeit";
+    const sourceLabel = info.source === "work" ? "laufende Gruppenarbeit" : "Stammgruppen / Gruppenarbeit";
+    const sessionBit = info.sessionTitle ? ` „${esc(info.sessionTitle)}“` : "";
     let body;
     if (award) {
       body = `
         <div class="ck-raffle-win"><span class="ck-raffle-star">🏆</span><strong>${esc(award.name)}</strong><span class="ck-small">+${award.xpEach} XP für alle ${award.memberCount}</span></div>
-        <p class="ck-small ck-muted">${award.reflectedCount} von ${award.memberCount} hatten den Tag abgeschlossen${award.goalReached ? " · Teamziel erreicht" : ""}.</p>`;
+        <p class="ck-small ck-muted">${award.reflectedCount} von ${award.memberCount} hatten den Tag abgeschlossen${award.goalReached ? " · Teamziel erreicht" : ""}.</p>
+        ${teamMembersHtml(award.members)}`;
     } else if (!teams.length) {
       body = `<p class="ck-small ck-muted">${esc(info.emptyReason || "Keine Gruppenarbeit angelegt. Lege Gruppen im Gruppenmodus an – dann gilt die Team-Challenge.")}</p>`;
     } else {
       body = `
-        <p class="ck-tiny ck-muted">${esc(info.subject || "Fach")}: Gruppen aus der ${esc(sourceLabel)}. Teamziel: alle im Team haben heute den Tag abgeschlossen (Anteil, nicht Summe).</p>
+        <p class="ck-tiny ck-muted">${esc(info.subject || "Fach")}: Gruppen aus der ${esc(sourceLabel)}${sessionBit}. Teamziel: alle im Team haben heute den Tag abgeschlossen (Anteil, nicht Summe). Hinweise, keine Rangliste.</p>
         <div class="ck-teams">${teams
           .map((t) => {
             const pct = Math.round(t.share * 100);
+            const title = t.groupName || t.name;
+            const sessionLine = t.sessionTitle
+              ? `<p class="ck-tiny ck-muted">Gruppenarbeit: ${esc(t.sessionTitle)}</p>`
+              : "";
             return `<div class="ck-team ${t.goalReached ? "ck-team--ok" : ""}">
-              <div class="ck-row-between"><strong>${esc(t.name)}</strong><span class="ck-tiny ck-muted">${esc(t.subject || "")}</span></div>
+              <div class="ck-row-between"><strong>${esc(title)}</strong><span class="ck-tiny ck-muted">${esc(t.subject || "")}</span></div>
+              ${sessionLine}
+              ${teamMembersHtml(t.members)}
               <div class="ck-goalbar ck-goalbar--sm"><b style="width:${pct}%"></b></div>
               <div class="ck-row-between ck-tiny"><span>${t.reflectedCount}/${t.memberCount} Tag abgeschlossen · Ø ${dec(t.avgNewSicher)} neue sichere Stufen</span>
               <button type="button" class="ck-btn ck-btn-sm ${t.goalReached ? "ck-btn-go" : ""}" data-ck-team="${esc(t.rosterId)}" ${ck.busy ? "disabled" : ""}>${t.goalReached ? "Bestätigen" : "Trotzdem"}</button></div>
@@ -1012,10 +1040,11 @@
   async function confirmTeam(rosterId) {
     const team = (ck.data?.teams || []).find((t) => String(t.rosterId) === String(rosterId));
     if (!team || ck.busy) return;
+    const who = (team.members || []).map((m) => m.name).filter(Boolean).join(", ");
     const note = team.goalReached
       ? "Das Teamziel ist erreicht."
       : `Das Teamziel ist noch nicht erreicht (${team.reflectedCount} von ${team.memberCount}).`;
-    if (!window.confirm(`${team.name} als Team des Tages bestätigen? ${note} Jedes Mitglied bekommt ${ck.teamXp} XP. Es gibt ein Team des Tages pro Tag.`)) return;
+    if (!window.confirm(`${team.name}${who ? ` (${who})` : ""} als Team des Tages bestätigen? ${note} Jedes Mitglied bekommt ${ck.teamXp} XP. Es gibt ein Team des Tages pro Tag.`)) return;
     ck.busy = true;
     render();
     try {

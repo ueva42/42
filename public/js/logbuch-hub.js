@@ -491,10 +491,24 @@
     cards.push(classGameCard("Glücks-Ziehung", raffleTitle, raffleMeta, { empty: !r.drawn && !r.inPot }));
 
     if (g.team) {
+      const awardMembers = Array.isArray(g.team.members) ? g.team.members.filter(Boolean) : [];
       cards.push(classGameCard(
         "Team des Tages",
         ui.escapeHtml(g.team.name) + (g.team.yours ? ` · dein Team! +${g.team.xpEach} XP` : ""),
-        "Heute ausgezeichnet."
+        awardMembers.length
+          ? `Heute ausgezeichnet: ${awardMembers.map((n) => ui.escapeHtml(n)).join(" · ")}`
+          : "Heute ausgezeichnet."
+      ));
+    } else if (g.myTeam) {
+      const mt = g.myTeam;
+      const names = Array.isArray(mt.members) ? mt.members.filter(Boolean) : [];
+      const topic = mt.sessionTitle ? ` · ${ui.escapeHtml(mt.sessionTitle)}` : "";
+      cards.push(classGameCard(
+        "Dein Team",
+        ui.escapeHtml(mt.name || "Eure Gruppe") + (mt.subject ? ` (${ui.escapeHtml(mt.subject)})` : ""),
+        names.length
+          ? `Ihr seid zusammen: ${names.map((n) => ui.escapeHtml(n)).join(" · ")}${topic}. Schließt alle den Tag ab – dann kann eure Lehrkraft euch auszeichnen.`
+          : `Eure Gruppenarbeit läuft${topic}. Schließt alle den Tag ab – dann kann eure Lehrkraft euch auszeichnen.`
       ));
     } else {
       cards.push(classGameCard(

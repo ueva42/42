@@ -309,9 +309,29 @@ button.ck-kpi:hover { border-color: rgba(34, 211, 238, 0.45); }
 .ck-raffle-roll span:nth-child(2) { background: var(--ck-violet); animation-delay: 0.2s; }
 .ck-raffle-roll span:nth-child(3) { background: var(--ck-pink); animation-delay: 0.4s; }
 @keyframes ck-roll { to { transform: translateY(-12px); } }
-.ck-teams { display: grid; gap: 6px; max-height: 240px; overflow-y: auto; }
+.ck-teams { display: grid; gap: 6px; max-height: 320px; overflow-y: auto; }
 .ck-team { border-radius: 12px; border: 1px solid var(--ck-line); background: rgba(5, 8, 22, 0.5); padding: 6px 8px; font-size: 0.8rem; }
 .ck-team--ok { border-color: rgba(52, 211, 153, 0.55); }
+.ck-team-members { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
+.ck-team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.65);
+  color: #e2e8f0;
+}
+.ck-team-chip--ok {
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #a7f3d0;
+}
+.ck-team-chip--open {
+  border-color: rgba(148, 163, 184, 0.22);
+  color: #94a3b8;
+}
 
 /* Einklappbare Nebenblöcke */
 .ck-fold {

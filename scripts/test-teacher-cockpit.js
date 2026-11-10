@@ -126,11 +126,13 @@ const db = {
     { user_id: 13, goal_id: goalIds[1], tier: "rookie", status: "sicher", updated_at: new Date("2026-11-04T10:00:00") }
   ],
   // Physik-Gruppenarbeit (work) hat Vorrang; Mathe-Stammgruppen dienen als Fallback-Test.
+  // r-phys-3: ohne group_name → Anzeigename aus Mitgliedern; topic für Session-Titel.
   rosters: [
     {
       id: "r-phys-1",
       subject: "Physik",
       group_name: "Labor A",
+      topic_name_snapshot: "Kräfte und Hebel",
       session_kind: "work",
       status: "active"
     },
@@ -138,6 +140,15 @@ const db = {
       id: "r-phys-2",
       subject: "Physik",
       group_name: "Labor B",
+      topic_name_snapshot: "Kräfte und Hebel",
+      session_kind: "work",
+      status: "active"
+    },
+    {
+      id: "r-phys-3",
+      subject: "Physik",
+      group_name: null,
+      topic_name_snapshot: "Kräfte und Hebel",
       session_kind: "work",
       status: "active"
     },
@@ -160,6 +171,8 @@ const db = {
     { session_id: "r-phys-1", user_id: 11, display_name_snapshot: "Zoe" },
     { session_id: "r-phys-1", user_id: 12, display_name_snapshot: "Amir" },
     { session_id: "r-phys-2", user_id: 13, display_name_snapshot: "Mila" },
+    { session_id: "r-phys-3", user_id: 11, display_name_snapshot: "Zoe" },
+    { session_id: "r-phys-3", user_id: 13, display_name_snapshot: "Mila" },
     { session_id: "r-1", user_id: 11, display_name_snapshot: "Zoe" },
     { session_id: "r-1", user_id: 12, display_name_snapshot: "Amir" },
     { session_id: "r-2", user_id: 13, display_name_snapshot: "Mila" }
@@ -383,6 +396,15 @@ try {
   assert.equal(blau.share, 0.5);
   assert.equal(blau.goalReached, false);
   assert.equal(gruen.goalReached, true, "Ein-Personen-Team mit Tagesabschluss erreicht das Ziel");
+  assert.ok(Array.isArray(blau.members) && blau.members.length === 2, "Mitglieder im Payload");
+  assert.deepEqual(
+    blau.members.map((m) => ({ name: m.name, reflected: m.reflected })),
+    [
+      { name: "Zoe", reflected: true },
+      { name: "Amir", reflected: false }
+    ],
+    "Lehrkraft sieht, wer den Tag abgeschlossen hat"
+  );
   assert.equal(
     d.teams.some((t) => t.name === "Labor A"),
     false,
@@ -397,10 +419,16 @@ try {
   r = await call("GET", "/api/teacher/cockpit?classId=1");
   assert.equal(r.body.teamsInfo.source, "work");
   assert.equal(r.body.teamsInfo.subject, "Physik");
-  assert.equal(r.body.teams.length, 2);
+  assert.equal(r.body.teamsInfo.sessionTitle, "Kräfte und Hebel");
+  assert.equal(r.body.teams.length, 3);
   assert.equal(r.body.teams[0].name, "Labor A");
   assert.equal(r.body.teams.find((t) => t.name === "Labor A").share, 0.5);
   assert.equal(r.body.teams.find((t) => t.name === "Labor B").goalReached, true);
+  const unnamed = r.body.teams.find((t) => t.rosterId === "r-phys-3");
+  assert.equal(unnamed.name, "Zoe · Mila", "ohne Gruppenname: Mitglieder als Titel");
+  assert.equal(unnamed.groupName, null);
+  assert.equal(unnamed.sessionTitle, "Kräfte und Hebel");
+  assert.ok(unnamed.members.every((m) => typeof m.reflected === "boolean"));
   CHECK.subject = "Mathe";
   CHECK.name = "Potenzen und Wurzeln";
 
@@ -466,7 +494,26 @@ try {
   assert.equal(g.raffle.drawn.winnerShort, "Mila");
   assert.equal(g.team.yours, true);
   assert.equal(g.team.xpEach, 10);
+  assert.deepEqual(g.team.members, ["Zoe", "Amir"], "ausgezeichnetes Team: Mitgliedernamen");
+  assert.equal(g.myTeam, null, "nach Auszeichnung kein paralleles myTeam");
 
+  // Vor Auszeichnung: eigene Gruppe ohne Wer-fehlt-Status
+  db.awards = [];
+  user = { id: 11, role: "student", school_id: 1, class_id: 1 };
+  r = await call("GET", "/api/student/class-game");
+  assert.equal(r.status, 200);
+  assert.equal(r.body.game.team, null);
+  assert.ok(r.body.game.myTeam, "eigene Gruppenarbeit sichtbar");
+  assert.equal(r.body.game.myTeam.yours, true);
+  assert.ok(r.body.game.myTeam.members.includes("Zoe"));
+  assert.ok(r.body.game.myTeam.members.includes("Amir"));
+  assert.equal(
+    JSON.stringify(r.body.game.myTeam).includes("reflected"),
+    false,
+    "Schüler:innen sehen keinen Tagesabschluss-Status der Peers"
+  );
+
+  user = { id: 12, role: "student", school_id: 1, class_id: 1 };
   r = await call("POST", "/api/teacher/cockpit/raffle", { classId: 1 });
   assert.equal(r.status, 403, "Schüler:innen können nicht ziehen");
 
