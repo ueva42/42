@@ -5714,7 +5714,8 @@ registerTeacherCockpitRoutes(app, {
   resolveSchoolDate,
   todayIsoDate,
   awardXp: awardLogbuchXP,
-  getClassTotalXP
+  getClassTotalXP,
+  publicImageUrl
 });
 
 registerCoachRoutes(app, { pool, isStudent });

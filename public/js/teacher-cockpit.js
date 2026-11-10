@@ -43,6 +43,7 @@
     view: "now",
     tier: "rookie",
     beamer: false,
+    showFastest: true,
     drawerId: null,
     moreOpen: false,
     form: null,
@@ -302,7 +303,12 @@
           <div class="ck-context-row">
             ${units.length ? `<label class="sr-only" for="unitSelect">Unterrichtseinheit</label><select id="unitSelect" class="td-select ck-select" aria-label="Unterrichtseinheit">${options}</select>` : ""}
             <span class="ck-live" title="Aktualisiert sich jede Minute von selbst"><i></i>Live · ${esc(stamp)}</span>
-            <button type="button" class="ck-btn ${ck.beamer ? "ck-btn-go" : ""}" data-ck-beamer title="Ansicht für die Tafel: ohne Namen, ohne Hilfe-Spalte">${ck.beamer ? "Lehrkraft-Ansicht" : "Beamer-Ansicht"}</button>
+            <button type="button" class="ck-btn ${ck.beamer ? "ck-btn-go" : ""}" data-ck-beamer title="Klassenwand für den Beamer: Charakter-Roster, Puls, Training">${ck.beamer ? "Lehrkraft-Ansicht" : "Beamer-Ansicht"}</button>
+            ${
+              ck.beamer
+                ? `<button type="button" class="ck-btn ${ck.showFastest ? "ck-btn-go" : ""}" data-ck-fastest title="Podium ein- oder ausblenden">${ck.showFastest ? "Schnellste aus" : "Schnellste an"}</button>`
+                : ""
+            }
           </div>
           ${dates.length ? `<p class="ck-dates">${dates.join("<br>")}</p>` : ""}
         </div>
@@ -996,13 +1002,189 @@
   }
 
   function renderGame() {
+    // Beamer: kein Team des Tages – nur gemeinsame Ziele / Ziehung
+    const team = ck.beamer ? "" : renderTeamCard();
     return `
       <section class="ck-game" aria-label="Klassen-Spiel">
         <h2 class="ck-game-title"><span class="td-kicker">Klassen-Spiel</span></h2>
         <div class="ck-game-grid">
-          ${renderGoalCard()}${renderMissionCard()}${renderRaffleCard()}${renderTeamCard()}
+          ${renderGoalCard()}${renderMissionCard()}${renderRaffleCard()}${team}
         </div>
       </section>`;
+  }
+
+  function avatarHtml(person, sizeClass = "") {
+    const name = person?.name || "?";
+    const url = person?.avatarUrl;
+    if (url) {
+      return `<span class="ck-av ${sizeClass}"><img src="${esc(url)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.classList.add('ck-av--fallback');this.remove()"><span class="ck-av-fallback" aria-hidden="true">${esc(
+        String(name).trim().slice(0, 1).toUpperCase() || "?"
+      )}</span></span>`;
+    }
+    return `<span class="ck-av ck-av--fallback ${sizeClass}" aria-hidden="true">${esc(
+      String(name).trim().slice(0, 1).toUpperCase() || "?"
+    )}</span>`;
+  }
+
+  function renderBeamerPulse() {
+    const d = ck.data;
+    const wall = d.wall || {};
+    const list = students();
+    const n = wall.classSize || list.length || d.students?.length || 0;
+    const planned = Number(wall.plannedCount) || list.filter((s) => s.today).length;
+    const reflected =
+      Number(wall.reflectedCount) || (d.students || []).filter((s) => s.reflectedToday).length;
+    const xpToday = Number(d.game?.klassenziel?.xpToday) || 0;
+    const paceOk = list.filter((s) => s.pace === "ok").length;
+    return `
+      <section class="ck-wall-pulse" aria-label="Klassenpuls">
+        <div class="ck-wall-kpi"><div class="ck-wall-num">${planned}<span>/${n}</span></div><div class="ck-wall-lbl">Tagesziel</div></div>
+        <div class="ck-wall-kpi"><div class="ck-wall-num">${reflected}<span>/${n}</span></div><div class="ck-wall-lbl">Abschluss</div></div>
+        <div class="ck-wall-kpi"><div class="ck-wall-num">${num(xpToday)}</div><div class="ck-wall-lbl">XP heute</div></div>
+        <div class="ck-wall-kpi"><div class="ck-wall-num">${paceOk}<span>/${n}</span></div><div class="ck-wall-lbl">auf Kurs</div></div>
+      </section>`;
+  }
+
+  function renderBeamerRoster() {
+    const wall = ck.data.wall || {};
+    const roster = Array.isArray(wall.roster) ? wall.roster : [];
+    const n = wall.classSize || (ck.data.students || []).length || 0;
+    if (!roster.length) {
+      return `
+        <section class="ck-wall-panel">
+          <h2><span>Wer ist schon dabei?</span><span class="td-kicker">Charakter-Roster</span></h2>
+          <p class="ck-wall-empty">Noch niemand hat heute ein Tagesziel gesetzt. Sobald jemand plant, erscheint der Charakter hier.</p>
+        </section>`;
+    }
+    return `
+      <section class="ck-wall-panel">
+        <h2><span>Wer ist schon dabei?</span><span class="td-kicker">${roster.length} von ${n}</span></h2>
+        <div class="ck-wall-roster">
+          ${roster
+            .map(
+              (p) => `
+            <article class="ck-wall-tile ${p.reflected ? "is-done" : "is-planned"}">
+              ${avatarHtml(p, "ck-av--lg")}
+              <strong>${esc(p.name)}</strong>
+              <span>${p.reflected ? "Abschluss ✓" : "Ziel gesetzt"}</span>
+            </article>`
+            )
+            .join("")}
+        </div>
+      </section>`;
+  }
+
+  function renderBeamerFastest() {
+    if (!ck.showFastest) return "";
+    const wall = ck.data.wall || {};
+    const fastest = Array.isArray(wall.fastest) ? wall.fastest : [];
+    const xpLeaders = Array.isArray(wall.xpLeaders) ? wall.xpLeaders : [];
+    const podium =
+      fastest.length > 0
+        ? fastest
+        : xpLeaders.map((p) => ({ ...p, finishedAt: null }));
+    const mode = fastest.length > 0 ? "abschluss" : "xp";
+    if (!podium.length) {
+      return `
+        <section class="ck-wall-panel ck-wall-panel--podium">
+          <h2><span>Schnellste 5</span><span class="td-kicker">heute</span></h2>
+          <p class="ck-wall-empty">Noch keine Abschlüsse heute – das Podium füllt sich, sobald jemand den Tag beendet.</p>
+        </section>`;
+    }
+    return `
+      <section class="ck-wall-panel ck-wall-panel--podium">
+        <h2><span>Schnellste 5</span><span class="td-kicker">${mode === "abschluss" ? "Tagesabschluss" : "XP heute"}</span></h2>
+        <ol class="ck-wall-podium">
+          ${podium
+            .map(
+              (p, i) => `
+            <li class="ck-wall-podium__item rank-${i + 1}">
+              <span class="ck-wall-podium__rank">${i + 1}</span>
+              ${avatarHtml(p, "ck-av--md")}
+              <div class="ck-wall-podium__meta">
+                <strong>${esc(p.name)}</strong>
+                <span>${
+                  mode === "abschluss" && p.finishedAt
+                    ? new Date(p.finishedAt).toLocaleTimeString("de-DE", {
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })
+                    : `+${num(p.xpToday || 0)} XP`
+                }</span>
+              </div>
+            </li>`
+            )
+            .join("")}
+        </ol>
+      </section>`;
+  }
+
+  function renderBeamerTraining() {
+    const d = ck.data;
+    const training = d.training || { missions: [] };
+    const N = students().length || Math.max(1, (d.students || []).length);
+    const { markTiers, stagesEnabled } = levels();
+    if (!stagesEnabled) {
+      return `
+        <section class="ck-wall-panel">
+          <h2><span>Trainingscenter</span><span class="td-kicker">Lernstand</span></h2>
+          <p class="ck-wall-empty">Diese Klasse nutzt Unterthema statt Rookie/Operator/Street Legend – siehe Missionen in der Mitte.</p>
+        </section>`;
+    }
+    if (!training.missions?.length) {
+      return `
+        <section class="ck-wall-panel">
+          <h2><span>Trainingscenter</span><span class="td-kicker">diese Einheit</span></h2>
+          <p class="ck-wall-empty">Diese Einheit ist noch nicht mit dem Trainingscenter verknüpft.</p>
+        </section>`;
+    }
+    const tier = markTiers.includes(ck.tier) ? ck.tier : markTiers[0] || "rookie";
+    const color = TIER_COLOR[tier] || TIER_COLOR.rookie;
+    return `
+      <section class="ck-wall-panel">
+        <h2><span>Trainingscenter</span><span class="td-kicker">${esc(TIER_LABEL[tier] || tier)}</span></h2>
+        <div class="ck-tier-tabs ck-tier-tabs--wall" role="group" aria-label="Stufe">
+          ${markTiers
+            .map(
+              (t) =>
+                `<button type="button" data-ck-tier="${t}" aria-pressed="${t === tier ? "true" : "false"}" class="ck-tier-${t}">${TIER_LABEL[t]}</button>`
+            )
+            .join("")}
+        </div>
+        <div class="ck-wall-training">
+          ${training.missions
+            .map((m) => {
+              const goal = goalById(m.goalId);
+              const c = m.tiers[tier] || { sicher: 0, teilweise: 0, nochNicht: 0, offen: 0 };
+              const w = (k) => ((k / N) * 100).toFixed(1);
+              return `<div class="ck-wall-tbar">
+                <div class="ck-wall-tbar__head"><strong>M${goal ? goal.number : "?"}</strong><span>${esc(goal?.text || "")}</span><em>${c.sicher}/${N}</em></div>
+                <div class="ck-stack ck-stack--wall"><span style="width:${w(c.sicher)}%;background:${color}"></span><span style="width:${w(c.teilweise)}%;background:rgba(148,163,184,.55)"></span><span style="width:${w(c.nochNicht)}%;background:rgba(148,163,184,.28)"></span></div>
+              </div>`;
+            })
+            .join("")}
+        </div>
+        <div class="ck-legend">
+          <span><i class="ck-lg" style="background:${color}"></i>sicher</span>
+          <span><i class="ck-lg" style="background:rgba(148,163,184,.55)"></i>teilweise</span>
+          <span><i class="ck-lg" style="background:rgba(148,163,184,.28)"></i>angefangen</span>
+        </div>
+      </section>`;
+  }
+
+  function renderBeamerWall() {
+    return `
+      <div class="ck-wall">
+        ${renderBeamerPulse()}
+        <div class="ck-wall-grid">
+          ${renderBeamerRoster()}
+          ${renderBeamerFastest()}
+        </div>
+        ${renderBeamerTraining()}
+        <div class="ck-wall-game">
+          ${renderGoalCard()}${renderMissionCard()}${renderRaffleCard()}
+        </div>
+      </div>`;
   }
 
   /* ---------- Schublade ---------- */
@@ -1107,18 +1289,36 @@
     const d = ck.data;
     const error = ck.error ? `<p class="td-toast" role="alert">${esc(ck.error)} Es werden die zuletzt geladenen Daten gezeigt.</p>` : "";
     if (!d.levelCheck) {
-      ck.el.innerHTML = `<div class="ck ${ck.beamer ? "ck--beamer" : ""}">${toastHtml}${error}${renderHead()}
+      if (ck.beamer) {
+        ck.el.innerHTML = `
+          <div class="ck ck--beamer">
+            ${toastHtml}${error}
+            ${renderHead()}
+            ${renderBeamerWall()}
+          </div>`;
+        return;
+      }
+      ck.el.innerHTML = `<div class="ck">${toastHtml}${error}${renderHead()}
         <div class="td-panel td-empty"><strong>${esc(d.message || "Keine Unterrichtseinheit.")}</strong></div>
         ${renderGame()}</div>`;
       return;
     }
+    if (ck.beamer) {
+      ck.el.innerHTML = `
+        <div class="ck ck--beamer">
+          ${toastHtml}${error}
+          ${renderHead()}
+          ${renderBeamerWall()}
+        </div>`;
+      return;
+    }
     ck.el.innerHTML = `
-      <div class="ck ${ck.beamer ? "ck--beamer" : ""}">
+      <div class="ck">
         ${toastHtml}${error}
         ${renderHead()}
         ${renderKpis()}
         <section class="ck-grid">
-          ${ck.beamer ? "" : renderLeft()}
+          ${renderLeft()}
           ${renderCenter()}
           ${renderRight()}
         </section>
@@ -1267,6 +1467,11 @@
     if (t.closest("[data-ck-beamer]")) {
       ck.beamer = !ck.beamer;
       ck.drawerId = null;
+      render();
+      return;
+    }
+    if (t.closest("[data-ck-fastest]")) {
+      ck.showFastest = !ck.showFastest;
       render();
       return;
     }
