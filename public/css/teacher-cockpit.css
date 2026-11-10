@@ -245,8 +245,8 @@ button.ck-kpi:hover { border-color: rgba(34, 211, 238, 0.45); }
 }
 .ck-idle-row:hover strong { color: var(--ck-cyan); }
 
-/* Unterleiste */
-.ck-bottom { display: grid; grid-template-columns: 1.1fr 1fr 1.2fr; gap: 12px; margin-top: 12px; }
+/* Unterleiste: Puls + Termine immer sichtbar */
+.ck-bottom { display: grid; grid-template-columns: 1.1fr 1.2fr; gap: 12px; margin-top: 12px; }
 .ck-bars { display: flex; align-items: flex-end; gap: 3px; height: 70px; }
 .ck-b { flex: 1; display: flex; flex-direction: column-reverse; border-radius: 4px; overflow: hidden; background: rgba(148, 163, 184, 0.06); height: 100%; }
 .ck-b--future { border: 1px dashed rgba(148, 163, 184, 0.22); background: transparent; }

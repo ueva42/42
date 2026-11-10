@@ -958,11 +958,12 @@
           ${renderRight()}
         </section>
         ${renderGame()}
+        <section class="ck-bottom">
+          ${renderPulse()}${renderTimeline()}
+        </section>
         <details class="ck-fold ck-fold--wide" ${ck.moreOpen ? "open" : ""} data-ck-more>
-          <summary>Puls, Stunden &amp; Termine</summary>
-          <section class="ck-bottom">
-            ${renderPulse()}${renderRecent()}${renderTimeline()}
-          </section>
+          <summary>Die letzten Stunden</summary>
+          ${renderRecent()}
         </details>
         ${renderDrawer()}
       </div>`;
