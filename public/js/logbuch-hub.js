@@ -416,53 +416,99 @@
       </section>`;
   }
 
+  /** Eine Karte im Klassen-Spiel (eigene Klasse – nicht dashboard-feature-card, sonst liegt Text unter dem Dark-Overlay). */
+  function classGameCard(label, title, meta, opts = {}) {
+    const empty = opts.empty ? " hub-class-game-card--empty" : "";
+    const metaHtml = meta
+      ? `<p class="hub-class-game-card__meta">${meta}</p>`
+      : "";
+    const bar = opts.pct != null
+      ? `<div class="hub-progress-track" aria-hidden="true"><div class="hub-progress-fill ${opts.fillClass || ""}" style="width:${Math.max(0, Math.min(100, opts.pct))}%"></div></div>`
+      : "";
+    return `<article class="hub-class-game-card${empty}">
+      <p class="hub-class-game-card__label">${label}</p>
+      <p class="hub-class-game-card__title">${title}</p>
+      ${bar}
+      ${metaHtml}
+    </article>`;
+  }
+
   /** Klassen-Spiel: gemeinsame Ziele der Klasse. Nur Zahlen, keine Namen außer Gewinn und Team. */
   function renderClassGame(ui) {
     const g = state.classGame;
     if (!g) return "";
     const k = g.klassenziel || {};
     const cards = [];
+
     if (k.target) {
       const pct = Math.max(0, Math.min(100, Math.round((k.total / k.target) * 100)));
-      cards.push(`<article class="dashboard-feature-card" style="padding:12px 14px">
-        <p class="hub-block-label" style="margin:0 0 4px">Klassenziel</p>
-        <p class="hub-status-card__title" style="margin:0 0 6px">${ui.escapeHtml(k.title || "Klassenziel")}</p>
-        <div class="hub-progress-track" aria-hidden="true"><div class="hub-progress-fill hub-progress-fill-xp" style="width:${pct}%"></div></div>
-        <p class="hub-status-card__meta" style="margin:6px 0 0">${k.total} von ${k.target} XP gemeinsam${k.xpToday ? ` · heute +${k.xpToday}` : ""}</p>
-      </article>`);
+      cards.push(classGameCard(
+        "Klassenziel",
+        ui.escapeHtml(k.title || "Klassenziel"),
+        `${k.total} von ${k.target} XP gemeinsam${k.xpToday ? ` · heute +${k.xpToday}` : ""}`,
+        { pct, fillClass: "hub-progress-fill-xp" }
+      ));
+    } else {
+      cards.push(classGameCard(
+        "Klassenziel",
+        "Noch kein Klassenziel",
+        "Deine Lehrkraft legt das gemeinsame XP-Ziel in der Verwaltung an.",
+        { empty: true }
+      ));
     }
+
     if (g.mission) {
       const m = g.mission;
       const pct = m.total ? Math.round((m.done / m.total) * 100) : 0;
-      cards.push(`<article class="dashboard-feature-card" style="padding:12px 14px">
-        <p class="hub-block-label" style="margin:0 0 4px">Klassen-Mission</p>
-        <p class="hub-status-card__title" style="margin:0 0 6px">${ui.escapeHtml(m.title)}</p>
-        <div class="hub-progress-track" aria-hidden="true"><div class="hub-progress-fill" style="width:${pct}%"></div></div>
-        <p class="hub-status-card__meta" style="margin:6px 0 0">${m.done} von ${m.total} geschafft · ${m.mine ? "du hast es schon ✔" : "du fehlst noch, du schaffst das"}</p>
-      </article>`);
+      cards.push(classGameCard(
+        "Klassen-Mission",
+        ui.escapeHtml(m.title),
+        `${m.done} von ${m.total} geschafft · ${m.mine ? "du hast es schon ✔" : "du fehlst noch, du schaffst das"}`,
+        { pct }
+      ));
+    } else {
+      cards.push(classGameCard(
+        "Klassen-Mission",
+        "Noch keine Klassen-Mission",
+        "Im Lehrer-Cockpit startet die Lehrkraft eine gemeinsame Mission.",
+        { empty: true }
+      ));
     }
+
     const r = g.raffle || {};
-    const raffleText = r.drawn
+    const raffleTitle = r.drawn
       ? r.drawn.youWon
         ? `Du hast heute gewonnen: +${r.drawn.xp} XP!`
         : `Heute gewonnen: ${ui.escapeHtml(r.drawn.winnerShort)} (+${r.drawn.xp} XP).`
       : r.inPot
-        ? `Du bist im Lostopf (${r.eligibleCount} Lose). Deine Lehrkraft zieht.`
+        ? `Du bist im Lostopf (${r.eligibleCount} Lose).`
+        : "Noch nicht im Lostopf";
+    const raffleMeta = r.drawn
+      ? "Glückwunsch an die Gewinner:in – morgen geht’s weiter."
+      : r.inPot
+        ? "Deine Lehrkraft zieht im Cockpit."
         : "Schließ deinen Tag ab, dann bist du im Lostopf.";
-    cards.push(`<article class="dashboard-feature-card" style="padding:12px 14px">
-      <p class="hub-block-label" style="margin:0 0 4px">Glücks-Ziehung</p>
-      <p class="hub-status-card__title" style="margin:0">${raffleText}</p>
-    </article>`);
+    cards.push(classGameCard("Glücks-Ziehung", raffleTitle, raffleMeta, { empty: !r.drawn && !r.inPot }));
+
     if (g.team) {
-      cards.push(`<article class="dashboard-feature-card" style="padding:12px 14px">
-        <p class="hub-block-label" style="margin:0 0 4px">Team des Tages</p>
-        <p class="hub-status-card__title" style="margin:0">${ui.escapeHtml(g.team.name)}${g.team.yours ? ` · dein Team! +${g.team.xpEach} XP` : ""}</p>
-      </article>`);
+      cards.push(classGameCard(
+        "Team des Tages",
+        ui.escapeHtml(g.team.name) + (g.team.yours ? ` · dein Team! +${g.team.xpEach} XP` : ""),
+        "Heute ausgezeichnet."
+      ));
+    } else {
+      cards.push(classGameCard(
+        "Team des Tages",
+        "Noch kein Team ausgezeichnet",
+        "Die Lehrkraft wählt im Cockpit ein Team des Tages.",
+        { empty: true }
+      ));
     }
+
     return `
-      <section class="hub-block" style="margin:14px 0 4px">
+      <section class="hub-block hub-class-game" style="margin:14px 0 4px">
         <h2 class="hub-block-label">Klassen-Spiel</h2>
-        <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">${cards.join("")}</div>
+        <div class="hub-class-game-grid">${cards.join("")}</div>
       </section>`;
   }
 
