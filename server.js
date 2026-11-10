@@ -65,6 +65,7 @@ import {
 } from "./lib/session-scope.js";
 import { registerTeacherCoachingRoutes } from "./lib/teacher-coaching-api.js";
 import { registerTeacherDashboardRoutes } from "./lib/teacher-dashboard-api.js";
+import { migrateCockpitTables, registerTeacherCockpitRoutes } from "./lib/teacher-cockpit-api.js";
 import { migrateCoachTables, registerCoachRoutes } from "./lib/coach-api.js";
 import {
   applyTrigPracticeLinks,
@@ -4898,6 +4899,7 @@ async function migrate() {
 
   await migrateCoachTables(pool);
   await migrateTrainingTables(pool);
+  await migrateCockpitTables(pool);
 
   console.log("✔️ Migration fertig.");
 }
@@ -5701,6 +5703,18 @@ registerTeacherDashboardRoutes(app, {
   getLevelChecksForClass,
   getGradeRequirements,
   resolveSchoolDate
+});
+
+registerTeacherCockpitRoutes(app, {
+  pool,
+  isTeacher,
+  isStudent,
+  getLevelChecksForClass,
+  getGradeRequirements,
+  resolveSchoolDate,
+  todayIsoDate,
+  awardXp: awardLogbuchXP,
+  getClassTotalXP
 });
 
 registerCoachRoutes(app, { pool, isStudent });
@@ -15811,6 +15825,7 @@ app.get("/teacher", isTeacherShell, (_req, res) => {
 
 const teacherAppPaths = [
   "/teacher/heute",
+  "/teacher/cockpit",
   "/teacher/klasse",
   "/teacher/klassen",
   "/teacher/schuelerinnen",

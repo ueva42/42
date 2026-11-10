@@ -94,7 +94,9 @@ window.LogbuchVisuals = {
     levelcheck_unterthema: "Unterthema geschafft",
     mission: "Mission geschafft",
     direct: "XP erhalten",
-    group_role: "Gruppenrolle geschafft"
+    group_role: "Gruppenrolle geschafft",
+    klassenspiel_ziehung: "Glücks-Ziehung gewonnen",
+    klassenspiel_team: "Team des Tages"
   },
 
   xpEventKey(raw) {

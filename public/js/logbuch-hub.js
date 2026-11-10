@@ -150,7 +150,8 @@
     nextStep: null,
     feedback: [],
     feedbackLabels: {},
-    coachEnabled: false
+    coachEnabled: false,
+    classGame: null
   };
 
   function todayIso() {
@@ -415,6 +416,56 @@
       </section>`;
   }
 
+  /** Klassen-Spiel: gemeinsame Ziele der Klasse. Nur Zahlen, keine Namen außer Gewinn und Team. */
+  function renderClassGame(ui) {
+    const g = state.classGame;
+    if (!g) return "";
+    const k = g.klassenziel || {};
+    const cards = [];
+    if (k.target) {
+      const pct = Math.max(0, Math.min(100, Math.round((k.total / k.target) * 100)));
+      cards.push(`<article class="dashboard-feature-card" style="padding:12px 14px">
+        <p class="hub-block-label" style="margin:0 0 4px">Klassenziel</p>
+        <p class="hub-status-card__title" style="margin:0 0 6px">${ui.escapeHtml(k.title || "Klassenziel")}</p>
+        <div class="hub-progress-track" aria-hidden="true"><div class="hub-progress-fill hub-progress-fill-xp" style="width:${pct}%"></div></div>
+        <p class="hub-status-card__meta" style="margin:6px 0 0">${k.total} von ${k.target} XP gemeinsam${k.xpToday ? ` · heute +${k.xpToday}` : ""}</p>
+      </article>`);
+    }
+    if (g.mission) {
+      const m = g.mission;
+      const pct = m.total ? Math.round((m.done / m.total) * 100) : 0;
+      cards.push(`<article class="dashboard-feature-card" style="padding:12px 14px">
+        <p class="hub-block-label" style="margin:0 0 4px">Klassen-Mission</p>
+        <p class="hub-status-card__title" style="margin:0 0 6px">${ui.escapeHtml(m.title)}</p>
+        <div class="hub-progress-track" aria-hidden="true"><div class="hub-progress-fill" style="width:${pct}%"></div></div>
+        <p class="hub-status-card__meta" style="margin:6px 0 0">${m.done} von ${m.total} geschafft · ${m.mine ? "du hast es schon ✔" : "du fehlst noch, du schaffst das"}</p>
+      </article>`);
+    }
+    const r = g.raffle || {};
+    const raffleText = r.drawn
+      ? r.drawn.youWon
+        ? `Du hast heute gewonnen: +${r.drawn.xp} XP!`
+        : `Heute gewonnen: ${ui.escapeHtml(r.drawn.winnerShort)} (+${r.drawn.xp} XP).`
+      : r.inPot
+        ? `Du bist im Lostopf (${r.eligibleCount} Lose). Deine Lehrkraft zieht.`
+        : "Schließ deinen Tag ab, dann bist du im Lostopf.";
+    cards.push(`<article class="dashboard-feature-card" style="padding:12px 14px">
+      <p class="hub-block-label" style="margin:0 0 4px">Glücks-Ziehung</p>
+      <p class="hub-status-card__title" style="margin:0">${raffleText}</p>
+    </article>`);
+    if (g.team) {
+      cards.push(`<article class="dashboard-feature-card" style="padding:12px 14px">
+        <p class="hub-block-label" style="margin:0 0 4px">Team des Tages</p>
+        <p class="hub-status-card__title" style="margin:0">${ui.escapeHtml(g.team.name)}${g.team.yours ? ` · dein Team! +${g.team.xpEach} XP` : ""}</p>
+      </article>`);
+    }
+    return `
+      <section class="hub-block" style="margin:14px 0 4px">
+        <h2 class="hub-block-label">Klassen-Spiel</h2>
+        <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">${cards.join("")}</div>
+      </section>`;
+  }
+
   function traitListFromProfile(p) {
     return (Array.isArray(p?.traits) ? p.traits : []).map((t) => String(t || "").trim()).filter(Boolean);
   }
@@ -509,6 +560,7 @@
         </section>
 
         ${renderStatusPanel(ui, stats, step)}
+        ${renderClassGame(ui)}
         ${renderTeacherFeedback(ui)}
 
         <section class="hub-block">
@@ -684,14 +736,25 @@
     state.coachEnabled = (await window.LogbuchCoach?.refreshStatus?.()) === true;
   }
 
+  async function loadClassGame() {
+    try {
+      const res = await fetch("/api/student/class-game", { credentials: "same-origin" });
+      if (!res.ok) return;
+      const data = await res.json();
+      state.classGame = data.game || null;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   async function init() {
-    await Promise.all([loadTodayData(), loadTeacherFeedback(), loadCoachFlag()]);
+    await Promise.all([loadTodayData(), loadTeacherFeedback(), loadCoachFlag(), loadClassGame()]);
     render();
     refreshStats();
   }
 
   async function refresh() {
-    await Promise.all([loadTodayData(), loadTeacherFeedback(), loadCoachFlag()]);
+    await Promise.all([loadTodayData(), loadTeacherFeedback(), loadCoachFlag(), loadClassGame()]);
     render();
     refreshStats();
   }

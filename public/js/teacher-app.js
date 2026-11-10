@@ -67,10 +67,12 @@
     }
     if (path.includes("/schueler")) return "schueler";
     if (path.includes("/klasse")) return "klasse";
+    if (path.includes("/cockpit")) return "cockpit";
     return "heute";
   }
 
   function pathFor(tab) {
+    if (tab === "cockpit") return "/teacher/cockpit";
     if (tab === "klasse") return "/teacher/klasse";
     if (tab === "schueler") return "/teacher/schuelerinnen";
     if (tab === "werkzeuge") return "/teacher/werkzeuge";
@@ -670,6 +672,23 @@
 
   function render() {
     markTabs();
+    if (state.tab === "cockpit" && window.TeacherCockpit && state.classId) {
+      window.TeacherCockpit.show(appEl, {
+        classId: state.classId,
+        levelCheckId: state.levelCheckId,
+        range: state.range,
+        view: state.view,
+        toast: state.toast,
+        api,
+        escapeHtml,
+        setView(view) {
+          state.view = view;
+          state.levelCheckId = view?.levelCheck?.id || state.levelCheckId;
+        }
+      });
+      return;
+    }
+    window.TeacherCockpit?.hide();
     if (state.loading && !state.view && state.tab !== "werkzeuge") {
       appEl.innerHTML = `<div class="td-panel td-empty"><strong>Lade die Klasse…</strong></div>`;
       return;
@@ -677,7 +696,9 @@
     if (state.tab === "heute") appEl.innerHTML = renderHeute();
     else if (state.tab === "klasse") appEl.innerHTML = renderKlasse();
     else if (state.tab === "schueler") appEl.innerHTML = renderSchueler();
-    else appEl.innerHTML = renderWerkzeuge();
+    else if (state.tab === "cockpit") {
+      appEl.innerHTML = `<div class="td-panel td-empty"><strong>${escapeHtml(state.view?.message || "Keine Klasse zugewiesen.")}</strong></div>`;
+    } else appEl.innerHTML = renderWerkzeuge();
   }
 
   async function loadView() {
