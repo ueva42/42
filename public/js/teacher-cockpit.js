@@ -43,7 +43,7 @@
     view: "now",
     tier: "rookie",
     beamer: false,
-    showFastest: true,
+    showPodiums: true,
     drawerId: null,
     moreOpen: false,
     form: null,
@@ -306,7 +306,7 @@
             <button type="button" class="ck-btn ${ck.beamer ? "ck-btn-go" : ""}" data-ck-beamer title="Klassenwand für den Beamer: Charakter-Roster, Puls, Training">${ck.beamer ? "Lehrkraft-Ansicht" : "Beamer-Ansicht"}</button>
             ${
               ck.beamer
-                ? `<button type="button" class="ck-btn ${ck.showFastest ? "ck-btn-go" : ""}" data-ck-fastest title="Podium ein- oder ausblenden">${ck.showFastest ? "Schnellste aus" : "Schnellste an"}</button>`
+                ? `<button type="button" class="ck-btn ${ck.showPodiums ? "ck-btn-go" : ""}" data-ck-podiums title="Podien ein- oder ausblenden">${ck.showPodiums ? "Podien aus" : "Podien an"}</button>`
                 : ""
             }
           </div>
@@ -1074,49 +1074,78 @@
       </section>`;
   }
 
-  function renderBeamerFastest() {
-    if (!ck.showFastest) return "";
+  function renderPodiumList(items, detailFn) {
+    return `
+      <ol class="ck-wall-podium">
+        ${items
+          .map(
+            (p, i) => `
+          <li class="ck-wall-podium__item rank-${i + 1}">
+            <span class="ck-wall-podium__rank">${i + 1}</span>
+            ${avatarHtml(p, "ck-av--md")}
+            <div class="ck-wall-podium__meta">
+              <strong>${esc(p.name)}</strong>
+              <span>${detailFn(p)}</span>
+            </div>
+          </li>`
+          )
+          .join("")}
+      </ol>`;
+  }
+
+  function renderBeamerPodiums() {
+    if (!ck.showPodiums) return "";
     const wall = ck.data.wall || {};
     const fastest = Array.isArray(wall.fastest) ? wall.fastest : [];
-    const xpLeaders = Array.isArray(wall.xpLeaders) ? wall.xpLeaders : [];
-    const podium =
-      fastest.length > 0
-        ? fastest
-        : xpLeaders.map((p) => ({ ...p, finishedAt: null }));
-    const mode = fastest.length > 0 ? "abschluss" : "xp";
-    if (!podium.length) {
-      return `
-        <section class="ck-wall-panel ck-wall-panel--podium">
-          <h2><span>Schnellste 5</span><span class="td-kicker">heute</span></h2>
-          <p class="ck-wall-empty">Noch keine Abschlüsse heute – das Podium füllt sich, sobald jemand den Tag beendet.</p>
-        </section>`;
-    }
+    const progress = Array.isArray(wall.progress) ? wall.progress : [];
+    const catchUp = Array.isArray(wall.catchUp) ? wall.catchUp : [];
+
+    const fastestBody = fastest.length
+      ? renderPodiumList(fastest, (p) =>
+          p.finishedAt
+            ? new Date(p.finishedAt).toLocaleTimeString("de-DE", {
+                hour: "2-digit",
+                minute: "2-digit"
+              })
+            : "Abschluss"
+        )
+      : `<p class="ck-wall-empty">Noch keine Abschlüsse – wer den Tag zuerst beendet, steht hier.</p>`;
+
+    const progressBody = progress.length
+      ? renderPodiumList(progress, (p) => {
+          const bits = [];
+          if (p.sicherToday) bits.push(`+${num(p.sicherToday)} sicher`);
+          if (p.trainingToday) bits.push(`${num(p.trainingToday)} Training`);
+          return bits.join(" · ") || "Fortschritt";
+        })
+      : `<p class="ck-wall-empty">Noch keine neuen Sicherungen oder Trainingsstände heute.</p>`;
+
+    const catchBody = catchUp.length
+      ? renderPodiumList(catchUp, (p) => {
+          const gap = Number(p.gap);
+          const gapText =
+            Number.isFinite(gap) && gap >= 1
+              ? `noch ${gap % 1 ? gap.toFixed(1).replace(".", ",") : gap} hinter Plan`
+              : "holt auf";
+          return `+${num(p.sicherToday)} sicher · ${gapText}`;
+        })
+      : `<p class="ck-wall-empty">Niemand hinter dem Plan mit neuem Fortschritt – oder noch keine Sicherungen.</p>`;
+
     return `
-      <section class="ck-wall-panel ck-wall-panel--podium">
-        <h2><span>Schnellste 5</span><span class="td-kicker">${mode === "abschluss" ? "Tagesabschluss" : "XP heute"}</span></h2>
-        <ol class="ck-wall-podium">
-          ${podium
-            .map(
-              (p, i) => `
-            <li class="ck-wall-podium__item rank-${i + 1}">
-              <span class="ck-wall-podium__rank">${i + 1}</span>
-              ${avatarHtml(p, "ck-av--md")}
-              <div class="ck-wall-podium__meta">
-                <strong>${esc(p.name)}</strong>
-                <span>${
-                  mode === "abschluss" && p.finishedAt
-                    ? new Date(p.finishedAt).toLocaleTimeString("de-DE", {
-                        hour: "2-digit",
-                        minute: "2-digit"
-                      })
-                    : `+${num(p.xpToday || 0)} XP`
-                }</span>
-              </div>
-            </li>`
-            )
-            .join("")}
-        </ol>
-      </section>`;
+      <div class="ck-wall-podiums">
+        <section class="ck-wall-panel ck-wall-panel--podium">
+          <h2><span>Schnellste 5</span><span class="td-kicker">Abschluss</span></h2>
+          ${fastestBody}
+        </section>
+        <section class="ck-wall-panel ck-wall-panel--podium">
+          <h2><span>Fortschritt</span><span class="td-kicker">heute</span></h2>
+          ${progressBody}
+        </section>
+        <section class="ck-wall-panel ck-wall-panel--podium">
+          <h2><span>Aufholer</span><span class="td-kicker">gegen Plan</span></h2>
+          ${catchBody}
+        </section>
+      </div>`;
   }
 
   function renderBeamerTraining() {
@@ -1176,10 +1205,8 @@
     return `
       <div class="ck-wall">
         ${renderBeamerPulse()}
-        <div class="ck-wall-grid">
-          ${renderBeamerRoster()}
-          ${renderBeamerFastest()}
-        </div>
+        ${renderBeamerRoster()}
+        ${renderBeamerPodiums()}
         ${renderBeamerTraining()}
         <div class="ck-wall-game">
           ${renderGoalCard()}${renderMissionCard()}${renderRaffleCard()}
@@ -1470,8 +1497,8 @@
       render();
       return;
     }
-    if (t.closest("[data-ck-fastest]")) {
-      ck.showFastest = !ck.showFastest;
+    if (t.closest("[data-ck-podiums]")) {
+      ck.showPodiums = !ck.showPodiums;
       render();
       return;
     }

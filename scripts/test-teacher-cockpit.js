@@ -18,6 +18,8 @@ import {
   pickWinner,
   planTarget,
   raffleEligible,
+  rankCatchUpLeaders,
+  rankProgressLeaders,
   resolveClassLevels,
   studentPosition,
   teamStats,
@@ -111,6 +113,39 @@ assert.equal(studentPosition(CHECK.goals, null, allRookie).current, 0, "ohne Zie
 
 assert.equal(classMissionDone(["a"], "rookie", (g, t) => (t === "operator" ? "sicher" : "offen")), true, "höhere Stufe zählt mit");
 assert.equal(classMissionDone(["a"], "operator", (g, t) => (t === "rookie" ? "sicher" : "offen")), false);
+
+const podiumPeople = [
+  { id: 1, name: "Ada", done: 1, avatarUrl: null },
+  { id: 2, name: "Bo", done: 2, avatarUrl: null },
+  { id: 3, name: "Cy", done: 4, avatarUrl: null }
+];
+const sicherMap = new Map([
+  [1, 3],
+  [2, 2],
+  [3, 4]
+]);
+const progress = rankProgressLeaders({
+  students: podiumPeople,
+  sicherById: sicherMap,
+  trainingById: new Map([[2, 12]]),
+  limit: 5
+});
+assert.equal(progress[0].id, 3, "meiste Sicherungen gewinnen Fortschritt");
+assert.equal(progress[1].id, 1);
+assert.equal(progress[2].id, 2);
+const catchUp = rankCatchUpLeaders({
+  students: podiumPeople,
+  sicherById: sicherMap,
+  ghost: 3.2,
+  limit: 5
+});
+assert.deepEqual(
+  catchUp.map((p) => p.id),
+  [1, 2],
+  "Aufholer nur hinter dem Plan-Geist"
+);
+assert.equal(catchUp[0].sicherToday, 3);
+assert.deepEqual(rankCatchUpLeaders({ students: podiumPeople, sicherById: sicherMap, ghost: null }), []);
 
 const small = teamStats([1, 2], new Set([1, 2]), new Map([[1, 1]]));
 const big = teamStats([3, 4, 5, 6], new Set([3, 4, 5]), new Map([[3, 2], [4, 2]]));
@@ -238,16 +273,35 @@ const pool = {
     if (s.includes("LEFT JOIN levels l")) return { rows: db.students };
     if (s.includes("UNION")) return { rows: db.reflected.map((id) => ({ id })) };
     if (s.includes("FROM level_check_marks") && s.includes("GROUP BY user_id")) {
+      const day = String(params[params.length - 1]).slice(0, 10);
+      const goalFilter = Array.isArray(params[1]) ? new Set(params[1].map(String)) : null;
       const counts = new Map();
       for (const m of db.marks) {
-        if (m.status === "sicher" && m.updated_at.toISOString().slice(0, 10) === params[1]) {
-          counts.set(m.user_id, (counts.get(m.user_id) || 0) + 1);
-        }
+        if (m.status !== "sicher") continue;
+        if (m.updated_at.toISOString().slice(0, 10) !== day) continue;
+        if (goalFilter && !goalFilter.has(String(m.goal_id))) continue;
+        counts.set(m.user_id, (counts.get(m.user_id) || 0) + 1);
       }
       return { rows: [...counts].map(([user_id, n]) => ({ user_id, n })) };
     }
     if (s.includes("FROM level_check_marks")) {
       return { rows: db.marks.filter((m) => params[0].includes(m.user_id) && params[1].includes(m.goal_id)) };
+    }
+    if (s.includes("SELECT DISTINCT user_id") && s.includes("FROM log_entries")) {
+      return { rows: [{ user_id: 11 }, { user_id: 12 }] };
+    }
+    if (s.includes("AS finished_at") && s.includes("FROM log_entries le")) {
+      return {
+        rows: [{ user_id: 11, finished_at: new Date(`${TODAY}T10:10:00`) }]
+      };
+    }
+    if (s.includes("FROM xp_transactions") && s.includes("GROUP BY student_id")) {
+      return {
+        rows: [
+          { student_id: 11, xp: 40 },
+          { student_id: 13, xp: 25 }
+        ]
+      };
     }
     if (s.includes("FROM group_sessions gs")) {
       const subject = params[2];
@@ -460,6 +514,12 @@ try {
     false,
     "Physik-Gruppenarbeit erscheint nicht bei Mathe-Einheit"
   );
+  assert.ok(Array.isArray(d.wall?.fastest), "Beamer: Schnellste");
+  assert.equal(d.wall.fastest[0]?.id, 11);
+  assert.ok(Array.isArray(d.wall?.progress), "Beamer: Fortschritt");
+  assert.equal(d.wall.progress[0]?.id, 11);
+  assert.equal(d.wall.progress[0]?.sicherToday, 1);
+  assert.ok(Array.isArray(d.wall?.catchUp), "Beamer: Aufholer");
   assert.ok(d.events.some((e) => e.kind === "ziel"));
   assert.ok(d.events.some((e) => e.kind === "sicher"));
 
