@@ -6502,6 +6502,20 @@ app.get("/api/student/log/plan-context", isStudent, async (req, res) => {
       }
     }
 
+    try {
+      const maps = await cityMapsForGoals(
+        pool,
+        planningUserId,
+        (whatGoalOptions || []).map((o) => o.id)
+      );
+      whatGoalOptions = (whatGoalOptions || []).map((o) => ({
+        ...o,
+        cityMap: maps.get(String(o.id)) || null
+      }));
+    } catch (cityErr) {
+      console.error("⚠️ Stadtkarte in plan-context:", cityErr.message || cityErr);
+    }
+
     res.json({
       date,
       weekday,
@@ -6973,6 +6987,16 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       }
     }
 
+    let cityMap = null;
+    try {
+      if (finalWhatGoalId) {
+        const maps = await cityMapsForGoals(pool, studentId, [finalWhatGoalId]);
+        cityMap = maps.get(String(finalWhatGoalId)) || null;
+      }
+    } catch (cityErr) {
+      console.error("⚠️ Stadtkarte nach Plan-Speichern:", cityErr.message || cityErr);
+    }
+
     res.json({
       success: true,
       entry: insertRes.rows[0],
@@ -6980,7 +7004,8 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
       planningUserId: studentId,
       sharedHandoff: Number(studentId) !== Number(actorId),
       practice: isPractice,
-      entryKind
+      entryKind,
+      cityMap
     });
   } catch (err) {
     console.error("❌ /api/student/log/plan:", err);
@@ -7286,11 +7311,22 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
       return res.json({ success: false, message: "Tagesziel nicht gefunden." });
     }
 
+    let cityMap = null;
+    try {
+      if (cleanWhatGoalId) {
+        const maps = await cityMapsForGoals(pool, studentId, [cleanWhatGoalId]);
+        cityMap = maps.get(String(cleanWhatGoalId)) || null;
+      }
+    } catch (cityErr) {
+      console.error("⚠️ Stadtkarte nach Plan-Update:", cityErr.message || cityErr);
+    }
+
     res.json({
       success: true,
       entry: upd.rows[0],
       xpAwarded: 0,
-      updated: true
+      updated: true,
+      cityMap
     });
   } catch (err) {
     console.error("❌ PATCH /api/student/log/plan:", err);

@@ -248,6 +248,24 @@
       </section>`;
   }
 
+  function cityMapButtonText(cityMap) {
+    const text = String(cityMap?.beschriftung || "").trim();
+    return text || "Stadtkarte öffnen";
+  }
+
+  function renderCityMap(entry) {
+    if (!entry?.cityMap) return "";
+    const ui = UI();
+    const label = ui.escapeHtml(cityMapButtonText(entry.cityMap));
+    if (entry.cityMap.url) {
+      return `<a class="today-app-btn today-city-map" href="${ui.escapeHtml(
+        entry.cityMap.url
+      )}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    }
+    return `<button type="button" class="today-app-btn today-city-map" disabled>${label}</button>
+      <p class="ueben-muted">Zielnote setzen</p>`;
+  }
+
   function renderEntryTile(entry, editable) {
     const ui = UI();
     const subject = entry.subject || "Fach";
@@ -280,20 +298,23 @@
       : "";
 
     return `
-      <button type="button"
-        class="today-subject-tile hub-tile hub-tile-sm dashboard-card app-card hub-accent-${accent}${
-          done ? " is-done" : ""
-        }${artSrc ? " today-subject-tile--has-art" : ""}"
-        data-nav="${ui.escapeHtml(nav)}"
-        data-query="${ui.escapeHtml(query)}">
-        ${art}
-        <span class="today-subject-tile__copy hub-tile-content">
-          <span class="today-subject-tile__time">${done ? "Abgeschlossen" : "Offen"}</span>
-          <span class="today-subject-tile__title">${ui.escapeHtml(subject)}</span>
-          <span class="today-subject-tile__text">${ui.escapeHtml(hint)}</span>
-          <span class="today-subject-tile__cta">${ui.escapeHtml(cta)} <span class="hub-tile-arrow" aria-hidden="true">→</span></span>
-        </span>
-      </button>`;
+      <div class="ueben-entry-stack">
+        <button type="button"
+          class="today-subject-tile hub-tile hub-tile-sm dashboard-card app-card hub-accent-${accent}${
+            done ? " is-done" : ""
+          }${artSrc ? " today-subject-tile--has-art" : ""}"
+          data-nav="${ui.escapeHtml(nav)}"
+          data-query="${ui.escapeHtml(query)}">
+          ${art}
+          <span class="today-subject-tile__copy hub-tile-content">
+            <span class="today-subject-tile__time">${done ? "Abgeschlossen" : "Offen"}</span>
+            <span class="today-subject-tile__title">${ui.escapeHtml(subject)}</span>
+            <span class="today-subject-tile__text">${ui.escapeHtml(hint)}</span>
+            <span class="today-subject-tile__cta">${ui.escapeHtml(cta)} <span class="hub-tile-arrow" aria-hidden="true">→</span></span>
+          </span>
+        </button>
+        ${renderCityMap(entry)}
+      </div>`;
   }
 
   function styles() {
@@ -314,6 +335,7 @@
       .ueben-start-cta__hint{font-size:13px;font-weight:600;line-height:1.45;color:#94a3b8}
       .ueben-start-cta__arrow{position:relative;flex:0 0 auto;font-size:16px;font-weight:900;line-height:1;color:#67e8f9}
       .ueben-entry-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+      .ueben-entry-stack{display:grid;gap:8px;align-content:start}
       @media (max-width:640px){
         .ueben-start-cta{padding:16px 14px;gap:12px}
         .ueben-start-cta__title{font-size:16px}

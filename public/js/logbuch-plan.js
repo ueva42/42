@@ -94,6 +94,7 @@
     suggestion: null,
     suggestionApplied: false,
     afterSaveOpen: false,
+    savedCityMap: null,
     groupContext: null,
     handoffUserId: null,
     roleSaving: false,
@@ -874,6 +875,15 @@
     );
   }
 
+  function resolveCityMap(fromSave) {
+    return fromSave || state.savedCityMap || pickedWhatGoal()?.cityMap || null;
+  }
+
+  function cityMapButtonText(cityMap) {
+    const text = String(cityMap?.beschriftung || "").trim();
+    return text || "Stadtkarte öffnen";
+  }
+
   function portalPlanNextModal(root) {
     teardownPlanNextModal();
     root?.querySelectorAll(".plan-next-modal-backdrop").forEach((modal) => {
@@ -882,9 +892,17 @@
     const after = document.querySelector("[data-plan-after-save]");
     if (!after) return;
     after.querySelectorAll("[data-plan-next]").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", (event) => {
         const action = btn.dataset.planNext;
         const goal = pickedWhatGoal();
+        if (action === "citymap") {
+          // Link öffnet selbst; Modal bleibt, bis „Weiter“ gewählt wird.
+          if (btn.tagName === "A") return;
+          event.preventDefault();
+          const url = resolveCityMap()?.url;
+          if (url) window.open(url, "_blank", "noopener,noreferrer");
+          return;
+        }
         if (action === "practice") {
           const material = goalPracticeMaterial(goal);
           if (!followPracticeUrl(material.url)) {
@@ -903,8 +921,32 @@
   }
 
   function renderAfterSaveModal() {
-    // Nach Speichern geht’s direkt zu Mein Tag – kein Lernstand-/Üben-Dialog mehr.
-    return "";
+    if (!state.afterSaveOpen) return "";
+    const ui = UI();
+    const cityMap = resolveCityMap();
+    if (!cityMap) return "";
+    const label = ui.escapeHtml(cityMapButtonText(cityMap));
+    const continueLabel = state.practice ? "Weiter zu Üben" : "Weiter zu Mein Tag";
+    const mapAction = cityMap.url
+      ? `<a class="btn-primary today-app-btn today-city-map" href="${ui.escapeHtml(
+          cityMap.url
+        )}" target="_blank" rel="noopener noreferrer" data-plan-next="citymap">${label}</a>`
+      : `<button type="button" class="today-app-btn today-city-map" disabled>${label}</button>
+         <p class="plan-next-modal__text" style="margin:0">Zielnote setzen – dann öffnet sich das Trainingscenter.</p>`;
+    return `
+      <div class="plan-next-modal-backdrop" data-plan-after-save role="dialog" aria-modal="true" aria-label="Trainingscenter">
+        <div class="plan-next-modal">
+          <p class="plan-next-modal__kicker">Gespeichert</p>
+          <h3 class="plan-next-modal__title">Trainingscenter</h3>
+          <p class="plan-next-modal__text">Öffne die Stadtkarte für dein Unterthema und trainiere dort weiter.</p>
+          <div class="plan-next-modal__actions">
+            ${mapAction}
+            <button type="button" class="logbuch-btn-ghost today-app-btn today-app-btn--ghost" data-plan-next="today">${ui.escapeHtml(
+              continueLabel
+            )}</button>
+          </div>
+        </div>
+      </div>`;
   }
 
   function levelGoalTextFor(goal, level) {
@@ -1141,6 +1183,7 @@
     state.suggestionApplied = false;
     state.errorMsg = "";
     state.afterSaveOpen = false;
+    state.savedCityMap = null;
   }
 
   function currentHandoffMember() {
@@ -1389,13 +1432,19 @@
   }
 
   function renderMissionPopup(ui, missionReady) {
+    const cityMap = resolveCityMap();
+    const nextHint = cityMap
+      ? "Prüfe kurz, dann speichern – danach öffnest du die Stadtkarte im Trainingscenter."
+      : state.practice
+        ? "Prüfe kurz, dann speichern – danach geht’s weiter zum Üben."
+        : "Prüfe kurz, dann speichern – danach geht’s weiter zu Mein Tag.";
     return `
       <div class="plan-next-modal-backdrop plan-next-modal-backdrop--ask" role="dialog" aria-modal="true" aria-label="Meine Mission heute">
         <div class="plan-next-modal plan-next-modal--ask">
           ${renderAskProgress(PLAN_ASK_STEPS + 1)}
           <p class="plan-next-modal__kicker">Bereit</p>
           <h3 class="plan-next-modal__title">Meine Mission heute</h3>
-          <p class="plan-next-modal__text">Prüfe kurz, dann speichern – danach geht’s weiter zum Üben.</p>
+          <p class="plan-next-modal__text">${nextHint}</p>
           <div id="planSummaryCard">${renderPlanSummaryContent(ui)}</div>
           ${state.errorMsg ? ui.msg(state.errorMsg) : ""}
           <div class="plan-next-modal__actions">
@@ -3740,6 +3789,13 @@
         if (advanced) return;
       }
       state.handoffNotice = null;
+      state.savedCityMap = data.cityMap || null;
+      const cityMap = resolveCityMap(state.savedCityMap);
+      if (cityMap) {
+        state.afterSaveOpen = true;
+        render();
+        return;
+      }
       state.afterSaveOpen = false;
       goToTodayFromPlan();
     } catch (err) {
@@ -4026,6 +4082,7 @@
     state.suggestion = null;
     state.suggestionApplied = false;
     state.afterSaveOpen = false;
+    state.savedCityMap = null;
     state.groupContext = null;
     state.handoffUserId = null;
     const forUserInit = q.get("forUserId");
