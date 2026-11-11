@@ -25,6 +25,7 @@
     deleting: false,
     deletingTopicId: null,
     deletingGoalId: null,
+    movingGoalId: null,
     // Inline-Editor: { type: "goal-add"|"goal-edit"|"topic-add"|"topic-rename", topicId?, goalId?, draft }
     editor: null,
     savingEditor: false,
@@ -201,10 +202,13 @@
       .map((topic) => {
         const goals = topic.goals || [];
         const rows = goals
-          .map((g) => {
+          .map((g, index) => {
             if (isEditor("goal-edit", g.id)) {
               return `<tr><td colspan="5">${renderGoalForm("Unterthema bearbeiten", "Änderungen speichern")}</td></tr>`;
             }
+            const moving = state.movingGoalId === String(g.id);
+            const canUp = index > 0;
+            const canDown = index < goals.length - 1;
             return `
           <tr>
             <td>${escapeHtml(g.text)}</td>
@@ -213,9 +217,15 @@
             <td>${escapeHtml(g.streetLegendGoalText || "–")}</td>
             <td>
               <div class="lp-row-actions">
+                <button type="button" class="kr-practice-btn kr-practice-btn--ghost lp-move-btn" data-lp-move-goal="${escapeHtml(g.id)}" data-lp-move-dir="up" title="Nach oben" ${
+                  !canUp || moving || state.movingGoalId ? "disabled" : ""
+                }>↑</button>
+                <button type="button" class="kr-practice-btn kr-practice-btn--ghost lp-move-btn" data-lp-move-goal="${escapeHtml(g.id)}" data-lp-move-dir="down" title="Nach unten" ${
+                  !canDown || moving || state.movingGoalId ? "disabled" : ""
+                }>↓</button>
                 <button type="button" class="kr-practice-btn kr-practice-btn--ghost" data-lp-edit-goal="${escapeHtml(g.id)}" title="Dieses Unterthema bearbeiten">Bearbeiten</button>
                 <button type="button" class="tc-delete-btn" data-lp-del-goal="${escapeHtml(g.id)}" title="Dieses Unterthema löschen" ${
-                  state.deletingGoalId === String(g.id) ? "disabled" : ""
+                  state.deletingGoalId === String(g.id) || state.movingGoalId ? "disabled" : ""
                 }>${state.deletingGoalId === String(g.id) ? "Löschen…" : "Löschen"}</button>
               </div>
             </td>
@@ -630,6 +640,43 @@
     root.querySelectorAll("[data-lp-del-goal]").forEach((btn) => {
       btn.addEventListener("click", () => deleteGoal(btn.dataset.lpDelGoal));
     });
+
+    root.querySelectorAll("[data-lp-move-goal]").forEach((btn) => {
+      btn.addEventListener("click", () => moveGoal(btn.dataset.lpMoveGoal, btn.dataset.lpMoveDir));
+    });
+  }
+
+  async function moveGoal(goalId, direction) {
+    if (!state.catalogId || !goalId || state.movingGoalId) return;
+    const dir = direction === "up" || direction === "down" ? direction : null;
+    if (!dir) return;
+    state.movingGoalId = String(goalId);
+    state.error = "";
+    state.message = "";
+    render();
+    try {
+      const res = await fetch(
+        `/api/teacher/level-plan-catalogs/${encodeURIComponent(state.catalogId)}/goals/${encodeURIComponent(goalId)}/move`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ direction: dir })
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        state.error = data.message || data.error || "Verschieben fehlgeschlagen.";
+        return;
+      }
+      state.message = data.message || (dir === "up" ? "Nach oben verschoben." : "Nach unten verschoben.");
+      await loadDetail();
+    } catch (err) {
+      console.error(err);
+      state.error = "Netzwerkfehler.";
+    } finally {
+      state.movingGoalId = null;
+      render();
+    }
   }
 
   async function saveActiveLevels() {

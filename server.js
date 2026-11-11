@@ -12330,6 +12330,84 @@ app.patch(
   }
 );
 
+/** Unterthema innerhalb desselben Themas nach oben/unten schieben (sort_order tauschen). */
+app.post(
+  "/api/teacher/level-plan-catalogs/:id/goals/:goalId/move",
+  isTeacher,
+  async (req, res) => {
+    try {
+      const schoolId = req.session.user.school_id;
+      const catalogId = String(req.params.id || "").trim();
+      const goalId = String(req.params.goalId || "").trim();
+      const direction = String(req.body?.direction || "").toLowerCase();
+      if (direction !== "up" && direction !== "down") {
+        return res.status(400).json({ success: false, message: "Richtung fehlt (up oder down)." });
+      }
+      if (!(await findOwnedCatalog(catalogId, schoolId))) {
+        return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
+      }
+      const cur = await pool.query(
+        `
+        SELECT g.id, g.level_check_id
+        FROM level_check_goals g
+        JOIN level_checks lc ON lc.id = g.level_check_id
+        WHERE g.id = $1 AND lc.catalog_id = $2 AND COALESCE(g.active, true) = true
+      `,
+        [goalId, catalogId]
+      );
+      if (!cur.rows.length) {
+        return res.status(404).json({ success: false, message: "Unterthema nicht gefunden." });
+      }
+      const topicId = cur.rows[0].level_check_id;
+      const siblingsRes = await pool.query(
+        `
+        SELECT id, sort_order
+        FROM level_check_goals
+        WHERE level_check_id = $1 AND COALESCE(active, true) = true
+        ORDER BY sort_order ASC, created_at ASC, id ASC
+      `,
+        [topicId]
+      );
+      const siblings = siblingsRes.rows;
+      const index = siblings.findIndex((row) => String(row.id) === String(goalId));
+      if (index < 0) {
+        return res.status(404).json({ success: false, message: "Unterthema nicht gefunden." });
+      }
+      const swapWith = direction === "up" ? index - 1 : index + 1;
+      if (swapWith < 0 || swapWith >= siblings.length) {
+        return res.json({
+          success: false,
+          message: direction === "up" ? "Ist schon ganz oben." : "Ist schon ganz unten."
+        });
+      }
+      const orderedIds = siblings.map((row) => row.id);
+      const tmp = orderedIds[index];
+      orderedIds[index] = orderedIds[swapWith];
+      orderedIds[swapWith] = tmp;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        for (let i = 0; i < orderedIds.length; i += 1) {
+          await client.query(
+            `UPDATE level_check_goals SET sort_order = $1, updated_at = NOW() WHERE id = $2`,
+            [i + 1, orderedIds[i]]
+          );
+        }
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+      res.json({ success: true, message: direction === "up" ? "Nach oben verschoben." : "Nach unten verschoben." });
+    } catch (err) {
+      console.error("❌ POST level-plan-catalogs goal move:", err);
+      res.status(500).json({ success: false, message: "Serverfehler" });
+    }
+  }
+);
+
 app.get("/api/teacher/level-plan-assignments", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
