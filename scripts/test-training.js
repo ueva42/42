@@ -1130,15 +1130,17 @@ assert.equal(qgAssign[1].params.includes("rein quadratische gleichungen"), true)
 assert.equal(qgAssign[1].params.includes("satz vom nullprodukt"), true);
 assert.equal(qgAssign[1].params.includes("quadratische ergänzung"), true);
 assert.equal(qgAssign[1].params.includes("lösungsformel"), true);
-assert.equal(qgAssign[1].params.includes("qg-01"), false);
-assert.equal(qgAssign[1].params.includes("binomische formeln"), false);
+assert.equal(qgAssign[1].params.includes("qg-01"), true);
+assert.equal(qgAssign[1].params.includes("binomische formeln"), true);
 assert.equal(qgAssign[1].params.includes("fkt-01"), false);
 assert.equal(qgAssign[1].params.includes("pw-01"), false);
 assert.match(qgAssign[1].sql, /training_wz IS NULL/);
 assert.equal(BINOM_GOAL_ASSIGNMENTS.length, 1);
-assert.equal(QG_GOAL_ASSIGNMENTS.length, 4);
-const qgWz = [...BINOM_GOAL_ASSIGNMENTS, ...QG_GOAL_ASSIGNMENTS].map(([wz]) => wz);
-assert.deepEqual(qgWz, ["qg-01", "qg-02", "qg-03", "qg-04", "qg-05"]);
+assert.equal(QG_GOAL_ASSIGNMENTS.length, 5);
+assert.deepEqual(
+  QG_GOAL_ASSIGNMENTS.map(([wz]) => wz),
+  ["qg-01", "qg-02", "qg-03", "qg-04", "qg-05"]
+);
 for (const [wz, name] of BINOM_GOAL_ASSIGNMENTS) {
   assert.equal(quadratische.find((item) => item.wz === wz).name, name);
 }
@@ -1154,12 +1156,14 @@ assert.equal(QG_LEVEL_TEXTS[0].rookie, QG_ROOKIE);
 assert.equal(QG_LEVEL_TEXTS[0].operator, undefined);
 assert.equal(QG_LEVEL_TEXTS[0].streetLegend, undefined);
 const qgText = await captureAssign(assignQuadratischeLevelTexts);
-assert.equal(qgText.length, 1);
+assert.equal(qgText.length, 2);
 assert.equal(qgText[0].params[0], BINOM_ASSIGN_TOPIC);
 assert.equal(qgText[0].params.includes("binomische formeln"), true);
 assert.equal(qgText[0].params.includes(QG_ROOKIE), true);
-assert.equal(qgText[0].params.includes("quadratische gleichungen"), false);
-assert.equal(qgText[0].params.includes("lösungsformel"), false);
+assert.equal(qgText[1].params[0], QG_ASSIGN_TOPIC);
+assert.equal(qgText[1].params.includes("binomische formeln"), true);
+assert.equal(qgText[1].params.includes(QG_ROOKIE), true);
+assert.equal(qgText[1].params.includes("lösungsformel"), false);
 assert.match(qgText[0].sql, /SET rookie_goal_text = m\.rookie_text/);
 assert.doesNotMatch(qgText[0].sql, /operator_goal_text/);
 assert.doesNotMatch(qgText[0].sql, /street_legend_goal_text/);
