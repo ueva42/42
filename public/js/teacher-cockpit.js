@@ -4,7 +4,11 @@
  * Hinweise, keine Rangliste: Listen sind alphabetisch, Klassen-Mission zeigt nur Zahlen.
  */
 (function () {
+  /** Lehrer-Ansicht: ruhig. Beamer: oft; letzte ~12 Min der Stunde noch öfter. Nur eigene API/DB – keine KI-Tokens. */
   const REFRESH_MS = 60000;
+  const BEAMER_REFRESH_MS = 15000;
+  const BEAMER_LATE_REFRESH_MS = 8000;
+  const LATE_WINDOW_MS = 12 * 60 * 1000;
   const TIERS = ["rookie", "operator", "street_legend"];
   const TIER_LABEL = {
     unterthema: "Unterthema",
@@ -256,16 +260,43 @@
     }
   }
 
+  function refreshIntervalMs(now = new Date()) {
+    if (!ck.beamer) return REFRESH_MS;
+    const end = lessonEndAt(liveData().lesson, now);
+    if (end) {
+      const msLeft = end.getTime() - now.getTime();
+      if (msLeft >= 0 && msLeft <= LATE_WINDOW_MS) return BEAMER_LATE_REFRESH_MS;
+    }
+    return BEAMER_REFRESH_MS;
+  }
+
   function startTimer() {
     if (ck.timer) return;
-    ck.timer = setInterval(() => {
-      if (!ck.active || document.hidden || ck.form || ck.busy) return;
-      load(true);
-    }, REFRESH_MS);
+    armTimer();
+  }
+
+  function restartTimer() {
+    stopTimer();
+    if (ck.active) armTimer();
+  }
+
+  function armTimer() {
+    stopTimer();
+    if (!ck.active) return;
+    ck.timer = setTimeout(() => {
+      ck.timer = null;
+      const run = async () => {
+        if (ck.active && !document.hidden && !ck.form && !ck.busy) {
+          await load(true);
+        }
+        if (ck.active) armTimer();
+      };
+      run();
+    }, refreshIntervalMs());
   }
 
   function stopTimer() {
-    if (ck.timer) clearInterval(ck.timer);
+    if (ck.timer) clearTimeout(ck.timer);
     ck.timer = null;
   }
 
@@ -311,7 +342,11 @@
         <div class="ck-context-side">
           <div class="ck-context-row">
             ${units.length ? `<label class="sr-only" for="unitSelect">Unterrichtseinheit</label><select id="unitSelect" class="td-select ck-select" aria-label="Unterrichtseinheit">${options}</select>` : ""}
-            <span class="ck-live" title="Aktualisiert sich jede Minute von selbst"><i></i>Live · ${esc(stamp)}</span>
+            <span class="ck-live" title="${
+              ck.beamer
+                ? "Beamer: alle 15 s, in den letzten 12 Min der Stunde alle 8 s"
+                : "Aktualisiert sich jede Minute von selbst"
+            }"><i></i>Live · ${esc(stamp)}</span>
             <button type="button" class="ck-btn ${ck.beamer ? "ck-btn-go" : ""}" data-ck-beamer title="Klassenwand für den Beamer: Charakter-Roster, Puls, Training">${ck.beamer ? "Lehrkraft-Ansicht" : "Beamer-Ansicht"}</button>
             ${
               ck.beamer
@@ -1584,7 +1619,9 @@
     if (t.closest("[data-ck-beamer]")) {
       ck.beamer = !ck.beamer;
       ck.drawerId = null;
-      render();
+      restartTimer();
+      if (ck.beamer && !document.hidden) load(true);
+      else render();
       return;
     }
     if (t.closest("[data-ck-podiums]")) {
@@ -1676,7 +1713,14 @@
     ck.el.addEventListener("input", onFormInput);
     document.addEventListener("keydown", onKey);
     document.addEventListener("visibilitychange", () => {
-      if (ck.active && !document.hidden && ck.updatedAt && Date.now() - ck.updatedAt.getTime() > REFRESH_MS) load(true);
+      if (
+        ck.active &&
+        !document.hidden &&
+        ck.updatedAt &&
+        Date.now() - ck.updatedAt.getTime() > refreshIntervalMs()
+      ) {
+        load(true);
+      }
     });
   }
 
