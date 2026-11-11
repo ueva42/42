@@ -26,6 +26,7 @@
     deletingTopicId: null,
     deletingGoalId: null,
     movingGoalId: null,
+    syncingTraining: false,
     // Inline-Editor: { type: "goal-add"|"goal-edit"|"topic-add"|"topic-rename", topicId?, goalId?, draft }
     editor: null,
     savingEditor: false,
@@ -204,17 +205,19 @@
         const rows = goals
           .map((g, index) => {
             if (isEditor("goal-edit", g.id)) {
-              return `<tr><td colspan="5">${renderGoalForm("Unterthema bearbeiten", "Änderungen speichern")}</td></tr>`;
+              return `<tr><td colspan="6">${renderGoalForm("Unterthema bearbeiten", "Änderungen speichern")}</td></tr>`;
             }
             const moving = state.movingGoalId === String(g.id);
             const canUp = index > 0;
             const canDown = index < goals.length - 1;
+            const wz = String(g.trainingWz || "").trim();
             return `
           <tr>
             <td>${escapeHtml(g.text)}</td>
             <td>${escapeHtml(g.rookieGoalText || "–")}</td>
             <td>${escapeHtml(g.operatorGoalText || "–")}</td>
             <td>${escapeHtml(g.streetLegendGoalText || "–")}</td>
+            <td><code class="lp-wz ${wz ? "lp-wz--ok" : "lp-wz--miss"}" title="Trainingscenter-Kennung">${escapeHtml(wz || "—")}</code></td>
             <td>
               <div class="lp-row-actions">
                 <button type="button" class="kr-practice-btn kr-practice-btn--ghost lp-move-btn" data-lp-move-goal="${escapeHtml(g.id)}" data-lp-move-dir="up" title="Nach oben" ${
@@ -264,6 +267,7 @@
                   <th>Rookie</th>
                   <th>Operator</th>
                   <th>Street Legend</th>
+                  <th>Training</th>
                   <th></th>
                 </tr>
               </thead>
@@ -299,9 +303,13 @@
     return `<div class="lp-banner">
       ${where}Du kannst ihn <b>jederzeit direkt bearbeiten</b>: Themen und Unterthemen ergänzen, umbenennen oder Ziele ändern –
       du musst den Plan nicht neu anlegen. Änderungen sehen die Schüler:innen sofort.
-      <div style="margin-top:8px">
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px">
         <button type="button" class="kr-practice-btn kr-practice-btn--ghost" id="lpAppendImportBtn">Mehrere per Text ergänzen (Import)</button>
+        <button type="button" class="kr-practice-btn" id="lpSyncTrainingBtn" ${
+          state.syncingTraining ? "disabled" : ""
+        }>${state.syncingTraining ? "Trainings-IDs…" : "Trainings-IDs jetzt setzen"}</button>
       </div>
+      <p class="hint" style="margin:.5em 0 0">Spalte „Training“: z.&nbsp;B. <code>qg-01</code> = Binomische Formeln im Trainingscenter. Fehlt die Kennung, führt „Training starten“ nicht zur Station.</p>
     </div>`;
   }
 
@@ -583,6 +591,7 @@
       startEditor({ type: "topic-add", draft: { name: "" } })
     );
     root.querySelector("#lpAppendImportBtn")?.addEventListener("click", openImportForCatalog);
+    root.querySelector("#lpSyncTrainingBtn")?.addEventListener("click", syncTrainingWz);
 
     root.querySelectorAll('.lp-form input[type="text"]').forEach((el) =>
       el.addEventListener("keydown", (e) => {
@@ -644,6 +653,30 @@
     root.querySelectorAll("[data-lp-move-goal]").forEach((btn) => {
       btn.addEventListener("click", () => moveGoal(btn.dataset.lpMoveGoal, btn.dataset.lpMoveDir));
     });
+  }
+
+  async function syncTrainingWz() {
+    if (state.syncingTraining) return;
+    state.syncingTraining = true;
+    state.error = "";
+    state.message = "";
+    render();
+    try {
+      const res = await fetch("/api/teacher/training-wz/sync", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        state.error = data.message || data.error || "Trainings-IDs konnten nicht gesetzt werden.";
+        return;
+      }
+      state.message = data.message || "Trainings-IDs gesetzt.";
+      await loadDetail();
+    } catch (err) {
+      console.error(err);
+      state.error = "Netzwerkfehler.";
+    } finally {
+      state.syncingTraining = false;
+      render();
+    }
   }
 
   async function moveGoal(goalId, direction) {

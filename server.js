@@ -69,6 +69,10 @@ import { migrateCockpitTables, registerTeacherCockpitRoutes } from "./lib/teache
 import { migrateCoachTables, registerCoachRoutes } from "./lib/coach-api.js";
 import {
   applyTrigPracticeLinks,
+  assignPotenzenGoalIds,
+  assignQuadratischeGoalIds,
+  assignTrainingGoalIds,
+  assignTrigonometrieGoalIds,
   captureTrainingResultBody,
   cityMapsForGoals,
   migrateTrainingTables,
@@ -11606,7 +11610,8 @@ async function getLevelChecksForCatalog(catalogId, schoolId) {
     SELECT
       id, level_check_id, goal_text, sort_order,
       rookie_goal_text, operator_goal_text, street_legend_goal_text,
-      practice_url, material_type, material_label, material_note, active
+      practice_url, material_type, material_label, material_note, active,
+      training_wz
     FROM level_check_goals
     WHERE level_check_id = ANY($1::uuid[])
       AND COALESCE(active, true) = true
@@ -11625,6 +11630,7 @@ async function getLevelChecksForCatalog(catalogId, schoolId) {
       rookieGoalText: g.rookie_goal_text || null,
       operatorGoalText: g.operator_goal_text || null,
       streetLegendGoalText: g.street_legend_goal_text || null,
+      trainingWz: g.training_wz ? String(g.training_wz).trim() : null,
       ...mapGoalMaterialFields(g),
       mark: null
     });
@@ -12330,7 +12336,8 @@ app.patch(
       const topicMeta = await pool.query(`SELECT name FROM level_checks WHERE id = $1`, [
         cur.rows[0].level_check_id
       ]);
-      const trainingWz = trainingWzForTopicGoal(topicMeta.rows[0]?.name, g.text);
+      const topicName = topicMeta.rows[0]?.name || "";
+      const trainingWz = trainingWzForTopicGoal(topicName, g.text);
       await pool.query(
         `UPDATE level_check_goals
          SET goal_text = $1, rookie_goal_text = $2, operator_goal_text = $3,
@@ -12338,13 +12345,37 @@ app.patch(
          WHERE id = $6`,
         [g.text, g.rookie, g.operator, g.streetLegend, trainingWz, cur.rows[0].id]
       );
-      res.json({ success: true, message: "Unterthema gespeichert." });
+      res.json({
+        success: true,
+        trainingWz,
+        message: trainingWz
+          ? `Unterthema gespeichert · Training ${trainingWz}.`
+          : "Unterthema gespeichert · kein Trainingscenter-Halt für diesen Namen."
+      });
     } catch (err) {
       console.error("❌ PATCH level-plan-catalogs goal:", err);
       res.status(500).json({ success: false, message: "Serverfehler" });
     }
   }
 );
+
+/** Bekannte Trainings-IDs (qg-01, pw-01, …) jetzt für alle passenden Unterthemen setzen. */
+app.post("/api/teacher/training-wz/sync", isTeacher, async (req, res) => {
+  try {
+    await assignTrainingGoalIds(pool);
+    await assignPotenzenGoalIds(pool);
+    await assignQuadratischeGoalIds(pool);
+    await assignTrigonometrieGoalIds(pool);
+    res.json({
+      success: true,
+      message:
+        "Trainings-IDs aktualisiert (Funktionen, Potenzen, Quadratische Gleichungen, Trigonometrie)."
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/training-wz/sync:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
 
 /** Unterthema innerhalb desselben Themas nach oben/unten schieben (sort_order tauschen). */
 app.post(
