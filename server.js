@@ -74,6 +74,7 @@ import {
   migrateTrainingTables,
   registerTrainingRoutes
 } from "./lib/training-api.js";
+import { trainingWzForTopicGoal } from "./lib/training-merge.js";
 import {
   parseLevelplanImportText as parseLevelplanImportTextBase,
   normalizeLevelplanImportRows as normalizeLevelplanImportRowsBase
@@ -12263,12 +12264,23 @@ app.post(
         "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM level_check_goals WHERE level_check_id = $1",
         [topic.id]
       );
+      const trainingWz = trainingWzForTopicGoal(topic.name, g.text);
       const ins = await pool.query(
         `INSERT INTO level_check_goals (
            school_id, level_check_id, goal_text, sort_order,
-           rookie_goal_text, operator_goal_text, street_legend_goal_text, active, updated_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,true,NOW()) RETURNING id`,
-        [schoolId, topic.id, g.text, orderRes.rows[0].next_order, g.rookie, g.operator, g.streetLegend]
+           rookie_goal_text, operator_goal_text, street_legend_goal_text,
+           training_wz, active, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true,NOW()) RETURNING id`,
+        [
+          schoolId,
+          topic.id,
+          g.text,
+          orderRes.rows[0].next_order,
+          g.rookie,
+          g.operator,
+          g.streetLegend,
+          trainingWz
+        ]
       );
       res.json({ success: true, goalId: ins.rows[0].id, message: "Unterthema hinzugefügt." });
     } catch (err) {
@@ -12315,12 +12327,16 @@ app.patch(
       if (dup.rows.length) {
         return res.json({ success: false, message: "Dieses Unterthema gibt es in diesem Thema schon." });
       }
+      const topicMeta = await pool.query(`SELECT name FROM level_checks WHERE id = $1`, [
+        cur.rows[0].level_check_id
+      ]);
+      const trainingWz = trainingWzForTopicGoal(topicMeta.rows[0]?.name, g.text);
       await pool.query(
         `UPDATE level_check_goals
          SET goal_text = $1, rookie_goal_text = $2, operator_goal_text = $3,
-             street_legend_goal_text = $4, updated_at = NOW()
-         WHERE id = $5`,
-        [g.text, g.rookie, g.operator, g.streetLegend, cur.rows[0].id]
+             street_legend_goal_text = $4, training_wz = $5, updated_at = NOW()
+         WHERE id = $6`,
+        [g.text, g.rookie, g.operator, g.streetLegend, trainingWz, cur.rows[0].id]
       );
       res.json({ success: true, message: "Unterthema gespeichert." });
     } catch (err) {

@@ -48,6 +48,7 @@ import {
   statusFromTraining,
   trainingOpenUrl,
   storedTrainingWz,
+  trainingWzForTopicGoal,
   topicIsFunktionen,
   trainingAllowOrigin,
   validatePayload,
@@ -1073,8 +1074,8 @@ assert.equal(fktAssign[0].params.includes("fkt-26"), true);
 assert.equal(fktAssign[0].params.includes(normalizeGoalName("  TYPISCHE   Aufgaben ")), true);
 assert.equal(fktAssign[0].params.includes(normalizeGoalName("Prüfungsaufgaben")), true);
 assert.equal(fktAssign[0].params.includes("trig-07"), false);
-assert.match(fktAssign[0].sql, /training_wz IS NULL/);
-assert.match(fktAssign[0].sql, /g\.training_wz = m\.wz/);
+assert.match(fktAssign[0].sql, /SET training_wz = m\.wz/);
+assert.doesNotMatch(fktAssign[0].sql, /training_wz IS NULL/);
 assert.match(fktAssign[0].sql, /^UPDATE level_check_goals/);
 assert.doesNotMatch(fktAssign[0].sql, /INSERT INTO level_check/);
 const pwAssign = await captureAssign(assignPotenzenGoalIds);
@@ -1085,7 +1086,8 @@ assert.equal(pwAssign[0].params.includes("pw-01"), true);
 assert.equal(pwAssign[0].params.includes("fkt-01"), false);
 assert.equal(pwAssign[0].params.includes("geraden zeichnen"), false);
 assert.equal(pwAssign[0].params.includes("9-05b"), false);
-assert.match(pwAssign[0].sql, /training_wz IS NULL/);
+assert.match(pwAssign[0].sql, /SET training_wz = m\.wz/);
+assert.doesNotMatch(pwAssign[0].sql, /training_wz IS NULL/);
 const textAssign = await captureAssign(assignPotenzenLevelTexts);
 assert.equal(textAssign.length, 1);
 assert.equal(textAssign[0].params[0], POTENZEN_ASSIGN_TOPIC);
@@ -1119,8 +1121,8 @@ assert.equal(qgAssign[0].params.includes("lösungsformel"), false);
 assert.equal(qgAssign[0].params.includes("fkt-01"), false);
 assert.equal(qgAssign[0].params.includes("pw-01"), false);
 assert.equal(qgAssign[0].params.includes("quadratische gleichungen"), false);
-assert.match(qgAssign[0].sql, /training_wz IS NULL/);
-assert.match(qgAssign[0].sql, /g\.training_wz = m\.wz/);
+assert.match(qgAssign[0].sql, /SET training_wz = m\.wz/);
+assert.doesNotMatch(qgAssign[0].sql, /training_wz IS NULL/);
 assert.equal(qgAssign[1].params[0], QG_ASSIGN_TOPIC);
 assert.equal(qgAssign[1].params.includes("qg-02"), true);
 assert.equal(qgAssign[1].params.includes("qg-03"), true);
@@ -1132,9 +1134,14 @@ assert.equal(qgAssign[1].params.includes("quadratische ergänzung"), true);
 assert.equal(qgAssign[1].params.includes("lösungsformel"), true);
 assert.equal(qgAssign[1].params.includes("qg-01"), true);
 assert.equal(qgAssign[1].params.includes("binomische formeln"), true);
+assert.equal(trainingWzForTopicGoal("Quadratische Gleichungen", "Binomische Formeln"), "qg-01");
+assert.equal(trainingWzForTopicGoal("Quadratische Gleichungen", "Rein quadratische Gleichungen"), "qg-02");
+assert.equal(trainingWzForTopicGoal("Binomische Formeln", "Binomische Formeln"), "qg-01");
+assert.equal(trainingWzForTopicGoal("Quadratische Gleichungen", "Unbekannt"), null);
 assert.equal(qgAssign[1].params.includes("fkt-01"), false);
 assert.equal(qgAssign[1].params.includes("pw-01"), false);
-assert.match(qgAssign[1].sql, /training_wz IS NULL/);
+assert.match(qgAssign[1].sql, /SET training_wz = m\.wz/);
+assert.doesNotMatch(qgAssign[1].sql, /training_wz IS NULL/);
 assert.equal(BINOM_GOAL_ASSIGNMENTS.length, 1);
 assert.equal(QG_GOAL_ASSIGNMENTS.length, 5);
 assert.deepEqual(
@@ -1187,8 +1194,8 @@ assert.equal(trigAssign[0].params.includes("fkt-26"), false);
 assert.equal(trigAssign[0].params.includes("pw-01"), false);
 assert.equal(trigAssign[0].params.includes("qg-01"), false);
 assert.equal(trigAssign[0].params.includes("9-05b"), false);
-assert.match(trigAssign[0].sql, /training_wz IS NULL/);
-assert.match(trigAssign[0].sql, /g\.training_wz = m\.wz/);
+assert.match(trigAssign[0].sql, /SET training_wz = m\.wz/);
+assert.doesNotMatch(trigAssign[0].sql, /training_wz IS NULL/);
 assert.match(trigAssign[0].sql, /\u2013/);
 assert.equal(trigAssign[0].sql.includes("LIKE"), false);
 for (const [wz, name] of TRIG_GOAL_ASSIGNMENTS) {
