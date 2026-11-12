@@ -12898,6 +12898,32 @@ app.delete("/api/teacher/subject-lesson-goals/:id", isTeacher, async (req, res) 
   }
 });
 
+/** Alle eigenen Wie-Ziele eines Fachs löschen → Schüler sehen wieder die Standardliste */
+app.delete("/api/teacher/subject-lesson-goals", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const subject = String(req.body?.subject || req.query?.subject || "").trim();
+
+    if (!subject || !LOG_SUBJECTS.includes(subject)) {
+      return res.json({ success: false, message: "Ungültiges Fach." });
+    }
+
+    const del = await pool.query(
+      `
+      DELETE FROM subject_lesson_goals
+      WHERE school_id = $1 AND subject = $2
+      RETURNING id
+    `,
+      [schoolId, subject]
+    );
+
+    res.json({ success: true, deleted: del.rowCount || 0 });
+  } catch (err) {
+    console.error("❌ DELETE subject-lesson-goals (subject):", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
 app.patch("/api/teacher/levelcheck-goals/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
