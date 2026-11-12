@@ -11,6 +11,13 @@
       href: null
     },
     {
+      id: "students",
+      flag: "hasStudents",
+      title: "Schüler:innen anlegen",
+      text: "Lege Konten an und notiere die Einmalpasswörter für den ersten Login.",
+      href: "/teacher/students"
+    },
+    {
       id: "timetable",
       flag: "hasTimetable",
       title: "Stundenplan",

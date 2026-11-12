@@ -12924,6 +12924,179 @@ app.delete("/api/teacher/subject-lesson-goals", isTeacher, async (req, res) => {
   }
 });
 
+// -------------------------------------------------------
+// TEACHER: Schüler:innen anlegen / Zugänge
+// -------------------------------------------------------
+app.get("/api/teacher/students", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.query.classId);
+    if (!Number.isFinite(classId) || classId <= 0) {
+      return res.status(400).json({ success: false, message: "classId fehlt." });
+    }
+    if (!(await teacherCanAccessClass(pool, req.session.user, classId))) {
+      return res.status(403).json({ success: false, message: "Keine Berechtigung für diese Klasse." });
+    }
+
+    const classRes = await pool.query(
+      `SELECT id, name FROM classes WHERE id = $1 AND school_id = $2 LIMIT 1`,
+      [classId, schoolId]
+    );
+    if (!classRes.rows.length) {
+      return res.status(404).json({ success: false, message: "Klasse nicht gefunden." });
+    }
+
+    const r = await pool.query(
+      `
+      SELECT
+        u.id,
+        u.name,
+        u.password,
+        COALESCE(u.first_login, FALSE) AS first_login,
+        COALESCE(u.xp, 0) AS xp
+      FROM users u
+      WHERE u.role = 'student'
+        AND u.class_id = $1
+        AND u.school_id = $2
+      ORDER BY u.name ASC
+    `,
+      [classId, schoolId]
+    );
+
+    res.json({
+      success: true,
+      classId,
+      className: classRes.rows[0].name,
+      students: r.rows.map((row) => {
+        const firstLogin = !!row.first_login;
+        return {
+          id: row.id,
+          name: row.name,
+          firstLogin,
+          password: firstLogin ? row.password : null,
+          xp: Number(row.xp || 0)
+        };
+      })
+    });
+  } catch (err) {
+    console.error("❌ GET /api/teacher/students:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.post("/api/teacher/students", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const name = String(req.body?.name || "").trim();
+    const classId = Number(req.body?.classId);
+
+    if (!name || !Number.isFinite(classId) || classId <= 0) {
+      return res.json({ success: false, message: "Name und Klasse sind Pflicht." });
+    }
+    if (name.length > 80) {
+      return res.json({ success: false, message: "Name ist zu lang." });
+    }
+    if (!(await teacherCanAccessClass(pool, req.session.user, classId))) {
+      return res.status(403).json({ success: false, message: "Keine Berechtigung für diese Klasse." });
+    }
+
+    const temporaryPassword = generateTempPassword();
+    const ins = await pool.query(
+      `
+      INSERT INTO users (name, password, role, class_id, school_id, xp, first_login, freedom_rank)
+      VALUES ($1, $2, 'student', $3, $4, 0, TRUE, $5)
+      RETURNING id, name
+    `,
+      [name, temporaryPassword, classId, schoolId, FREEDOM_RANK_DEFAULT]
+    );
+
+    res.json({
+      success: true,
+      student: {
+        id: ins.rows[0].id,
+        name: ins.rows[0].name,
+        firstLogin: true,
+        password: temporaryPassword
+      },
+      temporaryPassword,
+      firstLogin: true
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/students:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.post("/api/teacher/students/reset-password", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const studentId = Number(req.body?.studentId);
+    if (!Number.isFinite(studentId) || studentId <= 0) {
+      return res.json({ success: false, message: "studentId fehlt." });
+    }
+    if (!(await teacherCanAccessStudent(pool, req.session.user, studentId))) {
+      return res.status(403).json({ success: false, message: "Keine Berechtigung." });
+    }
+
+    const temporaryPassword = generateTempPassword();
+    const r = await pool.query(
+      `
+      UPDATE users
+      SET password = $1, first_login = TRUE
+      WHERE id = $2 AND school_id = $3 AND role = 'student'
+      RETURNING id, name
+    `,
+      [temporaryPassword, studentId, schoolId]
+    );
+
+    if (!r.rows.length) {
+      return res.json({ success: false, message: "Schüler:in nicht gefunden." });
+    }
+
+    res.json({
+      success: true,
+      temporaryPassword,
+      password: temporaryPassword,
+      studentName: r.rows[0].name,
+      firstLogin: true
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/students/reset-password:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.delete("/api/teacher/students/:id", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const studentId = Number(req.params.id);
+    if (!Number.isFinite(studentId) || studentId <= 0) {
+      return res.json({ success: false, message: "Ungültige ID." });
+    }
+    if (!(await teacherCanAccessStudent(pool, req.session.user, studentId))) {
+      return res.status(403).json({ success: false, message: "Keine Berechtigung." });
+    }
+
+    const del = await pool.query(
+      `
+      DELETE FROM users
+      WHERE id = $1 AND school_id = $2 AND role = 'student'
+      RETURNING id
+    `,
+      [studentId, schoolId]
+    );
+
+    if (!del.rows.length) {
+      return res.json({ success: false, message: "Schüler:in nicht gefunden." });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ DELETE /api/teacher/students:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
 app.patch("/api/teacher/levelcheck-goals/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
@@ -16120,6 +16293,7 @@ const teacherSpaPaths = [
   "/teacher/gruppenmodus",
   "/teacher/materialschrank",
   "/teacher/app-module",
+  "/teacher/students",
   "/teacher/lesson-goals",
   "/teacher/was-goals",
   "/teacher/levelplan-import"

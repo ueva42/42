@@ -700,13 +700,18 @@
     if (state.me?.setupDone) return "";
     return `
       <div class="td-setup-banner">
-        <p>Erste Klasse einrichten: Stundenplan, Levelplan, Ziele, Material und Termin.</p>
+        <p>Erste Klasse einrichten: Schüler:innen, Stundenplan, Levelplan, Ziele, Material und Termin.</p>
         <button type="button" class="td-btn td-btn-go" id="teacherSetupResumeBtn">Einrichtung fortsetzen</button>
       </div>`;
   }
 
   function renderWerkzeuge() {
     const tools = [
+      [
+        "/teacher/students",
+        "Schüler:innen anlegen",
+        "Konten und Einmalpasswörter für deine Klasse"
+      ],
       [
         "/teacher/app-module",
         "App-Module",
@@ -740,7 +745,7 @@
         <button type="button" class="td-tool" id="teacherSetupOpenBtn">
           <p class="td-kicker">Start</p>
           <h3>Ersteinrichtung</h3>
-          <p>Klasse, Stundenplan, Levelplan, Was-/Wie-Ziele, Material, Termin.</p>
+          <p>Klasse, Schüler:innen, Stundenplan, Levelplan, Ziele, Material, Termin.</p>
           <span>Öffnen →</span>
         </button>
         <button type="button" class="td-tool" id="addAccountBtn">

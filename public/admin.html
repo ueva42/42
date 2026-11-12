@@ -1778,6 +1778,11 @@
       <span class="nav-label">App-Module</span>
     </div>
 
+    <div class="nav-item" data-tab="teacherStudentsTab" onclick="showTab('teacherStudentsTab', event)">
+      <svg viewBox="0 0 24 24"><path d="M12 12c2.5 0 4.5-2 4.5-4.5S14.5 3 12 3 7.5 5 7.5 7.5 9.5 12 12 12zm0 1.5c-3 0-9 1.5-9 4.5V21h18v-3c0-3-6-4.5-9-4.5z"/></svg>
+      <span class="nav-label">Schüler:innen anlegen</span>
+    </div>
+
     <div class="nav-item" data-tab="materialschrankTab" onclick="showTab('materialschrankTab', event)">
       <svg viewBox="0 0 24 24"><path d="M4 3h16v5H4V3zm0 7h16v5H4v-5zm0 7h16v4H4v-4z"/></svg>
       <span class="nav-label">Materialschrank</span>
@@ -1942,9 +1947,14 @@
       <div id="gruppenmodusTabRoot"></div>
     </div>
 
-    <!-- MATERIALSCHRANK -->
+    <!-- APP-MODULE -->
     <div id="appModulesTab" class="tab hidden">
       <div id="appModulesTabRoot"></div>
+    </div>
+
+    <!-- SCHÜLER ANLEGEN (Lehrkraft) -->
+    <div id="teacherStudentsTab" class="tab hidden">
+      <div id="teacherStudentsTabRoot"></div>
     </div>
 
     <div id="materialschrankTab" class="tab hidden">
@@ -2372,6 +2382,7 @@
 <script src="/js/teacher-gruppenmodus.js?v=15"></script>
 <script src="/js/teacher-materialschrank.js?v=2"></script>
 <script src="/js/teacher-app-modules.js?v=2"></script>
+<script src="/js/teacher-students.js?v=1"></script>
 <script src="/js/admin-hub.js?v=2"></script>
 
 <script>
@@ -2388,6 +2399,7 @@ const TEACHER_TAB_ROUTES = {
   gruppenmodusTab: "/teacher/gruppenmodus",
   materialschrankTab: "/teacher/materialschrank",
   appModulesTab: "/teacher/app-module",
+  teacherStudentsTab: "/teacher/students",
   competenciesTab: "/teacher/levelcheck-planen",
   xpTab: "/admin#xp",
   classProgressTab: "/admin#classProgress",
@@ -2414,6 +2426,7 @@ const ROUTE_TABS = {
   "/teacher/gruppenmodus": "gruppenmodusTab",
   "/teacher/materialschrank": "materialschrankTab",
   "/teacher/app-module": "appModulesTab",
+  "/teacher/students": "teacherStudentsTab",
   "/teacher/levelcheck-planen": "competenciesTab",
   "/teacher/levelstatus": "competenciesTab",
   "/teacher/competencies": "competenciesTab",
@@ -2446,6 +2459,7 @@ const HASH_TABS = {
   gruppenmodus: "gruppenmodusTab",
   materialschrank: "materialschrankTab",
   "app-module": "appModulesTab",
+  students: "teacherStudentsTab",
   "levelcheck-planen": "competenciesTab",
   competencies: "competenciesTab",
   levelchecks: "competenciesTab"
@@ -2539,6 +2553,7 @@ const TEACHER_TOOL_TITLES = {
   gruppenmodusTab: "Gruppenmodus",
   materialschrankTab: "Materialschrank",
   appModulesTab: "App-Module",
+  teacherStudentsTab: "Schüler:innen anlegen",
   competenciesTab: "Levelchecks"
 };
 
@@ -2725,6 +2740,7 @@ function showTab(id, ev, options = {}) {
   if (id === "gruppenmodusTab" && window.TeacherGruppenmodus) TeacherGruppenmodus.init();
   if (id === "materialschrankTab" && window.TeacherMaterialschrank) TeacherMaterialschrank.init();
   if (id === "appModulesTab" && window.TeacherAppModules) TeacherAppModules.init();
+  if (id === "teacherStudentsTab" && window.TeacherStudents) TeacherStudents.init();
   if (id === "competenciesTab" && window.TeacherCompetencies) TeacherCompetencies.init();
   if (id === "xpTab") loadXPInit();
   if (id === "classTab") loadClassesForManage();
