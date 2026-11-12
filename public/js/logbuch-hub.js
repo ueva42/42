@@ -620,13 +620,18 @@
         </section>
 
         ${renderStatusPanel(ui, stats, step)}
-        ${renderClassGame(ui)}
+        ${
+          window.StudentFeatureModules?.isModuleEnabled?.("missionen") === false
+            ? ""
+            : renderClassGame(ui)
+        }
         ${renderTeacherFeedback(ui)}
 
         <section class="hub-block">
           <h2 class="hub-block-label">Dein Kontrollzentrum</h2>
           <div class="hub-grid-main">
             ${(state.coachEnabled ? MAIN_TILES.concat([COACH_TILE]) : MAIN_TILES)
+              .filter((t) => window.StudentFeatureModules?.isSectionEnabled?.(t.section) !== false)
               .map((t) => renderTile(ui, t, "large"))
               .join("")}
           </div>
@@ -651,6 +656,7 @@
     });
 
     root.querySelector("[data-hub-identity]")?.addEventListener("click", () => {
+      if (window.StudentFeatureModules?.isSectionEnabled?.("charakter") === false) return;
       const p = window.__studentProfile || {};
       if (!p.characterImage && !p.characterName && typeof window.openCharacterOverlay === "function") {
         window.openCharacterOverlay();
@@ -665,7 +671,11 @@
 
     root.querySelector("#hubNextBtn")?.addEventListener("click", () => {
       const s = state.nextStep || step;
-      navigate(s.section, s.query);
+      const target =
+        window.StudentFeatureModules?.isSectionEnabled?.(s.section) === false
+          ? { section: "today", query: null }
+          : s;
+      navigate(target.section, target.query);
     });
   }
 

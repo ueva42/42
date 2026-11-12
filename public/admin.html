@@ -2068,6 +2068,19 @@
           <p id="classActiveLevelsMsg" class="hint" hidden></p>
         </div>
 
+        <div id="classFeatureModulesPanel" class="class-active-levels" hidden>
+          <h4>App-Module (Schüler-App)</h4>
+          <p class="hint">
+            Nur angehakte Bereiche erscheinen in Hub und Navigation dieser Klasse.
+            Mein Tag (Planen / Check / Reflect) bleibt immer erreichbar.
+          </p>
+          <div id="classFeatureModulesChecks" class="lp-level-checks"></div>
+          <button type="button" class="action" id="classFeatureModulesSaveBtn" onclick="saveClassFeatureModules()">
+            Module speichern
+          </button>
+          <p id="classFeatureModulesMsg" class="hint" hidden></p>
+        </div>
+
         <div id="classXpBanner" class="class-xp-banner" hidden>
           <span class="class-xp-banner__label">Klassen-XP</span>
           <strong id="classXpTotal">0</strong>
@@ -2834,9 +2847,35 @@ const CLASS_LEVEL_TIERS = [
 ];
 let managedClassesCache = [];
 
+const CLASS_FEATURE_MODULES = [
+  { id: "week", label: "Meine Woche" },
+  { id: "ueben", label: "Üben zu Hause" },
+  { id: "levelplan", label: "Lernstand" },
+  { id: "zielsetzung", label: "Zielsetzung" },
+  { id: "hausaufgaben", label: "Hausaufgaben" },
+  { id: "checkpointPlan", label: "Meine Checks" },
+  { id: "materialschrank", label: "Materialschrank" },
+  { id: "gruppenmodus", label: "Gruppenarbeit" },
+  { id: "taktikDeck", label: "Taktik-Deck" },
+  { id: "missionen", label: "Missionen" },
+  { id: "belohnungen", label: "Belohnungen" },
+  { id: "charakter", label: "Charakter" },
+  { id: "xp", label: "XP-Historie" }
+];
+
+function normalizeClassFeatureModules(raw) {
+  const src = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const out = {};
+  CLASS_FEATURE_MODULES.forEach((m) => {
+    out[m.id] = src[m.id] !== false && src[m.id] !== 0 && src[m.id] !== "false";
+  });
+  return out;
+}
+
 function onClassManageChange() {
   renderClassAccessLock();
   renderClassActiveLevels();
+  renderClassFeatureModules();
   loadClassStudents();
 }
 
@@ -2864,6 +2903,7 @@ async function loadClassesForManage() {
   }
   renderClassAccessLock();
   renderClassActiveLevels();
+  renderClassFeatureModules();
   loadClassStudents();
 }
 
@@ -3021,6 +3061,84 @@ async function saveClassActiveLevels() {
     if (msg) {
       msg.hidden = false;
       msg.textContent = "Aktive Level gespeichert.";
+    }
+  } catch (err) {
+    console.error(err);
+    if (msg) {
+      msg.hidden = false;
+      msg.textContent = "Netzwerkfehler.";
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderClassFeatureModules() {
+  const panel = document.getElementById("classFeatureModulesPanel");
+  const checks = document.getElementById("classFeatureModulesChecks");
+  const msg = document.getElementById("classFeatureModulesMsg");
+  const sel = document.getElementById("classManageSelect");
+  if (!panel || !checks || !sel) return;
+
+  const classId = sel.value;
+  const cls = managedClassesCache.find((c) => String(c.id) === String(classId));
+  if (!cls) {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+  if (msg) {
+    msg.hidden = true;
+    msg.textContent = "";
+  }
+  const active = normalizeClassFeatureModules(cls.featureModules);
+  checks.innerHTML = CLASS_FEATURE_MODULES.map(
+    (m) =>
+      `<label class="lp-level-check"><input type="checkbox" data-class-feature-module="${m.id}" ${
+        active[m.id] ? "checked" : ""
+      }> <span>${m.label}</span></label>`
+  ).join("");
+}
+
+async function saveClassFeatureModules() {
+  const sel = document.getElementById("classManageSelect");
+  const msg = document.getElementById("classFeatureModulesMsg");
+  const btn = document.getElementById("classFeatureModulesSaveBtn");
+  const classId = sel?.value;
+  if (!classId) return;
+
+  const featureModules = {};
+  CLASS_FEATURE_MODULES.forEach((m) => {
+    featureModules[m.id] = false;
+  });
+  document.querySelectorAll("[data-class-feature-module]:checked").forEach((el) => {
+    featureModules[el.dataset.classFeatureModule] = true;
+  });
+
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch(`/api/teacher/classes/${encodeURIComponent(classId)}/feature-modules`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ featureModules })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.success) {
+      if (msg) {
+        msg.hidden = false;
+        msg.textContent = data.message || data.error || "Speichern fehlgeschlagen.";
+      }
+      return;
+    }
+    managedClassesCache = managedClassesCache.map((c) =>
+      String(c.id) === String(classId)
+        ? { ...c, featureModules: normalizeClassFeatureModules(data.featureModules) }
+        : c
+    );
+    if (msg) {
+      msg.hidden = false;
+      msg.textContent = "App-Module gespeichert.";
     }
   } catch (err) {
     console.error(err);

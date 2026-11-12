@@ -91,6 +91,11 @@ import {
   serializeFreedomRank
 } from "./lib/freedom-ranks.js";
 import {
+  featureModuleCatalog,
+  mergeFeatureModules,
+  normalizeFeatureModules
+} from "./lib/student-feature-modules.js";
+import {
   LEVELCHECK_EVAL_STATUSES,
   LEVELCHECK_EVAL_STATUS_LABELS,
   LEVELCHECK_PASS_PERCENT,
@@ -3644,6 +3649,7 @@ async function migrate() {
     `JSONB DEFAULT '["rookie","operator","street_legend"]'::jsonb`
   );
   await ensureColumn("classes", "access_locked", "BOOLEAN NOT NULL DEFAULT FALSE");
+  await ensureColumn("classes", "feature_modules", "JSONB NOT NULL DEFAULT '{}'::jsonb");
 
   await ensureColumn("school_material_tiles", "class_id", "INTEGER");
   await pool.query(`
@@ -5793,9 +5799,12 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     SELECT u.id,u.name,u.xp,u.character_id,u.level_id,u.school_id,
            u.has_seen_start_briefing,
            u.freedom_rank,u.freedom_rank_updated_at,
+           u.class_id,
+           c.feature_modules AS class_feature_modules,
            l.name AS level_name,l.min_xp AS level_min_xp
     FROM users u
     LEFT JOIN levels l ON l.id = u.level_id
+    LEFT JOIN classes c ON c.id = u.class_id
     WHERE u.id=$1
   `,
     [id]
@@ -5921,6 +5930,10 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     console.error("❌ regelregal for student/me:", err);
   }
 
+  const featureModules = normalizeFeatureModules(user.class_feature_modules);
+  delete user.class_feature_modules;
+  delete user.class_id;
+
   res.json({
     user,
     character,
@@ -5932,6 +5945,8 @@ app.get("/api/student/me", isStudent, async (req, res) => {
     xp_per_mission: xpByMission,
     freedomRanks: FREEDOM_RANKS.map(serializeFreedomRank),
     freedomRank,
+    featureModules,
+    featureModuleCatalog: featureModuleCatalog(),
     hasSeenStartBriefing: !!user.has_seen_start_briefing,
     regelregalUrl: regelregal.url,
     regelregalLabel: regelregal.label
@@ -13010,6 +13025,56 @@ app.patch("/api/teacher/classes/:classId/active-levels", isTeacher, async (req, 
   }
 });
 
+app.patch("/api/teacher/classes/:classId/feature-modules", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const classId = Number(req.params.classId);
+    if (!classId) {
+      return res.json({ success: false, message: "classId fehlt." });
+    }
+    if (!(await teacherCanAccessClass(pool, req.session.user, classId))) {
+      return res.status(403).json({ success: false, message: "Keine Berechtigung für diese Klasse." });
+    }
+
+    const existing = await pool.query(
+      `
+      SELECT feature_modules
+      FROM classes
+      WHERE id = $1 AND school_id = $2
+      LIMIT 1
+    `,
+      [classId, schoolId]
+    );
+    if (!existing.rows.length) {
+      return res.json({ success: false, message: "Klasse nicht gefunden." });
+    }
+
+    const patch = req.body?.featureModules || req.body?.modules || req.body || {};
+    const next = mergeFeatureModules(existing.rows[0].feature_modules, patch);
+    const result = await pool.query(
+      `
+      UPDATE classes
+      SET feature_modules = $1::jsonb
+      WHERE id = $2 AND school_id = $3
+      RETURNING id, name, feature_modules
+    `,
+      [JSON.stringify(next), classId, schoolId]
+    );
+
+    res.json({
+      success: true,
+      classId: result.rows[0].id,
+      className: result.rows[0].name,
+      featureModules: normalizeFeatureModules(result.rows[0].feature_modules),
+      featureModuleCatalog: featureModuleCatalog(),
+      message: "App-Module gespeichert."
+    });
+  } catch (err) {
+    console.error("❌ PATCH classes feature-modules:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
 app.delete("/api/teacher/levelcheck-goals/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
@@ -14728,7 +14793,8 @@ app.get("/api/class", isTeacher, async (req, res) => {
         id: c.id,
         name: c.name,
         activeLevels: normalizeActiveLevels(c.activeLevels),
-        accessLocked: c.accessLocked === true
+        accessLocked: c.accessLocked === true,
+        featureModules: normalizeFeatureModules(c.featureModules)
       }))
     );
   } catch (err) {

@@ -15348,16 +15348,17 @@ button.today-city-map {
 <script src="/js/client-cache-reset.js?v=4"></script>
 <script src="/js/auth-fetch.js?v=23"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
+<script src="/js/student-feature-modules.js?v=1"></script>
 <script src="/js/logbuch-constants.js?v=12"></script>
 <script src="/js/logbuch-strategies.js?v=3"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-coach.js?v=8"></script>
-<script src="/js/logbuch-hub.js?v=50"></script>
+<script src="/js/logbuch-hub.js?v=51"></script>
 <script src="/js/logbuch-visuals.js?v=20"></script>
 <script src="/js/logbuch-reminders.js?v=6"></script>
 <script src="/js/logbuch-group-invites.js?v=3"></script>
 <script src="/js/logbuch-swipe.js"></script>
-<script src="/js/student-router.js?v=13"></script>
+<script src="/js/student-router.js?v=14"></script>
 <script src="/js/logbuch-plan.js?v=62"></script>
 <script src="/js/logbuch-check.js?v=15"></script>
 <script src="/js/logbuch-reflect.js?v=13"></script>
@@ -15601,7 +15602,7 @@ initNotifUI();
 ============================================ */
 let xpPerMission = {};
 
-function updateStudentProfile(u, levels, character, traits) {
+function updateStudentProfile(u, levels, character, traits, featureModules) {
   const xp = Number(u.xp);
   const freedom =
     (window.FreedomRanks && window.FreedomRanks.get(u.freedom_rank)) ||
@@ -15652,12 +15653,14 @@ function updateStudentProfile(u, levels, character, traits) {
     characterImage: character?.image_url || null,
     characterName: character?.name || null,
     traits: traitList,
+    featureModules: featureModules && typeof featureModules === "object" ? featureModules : null,
     regelregalUrl: String(u.regelregalUrl || "").trim(),
     regelregalLabel: String(u.regelregalLabel || "").trim() || "Regelregal",
     todayXp: (__latestXpLog || [])
       .filter((e) => String(e.created_at).slice(0, 10) === new Date().toISOString().slice(0, 10))
       .reduce((sum, e) => sum + Number(e.amount || 0), 0)
   };
+  window.StudentFeatureModules?.setModules?.(window.__studentProfile.featureModules);
 
   const topName = document.getElementById("topbarName");
   if (topName) topName.textContent = (u.name || "").split(/\s+/)[0] || "";
@@ -15758,8 +15761,16 @@ window.loadMe = async function loadMe() {
   }
 
   renderLevelBar(data.levels || [], u.xp);
-  updateStudentProfile(u, data.levels || [], data.character, data.traits);
+  updateStudentProfile(u, data.levels || [], data.character, data.traits, data.featureModules);
   renderLevelBar(data.levels || [], u.xp);
+  if (
+    window.StudentRouter &&
+    window.StudentFeatureModules?.isSectionEnabled?.(
+      document.body.dataset.studentSection || "hub"
+    ) === false
+  ) {
+    window.StudentRouter.navigateToSection("hub", { replace: true });
+  }
 
   if (window.LogbuchVisuals && xpDiv) {
     window.LogbuchVisuals.renderXpDashboard(xpDiv, __latestXpLog, window.__studentProfile);
@@ -15776,7 +15787,11 @@ window.loadMe = async function loadMe() {
   else if (window.LogbuchStartBriefing) window.LogbuchStartBriefing.openAuto();
 
   window.LogbuchReminders?.start?.();
-  window.LogbuchGroupInvites?.start?.();
+  if (window.StudentFeatureModules?.isModuleEnabled?.("gruppenmodus") !== false) {
+    window.LogbuchGroupInvites?.start?.();
+  } else {
+    window.LogbuchGroupInvites?.stop?.();
+  }
 
   window.XpBurst?.noteXp?.(u.xp);
 

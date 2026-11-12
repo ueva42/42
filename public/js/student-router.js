@@ -192,8 +192,16 @@
     }
   }
 
+  function gateSection(section) {
+    const key = normalizeSection(section);
+    if (window.StudentFeatureModules?.isSectionEnabled?.(key) === false) {
+      return DEFAULT_SECTION;
+    }
+    return key;
+  }
+
   function navigateToSection(section, options = {}) {
-    section = normalizeSection(section);
+    section = gateSection(section);
     const { replace = false, query = null } = options;
     const url = buildUrl(section, query);
     const state = { section, query: query ? query.toString() : "" };
@@ -208,7 +216,8 @@
   }
 
   function initFromPath() {
-    const { section, query } = sectionFromPath(location.pathname, location.search);
+    let { section, query } = sectionFromPath(location.pathname, location.search);
+    section = gateSection(section);
     const normalizedPath = location.pathname.replace(/\/+$/, "") || "/student/hub";
     const url = buildUrl(section, query);
 
@@ -264,7 +273,9 @@
   };
 
   window.addEventListener("popstate", (e) => {
-    const section = e.state?.section || sectionFromPath(location.pathname, location.search).section;
+    const section = gateSection(
+      e.state?.section || sectionFromPath(location.pathname, location.search).section
+    );
     showSectionOnly(section);
   });
 
