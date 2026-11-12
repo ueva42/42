@@ -707,6 +707,11 @@
 
   function renderWerkzeuge() {
     const tools = [
+      [
+        "/teacher/app-module",
+        "App-Module",
+        "Welche Bereiche Schüler:innen in der App sehen (Taktik-Deck, Gruppenarbeit, …)"
+      ],
       ["/teacher/timetable", "Stundenplan", "Stunden der Klasse pflegen"],
       ["/teacher/termine", "Termine", "Klassenarbeiten, Tests, Levelchecks"],
       ["/teacher/levelchecks", "Levelchecks", "Nachweise und Bewertungen"],

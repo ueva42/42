@@ -16093,6 +16093,7 @@ const teacherSpaPaths = [
   "/teacher/termine",
   "/teacher/gruppenmodus",
   "/teacher/materialschrank",
+  "/teacher/app-module",
   "/teacher/lesson-goals",
   "/teacher/was-goals",
   "/teacher/levelplan-import"

@@ -92,6 +92,13 @@
       title: "Unterricht",
       tiles: [
         {
+          tab: "appModulesTab",
+          title: "App-Module",
+          desc: "Welche Bereiche die Schüler-App zeigt",
+          accent: "cyan",
+          cta: "Freischalten"
+        },
+        {
           tab: "gruppenmodusTab",
           title: "Gruppenmodus",
           desc: "Rollen und Shared-Tablet",
