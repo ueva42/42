@@ -730,7 +730,59 @@ body.td-setup-open {
 }
 
 .td-setup-actions {
-  margin-top: 14px;
+  margin-top: 18px;
+}
+
+.td-setup-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 14px 18px;
+  border: 1px solid rgba(103, 232, 249, 0.45);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(139, 92, 246, 0.18)),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(8, 15, 32, 0.98));
+  color: #f8fafc;
+  text-decoration: none;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow:
+    0 12px 28px rgba(2, 8, 23, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.td-setup-cta:hover {
+  transform: translateY(-1px);
+  border-color: rgba(103, 232, 249, 0.8);
+  box-shadow:
+    0 16px 36px rgba(2, 8, 23, 0.5),
+    0 0 24px rgba(34, 211, 238, 0.18);
+}
+
+.td-setup-cta:active {
+  transform: translateY(0);
+}
+
+.td-setup-cta:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  transform: none;
+}
+
+.td-setup-cta__arrow {
+  flex: 0 0 auto;
+  color: #67e8f9;
+  font-size: 1.15rem;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .td-setup-foot {

@@ -141,11 +141,12 @@
           placeholder="z. B. 7a" value="${esc(state.className)}" ${state.saving ? "disabled" : ""} />
         ${state.error ? `<p class="td-setup-error">${esc(state.error)}</p>` : ""}
         <div class="td-setup-actions">
-          <button type="button" class="td-btn td-btn-go" data-setup-create-class ${
+          <button type="button" class="td-setup-cta" data-setup-create-class ${
             state.saving ? "disabled" : ""
-          }>${state.saving ? "Anlegen…" : "Klasse anlegen"}</button>
+          }><span>${state.saving ? "Anlegen…" : "Klasse anlegen"}</span><span class="td-setup-cta__arrow" aria-hidden="true">→</span></button>
         </div>`;
     } else {
+      const ctaLabel = done ? "Nochmal öffnen" : "Jetzt einrichten";
       body = `
         <p class="td-setup-lead">${esc(step.text)}</p>
         ${
@@ -157,16 +158,16 @@
         <div class="td-setup-actions">
           ${
             step.href
-              ? `<a class="td-btn td-btn-go" href="${esc(setupHref(step.href))}">Jetzt einrichten</a>`
+              ? `<a class="td-setup-cta" href="${esc(setupHref(step.href))}"><span>${esc(
+                  ctaLabel
+                )}</span><span class="td-setup-cta__arrow" aria-hidden="true">→</span></a>`
               : ""
           }
-          <button type="button" class="td-btn td-btn-ghost" data-setup-next>
-            ${done ? "Weiter" : "Überspringen"}
-          </button>
         </div>`;
     }
 
     const isLast = state.stepIndex >= STEPS.length - 1;
+    const nextLabel = isLast ? "Fertig" : done || step.id === "class" ? "Weiter" : "Überspringen";
 
     root.innerHTML = `
       <div class="td-setup-backdrop" data-setup-dismiss></div>
@@ -185,7 +186,9 @@
               ? `<button type="button" class="td-btn td-btn-go" data-setup-complete ${
                   state.saving ? "disabled" : ""
                 }>Fertig</button>`
-              : `<button type="button" class="td-btn td-btn-ghost" data-setup-next>Weiter</button>`
+              : `<button type="button" class="td-btn td-btn-ghost" data-setup-next>${esc(
+                  nextLabel
+                )}</button>`
           }
         </div>
       </div>`;
