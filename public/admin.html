@@ -1650,27 +1650,53 @@
       .tc-add-grid { grid-template-columns: 1fr; }
     }
   </style>
-  <link rel="stylesheet" href="/css/admin-theme.css?v=6">
+  <link rel="stylesheet" href="/css/admin-theme.css?v=7">
 </head>
 <body class="admin-app">
-
-<!-- App-Topbar (Admin-Hub-Shell; bei Lehrkraft-Toolpfaden ausgeblendet) -->
+<!-- App-Topbar (Admin-Hub + Lehrkraft-Werkzeuge) -->
 <header class="admin-app-top" id="adminAppTop" hidden>
   <div class="admin-app-top__row">
-    <button type="button" class="admin-app-back" id="adminAppBackBtn" hidden onclick="showTab('adminHubTab')">
+    <button type="button" class="admin-app-back" id="adminAppBackBtn" hidden>
       ← Übersicht
     </button>
     <div class="admin-app-top__text">
-      <p class="admin-app-brand">STREETS OF LOGIC</p>
+      <p class="admin-app-brand" id="adminAppBrand">STREETS OF LOGIC</p>
+      <p class="admin-app-role" id="adminAppRole" hidden>LEHRKRAFT</p>
       <h1 class="admin-app-title" id="adminAppTitle">Administration</h1>
+      <p class="admin-app-context" id="adminAppContext" hidden></p>
     </div>
     <div class="admin-app-top__actions">
-      <button type="button" class="admin-addaccount-btn" title="Weiteres Konto in neuem Tab"
+      <button type="button" class="admin-addaccount-btn" id="adminAppAddAccountBtn" title="Weiteres Konto in neuem Tab"
         onclick="window.SolAuth?.addAccount?.()">Konto+</button>
-      <button type="button" class="admin-logout-btn" onclick="logout()">Logout</button>
+      <button type="button" class="admin-logout-btn" onclick="logout()">Abmelden</button>
     </div>
   </div>
 </header>
+<script>
+  /* Frühe Shell: Lehrkraft-Werkzeuge ohne Admin-Sidebar-/Administration-Flash */
+  (function () {
+    if (!(location.pathname || "").startsWith("/teacher/")) return;
+    document.body.classList.add("teacher-tool-shell");
+    var top = document.getElementById("adminAppTop");
+    var back = document.getElementById("adminAppBackBtn");
+    var role = document.getElementById("adminAppRole");
+    var title = document.getElementById("adminAppTitle");
+    var pageHeader = document.getElementById("adminPageHeader");
+    var sub = document.getElementById("adminSidebarSubtitle");
+    if (top) top.hidden = false;
+    if (back) {
+      back.hidden = false;
+      back.textContent = "← Zurück zu Werkzeugen";
+      back.onclick = function () {
+        window.location.href = "/teacher/werkzeuge";
+      };
+    }
+    if (role) role.hidden = false;
+    if (title) title.textContent = "Werkzeug";
+    if (pageHeader) pageHeader.hidden = true;
+    if (sub) sub.textContent = "LEHRKRAFT";
+  })();
+</script>
 
 <!-- SIDEBAR (Lehrkraft-Werkzeuge / Legacy; Admin nutzt Hub-Kacheln) -->
 <div class="sidebar" id="adminSidebar">
@@ -1678,7 +1704,7 @@
     <div class="sidebar-logo-orb"></div>
     <div>
       <h2 class="sidebar-title">STREETS OF LOGIC</h2>
-      <div class="sidebar-subtitle">ADMINISTRATION</div>
+      <div class="sidebar-subtitle" id="adminSidebarSubtitle">ADMINISTRATION</div>
     </div>
   </div>
 
@@ -2494,6 +2520,22 @@ function initNavSections() {
 }
 
 /* ---------------------------- TABS ---------------------------- */
+const TEACHER_TOOL_TITLES = {
+  dashboardTab: "Klassenübersicht",
+  teacherWeekTab: "Wochenübersicht",
+  timetableTab: "Stundenplan",
+  levelplanTab: "Levelplan",
+  levelplanZuordnungTab: "Levelplan-Zuordnung",
+  lessonGoalsTab: "Wie-Ziele",
+  wasGoalsTab: "Was-Ziele",
+  levelplanImportTab: "Levelplan importieren",
+  termineTab: "Termine",
+  gruppenmodusTab: "Gruppenmodus",
+  materialschrankTab: "Materialschrank",
+  appModulesTab: "App-Module",
+  competenciesTab: "Levelchecks"
+};
+
 function useAdminHubShell() {
   const path = location.pathname || "";
   const onTeacherToolPath = path.startsWith("/teacher/");
@@ -2502,30 +2544,115 @@ function useAdminHubShell() {
   return role === "admin" || window.SolAuth?.isAdminShell?.() === true;
 }
 
+function useTeacherToolShell() {
+  const path = location.pathname || "";
+  if (!path.startsWith("/teacher/")) return false;
+  const role = window.__staffSession?.role || window.SolAuth?.get?.() || "";
+  // Admin wird von /teacher/* weggebounced; falls Session noch fehlt: Shell trotzdem zeigen
+  if (role === "admin") return false;
+  return true;
+}
+
+function teacherToolTitle(tabId) {
+  return (
+    TEACHER_TOOL_TITLES[tabId] ||
+    (window.AdminHub && AdminHub.titleForTab(tabId)) ||
+    "Werkzeug"
+  );
+}
+
 function syncAdminShellChrome(tabId) {
   const hubShell = useAdminHubShell();
+  const teacherShell = useTeacherToolShell();
+  const appShell = hubShell || teacherShell;
   const onHub = tabId === "adminHubTab";
   document.body.classList.toggle("admin-hub-shell", hubShell);
   document.body.classList.toggle("admin-on-hub", hubShell && onHub);
   document.body.classList.toggle("admin-in-tool", hubShell && !onHub);
+  document.body.classList.toggle("teacher-tool-shell", teacherShell);
 
   const top = document.getElementById("adminAppTop");
   const back = document.getElementById("adminAppBackBtn");
   const titleEl = document.getElementById("adminAppTitle");
   const pageHeader = document.getElementById("adminPageHeader");
+  const roleEl = document.getElementById("adminAppRole");
+  const contextEl = document.getElementById("adminAppContext");
 
-  if (top) top.hidden = !hubShell;
-  if (pageHeader) pageHeader.hidden = hubShell;
-  if (back) back.hidden = !hubShell || onHub;
-  if (titleEl) {
-    if (!hubShell) {
-      titleEl.textContent = "Administration";
-    } else if (onHub) {
-      titleEl.textContent = "Übersicht";
+  if (top) top.hidden = !appShell;
+  if (pageHeader) pageHeader.hidden = appShell;
+  if (roleEl) roleEl.hidden = !teacherShell;
+
+  if (back) {
+    if (teacherShell) {
+      back.hidden = false;
+      back.textContent = "← Zurück zu Werkzeugen";
+      back.onclick = () => {
+        window.location.href = "/teacher/werkzeuge";
+      };
+    } else if (hubShell) {
+      back.hidden = onHub;
+      back.textContent = "← Übersicht";
+      back.onclick = () => showTab("adminHubTab");
     } else {
-      titleEl.textContent =
-        (window.AdminHub && AdminHub.titleForTab(tabId)) || "Bereich";
+      back.hidden = true;
+      back.onclick = null;
     }
+  }
+
+  let title = "Administration";
+  if (teacherShell) {
+    title = teacherToolTitle(tabId);
+  } else if (hubShell && onHub) {
+    title = "Übersicht";
+  } else if (hubShell) {
+    title = (window.AdminHub && AdminHub.titleForTab(tabId)) || "Bereich";
+  }
+  if (titleEl) titleEl.textContent = title;
+
+  if (contextEl) {
+    if (teacherShell) {
+      contextEl.hidden = false;
+      contextEl.textContent =
+        window.__teacherShellClassContext || "Klassenwahl sitzt im Werkzeug";
+    } else {
+      contextEl.hidden = true;
+      contextEl.textContent = "";
+    }
+  }
+
+  const sidebarSub = document.getElementById("adminSidebarSubtitle");
+  if (sidebarSub) {
+    sidebarSub.textContent = teacherShell ? "LEHRKRAFT" : "ADMINISTRATION";
+  }
+
+  if (teacherShell) {
+    document.title = `${title} · Lehrkraft`;
+  } else if (hubShell) {
+    document.title = `${title} · Administration`;
+  }
+}
+
+async function loadTeacherShellClassContext() {
+  if (!useTeacherToolShell()) return;
+  try {
+    const res = await fetch("/api/class", { credentials: "same-origin" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !Array.isArray(data)) {
+      window.__teacherShellClassContext = "Klassenwahl sitzt im Werkzeug";
+    } else if (!data.length) {
+      window.__teacherShellClassContext = "Noch keine Klasse zugewiesen";
+    } else if (data.length === 1) {
+      window.__teacherShellClassContext = `Klasse ${data[0].name}`;
+    } else {
+      window.__teacherShellClassContext = `${data.length} Klassen · Auswahl im Werkzeug`;
+    }
+  } catch {
+    window.__teacherShellClassContext = "Klassenwahl sitzt im Werkzeug";
+  }
+  const contextEl = document.getElementById("adminAppContext");
+  if (contextEl && useTeacherToolShell()) {
+    contextEl.hidden = false;
+    contextEl.textContent = window.__teacherShellClassContext;
   }
 }
 
@@ -2639,7 +2766,11 @@ async function logout() {
     await window.SolAuth.logoutAndRedirect();
     return;
   }
-  window.location.replace(`/logout?role=admin&t=${Date.now()}`);
+  const role =
+    window.__staffSession?.role ||
+    window.SolAuth?.get?.() ||
+    (useTeacherToolShell() ? "teacher" : "admin");
+  window.location.replace(`/logout?role=${encodeURIComponent(role)}&t=${Date.now()}`);
 }
 
 document.querySelector(".nav-item-logout")?.addEventListener("keydown", (e) => {
@@ -4505,6 +4636,9 @@ async function bootAdminApp() {
 
     applyStaffNavPermissions(session);
     startAdminShell();
+    if (useTeacherToolShell()) {
+      loadTeacherShellClassContext();
+    }
   } catch (err) {
     console.error(err);
     window.location.replace(`/login?loggedout=1&t=${Date.now()}`);

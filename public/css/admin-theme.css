@@ -676,8 +676,9 @@ body.admin-app .lp-level-check input {
   accent-color: var(--admin-cyan);
 }
 
-/* ---------- Admin Hub App Shell ---------- */
-body.admin-app.admin-hub-shell {
+/* ---------- Admin Hub + Lehrkraft-Werkzeug App Shell ---------- */
+body.admin-app.admin-hub-shell,
+body.admin-app.teacher-tool-shell {
   flex-direction: column;
   height: auto;
   min-height: 100dvh;
@@ -686,11 +687,13 @@ body.admin-app.admin-hub-shell {
   padding-bottom: 28px;
 }
 
-body.admin-app.admin-hub-shell .sidebar {
+body.admin-app.admin-hub-shell .sidebar,
+body.admin-app.teacher-tool-shell .sidebar {
   display: none !important;
 }
 
-body.admin-app.admin-hub-shell .content {
+body.admin-app.admin-hub-shell .content,
+body.admin-app.teacher-tool-shell .content {
   flex: 1 1 auto;
   width: 100%;
   height: auto;
@@ -703,8 +706,43 @@ body.admin-app.admin-hub-shell.admin-on-hub .content-inner {
   max-width: 920px;
 }
 
-body.admin-app.admin-hub-shell .page-header {
+body.admin-app.teacher-tool-shell .content-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+body.admin-app.admin-hub-shell .page-header,
+body.admin-app.teacher-tool-shell .page-header {
   display: none !important;
+}
+
+body.admin-app.teacher-tool-shell .admin-app-brand {
+  letter-spacing: 0.14em;
+}
+
+body.admin-app .admin-app-role {
+  margin: 0 0 4px;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #a5b4fc;
+}
+
+body.admin-app .admin-app-role[hidden],
+body.admin-app .admin-app-context[hidden] {
+  display: none !important;
+}
+
+body.admin-app .admin-app-context {
+  margin: 6px 0 0;
+  color: var(--admin-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+body.admin-app.teacher-tool-shell .admin-addaccount-btn {
+  display: none;
 }
 
 body.admin-app .admin-app-top {

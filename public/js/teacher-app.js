@@ -724,7 +724,7 @@
       ${renderSetupBanner()}
       <p class="td-kicker">Lernbegleitung</p>
       <h1 class="td-title">Werkzeuge</h1>
-      <p class="td-lead">Dieselben Funktionen wie bisher. Die Klassenwahl sitzt oben.</p>
+      <p class="td-lead">Stundenplan, Levelplan, App-Module und mehr – ohne Admin-Menü, mit Zurück-Button.</p>
       <div class="td-tool-grid">
         ${tools
           .map(
