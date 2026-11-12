@@ -696,6 +696,15 @@
     return renderListe();
   }
 
+  function renderSetupBanner() {
+    if (state.me?.setupDone) return "";
+    return `
+      <div class="td-setup-banner">
+        <p>Erste Klasse einrichten: Stundenplan, Levelplan, Ziele, Material und Termin.</p>
+        <button type="button" class="td-btn td-btn-go" id="teacherSetupResumeBtn">Einrichtung fortsetzen</button>
+      </div>`;
+  }
+
   function renderWerkzeuge() {
     const tools = [
       ["/teacher/timetable", "Stundenplan", "Stunden der Klasse pflegen"],
@@ -707,6 +716,7 @@
       ["/teacher/week", "Wochenübersicht", "Aktivität über die Woche, ohne Wertung"]
     ];
     return `
+      ${renderSetupBanner()}
       <p class="td-kicker">Lernbegleitung</p>
       <h1 class="td-title">Werkzeuge</h1>
       <p class="td-lead">Dieselben Funktionen wie bisher. Die Klassenwahl sitzt oben.</p>
@@ -722,6 +732,12 @@
             </a>`
           )
           .join("")}
+        <button type="button" class="td-tool" id="teacherSetupOpenBtn">
+          <p class="td-kicker">Start</p>
+          <h3>Ersteinrichtung</h3>
+          <p>Klasse, Stundenplan, Levelplan, Was-/Wie-Ziele, Material, Termin.</p>
+          <span>Öffnen →</span>
+        </button>
         <button type="button" class="td-tool" id="addAccountBtn">
           <p class="td-kicker">Session</p>
           <h3>Weiteres Konto</h3>
@@ -848,6 +864,11 @@
     doLogout().catch(() => {});
   });
 
+  window.addEventListener("teacher-setup-finished", () => {
+    if (state.me) state.me.setupDone = true;
+    if (state.tab === "werkzeuge") render();
+  });
+
   appEl.addEventListener("click", (event) => {
     const range = event.target.closest("[data-range]");
     if (range) {
@@ -944,8 +965,35 @@
     }
     if (event.target.closest("#addAccountBtn")) {
       window.SolAuth?.addAccount?.();
+      return;
+    }
+    if (
+      event.target.closest("#teacherSetupOpenBtn") ||
+      event.target.closest("#teacherSetupResumeBtn")
+    ) {
+      openTeacherSetup().catch((err) => {
+        state.toast = err.message || "Einrichtung konnte nicht geöffnet werden.";
+        render();
+      });
     }
   });
+
+  async function openTeacherSetup() {
+    try {
+      await api("/api/teacher/setup/resume", { method: "POST", body: "{}" });
+    } catch (_) {}
+    await window.TeacherSetup?.open({
+      api,
+      me: state.me,
+      onClassCreated: async (cls) => {
+        state.me = await api("/api/teacher/me");
+        state.classes = state.me.classes || [];
+        if (cls?.id) state.classId = Number(cls.id);
+        fillClasses();
+        await loadView();
+      }
+    });
+  }
 
   appEl.addEventListener("change", (event) => {
     if (event.target.id === "unitSelect") {
@@ -1006,6 +1054,21 @@
     fillClasses();
     markTabs();
     await loadView();
+    if (window.TeacherSetup?.maybeAutoOpen) {
+      await window.TeacherSetup.maybeAutoOpen({
+        api,
+        me: state.me,
+        classId: state.classId,
+        force: params.get("setup") === "1",
+        onClassCreated: async (cls) => {
+          state.me = await api("/api/teacher/me");
+          state.classes = state.me.classes || [];
+          if (cls?.id) state.classId = Number(cls.id);
+          fillClasses();
+          await loadView();
+        }
+      });
+    }
   }
 
   boot().catch((err) => {

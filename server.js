@@ -66,6 +66,10 @@ import {
 import { registerTeacherCoachingRoutes } from "./lib/teacher-coaching-api.js";
 import { registerTeacherDashboardRoutes } from "./lib/teacher-dashboard-api.js";
 import { migrateCockpitTables, registerTeacherCockpitRoutes } from "./lib/teacher-cockpit-api.js";
+import {
+  migrateTeacherSetupColumns,
+  registerTeacherSetupRoutes
+} from "./lib/teacher-setup-api.js";
 import { migrateCoachTables, registerCoachRoutes } from "./lib/coach-api.js";
 import {
   applyTrigPracticeLinks,
@@ -4563,6 +4567,7 @@ async function migrate() {
 
   await migrateGroupModeTables(pool);
   await migrateTeacherAreaTables(pool);
+  await migrateTeacherSetupColumns(pool);
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_timetables_class_weekday
@@ -5707,6 +5712,8 @@ registerTeacherCoachingRoutes(app, {
   publicImageUrl,
   getGradeRequirements
 });
+
+registerTeacherSetupRoutes(app, { pool, isTeacher });
 
 registerTeacherDashboardRoutes(app, {
   pool,
