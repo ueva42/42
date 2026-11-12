@@ -39,6 +39,8 @@
   function isSectionEnabled(section) {
     const key = String(section || "").trim();
     if (!key || CORE.has(key)) return true;
+    // Logic Coach ist kein Klassen-Modul – bleibt an, wenn der Server ihn freigibt
+    if (key === "logic-coach") return true;
     const moduleId = SECTION_MODULE[key];
     if (!moduleId) return true;
     return isModuleEnabled(moduleId);
@@ -59,6 +61,19 @@
     });
   }
 
+  let hubRefreshQueued = false;
+  function refreshVisibleSurfaces() {
+    applyNavVisibility();
+    const section = document.body?.dataset?.studentSection || "";
+    if (section !== "hub" || !window.LogbuchHub?.refresh || hubRefreshQueued) return;
+    hubRefreshQueued = true;
+    Promise.resolve()
+      .then(() => window.LogbuchHub.refresh())
+      .finally(() => {
+        hubRefreshQueued = false;
+      });
+  }
+
   window.StudentFeatureModules = {
     CORE,
     SECTION_MODULE,
@@ -70,7 +85,7 @@
       if (window.__studentProfile) {
         window.__studentProfile.featureModules = window.__featureModules;
       }
-      applyNavVisibility();
+      refreshVisibleSurfaces();
     }
   };
 })();

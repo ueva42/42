@@ -251,6 +251,7 @@
         syncModulesFromDom(root);
         state.message = "";
         render();
+        scheduleAutosave(root);
       });
     });
 
@@ -263,6 +264,7 @@
       state.dirty = true;
       state.message = "";
       render();
+      scheduleAutosave(root);
     });
 
     root.querySelector("#tamAllOff")?.addEventListener("click", () => {
@@ -274,9 +276,19 @@
       state.dirty = true;
       state.message = "";
       render();
+      scheduleAutosave(root);
     });
 
     root.querySelector("#tamSave")?.addEventListener("click", () => save(root));
+  }
+
+  let autosaveTimer = null;
+  function scheduleAutosave(root) {
+    if (autosaveTimer) clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+      autosaveTimer = null;
+      if (state.dirty && !state.saving) save(root);
+    }, 350);
   }
 
   async function save(root) {
@@ -307,7 +319,7 @@
         sameId(c.id, state.classId) ? { ...c, featureModules: state.modules } : c
       );
       state.dirty = false;
-      state.message = "Gespeichert. Schüler:innen sehen es nach dem nächsten Laden.";
+      state.message = "Gespeichert. Schüler:innen sehen nur noch die aktiven Module (Seite neu laden).";
     } catch (err) {
       console.error(err);
       state.error = "Netzwerkfehler.";

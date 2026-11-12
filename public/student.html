@@ -472,6 +472,13 @@ body.student-app .mobile-header {
   background: rgba(76, 29, 149, 0.15);
 }
 
+.student-topnav-item[hidden],
+.student-bottomnav-item[hidden],
+.student-more-link[hidden],
+.menu-item[hidden] {
+  display: none !important;
+}
+
 .student-more-legal {
   margin: 14px 2px 0;
   padding-top: 12px;
@@ -15304,8 +15311,12 @@ button.today-city-map {
       <button type="button" class="student-more-link" data-section="hausaufgaben">Hausaufgaben <span>›</span></button>
       <button type="button" class="student-more-link" data-section="ueben">Üben zu Hause <span>›</span></button>
       <button type="button" class="student-more-link" data-section="week">Meine Woche <span>›</span></button>
+      <button type="button" class="student-more-link" data-section="levelplan">Lernstand <span>›</span></button>
+      <button type="button" class="student-more-link" data-section="zielsetzung">Zielsetzung <span>›</span></button>
+      <button type="button" class="student-more-link" data-section="materialschrank">Materialschrank <span>›</span></button>
       <button type="button" class="student-more-link" data-section="taktik-deck">Taktik-Deck <span>›</span></button>
       <button type="button" class="student-more-link" data-section="checkpoint-plan">Meine Checks <span>›</span></button>
+      <button type="button" class="student-more-link" data-section="gruppenmodus">Gruppenarbeit <span>›</span></button>
       <button type="button" class="student-more-link" data-section="missionen">Missionen <span>›</span></button>
       <button type="button" class="student-more-link" data-section="belohnungen">Belohnungen <span>›</span></button>
       <button type="button" class="student-more-link" data-section="charakter">Charakter <span>›</span></button>
@@ -15348,12 +15359,12 @@ button.today-city-map {
 <script src="/js/client-cache-reset.js?v=4"></script>
 <script src="/js/auth-fetch.js?v=23"></script>
 <script src="/js/freedom-ranks.js?v=2"></script>
-<script src="/js/student-feature-modules.js?v=1"></script>
+<script src="/js/student-feature-modules.js?v=2"></script>
 <script src="/js/logbuch-constants.js?v=12"></script>
 <script src="/js/logbuch-strategies.js?v=3"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-coach.js?v=8"></script>
-<script src="/js/logbuch-hub.js?v=51"></script>
+<script src="/js/logbuch-hub.js?v=52"></script>
 <script src="/js/logbuch-visuals.js?v=20"></script>
 <script src="/js/logbuch-reminders.js?v=6"></script>
 <script src="/js/logbuch-group-invites.js?v=3"></script>
@@ -16373,11 +16384,11 @@ async function bootStudentApp() {
     window.SolAuth?.set("student");
     window.__studentBooted = true;
 
+    // App-Module zuerst laden, damit Hub/Nav nur freigeschaltete Kacheln zeigen
+    await loadMe();
     if (window.StudentRouter) {
       window.StudentRouter.initFromPath();
     }
-
-    await loadMe();
     loadMissions();
     loadRewards();
     loadClassProgress();

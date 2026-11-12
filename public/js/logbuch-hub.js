@@ -616,7 +616,11 @@
             ${featureVisual(DASHBOARD_HERO.hub)}
           </div>
 
-          ${renderIdentityCard(ui, p)}
+          ${
+            window.StudentFeatureModules?.isSectionEnabled?.("charakter") === false
+              ? ""
+              : renderIdentityCard(ui, p)
+          }
         </section>
 
         ${renderStatusPanel(ui, stats, step)}
