@@ -554,7 +554,20 @@ body.td-shell {
   border: 1px solid rgba(34, 211, 238, 0.28);
   background:
     linear-gradient(160deg, rgba(34, 211, 238, 0.08), rgba(8, 12, 28, 0.9));
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  width: 100%;
 }
+.td-tool--featured {
+  border-color: rgba(139, 92, 246, 0.55);
+  background:
+    linear-gradient(160deg, rgba(139, 92, 246, 0.22), rgba(8, 12, 28, 0.92));
+  box-shadow: 0 0 28px rgba(139, 92, 246, 0.18);
+  grid-column: 1 / -1;
+}
+.td-tool--featured .td-kicker { color: #c4b5fd; }
+.td-tool--featured span { color: #ddd6fe; }
 .td-tool h3 { margin: 6px 0; }
 .td-tool p { margin: 0; color: #cbd5e1; }
 .td-tool span { display: inline-block; margin-top: 10px; color: #67e8f9; font-weight: 700; }

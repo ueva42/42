@@ -400,7 +400,12 @@
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
         ${
           !state.catalogs.length && !state.loading
-            ? `<div class="tc-empty"><p>Noch kein eigener Levelplan für Klasse ${escapeHtml(state.gradeLevel)}. Lege einen unter <b>Levelplan importieren</b> an.</p></div>`
+            ? `<div class="tc-empty">
+                <p>Noch kein eigener Levelplan für Klasse ${escapeHtml(state.gradeLevel)}.</p>
+                <p style="margin-top:12px">
+                  <a class="action" href="/teacher/levelplan-import">Levelplan jetzt importieren →</a>
+                </p>
+              </div>`
             : ""
         }
 

@@ -708,19 +708,33 @@
   function renderWerkzeuge() {
     const tools = [
       [
+        "/teacher/levelplan-import",
+        "Levelplan importieren",
+        "Eigenen Plan hochladen (Text einfügen) – der wichtigste Schritt für Was-Ziele",
+        "Wichtig",
+        true
+      ],
+      [
         "/teacher/students",
         "Schüler:innen anlegen",
-        "Konten und Einmalpasswörter für deine Klasse"
+        "Konten und Einmalpasswörter für deine Klasse",
+        "Start"
       ],
+      [
+        "/teacher/levelplan",
+        "Levelplan bearbeiten",
+        "Eigene Pläne ansehen, ergänzen und der Klasse zuweisen"
+      ],
+      ["/teacher/timetable", "Stundenplan", "Stunden der Klasse pflegen"],
       [
         "/teacher/app-module",
         "App-Module",
-        "Welche Bereiche Schüler:innen in der App sehen (Taktik-Deck, Gruppenarbeit, …)"
+        "Welche Bereiche Schüler:innen in der App sehen"
       ],
-      ["/teacher/timetable", "Stundenplan", "Stunden der Klasse pflegen"],
+      ["/teacher/was-goals", "Was-Ziele", "Unterthemen und Material prüfen"],
+      ["/teacher/lesson-goals", "Wie-Ziele", "Wie arbeite ich daran? – pro Fach"],
       ["/teacher/termine", "Termine", "Klassenarbeiten, Tests, Levelchecks"],
       ["/teacher/levelchecks", "Levelchecks", "Nachweise und Bewertungen"],
-      ["/teacher/levelplan", "Levelplan", "Unterthemen und Kataloge"],
       ["/teacher/gruppenmodus", "Gruppenmodus", "Rollen und Gruppen"],
       ["/teacher/materialschrank", "Materialschrank", "Material für die Klasse"],
       ["/teacher/week", "Wochenübersicht", "Aktivität über die Woche, ohne Wertung"]
@@ -729,13 +743,13 @@
       ${renderSetupBanner()}
       <p class="td-kicker">Lernbegleitung</p>
       <h1 class="td-title">Werkzeuge</h1>
-      <p class="td-lead">Stundenplan, Levelplan, App-Module und mehr – ohne Admin-Menü, mit Zurück-Button.</p>
+      <p class="td-lead">Oben die wichtigsten Schritte – Levelplan importieren ist direkt erreichbar.</p>
       <div class="td-tool-grid">
         ${tools
           .map(
-            ([href, title, desc]) => `
-            <a class="td-tool" href="${href}">
-              <p class="td-kicker">Werkzeug</p>
+            ([href, title, desc, kicker = "Werkzeug", featured = false]) => `
+            <a class="td-tool${featured ? " td-tool--featured" : ""}" href="${href}">
+              <p class="td-kicker">${kicker}</p>
               <h3>${title}</h3>
               <p>${desc}</p>
               <span>Öffnen →</span>
