@@ -15,6 +15,7 @@
     catalogId: null,
     subject: null,
     catalogs: [],
+    sharedCatalogs: [],
     detail: null,
     classes: [],
     levelTiers: DEFAULT_LEVEL_TIERS,
@@ -27,6 +28,8 @@
     deletingGoalId: null,
     movingGoalId: null,
     syncingTraining: false,
+    sharing: false,
+    copyingId: null,
     // Inline-Editor: { type: "goal-add"|"goal-edit"|"topic-add"|"topic-rename", topicId?, goalId?, draft }
     editor: null,
     savingEditor: false,
@@ -294,6 +297,64 @@
     return `${emptyHint}${topicHtml}<div class="lp-add-topic">${addTopic}</div>`;
   }
 
+  function renderShareToggle() {
+    if (!state.catalogId || state.detail?.canManage === false) return "";
+    const shared = !!(state.detail?.catalog?.isShared ?? state.catalogs.find((c) => sameId(c.id, state.catalogId))?.isShared);
+    return `
+      <div class="kr-levels-panel" style="margin-top:1em">
+        <h3>Mit Kolleg:innen teilen</h3>
+        <p class="hint">
+          Geteilte Pläne erscheinen bei anderen Lehrkräften unter „Von Kolleg:innen übernehmen“.
+          Sie können eine <b>eigene Kopie</b> anlegen – dein Original bleibt unverändert.
+        </p>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" id="lpShareToggle" ${shared ? "checked" : ""} ${state.sharing ? "disabled" : ""} />
+          <span>${shared ? "Geteilt – Kolleg:innen können kopieren" : "Nicht geteilt"}</span>
+        </label>
+      </div>`;
+  }
+
+  function renderSharedCatalogs() {
+    const list = state.sharedCatalogs || [];
+    if (!list.length) {
+      return `
+        <div class="kr-levels-panel" style="margin-top:1em">
+          <h3>Von Kolleg:innen übernehmen</h3>
+          <p class="hint">Für Klasse ${escapeHtml(state.gradeLevel)} sind gerade keine geteilten Pläne sichtbar. Kolleg:innen können ihren Plan unter „Mit Kolleg:innen teilen“ freigeben.</p>
+        </div>`;
+    }
+    const rows = list
+      .map((c) => {
+        const by = c.creatorName ? ` von ${escapeHtml(c.creatorName)}` : "";
+        const topics = Array.isArray(c.topicNames) ? c.topicNames.filter(Boolean) : [];
+        const topicHint = topics.length
+          ? topics.slice(0, 3).map(escapeHtml).join(" · ") + (topics.length > 3 ? " …" : "")
+          : `${c.topicCount || 0} Themen`;
+        const busy = state.copyingId && sameId(state.copyingId, c.id);
+        return `
+          <li class="lp-shared-item">
+            <div>
+              <strong>${escapeHtml(c.displayName || c.name)}</strong>
+              <p class="hint" style="margin:4px 0 0">${topicHint}${by}</p>
+            </div>
+            <button type="button" class="action lp-copy-shared" data-copy-id="${escapeHtml(c.id)}" ${
+              state.copyingId ? "disabled" : ""
+            }>${busy ? "Kopiere…" : "Als Kopie übernehmen"}</button>
+          </li>`;
+      })
+      .join("");
+    return `
+      <div class="kr-levels-panel" style="margin-top:1em">
+        <h3>Von Kolleg:innen übernehmen</h3>
+        <p class="hint">Diese Pläne wurden geteilt. „Als Kopie übernehmen“ legt einen eigenen Plan an – den kannst du danach bearbeiten und deiner Klasse zuweisen.</p>
+        <ul class="lp-shared-list">${rows}</ul>
+      </div>
+      <style>
+        .lp-shared-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+        .lp-shared-item{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;padding:12px 14px;border-radius:12px;border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.45)}
+      </style>`;
+  }
+
   function renderActiveBanner() {
     if (!state.catalogId) return "";
     const assigned = [...new Set((state.detail?.assignments || []).map((a) => a.className).filter(Boolean))];
@@ -368,9 +429,9 @@
       <div class="panel">
         <h2>Levelplan</h2>
         <p class="hint">
-          Hier siehst du <b>deine</b> Levelpläne (Klassenstufe), kannst sie bearbeiten, einer Klasse zuweisen oder löschen.
-          Pläne anderer Lehrkräfte erscheinen hier nicht. Neue Pläne: unter <b>Levelplan importieren</b> „Neuer Levelplan“.
-          Administration sieht alle Pläne der Schule.
+          Hier siehst du <b>deine</b> Levelpläne. Du kannst sie bearbeiten, der Klasse zuweisen, löschen oder
+          <b>mit Kolleg:innen teilen</b> – die können dann eine eigene Kopie anlegen.
+          Neue Pläne: unter <b>Levelplan importieren</b>.
         </p>
 
         <div class="tc-toolbar">
@@ -409,6 +470,8 @@
             : ""
         }
 
+        ${renderShareToggle()}
+        ${renderSharedCatalogs()}
         ${renderActiveBanner()}
 
         ${
@@ -652,6 +715,12 @@
     root.querySelector("#lpUnassignBtn")?.addEventListener("click", () => saveAssignment(false));
     root.querySelector("#lpSaveActiveLevels")?.addEventListener("click", saveActiveLevels);
     root.querySelector("#lpDeleteCatalogBtn")?.addEventListener("click", deleteCatalog);
+    root.querySelector("#lpShareToggle")?.addEventListener("change", (e) => {
+      toggleShare(!!e.target.checked);
+    });
+    root.querySelectorAll("[data-copy-id]").forEach((btn) => {
+      btn.addEventListener("click", () => copySharedCatalog(btn.dataset.copyId));
+    });
 
     root.querySelectorAll("[data-lp-del-topic]").forEach((btn) => {
       btn.addEventListener("click", () => deleteTopic(btn.dataset.lpDelTopic));
@@ -938,13 +1007,104 @@
 
   async function loadCatalogs() {
     const res = await fetch(
-      `/api/teacher/level-plan-catalogs?gradeLevel=${encodeURIComponent(state.gradeLevel)}`
+      `/api/teacher/level-plan-catalogs?gradeLevel=${encodeURIComponent(state.gradeLevel)}`,
+      { credentials: "same-origin", cache: "no-store" }
     );
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || data.error || "Levelpläne konnten nicht geladen werden.");
     state.catalogs = data.catalogs || [];
+    state.sharedCatalogs = data.sharedCatalogs || [];
     if (!state.catalogId || !state.catalogs.some((c) => sameId(c.id, state.catalogId))) {
       state.catalogId = state.catalogs[0]?.id || null;
+    }
+  }
+
+  async function toggleShare(shared) {
+    if (!state.catalogId || state.sharing) return;
+    state.sharing = true;
+    state.error = "";
+    state.message = "";
+    render();
+    try {
+      const res = await fetch(
+        `/api/teacher/level-plan-catalogs/${encodeURIComponent(state.catalogId)}`,
+        {
+          method: "PATCH",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shared })
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      state.sharing = false;
+      if (!res.ok || !data.success) {
+        state.error = data.message || "Teilen konnte nicht gespeichert werden.";
+        render();
+        return;
+      }
+      state.message = data.message || (shared ? "Plan geteilt." : "Teilen beendet.");
+      if (state.detail?.catalog) {
+        state.detail.catalog.isShared = !!data.catalog?.isShared;
+      }
+      state.catalogs = state.catalogs.map((c) =>
+        sameId(c.id, state.catalogId)
+          ? { ...c, isShared: !!data.catalog?.isShared }
+          : c
+      );
+      render();
+    } catch (err) {
+      console.error(err);
+      state.sharing = false;
+      state.error = "Netzwerkfehler.";
+      render();
+    }
+  }
+
+  async function copySharedCatalog(catalogId) {
+    if (!catalogId || state.copyingId) return;
+    const src = state.sharedCatalogs.find((c) => sameId(c.id, catalogId));
+    const label = src?.displayName || src?.name || "diesen Levelplan";
+    if (
+      !confirm(
+        `„${label}“ als eigene Kopie übernehmen?\n\nDu kannst die Kopie danach bearbeiten und deiner Klasse zuweisen. Das Original bleibt unverändert.`
+      )
+    ) {
+      return;
+    }
+    state.copyingId = String(catalogId);
+    state.error = "";
+    state.message = "";
+    render();
+    try {
+      const res = await fetch(
+        `/api/teacher/level-plan-catalogs/${encodeURIComponent(catalogId)}/copy`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: "{}"
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      state.copyingId = null;
+      if (!res.ok || !data.success) {
+        state.error = data.message || "Kopieren fehlgeschlagen.";
+        render();
+        return;
+      }
+      state.message = data.message || "Kopie angelegt.";
+      await loadCatalogs();
+      if (data.catalog?.id) {
+        state.catalogId = data.catalog.id;
+      }
+      await loadDetail();
+    } catch (err) {
+      console.error(err);
+      state.copyingId = null;
+      state.error = "Netzwerkfehler.";
+      render();
     }
   }
 

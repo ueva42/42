@@ -4302,6 +4302,11 @@ async function migrate() {
     )
   `);
   await ensureColumn("level_plan_catalogs", "created_by", "INTEGER");
+  await ensureColumn(
+    "level_plan_catalogs",
+    "is_shared",
+    "BOOLEAN NOT NULL DEFAULT FALSE"
+  );
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_level_plan_assignments (
       class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
@@ -11827,7 +11832,8 @@ function canManageLevelPlanCatalog(user, catalogRow) {
 async function fetchLevelPlanCatalogRow(catalogId, schoolId) {
   const r = await pool.query(
     `
-    SELECT id, name, grade_level, created_by, created_at, school_id
+    SELECT id, name, grade_level, created_by, created_at, school_id,
+           COALESCE(is_shared, FALSE) AS is_shared
     FROM level_plan_catalogs
     WHERE id = $1 AND school_id = $2
     LIMIT 1
@@ -11835,6 +11841,98 @@ async function fetchLevelPlanCatalogRow(catalogId, schoolId) {
     [catalogId, schoolId]
   );
   return r.rows[0] || null;
+}
+
+function canViewSharedLevelPlanCatalog(user, catalogRow) {
+  if (!user?.id || !catalogRow) return false;
+  if (user.role === "admin") return true;
+  if (canManageLevelPlanCatalog(user, catalogRow)) return true;
+  return (
+    user.role === "teacher" &&
+    catalogRow.is_shared === true &&
+    Number(catalogRow.school_id) === Number(user.school_id)
+  );
+}
+
+async function copyLevelPlanCatalogForUser(sourceCatalogId, schoolId, user, nameOverride = null) {
+  const source = await fetchLevelPlanCatalogRow(sourceCatalogId, schoolId);
+  if (!source) {
+    return { ok: false, notFound: true, message: "Levelplan nicht gefunden." };
+  }
+  if (!canViewSharedLevelPlanCatalog(user, source) && !canManageLevelPlanCatalog(user, source)) {
+    return {
+      ok: false,
+      forbidden: true,
+      message: "Diesen Levelplan kannst du nicht kopieren."
+    };
+  }
+  // Lehrkraft: nur eigene oder explizit geteilte Pläne
+  if (
+    user.role === "teacher" &&
+    !canManageLevelPlanCatalog(user, source) &&
+    source.is_shared !== true
+  ) {
+    return {
+      ok: false,
+      forbidden: true,
+      message: "Nur geteilte Pläne von Kolleg:innen können übernommen werden."
+    };
+  }
+
+  const checks = await getLevelChecksForCatalog(sourceCatalogId, schoolId);
+  const rows = [];
+  for (const topic of checks) {
+    const goals = Array.isArray(topic.goals) ? topic.goals : [];
+    for (const g of goals) {
+      rows.push({
+        fach: topic.subject,
+        thema: topic.name,
+        unterthema: g.text,
+        rookieZiel: g.rookieGoalText || "",
+        operatorZiel: g.operatorGoalText || "",
+        streetLegendZiel: g.streetLegendGoalText || "",
+        status: "OK"
+      });
+    }
+  }
+  if (!rows.length) {
+    return { ok: false, message: "Dieser Levelplan hat keine Themen zum Kopieren." };
+  }
+
+  const baseName = String(nameOverride || source.name || "Levelplan").trim().slice(0, 100);
+  const copyName = `${baseName} (Kopie)`.slice(0, 120);
+  const ins = await pool.query(
+    `
+    INSERT INTO level_plan_catalogs (school_id, grade_level, name, created_by, is_shared)
+    VALUES ($1, $2, $3, $4, FALSE)
+    RETURNING id, name, grade_level, created_at, created_by, is_shared
+  `,
+    [schoolId, source.grade_level, copyName, user.id]
+  );
+  const newId = ins.rows[0].id;
+  try {
+    const result = await importLevelplanRowsToCatalog(newId, schoolId, rows);
+    if (!(result.created + result.updated)) {
+      await deleteLevelPlanCatalogForSchool(newId, schoolId).catch(() => {});
+      return { ok: false, message: "Kopie konnte nicht geschrieben werden." };
+    }
+    return {
+      ok: true,
+      catalog: {
+        id: newId,
+        name: ins.rows[0].name,
+        gradeLevel: ins.rows[0].grade_level,
+        createdAt: ins.rows[0].created_at,
+        createdBy: Number(ins.rows[0].created_by),
+        isShared: false
+      },
+      ...result,
+      message: `„${ins.rows[0].name}“ angelegt (${result.created} Einträge). Der Plan gehört jetzt dir.`
+    };
+  } catch (err) {
+    await deleteLevelPlanCatalogForSchool(newId, schoolId).catch(() => {});
+    throw err;
+  }
 }
 
 async function assertCanManageLevelPlanCatalog(user, catalogId, schoolId) {
@@ -11866,6 +11964,15 @@ async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null, opts = {}) {
     params.push(Number(opts.ownerUserId));
     ownerFilter = ` AND c.created_by = $${params.length}`;
   }
+  let sharedFilter = "";
+  if (opts.sharedOnly) {
+    sharedFilter = " AND COALESCE(c.is_shared, FALSE) = TRUE";
+    if (opts.excludeOwnerUserId != null) {
+      params.push(Number(opts.excludeOwnerUserId));
+      sharedFilter += ` AND (c.created_by IS NULL OR c.created_by <> $${params.length})`;
+    }
+  }
+
   const r = await pool.query(
     `
     SELECT
@@ -11874,6 +11981,8 @@ async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null, opts = {}) {
       c.name,
       c.created_at,
       c.created_by,
+      COALESCE(c.is_shared, FALSE) AS is_shared,
+      u.name AS creator_name,
       COUNT(DISTINCT lc.id)::int AS topic_count,
       COALESCE(array_agg(DISTINCT lc.subject) FILTER (WHERE lc.subject IS NOT NULL), '{}') AS subjects,
       (
@@ -11882,9 +11991,10 @@ async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null, opts = {}) {
         WHERE t.catalog_id = c.id
       ) AS topic_names
     FROM level_plan_catalogs c
+    LEFT JOIN users u ON u.id = c.created_by
     LEFT JOIN level_checks lc ON lc.catalog_id = c.id
-    WHERE c.school_id = $1${gradeFilter}${ownerFilter}
-    GROUP BY c.id
+    WHERE c.school_id = $1${gradeFilter}${ownerFilter}${sharedFilter}
+    GROUP BY c.id, u.name
     HAVING COUNT(DISTINCT lc.id) > 0
     ORDER BY c.grade_level ASC, c.name ASC
   `,
@@ -11900,6 +12010,8 @@ async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null, opts = {}) {
       topicNames,
       createdAt: row.created_at,
       createdBy: row.created_by != null ? Number(row.created_by) : null,
+      creatorName: row.creator_name || null,
+      isShared: row.is_shared === true,
       topicCount: row.topic_count || 0,
       subjects: Array.isArray(row.subjects) ? row.subjects.filter(Boolean) : []
     };
@@ -12208,8 +12320,8 @@ app.post("/api/teacher/levelplan-import/confirm", isTeacher, async (req, res) =>
       const name = catalogName || suggestCatalogNameFromRows(okRows, subjectHint, gradeLevel);
       const ins = await pool.query(
         `
-        INSERT INTO level_plan_catalogs (school_id, grade_level, name, created_by)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO level_plan_catalogs (school_id, grade_level, name, created_by, is_shared)
+        VALUES ($1, $2, $3, $4, FALSE)
         RETURNING id
       `,
         [schoolId, gradeLevel, name.slice(0, 120), req.session.user.id]
@@ -12269,6 +12381,13 @@ app.get("/api/teacher/level-plan-catalogs", isTeacher, async (req, res) => {
     const catalogs = await fetchLevelPlanCatalogs(schoolId, gradeLevel, {
       ownerUserId: user.role === "teacher" ? user.id : null
     });
+    const sharedCatalogs =
+      user.role === "teacher"
+        ? await fetchLevelPlanCatalogs(schoolId, gradeLevel, {
+            sharedOnly: true,
+            excludeOwnerUserId: user.id
+          })
+        : [];
     res.json({
       gradeLevels: GRADE_LEVELS,
       catalogs: catalogs.map((c) => ({
@@ -12278,6 +12397,12 @@ app.get("/api/teacher/level-plan-catalogs", isTeacher, async (req, res) => {
         }),
         isMine:
           c.createdBy != null && Number(c.createdBy) === Number(user.id)
+      })),
+      sharedCatalogs: sharedCatalogs.map((c) => ({
+        ...c,
+        canManage: false,
+        isMine: false,
+        canCopy: true
       })),
       scope: user.role === "teacher" ? "own" : "school"
     });
@@ -12296,9 +12421,13 @@ app.get("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) => {
     if (!catalogRes) {
       return res.status(404).json({ error: "Levelplan nicht gefunden." });
     }
-    if (!canManageLevelPlanCatalog(user, catalogRes) && user.role === "teacher") {
+    if (
+      user.role === "teacher" &&
+      !canManageLevelPlanCatalog(user, catalogRes) &&
+      !canViewSharedLevelPlanCatalog(user, catalogRes)
+    ) {
       return res.status(403).json({
-        error: "Diesen Levelplan siehst du nicht – nur eigene Pläne."
+        error: "Diesen Levelplan siehst du nicht – nur eigene oder geteilte Pläne."
       });
     }
     const checks = await getLevelChecksForCatalog(catalogId, schoolId);
@@ -12325,7 +12454,9 @@ app.get("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) => {
         gradeLevel: catalogRes.grade_level,
         createdAt: catalogRes.created_at,
         createdBy: catalogRes.created_by != null ? Number(catalogRes.created_by) : null,
+        isShared: catalogRes.is_shared === true,
         canManage,
+        canCopy: true,
         isMine:
           catalogRes.created_by != null &&
           Number(catalogRes.created_by) === Number(user.id)
@@ -12498,9 +12629,11 @@ app.patch("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) =>
   try {
     const schoolId = req.session.user.school_id;
     const catalogId = String(req.params.id || "").trim();
-    const name = String(req.body.name || "").trim().slice(0, 120);
-    if (!name) {
-      return res.json({ success: false, message: "Name fehlt." });
+    const hasName = Object.prototype.hasOwnProperty.call(req.body || {}, "name");
+    const hasShared = Object.prototype.hasOwnProperty.call(req.body || {}, "shared")
+      || Object.prototype.hasOwnProperty.call(req.body || {}, "isShared");
+    if (!hasName && !hasShared) {
+      return res.json({ success: false, message: "Keine Änderung übergeben." });
     }
     const access = await assertCanManageLevelPlanCatalog(
       req.session.user,
@@ -12513,14 +12646,33 @@ app.patch("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) =>
         message: access.message || "Levelplan nicht gefunden."
       });
     }
+
+    const updates = [];
+    const params = [];
+    if (hasName) {
+      const name = String(req.body.name || "").trim().slice(0, 120);
+      if (!name) return res.json({ success: false, message: "Name fehlt." });
+      params.push(name);
+      updates.push(`name = $${params.length}`);
+    }
+    if (hasShared) {
+      const shared = !!(
+        Object.prototype.hasOwnProperty.call(req.body || {}, "shared")
+          ? req.body.shared
+          : req.body.isShared
+      );
+      params.push(shared);
+      updates.push(`is_shared = $${params.length}`);
+    }
+    params.push(catalogId, schoolId);
     const upd = await pool.query(
       `
       UPDATE level_plan_catalogs
-      SET name = $1
-      WHERE id = $2 AND school_id = $3
-      RETURNING id, name, grade_level, created_at, created_by
+      SET ${updates.join(", ")}
+      WHERE id = $${params.length - 1} AND school_id = $${params.length}
+      RETURNING id, name, grade_level, created_at, created_by, is_shared
     `,
-      [name, catalogId, schoolId]
+      params
     );
     if (!upd.rows.length) {
       return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
@@ -12533,12 +12685,48 @@ app.patch("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) =>
         gradeLevel: upd.rows[0].grade_level,
         createdAt: upd.rows[0].created_at,
         createdBy:
-          upd.rows[0].created_by != null ? Number(upd.rows[0].created_by) : null
-      }
+          upd.rows[0].created_by != null ? Number(upd.rows[0].created_by) : null,
+        isShared: upd.rows[0].is_shared === true
+      },
+      message: hasShared
+        ? upd.rows[0].is_shared
+          ? "Plan ist für Kolleg:innen sichtbar – sie können ihn kopieren."
+          : "Plan ist nicht mehr geteilt."
+        : "Name gespeichert."
     });
   } catch (err) {
     console.error("❌ PATCH /api/teacher/level-plan-catalogs/:id:", err);
     res.status(500).json({ success: false, message: "Serverfehler" });
+  }
+});
+
+app.post("/api/teacher/level-plan-catalogs/:id/copy", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const catalogId = String(req.params.id || "").trim();
+    const nameOverride = String(req.body?.name || "").trim() || null;
+    const result = await copyLevelPlanCatalogForUser(
+      catalogId,
+      schoolId,
+      req.session.user,
+      nameOverride
+    );
+    if (!result.ok) {
+      return res.status(result.forbidden ? 403 : result.notFound ? 404 : 400).json({
+        success: false,
+        message: result.message || "Kopieren fehlgeschlagen."
+      });
+    }
+    res.json({
+      success: true,
+      catalog: result.catalog,
+      created: result.created,
+      updated: result.updated,
+      message: result.message
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/level-plan-catalogs/:id/copy:", err);
+    res.status(500).json({ success: false, message: "Serverfehler beim Kopieren." });
   }
 });
 
