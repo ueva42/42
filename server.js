@@ -41,6 +41,7 @@ import {
   userCanAccessAdminArea,
   userCanAccessTeacherArea,
   userCanAccessTeacherShell,
+  getAccessibleClassIds,
   listAccessibleClasses,
   defaultPostLoginPath
 } from "./lib/teacher-auth.js";
@@ -4300,6 +4301,7 @@ async function migrate() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await ensureColumn("level_plan_catalogs", "created_by", "INTEGER");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS class_level_plan_assignments (
       class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
@@ -10579,6 +10581,37 @@ app.post("/api/teacher/levelchecks/:id/goals", isTeacher, async (req, res) => {
 async function handleDeleteLevelCheck(req, res) {
   try {
     const schoolId = req.session.user.school_id;
+    const row = await findLevelCheckForSchool(req.params.id, schoolId);
+    if (!row) {
+      return res.json({
+        success: false,
+        message: "Thema nicht gefunden oder keine Berechtigung."
+      });
+    }
+    if (row.catalog_id) {
+      const access = await assertCanManageLevelPlanCatalog(
+        req.session.user,
+        row.catalog_id,
+        schoolId
+      );
+      if (!access.ok) {
+        return res.status(access.forbidden ? 403 : 404).json({
+          success: false,
+          message: access.message || "Keine Berechtigung."
+        });
+      }
+    } else if (req.session.user.role === "teacher") {
+      // Alte klassengebundene Themen: nur bei Klassenzugriff
+      if (
+        row.class_id &&
+        !(await teacherCanAccessClass(pool, req.session.user, row.class_id))
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "Keine Berechtigung für diese Klasse."
+        });
+      }
+    }
     const deleted = await deleteLevelCheckForSchool(req.params.id, schoolId);
     if (!deleted) {
       return res.json({
@@ -11593,15 +11626,58 @@ async function purgeEmptyLevelPlanCatalogs(schoolId, gradeLevel = null) {
   return removed;
 }
 
-async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null) {
+function canManageLevelPlanCatalog(user, catalogRow) {
+  if (!user?.id || !catalogRow) return false;
+  if (user.role === "admin") return true;
+  if (user.role !== "teacher") return false;
+  // Lehrkräfte nur eigene Pläne (Legacy ohne created_by: nicht verwaltbar)
+  return (
+    catalogRow.created_by != null &&
+    Number(catalogRow.created_by) === Number(user.id)
+  );
+}
+
+async function fetchLevelPlanCatalogRow(catalogId, schoolId) {
+  const r = await pool.query(
+    `
+    SELECT id, name, grade_level, created_by, created_at, school_id
+    FROM level_plan_catalogs
+    WHERE id = $1 AND school_id = $2
+    LIMIT 1
+  `,
+    [catalogId, schoolId]
+  );
+  return r.rows[0] || null;
+}
+
+async function assertCanManageLevelPlanCatalog(user, catalogId, schoolId) {
+  const row = await fetchLevelPlanCatalogRow(catalogId, schoolId);
+  if (!row) return { ok: false, notFound: true, message: "Levelplan nicht gefunden." };
+  if (!canManageLevelPlanCatalog(user, row)) {
+    return {
+      ok: false,
+      forbidden: true,
+      message: "Diesen Levelplan darfst du nicht bearbeiten oder löschen."
+    };
+  }
+  return { ok: true, catalog: row };
+}
+
+async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null, opts = {}) {
   // Leere Kataloge (ohne Themen) sofort aus der DB entfernen
   await purgeEmptyLevelPlanCatalogs(schoolId, gradeLevel);
 
   const params = [schoolId];
   let gradeFilter = "";
+  let ownerFilter = "";
   if (gradeLevel) {
     params.push(String(gradeLevel));
-    gradeFilter = " AND c.grade_level = $2";
+    gradeFilter = ` AND c.grade_level = $${params.length}`;
+  }
+  // Lehrkraft: nur eigene Pläne. Admin: alle der Schule.
+  if (opts.ownerUserId != null) {
+    params.push(Number(opts.ownerUserId));
+    ownerFilter = ` AND c.created_by = $${params.length}`;
   }
   const r = await pool.query(
     `
@@ -11610,6 +11686,7 @@ async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null) {
       c.grade_level,
       c.name,
       c.created_at,
+      c.created_by,
       COUNT(DISTINCT lc.id)::int AS topic_count,
       COALESCE(array_agg(DISTINCT lc.subject) FILTER (WHERE lc.subject IS NOT NULL), '{}') AS subjects,
       (
@@ -11619,7 +11696,7 @@ async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null) {
       ) AS topic_names
     FROM level_plan_catalogs c
     LEFT JOIN level_checks lc ON lc.catalog_id = c.id
-    WHERE c.school_id = $1${gradeFilter}
+    WHERE c.school_id = $1${gradeFilter}${ownerFilter}
     GROUP BY c.id
     HAVING COUNT(DISTINCT lc.id) > 0
     ORDER BY c.grade_level ASC, c.name ASC
@@ -11635,6 +11712,7 @@ async function fetchLevelPlanCatalogs(schoolId, gradeLevel = null) {
       displayName: catalogDisplayName(row.name, topicNames),
       topicNames,
       createdAt: row.created_at,
+      createdBy: row.created_by != null ? Number(row.created_by) : null,
       topicCount: row.topic_count || 0,
       subjects: Array.isArray(row.subjects) ? row.subjects.filter(Boolean) : []
     };
@@ -11921,23 +11999,33 @@ app.post("/api/teacher/levelplan-import/confirm", isTeacher, async (req, res) =>
 
     let createdNewCatalog = false;
     if (catalogId) {
-      const catalogRes = await pool.query(
-        "SELECT id FROM level_plan_catalogs WHERE id = $1 AND school_id = $2 AND grade_level = $3",
-        [catalogId, schoolId, gradeLevel]
+      const access = await assertCanManageLevelPlanCatalog(
+        req.session.user,
+        catalogId,
+        schoolId
       );
-      if (!catalogRes.rows.length) {
-        return res.json({ success: false, message: "Levelplan nicht gefunden." });
+      if (!access.ok) {
+        return res.status(access.forbidden ? 403 : 404).json({
+          success: false,
+          message: access.message || "Levelplan nicht gefunden."
+        });
+      }
+      if (String(access.catalog.grade_level) !== String(gradeLevel)) {
+        return res.json({
+          success: false,
+          message: "Klassenstufe passt nicht zu diesem Levelplan."
+        });
       }
     } else {
       const subjectHint = String(okRows.find((r) => r.fach)?.fach || subjectOverride || "Levelplan").trim();
       const name = catalogName || suggestCatalogNameFromRows(okRows, subjectHint, gradeLevel);
       const ins = await pool.query(
         `
-        INSERT INTO level_plan_catalogs (school_id, grade_level, name)
-        VALUES ($1, $2, $3)
+        INSERT INTO level_plan_catalogs (school_id, grade_level, name, created_by)
+        VALUES ($1, $2, $3, $4)
         RETURNING id
       `,
-        [schoolId, gradeLevel, name.slice(0, 120)]
+        [schoolId, gradeLevel, name.slice(0, 120), req.session.user.id]
       );
       catalogId = ins.rows[0].id;
       createdNewCatalog = true;
@@ -11990,8 +12078,22 @@ app.get("/api/teacher/level-plan-catalogs", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const gradeLevel = String(req.query.gradeLevel || "").trim() || null;
-    const catalogs = await fetchLevelPlanCatalogs(schoolId, gradeLevel);
-    res.json({ gradeLevels: GRADE_LEVELS, catalogs });
+    const user = req.session.user;
+    const catalogs = await fetchLevelPlanCatalogs(schoolId, gradeLevel, {
+      ownerUserId: user.role === "teacher" ? user.id : null
+    });
+    res.json({
+      gradeLevels: GRADE_LEVELS,
+      catalogs: catalogs.map((c) => ({
+        ...c,
+        canManage: canManageLevelPlanCatalog(user, {
+          created_by: c.createdBy
+        }),
+        isMine:
+          c.createdBy != null && Number(c.createdBy) === Number(user.id)
+      })),
+      scope: user.role === "teacher" ? "own" : "school"
+    });
   } catch (err) {
     console.error("❌ GET /api/teacher/level-plan-catalogs:", err);
     res.status(500).json({ error: "Serverfehler" });
@@ -12002,12 +12104,15 @@ app.get("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
     const catalogId = String(req.params.id || "").trim();
-    const catalogRes = await pool.query(
-      "SELECT id, name, grade_level, created_at FROM level_plan_catalogs WHERE id = $1 AND school_id = $2",
-      [catalogId, schoolId]
-    );
-    if (!catalogRes.rows.length) {
+    const user = req.session.user;
+    const catalogRes = await fetchLevelPlanCatalogRow(catalogId, schoolId);
+    if (!catalogRes) {
       return res.status(404).json({ error: "Levelplan nicht gefunden." });
+    }
+    if (!canManageLevelPlanCatalog(user, catalogRes) && user.role === "teacher") {
+      return res.status(403).json({
+        error: "Diesen Levelplan siehst du nicht – nur eigene Pläne."
+      });
     }
     const checks = await getLevelChecksForCatalog(catalogId, schoolId);
     const assignments = await pool.query(
@@ -12021,17 +12126,24 @@ app.get("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) => {
       [catalogId, schoolId]
     );
     const accessibleClasses = await listAccessibleClasses(pool, req.session.user);
+    const canManage = canManageLevelPlanCatalog(user, catalogRes);
     res.json({
       catalog: {
-        id: catalogRes.rows[0].id,
-        name: catalogRes.rows[0].name,
+        id: catalogRes.id,
+        name: catalogRes.name,
         displayName: catalogDisplayName(
-          catalogRes.rows[0].name,
+          catalogRes.name,
           checks.map((c) => c.name)
         ),
-        gradeLevel: catalogRes.rows[0].grade_level,
-        createdAt: catalogRes.rows[0].created_at
+        gradeLevel: catalogRes.grade_level,
+        createdAt: catalogRes.created_at,
+        createdBy: catalogRes.created_by != null ? Number(catalogRes.created_by) : null,
+        canManage,
+        isMine:
+          catalogRes.created_by != null &&
+          Number(catalogRes.created_by) === Number(user.id)
       },
+      canManage,
       subjects: LOG_SUBJECTS,
       levelChecks: checks,
       assignments: assignments.rows.map((r) => ({
@@ -12135,6 +12247,17 @@ app.delete("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) =
   try {
     const schoolId = req.session.user.school_id;
     const catalogId = String(req.params.id || "").trim();
+    const access = await assertCanManageLevelPlanCatalog(
+      req.session.user,
+      catalogId,
+      schoolId
+    );
+    if (!access.ok) {
+      return res.status(access.forbidden ? 403 : 404).json({
+        success: false,
+        message: access.message || "Löschen fehlgeschlagen."
+      });
+    }
     const result = await deleteLevelPlanCatalogForSchool(catalogId, schoolId);
     if (!result.ok) {
       return res.status(result.notFound ? 404 : 400).json({
@@ -12156,6 +12279,17 @@ app.post("/api/teacher/level-plan-catalogs/:id/delete", isTeacher, async (req, r
   try {
     const schoolId = req.session.user.school_id;
     const catalogId = String(req.params.id || "").trim();
+    const access = await assertCanManageLevelPlanCatalog(
+      req.session.user,
+      catalogId,
+      schoolId
+    );
+    if (!access.ok) {
+      return res.status(access.forbidden ? 403 : 404).json({
+        success: false,
+        message: access.message || "Löschen fehlgeschlagen."
+      });
+    }
     const result = await deleteLevelPlanCatalogForSchool(catalogId, schoolId);
     if (!result.ok) {
       return res.status(result.notFound ? 404 : 400).json({
@@ -12181,12 +12315,23 @@ app.patch("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) =>
     if (!name) {
       return res.json({ success: false, message: "Name fehlt." });
     }
+    const access = await assertCanManageLevelPlanCatalog(
+      req.session.user,
+      catalogId,
+      schoolId
+    );
+    if (!access.ok) {
+      return res.status(access.forbidden ? 403 : 404).json({
+        success: false,
+        message: access.message || "Levelplan nicht gefunden."
+      });
+    }
     const upd = await pool.query(
       `
       UPDATE level_plan_catalogs
       SET name = $1
       WHERE id = $2 AND school_id = $3
-      RETURNING id, name, grade_level, created_at
+      RETURNING id, name, grade_level, created_at, created_by
     `,
       [name, catalogId, schoolId]
     );
@@ -12199,7 +12344,9 @@ app.patch("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) =>
         id: upd.rows[0].id,
         name: upd.rows[0].name,
         gradeLevel: upd.rows[0].grade_level,
-        createdAt: upd.rows[0].created_at
+        createdAt: upd.rows[0].created_at,
+        createdBy:
+          upd.rows[0].created_by != null ? Number(upd.rows[0].created_by) : null
       }
     });
   } catch (err) {
@@ -12213,12 +12360,11 @@ app.patch("/api/teacher/level-plan-catalogs/:id", isTeacher, async (req, res) =>
 // Thema / Unterthema ergänzen, umbenennen, Rookie/Operator/Street-Legend-Ziele ändern.
 // Änderungen gelten sofort für alle Klassen, denen der Plan zugewiesen ist.
 // -------------------------------------------------------
-async function findOwnedCatalog(catalogId, schoolId) {
-  const r = await pool.query(
-    "SELECT id, grade_level FROM level_plan_catalogs WHERE id = $1 AND school_id = $2",
-    [catalogId, schoolId]
-  );
-  return r.rows[0] || null;
+async function findOwnedCatalog(catalogId, schoolId, user = null) {
+  const row = await fetchLevelPlanCatalogRow(catalogId, schoolId);
+  if (!row) return null;
+  if (user && !canManageLevelPlanCatalog(user, row)) return null;
+  return row;
 }
 
 async function findTopicInCatalog(topicId, catalogId) {
@@ -12245,7 +12391,7 @@ app.post("/api/teacher/level-plan-catalogs/:id/topics", isTeacher, async (req, r
     const name = String(req.body.name || "").trim().slice(0, 120);
     if (!name) return res.json({ success: false, message: "Bitte einen Namen für das Thema eingeben." });
     if (!LOG_SUBJECTS.includes(subject)) return res.json({ success: false, message: "Ungültiges Fach." });
-    if (!(await findOwnedCatalog(catalogId, schoolId))) {
+    if (!(await findOwnedCatalog(catalogId, schoolId, req.session.user))) {
       return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
     }
     const dup = await pool.query(
@@ -12273,7 +12419,7 @@ app.patch(
       const catalogId = String(req.params.id || "").trim();
       const name = String(req.body.name || "").trim().slice(0, 120);
       if (!name) return res.json({ success: false, message: "Bitte einen Namen eingeben." });
-      if (!(await findOwnedCatalog(catalogId, schoolId))) {
+      if (!(await findOwnedCatalog(catalogId, schoolId, req.session.user))) {
         return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
       }
       const topic = await findTopicInCatalog(req.params.topicId, catalogId);
@@ -12310,7 +12456,7 @@ app.post(
           message: "Bitte Rookie-, Operator- und Street-Legend-Ziel ausfüllen."
         });
       }
-      if (!(await findOwnedCatalog(catalogId, schoolId))) {
+      if (!(await findOwnedCatalog(catalogId, schoolId, req.session.user))) {
         return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
       }
       const topic = await findTopicInCatalog(req.params.topicId, catalogId);
@@ -12369,7 +12515,7 @@ app.patch(
           message: "Bitte Rookie-, Operator- und Street-Legend-Ziel ausfüllen."
         });
       }
-      if (!(await findOwnedCatalog(catalogId, schoolId))) {
+      if (!(await findOwnedCatalog(catalogId, schoolId, req.session.user))) {
         return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
       }
       const cur = await pool.query(
@@ -12448,7 +12594,7 @@ app.post(
       if (direction !== "up" && direction !== "down") {
         return res.status(400).json({ success: false, message: "Richtung fehlt (up oder down)." });
       }
-      if (!(await findOwnedCatalog(catalogId, schoolId))) {
+      if (!(await findOwnedCatalog(catalogId, schoolId, req.session.user))) {
         return res.status(404).json({ success: false, message: "Levelplan nicht gefunden." });
       }
       const cur = await pool.query(
@@ -12516,6 +12662,8 @@ app.post(
 app.get("/api/teacher/level-plan-assignments", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
+    const user = req.session.user;
+    const accessibleIds = await getAccessibleClassIds(pool, user);
     const r = await pool.query(
       `
       SELECT
@@ -12525,6 +12673,7 @@ app.get("/api/teacher/level-plan-assignments", isTeacher, async (req, res) => {
         a.catalog_id,
         cat.name AS catalog_name,
         cat.grade_level,
+        cat.created_by,
         a.created_at,
         (
           SELECT COALESCE(array_agg(t.name ORDER BY t.sort_order ASC, t.name ASC), '{}')
@@ -12535,16 +12684,16 @@ app.get("/api/teacher/level-plan-assignments", isTeacher, async (req, res) => {
       JOIN classes cl ON cl.id = a.class_id
       JOIN level_plan_catalogs cat ON cat.id = a.catalog_id
       WHERE cl.school_id = $1 AND cat.school_id = $1
+        AND a.class_id = ANY($2::int[])
       ORDER BY cl.name ASC, a.subject ASC
     `,
-      [schoolId]
+      [schoolId, accessibleIds.length ? accessibleIds : [-1]]
     );
 
-    const catalogs = await fetchLevelPlanCatalogs(schoolId);
-    const classes = await pool.query(
-      "SELECT id, name FROM classes WHERE school_id = $1 ORDER BY name ASC",
-      [schoolId]
-    );
+    const catalogs = await fetchLevelPlanCatalogs(schoolId, null, {
+      ownerUserId: user.role === "teacher" ? user.id : null
+    });
+    const classes = await listAccessibleClasses(pool, user);
 
     res.json({
       assignments: r.rows.map((row) => {
@@ -12558,13 +12707,19 @@ app.get("/api/teacher/level-plan-assignments", isTeacher, async (req, res) => {
           catalogDisplayName: catalogDisplayName(row.catalog_name, topicNames),
           topicNames,
           gradeLevel: row.grade_level,
-          createdAt: row.created_at
+          createdAt: row.created_at,
+          canManage: canManageLevelPlanCatalog(user, { created_by: row.created_by })
         };
       }),
-      catalogs,
-      classes: classes.rows.map((c) => ({ id: c.id, name: c.name })),
+      catalogs: catalogs.map((c) => ({
+        ...c,
+        canManage: canManageLevelPlanCatalog(user, { created_by: c.createdBy }),
+        isMine: c.createdBy != null && Number(c.createdBy) === Number(user.id)
+      })),
+      classes: classes.map((c) => ({ id: c.id, name: c.name })),
       subjects: LOG_SUBJECTS,
-      gradeLevels: GRADE_LEVELS
+      gradeLevels: GRADE_LEVELS,
+      scope: user.role === "teacher" ? "own" : "school"
     });
   } catch (err) {
     console.error("❌ GET /api/teacher/level-plan-assignments:", err);
@@ -12601,15 +12756,19 @@ app.put("/api/teacher/level-plan-assignment", isTeacher, async (req, res) => {
       });
     }
 
-    const catalogRes = await pool.query(
-      "SELECT id, name, grade_level FROM level_plan_catalogs WHERE id = $1 AND school_id = $2",
-      [catalogId, schoolId]
-    );
-    if (!catalogRes.rows.length) {
+    const catalogRes = await fetchLevelPlanCatalogRow(catalogId, schoolId);
+    if (!catalogRes) {
       return res.json({ success: false, message: "Levelplan nicht gefunden." });
     }
 
     const isUnassign = req.body.remove === true || req.body.unassign === true;
+    // Zuweisen: Lehrkraft nur eigene Pläne. Entfernen von der eigenen Klasse: erlaubt.
+    if (!isUnassign && !canManageLevelPlanCatalog(req.session.user, catalogRes)) {
+      return res.status(403).json({
+        success: false,
+        message: "Du kannst nur eigene Levelpläne einer Klasse zuweisen."
+      });
+    }
     if (!isUnassign) {
       // Zuordnung nur für Fächer, die der Levelplan wirklich enthält – sonst bleibt Mein Tag
       // beim alten klassengebundenen Plan (alle Unterthemen) statt beim zugewiesenen Levelplan.
@@ -12662,7 +12821,7 @@ app.put("/api/teacher/level-plan-assignment", isTeacher, async (req, res) => {
     );
 
     const display = catalogDisplayName(
-      catalogRes.rows[0].name,
+      catalogRes.name,
       topicsRes.rows.map((t) => t.name)
     );
 
@@ -12674,9 +12833,9 @@ app.put("/api/teacher/level-plan-assignment", isTeacher, async (req, res) => {
         className: classRes.rows[0].name,
         subject,
         catalogId,
-        catalogName: catalogRes.rows[0].name,
+        catalogName: catalogRes.name,
         catalogDisplayName: display,
-        gradeLevel: catalogRes.rows[0].grade_level
+        gradeLevel: catalogRes.grade_level
       },
       message: ins.rowCount
         ? `${classRes.rows[0].name} nutzt jetzt zusätzlich „${display}“ für ${subject}.`
@@ -13281,9 +13440,40 @@ app.patch("/api/teacher/classes/:classId/feature-modules", isTeacher, async (req
   }
 });
 
+async function assertCanManageGoal(user, goalId, schoolId) {
+  const r = await pool.query(
+    `
+    SELECT lc.catalog_id, lc.class_id
+    FROM level_check_goals g
+    JOIN level_checks lc ON lc.id = g.level_check_id
+    WHERE g.id = $1
+    LIMIT 1
+  `,
+    [goalId]
+  );
+  if (!r.rows.length) return { ok: false, notFound: true, message: "Unterthema nicht gefunden." };
+  const row = r.rows[0];
+  if (row.catalog_id) {
+    return assertCanManageLevelPlanCatalog(user, row.catalog_id, schoolId);
+  }
+  if (user.role === "teacher" && row.class_id) {
+    if (!(await teacherCanAccessClass(pool, user, row.class_id))) {
+      return { ok: false, forbidden: true, message: "Keine Berechtigung." };
+    }
+  }
+  return { ok: true };
+}
+
 app.delete("/api/teacher/levelcheck-goals/:id", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
+    const access = await assertCanManageGoal(req.session.user, req.params.id, schoolId);
+    if (!access.ok) {
+      return res.status(access.forbidden ? 403 : 404).json({
+        success: false,
+        message: access.message || "Unterthema nicht gefunden."
+      });
+    }
     const result = await deleteLevelCheckGoalForSchool(req.params.id, schoolId, {
       keepTopic: ["1", "true"].includes(String(req.query.keepTopic || ""))
     });
@@ -13300,6 +13490,13 @@ app.delete("/api/teacher/levelcheck-goals/:id", isTeacher, async (req, res) => {
 app.post("/api/teacher/levelcheck-goals/:id/delete", isTeacher, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
+    const access = await assertCanManageGoal(req.session.user, req.params.id, schoolId);
+    if (!access.ok) {
+      return res.status(access.forbidden ? 403 : 404).json({
+        success: false,
+        message: access.message || "Unterthema nicht gefunden."
+      });
+    }
     const result = await deleteLevelCheckGoalForSchool(req.params.id, schoolId, {
       keepTopic: ["1", "true"].includes(String(req.query.keepTopic || ""))
     });

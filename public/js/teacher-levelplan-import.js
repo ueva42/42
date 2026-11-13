@@ -152,12 +152,10 @@
         <h2>Levelplan importieren</h2>
         <p class="hint">
           Der Import gehört zu einer <strong>Klassenstufe</strong> (z.&nbsp;B. 9 oder 10) – noch keiner einzelnen Klasse.
-          Eine Überschrift vor Rookie/Operator/Street Legend reicht als Thema.
-          <strong>Neuer Plan:</strong> „— Neuer Levelplan —“ wählen.
-          <strong>Bestehenden (auch aktiven) Plan ergänzen:</strong> den Plan unter „Levelplan“ auswählen – Themen und Unterthemen werden dann hinzugefügt,
-          bestehende bleiben erhalten (gleiche Unterthemen werden aktualisiert).
-          Einzelne Unterthemen ergänzt du am einfachsten direkt im Tab <strong>Levelplan</strong> mit „+ Unterthema hinzufügen“.
-          Klassen weist du den Plan unter <strong>Levelplan</strong> zu.
+          Als Lehrkraft siehst du nur <strong>eigene</strong> Pläne (keine fremden Vorlagen).
+          <strong>Neuer Plan:</strong> „— Neuer Levelplan —“ wählen und hochladen.
+          <strong>Eigenen Plan ergänzen:</strong> ihn hier auswählen – Themen werden hinzugefügt bzw. aktualisiert.
+          Danach unter <strong>Levelplan</strong> deiner Klasse zuweisen.
         </p>
 
         <div class="lpi-toolbar">

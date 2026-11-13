@@ -368,8 +368,9 @@
       <div class="panel">
         <h2>Levelplan</h2>
         <p class="hint">
-          Levelpläne einer <b>Klassenstufe</b> ansehen, <b>bearbeiten und ergänzen</b>, einer Klasse zuweisen oder löschen.
-          Ganz neue Pläne legst du unter <b>Levelplan importieren</b> an (dort „Neuer Levelplan“ wählen).
+          Hier siehst du <b>deine</b> Levelpläne (Klassenstufe), kannst sie bearbeiten, einer Klasse zuweisen oder löschen.
+          Pläne anderer Lehrkräfte erscheinen hier nicht. Neue Pläne: unter <b>Levelplan importieren</b> „Neuer Levelplan“.
+          Administration sieht alle Pläne der Schule.
         </p>
 
         <div class="tc-toolbar">
@@ -387,7 +388,7 @@
             </select>
           </label>
           ${
-            state.catalogId
+            state.catalogId && (state.detail?.canManage !== false)
               ? `<button type="button" class="tc-delete-btn tc-topic-delete-btn" id="lpDeleteCatalogBtn" ${
                   state.deleting ? "disabled" : ""
                 }>${state.deleting ? "Löschen…" : "Levelplan löschen"}</button>`
@@ -397,6 +398,11 @@
 
         ${state.message ? `<div class="tc-msg tc-msg-ok">${escapeHtml(state.message)}</div>` : ""}
         ${state.error ? `<div class="tc-msg tc-msg-err">${escapeHtml(state.error)}</div>` : ""}
+        ${
+          !state.catalogs.length && !state.loading
+            ? `<div class="tc-empty"><p>Noch kein eigener Levelplan für Klasse ${escapeHtml(state.gradeLevel)}. Lege einen unter <b>Levelplan importieren</b> an.</p></div>`
+            : ""
+        }
 
         ${renderActiveBanner()}
 
