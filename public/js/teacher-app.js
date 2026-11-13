@@ -731,12 +731,16 @@
         "App-Module",
         "Welche Bereiche Schüler:innen in der App sehen"
       ],
+      [
+        "/teacher/materialschrank",
+        "Materialschrank",
+        "Links und Übungen für die Klasse als Kacheln anlegen"
+      ],
       ["/teacher/was-goals", "Was-Ziele", "Unterthemen und Material prüfen"],
       ["/teacher/lesson-goals", "Wie-Ziele", "Wie arbeite ich daran? – pro Fach"],
       ["/teacher/termine", "Termine", "Klassenarbeiten, Tests, Levelchecks"],
       ["/teacher/levelchecks", "Levelchecks", "Nachweise und Bewertungen"],
       ["/teacher/gruppenmodus", "Gruppenmodus", "Rollen und Gruppen"],
-      ["/teacher/materialschrank", "Materialschrank", "Material für die Klasse"],
       ["/teacher/week", "Wochenübersicht", "Aktivität über die Woche, ohne Wertung"]
     ];
     return `

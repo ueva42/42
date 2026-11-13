@@ -43,7 +43,7 @@
       root.innerHTML = `
         <div class="panel">
           <h2>Materialschrank</h2>
-          <p class="hint">Bitte zuerst eine Klasse anlegen (Menü „Klassen &amp; Schüler“).</p>
+          <p class="hint">Noch keine Klasse zugewiesen. Lege zuerst eine Klasse an (Ersteinrichtung oder Werkzeug „Schüler:innen anlegen“).</p>
           ${state.error ? `<p class="msg-error">${escapeHtml(state.error)}</p>` : ""}
         </div>`;
       return;
@@ -86,8 +86,8 @@
       <div class="panel">
         <h2>Materialschrank</h2>
         <p class="hint">
-          Jede Klasse hat einen eigenen Schrank. Die gewählte Klasse sieht genau diese Kacheln.
-          Ein Klick öffnet den Link in einem neuen Fenster.
+          Bestücke den Schrank deiner Klasse mit Links (Übungen, Tools, Arbeitsblätter).
+          Schüler:innen sehen genau diese Kacheln – ein Klick öffnet den Link.
         </p>
         <label class="lpi-label" for="msAdminClass">Klasse
           <select id="msAdminClass">${classOptions}</select>
@@ -176,7 +176,7 @@
   }
 
   async function loadClasses() {
-    const res = await fetch("/api/class");
+    const res = await fetch("/api/class", { credentials: "same-origin", cache: "no-store" });
     const payload = await res.json();
     if (!res.ok || !Array.isArray(payload)) {
       throw new Error(payload?.error || payload?.message || "Klassen konnten nicht geladen werden.");
@@ -199,7 +199,10 @@
     render();
     try {
       const params = new URLSearchParams({ classId: String(state.classId) });
-      const res = await fetch(`/api/admin/materialschrank?${params}`);
+      const res = await fetch(`/api/teacher/materialschrank?${params}`, {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
       const data = await res.json();
       if (!res.ok || data.success === false) {
         throw new Error(data.message || "Laden fehlgeschlagen.");
@@ -226,9 +229,13 @@
     try {
       const editing = state.editingId;
       const res = await fetch(
-        editing ? `/api/admin/materialschrank/${encodeURIComponent(editing)}` : "/api/admin/materialschrank",
+        editing
+          ? `/api/teacher/materialschrank/${encodeURIComponent(editing)}`
+          : "/api/teacher/materialschrank",
         {
           method: editing ? "PATCH" : "POST",
+          credentials: "same-origin",
+          cache: "no-store",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body)
         }
@@ -253,8 +260,10 @@
   async function deleteTile(id) {
     if (!window.confirm("Diese Kachel wirklich löschen?")) return;
     try {
-      const res = await fetch(`/api/admin/materialschrank/${encodeURIComponent(id)}`, {
-        method: "DELETE"
+      const res = await fetch(`/api/teacher/materialschrank/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+        cache: "no-store"
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -276,15 +285,19 @@
     const other = state.tiles[index + delta];
     if (index < 0 || !other) return;
     try {
-      const resA = await fetch(`/api/admin/materialschrank/${encodeURIComponent(id)}`, {
+      const resA = await fetch(`/api/teacher/materialschrank/${encodeURIComponent(id)}`, {
         method: "PATCH",
+        credentials: "same-origin",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sortOrder: other.sortOrder })
       });
       const dataA = await resA.json();
       if (!resA.ok || !dataA.success) throw new Error(dataA.message || "Reihenfolge fehlgeschlagen.");
-      const resB = await fetch(`/api/admin/materialschrank/${encodeURIComponent(other.id)}`, {
+      const resB = await fetch(`/api/teacher/materialschrank/${encodeURIComponent(other.id)}`, {
         method: "PATCH",
+        credentials: "same-origin",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sortOrder: state.tiles[index].sortOrder })
       });

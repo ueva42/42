@@ -5425,6 +5425,193 @@ app.delete("/api/admin/materialschrank/:id", isAdmin, async (req, res) => {
   }
 });
 
+// -------------------------------------------------------
+// TEACHER: Materialschrank (eigene Klassen bestücken)
+// -------------------------------------------------------
+async function resolveTeacherMaterialClass(user, rawClassId) {
+  const classId = await resolveSchoolClass(user.school_id, rawClassId);
+  if (!classId) return null;
+  if (!(await teacherCanAccessClass(pool, user, classId))) return null;
+  return classId;
+}
+
+app.get("/api/teacher/materialschrank", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: "Keine Schule in der Sitzung." });
+    }
+    const classId = await resolveTeacherMaterialClass(req.session.user, req.query.classId);
+    if (!classId) {
+      return res.status(403).json({
+        success: false,
+        message: "Bitte eine zugewiesene Klasse wählen."
+      });
+    }
+    const tiles = await listMaterialTiles(schoolId, classId);
+    res.json({ success: true, classId, tiles });
+  } catch (err) {
+    console.error("❌ GET /api/teacher/materialschrank:", err);
+    res.status(500).json({ success: false, message: "Materialschrank konnte nicht geladen werden." });
+  }
+});
+
+app.post("/api/teacher/materialschrank", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: "Keine Schule in der Sitzung." });
+    }
+    const classId = await resolveTeacherMaterialClass(req.session.user, req.body?.classId);
+    if (!classId) {
+      return res.status(403).json({
+        success: false,
+        message: "Bitte eine zugewiesene Klasse wählen."
+      });
+    }
+    const title = String(req.body?.title || "").trim().slice(0, 60);
+    const note = String(req.body?.note || "").trim().slice(0, 120);
+    const url = normalizeHttpUrl(req.body?.url);
+    if (!title) {
+      return res.json({ success: false, message: "Bitte einen Titel für die Kachel angeben." });
+    }
+    if (!url) {
+      return res.json({
+        success: false,
+        message: "Bitte einen gültigen http- oder https-Link eintragen."
+      });
+    }
+    const countRes = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM school_material_tiles WHERE school_id = $1 AND class_id = $2",
+      [schoolId, classId]
+    );
+    if ((countRes.rows[0]?.n || 0) >= MATERIAL_TILE_MAX) {
+      return res.json({
+        success: false,
+        message: `Maximal ${MATERIAL_TILE_MAX} Kacheln pro Klasse.`
+      });
+    }
+    const orderRes = await pool.query(
+      "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM school_material_tiles WHERE school_id = $1 AND class_id = $2",
+      [schoolId, classId]
+    );
+    const inserted = await pool.query(
+      `
+      INSERT INTO school_material_tiles (school_id, class_id, title, note, url, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, class_id, title, note, url, sort_order
+    `,
+      [schoolId, classId, title, note || null, url, orderRes.rows[0].next]
+    );
+    res.json({
+      success: true,
+      tile: mapMaterialTile(inserted.rows[0]),
+      tiles: await listMaterialTiles(schoolId, classId)
+    });
+  } catch (err) {
+    console.error("❌ POST /api/teacher/materialschrank:", err);
+    res.status(500).json({ success: false, message: "Kachel konnte nicht gespeichert werden." });
+  }
+});
+
+app.patch("/api/teacher/materialschrank/:id", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const id = Number(req.params.id);
+    if (!schoolId || !id) {
+      return res.status(400).json({ success: false, message: "Ungültige Anfrage." });
+    }
+    const existing = await pool.query(
+      "SELECT id, class_id FROM school_material_tiles WHERE id = $1 AND school_id = $2",
+      [id, schoolId]
+    );
+    if (!existing.rows.length) {
+      return res.json({ success: false, message: "Kachel nicht gefunden." });
+    }
+    const classId = existing.rows[0].class_id;
+    if (!(await teacherCanAccessClass(pool, req.session.user, classId))) {
+      return res.status(403).json({ success: false, message: "Keine Berechtigung für diese Klasse." });
+    }
+
+    const updates = [];
+    const params = [];
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "title")) {
+      const title = String(req.body.title || "").trim().slice(0, 60);
+      if (!title) return res.json({ success: false, message: "Titel darf nicht leer sein." });
+      params.push(title);
+      updates.push(`title = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "note")) {
+      const note = String(req.body.note || "").trim().slice(0, 120);
+      params.push(note || null);
+      updates.push(`note = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "url")) {
+      const url = normalizeHttpUrl(req.body.url);
+      if (!url) {
+        return res.json({
+          success: false,
+          message: "Bitte einen gültigen http- oder https-Link eintragen."
+        });
+      }
+      params.push(url);
+      updates.push(`url = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "sortOrder")) {
+      const sortOrder = Number(req.body.sortOrder);
+      if (!Number.isInteger(sortOrder)) {
+        return res.json({ success: false, message: "Ungültige Reihenfolge." });
+      }
+      params.push(sortOrder);
+      updates.push(`sort_order = $${params.length}`);
+    }
+    if (!updates.length) {
+      return res.json({ success: false, message: "Keine Änderungen." });
+    }
+    params.push(id, schoolId);
+    await pool.query(
+      `UPDATE school_material_tiles SET ${updates.join(", ")} WHERE id = $${params.length - 1} AND school_id = $${params.length}`,
+      params
+    );
+    res.json({ success: true, tiles: await listMaterialTiles(schoolId, classId) });
+  } catch (err) {
+    console.error("❌ PATCH /api/teacher/materialschrank:", err);
+    res.status(500).json({ success: false, message: "Kachel konnte nicht aktualisiert werden." });
+  }
+});
+
+app.delete("/api/teacher/materialschrank/:id", isTeacher, async (req, res) => {
+  try {
+    const schoolId = req.session.user.school_id;
+    const id = Number(req.params.id);
+    if (!schoolId || !id) {
+      return res.status(400).json({ success: false, message: "Ungültige Anfrage." });
+    }
+    const existing = await pool.query(
+      "SELECT id, class_id FROM school_material_tiles WHERE id = $1 AND school_id = $2",
+      [id, schoolId]
+    );
+    if (!existing.rows.length) {
+      return res.json({ success: false, message: "Kachel nicht gefunden." });
+    }
+    const classId = existing.rows[0].class_id;
+    if (!(await teacherCanAccessClass(pool, req.session.user, classId))) {
+      return res.status(403).json({ success: false, message: "Keine Berechtigung für diese Klasse." });
+    }
+    await pool.query(
+      "DELETE FROM school_material_tiles WHERE id = $1 AND school_id = $2",
+      [id, schoolId]
+    );
+    res.json({
+      success: true,
+      tiles: await listMaterialTiles(schoolId, classId)
+    });
+  } catch (err) {
+    console.error("❌ DELETE /api/teacher/materialschrank:", err);
+    res.status(500).json({ success: false, message: "Kachel konnte nicht gelöscht werden." });
+  }
+});
+
 app.put("/api/admin/regelregal", isAdmin, async (req, res) => {
   try {
     const schoolId = req.session.user.school_id;
