@@ -29,7 +29,7 @@ import {
   unitTimeline,
   wrapStatusForLevels
 } from "../lib/teacher-cockpit.js";
-import { registerTeacherCockpitRoutes } from "../lib/teacher-cockpit-api.js";
+import { migrateCockpitTables, registerTeacherCockpitRoutes } from "../lib/teacher-cockpit-api.js";
 
 const TODAY = "2026-11-10";
 const goalIds = ["g1", "g2", "g3", "g4", "g5"].map((g) => `00000000-0000-4000-8000-0000000000${g.slice(1).padStart(2, "0")}`);
@@ -474,6 +474,7 @@ const pool = {
       return { rows: [{ id: row.id }] };
     }
     if (s.includes("FROM level_check_targets")) return { rows: [{ user_id: 11, target_grade_key: "3" }] };
+    if (s.includes("FROM level_check_proofs")) return { rows: [] };
     if (s.includes("FROM training_results")) {
       return {
         rows: [
@@ -505,7 +506,37 @@ const pool = {
     }
     if (s.includes("FROM timetables")) return { rows: [{ weekday: 1, timeslot: "9.30-10.15" }, { weekday: 4, timeslot: "9.30-10.15" }] };
     if (s.includes("FROM teacher_coaching_state")) return { rows: [] };
+    if (s.includes("FROM cockpit_events")) return { rows: [] };
+    if (s.includes("FROM crews") || s.includes("FROM crews c")) return { rows: [] };
+    if (s.includes("FROM side_quests")) return { rows: [] };
+    if (s.includes("FROM crew_avoid_pairs")) return { rows: [] };
+    if (s.includes("INSERT INTO cockpit_events")) return { rows: [{ id: "e1", created_at: new Date() }] };
+    if (s.includes("INSERT INTO crews")) return { rows: [{ id: "crew-1" }] };
+    if (s.includes("INSERT INTO crew_members")) return { rows: [] };
+    if (s.includes("INSERT INTO crew_avoid_pairs")) return { rows: [] };
+    if (s.includes("INSERT INTO side_quests")) {
+      return {
+        rows: [
+          {
+            id: "sq-1",
+            quest_date: TODAY,
+            typ: "reflexion",
+            text: "Alle reflektieren heute",
+            ziel: 3,
+            xp: 50,
+            progress: 0,
+            done: false
+          }
+        ]
+      };
+    }
+    if (s.includes("UPDATE crews SET")) return { rows: [] };
+    if (s.includes("UPDATE side_quests SET")) return { rows: [] };
+    if (s.includes("UPDATE teacher_coaching_state")) return { rows: [] };
     if (s.includes("DELETE FROM")) return { rows: [] };
+    if (s.includes("CREATE TABLE") || s.includes("CREATE INDEX") || s.includes("DO $$") || s.includes("ALTER TABLE")) {
+      return { rows: [] };
+    }
     throw new Error(`Unerwartete Abfrage: ${s.slice(0, 120)}`);
   }
 };
@@ -544,6 +575,9 @@ async function call(method, path, body) {
 }
 
 try {
+  await migrateCockpitTables(pool);
+  assert.ok(true, "migrateCockpitTables wirft nicht");
+
   let r = await call("GET", "/api/teacher/cockpit?classId=99");
   assert.equal(r.status, 403, "fremde Klasse");
 
@@ -580,6 +614,15 @@ try {
   assert.equal(d.game.raffle.eligibleCount, 2);
   assert.equal(d.game.klassenziel.total, 1240);
   assert.equal(d.game.klassenziel.target, 1500);
+  assert.ok(d.season, "season Payload");
+  assert.ok(d.season.config?.seasonTiers?.length);
+  assert.ok(d.season.map?.mode === "city" || d.season.map?.mode === "lanes");
+  assert.ok(Array.isArray(d.season.gaps));
+  assert.equal(typeof d.season.showNamesOnBeamer, "boolean");
+  assert.ok(d.season.kpis && typeof d.season.kpis.classSize === "number");
+  r = await call("POST", "/api/teacher/cockpit/boss-win", { classId: 1 });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.clientOnly, true);
   // CHECK.subject = Mathe → Stammgruppen-Fallback (keine Mathe-work-Sessions)
   assert.equal(d.teamsInfo.source, "roster");
   assert.equal(d.teamsInfo.subject, "Mathe");

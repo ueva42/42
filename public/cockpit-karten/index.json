@@ -1,0 +1,37 @@
+[
+ {
+  "klasse": "9",
+  "id": "potenzen",
+  "name": "Potenzen und Wurzeln",
+  "file": "k9-potenzen.json",
+  "missions": 7
+ },
+ {
+  "klasse": "9",
+  "id": "quadratische-gleichungen",
+  "name": "Quadratische Gleichungen",
+  "file": "k9-quadratische-gleichungen.json",
+  "missions": 5
+ },
+ {
+  "klasse": "9",
+  "id": "pythagoras",
+  "name": "Satz des Pythagoras",
+  "file": "k9-pythagoras.json",
+  "missions": 4
+ },
+ {
+  "klasse": "10",
+  "id": "funktionen",
+  "name": "Funktionen",
+  "file": "k10-funktionen.json",
+  "missions": 26
+ },
+ {
+  "klasse": "10",
+  "id": "trigonometrie",
+  "name": "Trigonometrie",
+  "file": "k10-trigonometrie.json",
+  "missions": 7
+ }
+]

@@ -4,11 +4,18 @@
  * Hinweise, keine Rangliste: Listen sind alphabetisch, Klassen-Mission zeigt nur Zahlen.
  */
 (function () {
-  /** Lehrer-Ansicht: ruhig. Beamer: oft; letzte ~12 Min der Stunde noch öfter. Nur eigene API/DB – keine KI-Tokens. */
+  /** Lehrer-Ansicht: ruhig. Beamer: season.config.pollSeconds (Fallback 30s); letzte ~12 Min der Stunde öfter. */
   const REFRESH_MS = 60000;
-  const BEAMER_REFRESH_MS = 15000;
+  const BEAMER_REFRESH_MS = 30000;
   const BEAMER_LATE_REFRESH_MS = 8000;
   const LATE_WINDOW_MS = 12 * 60 * 1000;
+  const BEAMER_VIEWS = ["A", "B", "C"];
+  const HIGHLIGHT_LABELS = {
+    gutEingeschätzt: "Gut eingeschätzt",
+    planGeschafft: "Plan geschafft",
+    expert: "Expert:in",
+    dranbleiber: "Dranbleiber"
+  };
   const TIERS = ["rookie", "operator", "street_legend"];
   const TIER_LABEL = {
     unterthema: "Unterthema",
@@ -24,7 +31,6 @@
     street_legend: "#f472b6"
   };
   const TIER_CSS = { unterthema: "u", rookie: "r", operator: "o", street_legend: "l" };
-  const PACE_COLOR = { ok: "#22d3ee", mid: "#fbbf24", low: "#f97316", none: "#64748b" };
   const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
   const VIEW_TITLE = {
     heat: "Missionen × Schüler:innen",
@@ -47,7 +53,11 @@
     view: "now",
     tier: "rookie",
     beamer: false,
-    showPodiums: true,
+    beamerView: "A",
+    beamerPaused: false,
+    showNamesOnBeamer: null,
+    forceBossWin: false,
+    bossConfetti: false,
     drawerId: null,
     moreOpen: false,
     form: null,
@@ -56,9 +66,40 @@
     busy: false,
     reveal: null,
     timer: null,
+    viewTimer: null,
     /** `${classId}:${date}` nach erfolgreicher Auto-Ziehung oder wenn schon gezogen. */
-    autoRaffleDoneKey: null
+    autoRaffleDoneKey: null,
+    crewsOpen: false,
+    crewsBusy: false,
+    crewsDraft: null,
+    helpModal: null,
+    tickerIdx: 0,
+    tickerShownAt: 0,
+    crewDrawShow: null,
+    sqRepick: false
   };
+
+  function season() {
+    return ck.data?.season || null;
+  }
+
+  function namesOnBeamer() {
+    if (ck.showNamesOnBeamer != null) return !!ck.showNamesOnBeamer;
+    return season()?.showNamesOnBeamer !== false;
+  }
+
+  function syncNamesDefault() {
+    if (ck.showNamesOnBeamer == null && season() && typeof season().showNamesOnBeamer === "boolean") {
+      ck.showNamesOnBeamer = season().showNamesOnBeamer;
+    }
+  }
+
+  function bossEffective() {
+    const b = season()?.boss;
+    if (!b) return null;
+    if (!ck.forceBossWin) return b;
+    return { ...b, defeated: true, forceWin: true, remaining: 0 };
+  }
 
   function esc(value) {
     return ck.ctx?.escapeHtml ? ck.ctx.escapeHtml(value) : String(value ?? "");
@@ -244,9 +285,13 @@
       }
       ck.error = "";
       ck.updatedAt = new Date();
+      syncNamesDefault();
       if (ck.data?.game?.raffle?.drawn) {
         const key = raffleAutoKey();
         if (key) ck.autoRaffleDoneKey = key;
+      }
+      if (season()?.boss?.defeated) {
+        maybeCelebrateBoss();
       }
     } catch (err) {
       if (seq !== ck.seq) return;
@@ -267,21 +312,34 @@
       const msLeft = end.getTime() - now.getTime();
       if (msLeft >= 0 && msLeft <= LATE_WINDOW_MS) return BEAMER_LATE_REFRESH_MS;
     }
-    return BEAMER_REFRESH_MS;
+    const pollSec = Number(season()?.config?.pollSeconds);
+    return (pollSec > 0 ? pollSec : BEAMER_REFRESH_MS / 1000) * 1000;
+  }
+
+  function beamerViewSeconds() {
+    const s = Number(season()?.config?.beamerViewSeconds);
+    return s > 0 ? s : 25;
   }
 
   function startTimer() {
     if (ck.timer) return;
     armTimer();
+    armViewTimer();
   }
 
   function restartTimer() {
     stopTimer();
-    if (ck.active) armTimer();
+    if (ck.active) {
+      armTimer();
+      armViewTimer();
+    }
   }
 
   function armTimer() {
-    stopTimer();
+    if (ck.timer) {
+      clearTimeout(ck.timer);
+      ck.timer = null;
+    }
     if (!ck.active) return;
     ck.timer = setTimeout(() => {
       ck.timer = null;
@@ -295,9 +353,82 @@
     }, refreshIntervalMs());
   }
 
+  function armViewTimer() {
+    if (ck.viewTimer) {
+      clearTimeout(ck.viewTimer);
+      ck.viewTimer = null;
+    }
+    if (!ck.active || !ck.beamer || ck.beamerPaused) return;
+    ck.viewTimer = setTimeout(() => {
+      ck.viewTimer = null;
+      if (!ck.active || !ck.beamer || ck.beamerPaused) return;
+      const i = BEAMER_VIEWS.indexOf(ck.beamerView);
+      ck.beamerView = BEAMER_VIEWS[(i + 1) % BEAMER_VIEWS.length];
+      render();
+      armViewTimer();
+    }, beamerViewSeconds() * 1000);
+  }
+
   function stopTimer() {
     if (ck.timer) clearTimeout(ck.timer);
     ck.timer = null;
+    if (ck.viewTimer) clearTimeout(ck.viewTimer);
+    ck.viewTimer = null;
+  }
+
+  function maybeCelebrateBoss() {
+    const b = bossEffective();
+    if (!b?.defeated || ck.bossConfetti) return;
+    ck.bossConfetti = true;
+    spawnConfetti();
+  }
+
+  function spawnConfetti() {
+    if (!ck.el) return;
+    const host = ck.el.querySelector(".ck") || ck.el;
+    const layer = document.createElement("div");
+    layer.className = "ck-confetti";
+    layer.setAttribute("aria-hidden", "true");
+    const colors = ["#22d3ee", "#8b5cf6", "#f472b6", "#fbbf24", "#34d399"];
+    for (let i = 0; i < 48; i += 1) {
+      const p = document.createElement("i");
+      p.style.left = `${Math.random() * 100}%`;
+      p.style.background = colors[i % colors.length];
+      p.style.animationDelay = `${Math.random() * 0.8}s`;
+      p.style.animationDuration = `${1.6 + Math.random() * 1.4}s`;
+      layer.appendChild(p);
+    }
+    host.appendChild(layer);
+    setTimeout(() => layer.remove(), 3200);
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        await (ck.el?.requestFullscreen?.() || document.documentElement.requestFullscreen());
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (_) {
+      flash("Vollbild nicht verfügbar.");
+    }
+  }
+
+  async function grantBossWin() {
+    if (ck.busy) return;
+    ck.busy = true;
+    render();
+    try {
+      await post("/api/teacher/cockpit/boss-win", { classId: ck.classId });
+      ck.forceBossWin = true;
+      maybeCelebrateBoss();
+      flash("Boss-Sieg freigegeben (nur lokal, Stufe 1).");
+    } catch (err) {
+      flash(err.message || "Boss-Sieg hat nicht geklappt.");
+    } finally {
+      ck.busy = false;
+      render();
+    }
   }
 
   async function post(url, body) {
@@ -305,6 +436,51 @@
   }
 
   /* ---------- Kopf und KPI ---------- */
+
+  function respectStarsHtml() {
+    const stars = season()?.respect || [];
+    if (!stars.length) {
+      return `<div class="ck-stars" title="Respekt diese Woche" aria-label="Respekt-Sterne">${Array.from({ length: 5 }, () => `<span class="ck-star ck-star--empty" aria-hidden="true">★</span>`).join("")}</div>`;
+    }
+    return `<div class="ck-stars" aria-label="Respekt ${season()?.starsFilledCount || 0} von 5">
+      ${stars
+        .map((s) => {
+          const soon = s.comingSoon;
+          const filled = !soon && s.filled;
+          const title = soon
+            ? `${s.label}: kommt bald`
+            : `${s.label}${filled ? " · erreicht" : " · noch offen"}`;
+          return `<span class="ck-star ${filled ? "ck-star--on" : "ck-star--empty"}" title="${esc(title)}" aria-label="${esc(title)}">★</span>`;
+        })
+        .join("")}
+    </div>`;
+  }
+
+  function seasonKicker() {
+    const d = ck.data;
+    const map = season()?.map;
+    const place =
+      (map?.mode === "city" && (map.ort || map.name)) ||
+      d?.levelCheck?.name ||
+      d?.levelCheck?.subject ||
+      "Einheit";
+    const lc = d?.levelCheck?.name || "";
+    const cls = d?.class?.name || "";
+    return `${cls}${cls ? " · " : ""}SEASON ${place}${lc ? ` · ${lc}` : ""}`;
+  }
+
+  function examHeadline() {
+    const d = ck.data;
+    const days = season()?.kpis?.daysUntilExam;
+    const exam = (d?.unit?.events || []).find((e) => e.type === "klassenarbeit" || e.type === "test" || e.type === "projektabgabe");
+    const target = d?.unit?.target;
+    const dateIso = exam?.date || (target?.kind === "exam" ? target.date : null) || target?.date;
+    if (days == null && !dateIso) return "";
+    const when =
+      days === 0 ? "heute" : days === 1 ? "morgen" : days != null ? `in ${days} Tagen` : "";
+    const label = exam?.label || target?.label || "Klassenarbeit";
+    return `${esc(label)}${dateIso ? ` <strong>${esc(fmtDate(dateIso))}</strong>` : ""}${when ? ` · ${esc(when)}` : ""}`;
+  }
 
   function renderHead() {
     const d = ck.data;
@@ -317,85 +493,91 @@
       )
       .join("");
     const lesson = live.lesson?.label ? ` · Stunde ${esc(live.lesson.label)}` : "";
-    const target = d?.unit?.target;
-    const dates = [];
-    if (target) {
-      const days = daysBetween(d.date, target.date);
-      const when = days === 0 ? "heute" : days === 1 ? "morgen" : `in ${days} Tagen`;
-      dates.push(
-        `${esc(target.label)} <strong>${esc(fmtDate(target.date))}</strong> (${esc(missionsText(range(1, target.planIndex + 1)))}) · ${when}`
-      );
-    }
-    const exam = (d?.unit?.events || []).find(
-      (e) => e.type !== "levelcheck" && e.date >= d.date && !(target && target.kind === "exam" && e.date === target.date)
-    );
-    if (exam) dates.push(`${esc(exam.label)} <strong>${esc(fmtDate(exam.date))}</strong>`);
     const stamp = ck.updatedAt
       ? ck.updatedAt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
       : "–";
+    const pollSec = Number(season()?.config?.pollSeconds) || 30;
+    const examLine = examHeadline();
+    const namesOn = namesOnBeamer();
     return `
-      <div class="ck-context">
+      <div class="ck-context ck-context--sticky">
         <div>
-          <p class="td-kicker">${esc(d?.class?.name || "")}${d?.levelCheck ? ` · ${esc(d.levelCheck.subject)} · ${esc(d.levelCheck.name)}` : ""}${lesson}</p>
+          <p class="td-kicker">${esc(seasonKicker())}${lesson}</p>
           <h1 class="td-title">Cockpit</h1>
+          ${examLine ? `<p class="ck-dates">${examLine}</p>` : ""}
         </div>
         <div class="ck-context-side">
+          ${respectStarsHtml()}
           <div class="ck-context-row">
-            ${units.length ? `<label class="sr-only" for="unitSelect">Unterrichtseinheit</label><select id="unitSelect" class="td-select ck-select" aria-label="Unterrichtseinheit">${options}</select>` : ""}
+            ${!ck.beamer && units.length ? `<label class="sr-only" for="unitSelect">Unterrichtseinheit</label><select id="unitSelect" class="td-select ck-select" aria-label="Unterrichtseinheit">${options}</select>` : ""}
+            ${ck.beamer && units.length ? `<label class="sr-only" for="unitSelect">Unterrichtseinheit</label><select id="unitSelect" class="td-select ck-select ck-select--beamer" aria-label="Unterrichtseinheit">${options}</select>` : ""}
             <span class="ck-live" title="${
               ck.beamer
-                ? "Beamer: alle 15 s, in den letzten 12 Min der Stunde alle 8 s"
+                ? `Beamer: alle ${pollSec} s, in den letzten 12 Min der Stunde alle 8 s`
                 : "Aktualisiert sich jede Minute von selbst"
             }"><i></i>Live · ${esc(stamp)}</span>
-            <button type="button" class="ck-btn ${ck.beamer ? "ck-btn-go" : ""}" data-ck-beamer title="Klassenwand für den Beamer: Charakter-Roster, Puls, Training">${ck.beamer ? "Lehrkraft-Ansicht" : "Beamer-Ansicht"}</button>
+            <button type="button" class="ck-btn ${ck.beamer ? "ck-btn-go" : ""}" data-ck-beamer title="Beamer = Spielansichten · Lehrkraft = Hilfe, Heatmap, Training">${ck.beamer ? "Lehrkraft" : "Beamer"}</button>
+            <button type="button" class="ck-btn" data-ck-fullscreen title="Vollbild">Vollbild</button>
+            <button type="button" class="ck-btn ${namesOn ? "ck-btn-go" : ""}" data-ck-names title="Namen bei Highlights auf dem Beamer">${namesOn ? "Namen an" : "Namen aus"}</button>
             ${
               ck.beamer
-                ? `<button type="button" class="ck-btn ${ck.showPodiums ? "ck-btn-go" : ""}" data-ck-podiums title="Podien ein- oder ausblenden">${ck.showPodiums ? "Podien aus" : "Podien an"}</button>`
+                ? `<button type="button" class="ck-btn ${ck.beamerPaused ? "ck-btn-go" : ""}" data-ck-pause title="Ansichtswechsel pausieren">${ck.beamerPaused ? "Weiter" : "Pause"}</button>
+                   <span class="ck-view-dots" aria-label="Beamer-Ansicht">
+                     ${BEAMER_VIEWS.map((v) => `<button type="button" class="ck-view-dot ${ck.beamerView === v ? "is-on" : ""}" data-ck-view-set="${v}" aria-pressed="${ck.beamerView === v ? "true" : "false"}">${v}</button>`).join("")}
+                   </span>`
                 : ""
             }
           </div>
-          ${dates.length ? `<p class="ck-dates">${dates.join("<br>")}</p>` : ""}
         </div>
       </div>`;
   }
 
-  function range(a, b) {
-    const out = [];
-    for (let i = a; i <= b; i++) out.push(i);
-    return out;
-  }
-
   function renderKpis() {
-    const d = ck.data;
-    const list = students();
-    const n = list.length || d?.students?.length || 0;
-    const live = liveData();
-    const withGoal = list.filter((s) => s.today).length;
-    const maxWait = live.help.reduce((m, h) => Math.max(m, Number(h.waitMinutes) || 0), 0);
-    const pace = { ok: 0, mid: 0, low: 0, none: 0 };
-    for (const s of list) pace[s.pace || "none"] += 1;
-    const target = d?.unit?.target;
-    const days = target ? daysBetween(d.date, target.date) : null;
-    const bar = (count, color) => (n ? `<span style="width:${((count / n) * 100).toFixed(1)}%;background:${color}"></span>` : "");
+    const s = season();
+    const k = s?.kpis || {};
+    const n = Number(k.classSize) || students().length || ck.data?.students?.length || 0;
+    const boss = bossEffective();
+    const started = k.started != null ? k.started : students().filter((st) => st.today).length;
+    const completed = k.completed != null ? k.completed : (ck.data?.students || []).filter((st) => st.reflectedToday).length;
+    let bossLabel = "–";
+    let bossSub = "kein Checkpoint";
+    let bossPct = 0;
+    if (boss && boss.energy > 0) {
+      const hits = boss.defeated ? boss.energy : boss.hits;
+      bossPct = Math.min(100, Math.round((hits / boss.energy) * 100));
+      bossLabel = `${boss.hits}/${boss.energy}`;
+      bossSub = boss.defeated ? "besiegt" : `${bossPct} % · noch ${boss.remaining}`;
+    } else if (typeof k.bossEnergyPct === "number" && k.bossEnergyPct > 0) {
+      bossPct = Math.round(k.bossEnergyPct * 100);
+      bossLabel = `${bossPct} %`;
+      bossSub = "Boss-Energie";
+    }
+    const days = k.daysUntilExam;
+    const daysLabel = days == null ? "–" : String(days);
+    const daysSub =
+      days == null ? "kein Termin" : days === 0 ? "heute" : days === 1 ? "morgen" : `noch ${days} Tage`;
     return `
       <section class="ck-kpis" aria-label="Kennzahlen">
-        <div class="ck-kpi ck-kpi--help ck-private">
-          <div><div class="ck-num">${live.help.length}</div><div class="ck-kpi-lbl">Hilfe angefragt</div>
-          <div class="ck-kpi-sub">${live.help.length ? `längste Wartezeit <span class="ck-wait">${maxWait} min</span>` : "gerade niemand"}</div></div>
+        <div class="ck-kpi">
+          <div><div class="ck-num">${started}<span class="ck-of">/${n}</span></div>
+          <div class="ck-kpi-lbl">Gestartet</div>
+          <div class="ck-kpi-sub">Tagesziel heute</div></div>
         </div>
-        <div class="ck-kpi ck-kpi--visit ck-private">
-          <div><div class="ck-num">${live.visit.length}</div><div class="ck-kpi-lbl">mal vorbeischauen</div><div class="ck-kpi-sub">Stillstand, Unsicherheit, Muster</div></div>
+        <div class="ck-kpi">
+          <div><div class="ck-num">${completed}<span class="ck-of">/${n}</span></div>
+          <div class="ck-kpi-lbl">Abschluss</div>
+          <div class="ck-kpi-sub">Tag beendet</div></div>
         </div>
-        <button type="button" class="ck-kpi ck-kpi--goal ck-private" data-ck-view="now">
-          <div><div class="ck-num">${live.lesson ? live.noGoal.length : withGoal}</div>
-          <div class="ck-kpi-lbl">${live.lesson ? "noch ohne Tagesziel" : "mit Tagesziel"}</div>
-          <div class="ck-kpi-sub">${live.lesson ? "zählt nach Stundenbeginn" : `${withGoal} von ${n}`}</div></div>
-        </button>
         <div class="ck-kpi ck-kpi--stack">
-          <div class="ck-row-between"><span class="ck-num ck-num--ok">${pace.ok}<span class="ck-of">/${n}</span></span>
-          <span class="ck-kpi-sub">${target ? `${esc(target.label)} ${days === 0 ? "heute" : `in ${days} Tagen`}` : "kein Termin"}</span></div>
-          <div class="ck-kpi-lbl">auf Kurs ${target ? `zum ${esc(target.label)}` : ""}</div>
-          <div class="ck-bar">${bar(pace.ok, PACE_COLOR.ok)}${bar(pace.mid, PACE_COLOR.mid)}${bar(pace.low, PACE_COLOR.low)}${bar(pace.none, "rgba(100,116,139,.6)")}</div>
+          <div class="ck-num">${esc(bossLabel)}</div>
+          <div class="ck-kpi-lbl">Boss-Energie</div>
+          <div class="ck-kpi-sub">${esc(bossSub)}</div>
+          <div class="ck-bar"><span style="width:${bossPct}%;background:linear-gradient(90deg,var(--ck-orange),var(--ck-pink))"></span></div>
+        </div>
+        <div class="ck-kpi">
+          <div><div class="ck-num">${esc(daysLabel)}</div>
+          <div class="ck-kpi-lbl">Tage bis KA</div>
+          <div class="ck-kpi-sub">${esc(daysSub)}</div></div>
         </div>
       </section>`;
   }
@@ -466,20 +648,16 @@
   /* ---------- Mitte ---------- */
 
   function renderCenter() {
-    const views = ck.beamer ? ["now"] : ["now", "heat"];
+    const views = ["now", "heat"];
     if (!views.includes(ck.view)) ck.view = "now";
     const label = { heat: "Heatmap", now: "Jetzt an der Mission" };
     const body = ck.view === "heat" ? renderHeat() : renderNow();
     return `
       <section class="ck-panel ck-center">
         <h2><span>${esc(VIEW_TITLE[ck.view])}</span>
-          ${
-            views.length > 1
-              ? `<span class="td-seg ck-seg" role="group" aria-label="Ansicht">
+          <span class="td-seg ck-seg" role="group" aria-label="Ansicht">
             ${views.map((v) => `<button type="button" data-ck-view="${v}" aria-pressed="${ck.view === v ? "true" : "false"}">${label[v]}</button>`).join("")}
-          </span>`
-              : ""
-          }
+          </span>
         </h2>
         ${body}
       </section>`;
@@ -918,21 +1096,17 @@
 
   function renderGoalCard() {
     const k = ck.data.game?.klassenziel || {};
-    const pct = k.target ? Math.min(100, Math.round((k.total / k.target) * 100)) : 0;
+    if (!k.target) return "";
+    const pct = Math.min(100, Math.round((k.total / k.target) * 100));
     const defs = `<defs><linearGradient id="ckGoalG"><stop offset="0" stop-color="#22d3ee"/><stop offset=".5" stop-color="#8b5cf6"/><stop offset="1" stop-color="#f472b6"/></linearGradient></defs>`;
     return `
       <div class="ck-panel ck-game-card">
         <h2><span>Klassenziel</span><span class="td-kicker">gemeinsame XP</span></h2>
-        ${
-          k.target
-            ? `<div class="ck-game-goal">${ring(pct, "url(#ckGoalG)", 112, 12, `${pct} %`, defs)}
-                <div><strong>${esc(k.title || "Klassenziel")}</strong>
-                <p class="ck-small">${num(k.total)} von ${num(k.target)} XP${k.total < k.target ? ` · noch ${num(k.target - k.total)}` : " · erreicht!"}</p>
-                <p class="ck-small ck-muted">+${num(k.xpToday)} XP heute von ${num(k.peopleToday)} Schüler:innen</p></div></div>`
-            : `<p class="ck-big">${num(k.total)} <span class="ck-muted ck-small">Klassen-XP</span></p>
-               <p class="ck-small ck-muted">Kein Klassenziel aktiv. Lege es in der Verwaltung unter Klassen-Voting an, dann füllt sich hier der Balken.</p>`
-        }
-        <p class="ck-tiny ck-muted">Zählt alle XP der Klasse zusammen. Jede Glücks-Ziehung und jedes Team des Tages zahlt mit ein.</p>
+        <div class="ck-game-goal">${ring(pct, "url(#ckGoalG)", 112, 12, `${pct} %`, defs)}
+          <div><strong>${esc(k.title || "Klassenziel")}</strong>
+          <p class="ck-small">${num(k.total)} von ${num(k.target)} XP${k.total < k.target ? ` · noch ${num(k.target - k.total)}` : " · erreicht!"}</p>
+          <p class="ck-small ck-muted">+${num(k.xpToday)} XP heute von ${num(k.peopleToday)} Schüler:innen</p></div></div>
+        <p class="ck-tiny ck-muted">Zählt alle XP der Klasse zusammen.</p>
       </div>`;
   }
 
@@ -961,6 +1135,10 @@
             <label>bis <input type="date" class="ck-input" data-ck-form="due" value="${esc(f.dueDate || "")}"></label>
           </div>
           <label class="ck-form-full">Eigener Titel (optional)<input type="text" class="ck-input" maxlength="160" data-ck-form="title" value="${esc(f.title || "")}" placeholder="${esc(formTitle(f))}"></label>
+          <div class="ck-form-row">
+            <label>Beute-XP (optional)<input type="number" class="ck-input" min="0" max="5000" data-ck-form="lootXp" value="${esc(f.lootXp ?? "")}" placeholder="z. B. 300"></label>
+            <label class="ck-form-full">Beute-Text (optional)<input type="text" class="ck-input" maxlength="200" data-ck-form="lootText" value="${esc(f.lootText || "")}" placeholder="z. B. Musik in der Lernzeit"></label>
+          </div>
           <div class="ck-acts"><button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-ck-mission="save" ${ck.busy ? "disabled" : ""}>Klassen-Mission starten</button>
           <button type="button" class="ck-btn ck-btn-sm" data-ck-mission="cancel">Abbrechen</button></div>
         </div>`;
@@ -1015,9 +1193,25 @@
     return "";
   }
 
+  function raffleRulesPills() {
+    const rules = season()?.raffleRules || [];
+    if (!rules.length) return "";
+    const helpSoon = (season()?.respect || []).find((s) => s.id === "geholfen")?.comingSoon;
+    return `<div class="ck-pills" aria-label="Los-Regeln">${rules
+      .map((r) => {
+        const soon = r.id === "geholfen" && helpSoon ? " · bald" : "";
+        return `<span class="ck-pill">${esc(r.label)} +${esc(r.tickets)}${soon}</span>`;
+      })
+      .join("")}</div>`;
+  }
+
   function renderRaffleCard() {
     const r = ck.data.game?.raffle || {};
     const n = (ck.data.students || []).length;
+    const gaps = season()?.gaps || [];
+    const eligibilityNote = gaps.some((g) => /raffle|Los|ticket/i.test(g))
+      ? ""
+      : `<p class="ck-tiny ck-muted">API zählt vorerst Abschlüsse (reflektiert). Neue Regeln oben – volle Ticket-Zählung folgt.</p>`;
     let body;
     if (ck.reveal === "rolling") {
       body = `<div class="ck-raffle-roll"><span></span><span></span><span></span></div><p class="ck-small ck-muted">Die Lose werden gemischt …</p>`;
@@ -1032,7 +1226,9 @@
     } else {
       body = `
         <p class="ck-big">${r.eligibleCount || 0} <span class="ck-muted ck-small">von ${n} im Lostopf</span></p>
-        <p class="ck-small ck-muted">Im Lostopf ist, wer heute den Tagesabschluss gemacht hat. Jedes Los zählt gleich.</p>
+        ${raffleRulesPills()}
+        <p class="ck-small ck-muted">Lose für Lernen: geplant, reflektiert, gut eingeschätzt – nicht für Tempo.</p>
+        ${eligibilityNote}
         ${raffleAutoHint()}
         <div class="ck-acts">${xpPicker("raffle", ck.raffleXp)}</div>
         <div class="ck-acts"><button type="button" class="ck-btn ck-btn-go" data-ck-raffle ${r.eligibleCount && !ck.busy ? "" : "disabled"}>Ziehung starten</button></div>`;
@@ -1040,6 +1236,7 @@
     return `
       <div class="ck-panel ck-game-card">
         <h2><span>Glücks-Ziehung</span><span class="td-kicker">einmal am Tag</span></h2>
+        ${r.drawn ? raffleRulesPills() : ""}
         ${body}
       </div>`;
   }
@@ -1107,217 +1304,407 @@
       </div>`;
   }
 
+  function renderSideQuestTeacher() {
+    const q = season()?.sideQuest;
+    const templates = season()?.config?.sideQuestTemplates || [];
+    const showPick = !q || ck.sqRepick;
+    let body;
+    if (q && !showPick) {
+      body = `<p class="ck-small"><strong>${esc(q.text)}</strong></p>
+        <p class="ck-small">${q.progress} / ${q.ziel}${q.done ? " · geschafft" : ""}</p>
+        <div class="ck-acts"><button type="button" class="ck-btn ck-btn-sm" data-ck-sq="pick" ${ck.busy ? "disabled" : ""}>Andere wählen</button></div>`;
+    } else {
+      body = `${q ? `<p class="ck-tiny ck-muted">Aktuell: ${esc(q.text)} – neue Vorlage überschreibt.</p>` : `<p class="ck-small ck-muted">Morgens eine Vorlage wählen – Fortschritt aus Ereignissen.</p>`}
+        <div class="ck-acts ck-sq-list">${templates
+          .map(
+            (t) =>
+              `<button type="button" class="ck-btn ck-btn-sm" data-ck-sq="set" data-id="${esc(t.id)}" ${ck.busy ? "disabled" : ""}>${esc(t.text)}</button>`
+          )
+          .join("")}</div>
+        ${q ? `<div class="ck-acts"><button type="button" class="ck-btn ck-btn-sm" data-ck-sq="cancel-pick">Abbrechen</button></div>` : ""}`;
+    }
+    return `
+      <div class="ck-panel ck-game-card">
+        <h2><span>Side Quest</span><span class="td-kicker">heute</span></h2>
+        ${body}
+      </div>`;
+  }
+
+  function renderCrewsPanel() {
+    const seasonKey = season()?.seasonKey || ck.data?.levelCheck?.id || `class-${ck.classId}`;
+    const crews = ck.crewsDraft?.crews || season()?.crews || [];
+    const released = crews.length && crews.every((c) => c.released !== false);
+    const hasDraft = (ck.crewsDraft?.crews || []).length > 0;
+    const list = (ck.crewsDraft?.crews || []).length
+      ? ck.crewsDraft.crews
+      : [];
+    let body;
+    if (!ck.crewsOpen) {
+      body = `<div class="ck-acts"><button type="button" class="ck-btn ck-btn-sm" data-ck-crews="open">Crews öffnen</button></div>`;
+    } else {
+      const rows = list.length
+        ? list
+            .map((c) => {
+              return `<div class="ck-crew-row" style="border-color:${esc(c.color || "#22d3ee")}">
+                <div class="ck-crew-row__head">
+                  <input class="ck-input" data-ck-crew-name="${esc(c.id)}" value="${esc(c.name || "")}" maxlength="40" ${c.released ? "disabled" : ""}>
+                  <input class="ck-input ck-input--color" type="color" data-ck-crew-color="${esc(c.id)}" value="${esc((c.color || "#22d3ee").slice(0, 7))}" ${c.released ? "disabled" : ""}>
+                  <input class="ck-input" data-ck-crew-tag="${esc(c.id)}" value="${esc(c.tagText || "")}" maxlength="40" placeholder="Tag" ${c.released ? "disabled" : ""}>
+                  <button type="button" class="ck-btn ck-btn-sm" data-ck-crew-save="${esc(c.id)}" ${c.released || ck.crewsBusy ? "disabled" : ""}>OK</button>
+                </div>
+                <p class="ck-tiny">${(c.members || []).map((m) => esc(m.shortName || m.name)).join(" · ")}</p>
+                ${
+                  c.released
+                    ? ""
+                    : `<label class="ck-tiny">Tauschen nach hier <select data-ck-crew-swap="${esc(c.id)}"><option value="">–</option>${list
+                        .filter((x) => x.id !== c.id)
+                        .flatMap((x) => x.members || [])
+                        .map((m) => `<option value="${esc(m.id)}">${esc(m.shortName || m.name)}</option>`)
+                        .join("")}</select></label>`
+                }
+              </div>`;
+            })
+            .join("")
+        : `<p class="ck-small ck-muted">Noch keine Crews für diese Season.</p>`;
+      body = `
+        <p class="ck-tiny ck-muted">Season: ${esc(seasonKey)}${released || (list.length && list[0]?.released) ? " · freigegeben" : hasDraft ? " · Entwurf" : ""}</p>
+        ${rows}
+        <div class="ck-acts">
+          <button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-ck-crews="draw" ${ck.crewsBusy ? "disabled" : ""}>Auslosen</button>
+          <button type="button" class="ck-btn ck-btn-hot ck-btn-sm" data-ck-crews="release" ${!list.length || ck.crewsBusy || list.every((c) => c.released) ? "disabled" : ""}>Freigeben</button>
+          <button type="button" class="ck-btn ck-btn-sm" data-ck-crews="close">Schließen</button>
+        </div>`;
+    }
+    return `
+      <div class="ck-panel ck-game-card ck-crews-panel">
+        <h2><span>Crews</span><span class="td-kicker">Auslosung</span></h2>
+        ${body}
+      </div>`;
+  }
+
+  function renderHelpModal() {
+    const m = ck.helpModal;
+    if (!m) return "";
+    const peers = (ck.data?.students || [])
+      .filter((s) => Number(s.id) !== Number(m.studentId))
+      .map((s) => `<option value="${esc(s.id)}">${esc(s.shortName || s.name)}</option>`)
+      .join("");
+    return `
+      <div class="ck-drawer-layer" role="dialog" aria-modal="true" aria-label="Wer hat geholfen?">
+        <button type="button" class="ck-drawer-backdrop" data-ck-help-cancel aria-label="Abbrechen"></button>
+        <aside class="ck-drawer ck-drawer--help">
+          <header class="ck-drawer-head"><div><h3>Wer hat geholfen?</h3><p class="ck-small ck-muted">${esc(m.studentName || "")}</p></div></header>
+          <div class="ck-acts ck-help-kinds">
+            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-kind="lehrkraft">Lehrkraft</button>
+            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-kind="logic_coach">Logic Coach</button>
+            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-kind="taktik_deck">Taktik-Deck</button>
+            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-kind="niemand">niemand</button>
+          </div>
+          <label class="ck-form-full">Mitschüler:in
+            <select class="ck-input" data-ck-help-peer><option value="">– wählen –</option>${peers}</select>
+          </label>
+          <div class="ck-acts">
+            <button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-ck-help-kind="peer">Mitschüler:in speichern</button>
+            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-cancel>Abbrechen</button>
+          </div>
+        </aside>
+      </div>`;
+  }
+
   function renderGame() {
     // Beamer: kein Team des Tages – nur gemeinsame Ziele / Ziehung
     const team = ck.beamer ? "" : renderTeamCard();
+    const extra = ck.beamer ? "" : `${renderSideQuestTeacher()}${renderCrewsPanel()}`;
     return `
       <section class="ck-game" aria-label="Klassen-Spiel">
         <h2 class="ck-game-title"><span class="td-kicker">Klassen-Spiel</span></h2>
         <div class="ck-game-grid">
-          ${renderGoalCard()}${renderMissionCard()}${renderRaffleCard()}${team}
+          ${renderGoalCard()}${renderMissionCard()}${renderRaffleCard()}${team}${extra}
         </div>
       </section>`;
   }
 
-  function avatarHtml(person, sizeClass = "") {
-    const name = person?.name || "?";
-    const url = person?.avatarUrl;
-    if (url) {
-      return `<span class="ck-av ${sizeClass}"><img src="${esc(url)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.classList.add('ck-av--fallback');this.remove()"><span class="ck-av-fallback" aria-hidden="true">${esc(
-        String(name).trim().slice(0, 1).toUpperCase() || "?"
-      )}</span></span>`;
-    }
-    return `<span class="ck-av ck-av--fallback ${sizeClass}" aria-hidden="true">${esc(
-      String(name).trim().slice(0, 1).toUpperCase() || "?"
-    )}</span>`;
-  }
-
-  function renderBeamerPulse() {
+  function examShortLabel() {
     const d = ck.data;
-    const wall = d.wall || {};
-    const list = students();
-    const n = wall.classSize || list.length || d.students?.length || 0;
-    const planned = Number(wall.plannedCount) || list.filter((s) => s.today).length;
-    const reflected =
-      Number(wall.reflectedCount) || (d.students || []).filter((s) => s.reflectedToday).length;
-    const xpToday = Number(d.game?.klassenziel?.xpToday) || 0;
-    const paceOk = list.filter((s) => s.pace === "ok").length;
-    return `
-      <section class="ck-wall-pulse" aria-label="Klassenpuls">
-        <div class="ck-wall-kpi"><div class="ck-wall-num">${planned}<span>/${n}</span></div><div class="ck-wall-lbl">Tagesziel</div></div>
-        <div class="ck-wall-kpi"><div class="ck-wall-num">${reflected}<span>/${n}</span></div><div class="ck-wall-lbl">Abschluss</div></div>
-        <div class="ck-wall-kpi"><div class="ck-wall-num">${num(xpToday)}</div><div class="ck-wall-lbl">XP heute</div></div>
-        <div class="ck-wall-kpi"><div class="ck-wall-num">${paceOk}<span>/${n}</span></div><div class="ck-wall-lbl">auf Kurs</div></div>
-      </section>`;
+    const exam = (d?.unit?.events || []).find(
+      (e) => e.type === "klassenarbeit" || e.type === "test" || e.type === "projektabgabe"
+    );
+    if (exam?.date) return `KA ${fmtShort(exam.date)}`;
+    const target = d?.unit?.target;
+    if (target?.date) return `${target.label || "KA"} ${fmtShort(target.date)}`;
+    return "";
   }
 
-  function renderBeamerRoster() {
-    const wall = ck.data.wall || {};
-    const roster = Array.isArray(wall.roster) ? wall.roster : [];
-    const n = wall.classSize || (ck.data.students || []).length || 0;
-    if (!roster.length) {
-      return `
-        <section class="ck-wall-panel">
-          <h2><span>Wer ist schon dabei?</span><span class="td-kicker">Charakter-Roster</span></h2>
-          <p class="ck-wall-empty">Noch niemand hat heute ein Tagesziel gesetzt. Sobald jemand plant, erscheint der Charakter hier.</p>
-        </section>`;
+  function renderSeasonMap(compact) {
+    const map = season()?.map;
+    const MapApi = window.TeacherCockpitMap;
+    if (!MapApi || !map) {
+      return `<div class="ck-panel"><p class="ck-muted ck-small">Kartendaten fehlen oder Einheit ohne Season.</p></div>`;
     }
+    const boss = bossEffective();
+    const html = MapApi.renderMap(map, {
+      ringColors: season()?.config?.mapRingColors,
+      boss,
+      examLabel: examShortLabel(),
+      checkpointNs: (boss?.hitByMission || []).map((h) => h.n).filter(Boolean)
+    });
+    return `<div class="ck-panel ck-map-panel ${compact ? "ck-map-panel--compact" : ""}">
+      <h2><span>${map.mode === "city" ? esc(map.ort || map.name || "Stadtteil") : "Fahrspuren"}</span><span class="td-kicker">${map.mode === "city" ? "Karte" : "ohne Stadtteil"}</span></h2>
+      ${html}
+    </div>`;
+  }
+
+  function renderBossPanel(compact) {
+    const boss = bossEffective();
+    if (!boss) {
+      return `<div class="ck-panel ck-boss"><h2><span>Boss-Fight</span><span class="td-kicker">Checkpoint</span></h2>
+        <p class="ck-muted ck-small">Keine aktive Klassen-Mission – lege einen Checkpoint an, dann erscheint der Boss.</p>
+        <div class="ck-acts ck-private"><button type="button" class="ck-btn ck-btn-sm" data-ck-mission="new" ${goals().length ? "" : "disabled"}>Klassen-Mission anlegen</button></div>
+      </div>`;
+    }
+    const energy = Math.max(1, Number(boss.energy) || 1);
+    const rem = boss.defeated ? 0 : Number(boss.remaining) || 0;
+    const pct = Math.max(0, Math.min(100, ((energy - rem) / energy) * 100));
+    const hits = (boss.hitByMission || [])
+      .map((h) => `<li>Treffer Mission ${esc(h.n ?? "?")} −${esc(h.hits)}</li>`)
+      .join("");
+    const loot = (boss.loot || [])
+      .map((l) => `<li>${esc(l.label || l.kind || "Beute")}</li>`)
+      .join("");
     return `
-      <section class="ck-wall-panel">
-        <h2><span>Wer ist schon dabei?</span><span class="td-kicker">${roster.length} von ${n}</span></h2>
-        <div class="ck-wall-roster">
-          ${roster
-            .map(
-              (p) => `
-            <article class="ck-wall-tile ${p.reflected ? "is-done" : "is-planned"}">
-              ${avatarHtml(p, "ck-av--lg")}
-              <strong>${esc(p.name)}</strong>
-              <span>${p.reflected ? "Abschluss ✓" : "Ziel gesetzt"}</span>
-            </article>`
-            )
-            .join("")}
+      <div class="ck-panel ck-boss ${boss.defeated ? "ck-boss--win" : ""} ${compact ? "ck-boss--compact" : ""}">
+        <h2><span>${esc(boss.name || "Boss")}</span><span class="td-kicker">${boss.defeated ? "besiegt" : "Boss-Fight"}</span></h2>
+        <div class="ck-boss-energy">
+          <div class="ck-row-between"><strong>${boss.defeated ? "0" : rem}</strong><span class="ck-muted">/ ${energy} Energie</span></div>
+          <div class="ck-goalbar"><b style="width:${pct.toFixed(1)}%"></b></div>
         </div>
-      </section>`;
-  }
-
-  function renderPodiumList(items, detailFn) {
-    return `
-      <ol class="ck-wall-podium">
-        ${items
-          .map(
-            (p, i) => `
-          <li class="ck-wall-podium__item rank-${i + 1}">
-            <span class="ck-wall-podium__rank">${i + 1}</span>
-            ${avatarHtml(p, "ck-av--md")}
-            <div class="ck-wall-podium__meta">
-              <strong>${esc(p.name)}</strong>
-              <span>${detailFn(p)}</span>
-            </div>
-          </li>`
-          )
-          .join("")}
-      </ol>`;
-  }
-
-  function renderBeamerPodiums() {
-    if (!ck.showPodiums) return "";
-    const wall = ck.data.wall || {};
-    const fastest = Array.isArray(wall.fastest) ? wall.fastest : [];
-    const progress = Array.isArray(wall.progress) ? wall.progress : [];
-    const catchUp = Array.isArray(wall.catchUp) ? wall.catchUp : [];
-
-    const fastestBody = fastest.length
-      ? renderPodiumList(fastest, (p) =>
-          p.finishedAt
-            ? new Date(p.finishedAt).toLocaleTimeString("de-DE", {
-                hour: "2-digit",
-                minute: "2-digit"
-              })
-            : "Abschluss"
-        )
-      : `<p class="ck-wall-empty">Noch keine Abschlüsse – wer den Tag zuerst beendet, steht hier.</p>`;
-
-    const progressBody = progress.length
-      ? renderPodiumList(progress, (p) => {
-          const bits = [];
-          if (p.sicherToday) bits.push(`+${num(p.sicherToday)} sicher`);
-          if (p.trainingToday) bits.push(`${num(p.trainingToday)} Training`);
-          return bits.join(" · ") || "Fortschritt";
-        })
-      : `<p class="ck-wall-empty">Noch keine neuen Sicherungen oder Trainingsstände heute.</p>`;
-
-    const catchBody = catchUp.length
-      ? renderPodiumList(catchUp, (p) => {
-          const gap = Number(p.gap);
-          const gapText =
-            Number.isFinite(gap) && gap >= 1
-              ? `noch ${gap % 1 ? gap.toFixed(1).replace(".", ",") : gap} hinter Plan`
-              : "holt auf";
-          return `+${num(p.sicherToday)} sicher · ${gapText}`;
-        })
-      : `<p class="ck-wall-empty">Niemand hinter dem Plan mit neuem Fortschritt – oder noch keine Sicherungen.</p>`;
-
-    return `
-      <div class="ck-wall-podiums">
-        <section class="ck-wall-panel ck-wall-panel--podium">
-          <h2><span>Schnellste 5</span><span class="td-kicker">Abschluss</span></h2>
-          ${fastestBody}
-        </section>
-        <section class="ck-wall-panel ck-wall-panel--podium">
-          <h2><span>Fortschritt</span><span class="td-kicker">heute</span></h2>
-          ${progressBody}
-        </section>
-        <section class="ck-wall-panel ck-wall-panel--podium">
-          <h2><span>Aufholer</span><span class="td-kicker">gegen Plan</span></h2>
-          ${catchBody}
-        </section>
+        ${hits ? `<ul class="ck-boss-hits">${hits}</ul>` : ""}
+        ${boss.weakLabel ? `<p class="ck-small">Schwachstelle: <strong>${esc(boss.weakLabel)}</strong></p>` : ""}
+        <p class="ck-tiny ck-amber">Selbst ‚sicher‘ drücken trifft nicht.</p>
+        ${loot ? `<div class="ck-boss-loot"><p class="ck-small"><strong>Beute</strong></p><ul>${loot}</ul></div>` : ""}
+        ${
+          boss.defeated
+            ? `<p class="ck-win">Boss besiegt – Beute freigeschaltet.</p>`
+            : `<div class="ck-acts"><button type="button" class="ck-btn ck-btn-hot" data-ck-boss-win ${ck.busy ? "disabled" : ""}>Sieg geben</button></div>`
+        }
       </div>`;
   }
 
-  function renderBeamerTraining() {
-    const d = ck.data;
-    const training = d.training || { missions: [] };
-    const N = students().length || Math.max(1, (d.students || []).length);
-    const { markTiers, stagesEnabled } = levels();
-    if (!stagesEnabled) {
-      return `
-        <section class="ck-wall-panel">
-          <h2><span>Trainingscenter</span><span class="td-kicker">Lernstand</span></h2>
-          <p class="ck-wall-empty">Diese Klasse nutzt Unterthema statt Rookie/Operator/Street Legend – siehe Missionen in der Mitte.</p>
-        </section>`;
-    }
-    if (!training.missions?.length) {
-      return `
-        <section class="ck-wall-panel">
-          <h2><span>Trainingscenter</span><span class="td-kicker">diese Einheit</span></h2>
-          <p class="ck-wall-empty">Diese Einheit ist noch nicht mit dem Trainingscenter verknüpft.</p>
-        </section>`;
-    }
-    const tier = markTiers.includes(ck.tier) ? ck.tier : markTiers[0] || "rookie";
-    const color = TIER_COLOR[tier] || TIER_COLOR.rookie;
+  function renderRespectPanel() {
+    const stars = season()?.respect || [];
+    const filled = season()?.starsFilledCount || 0;
     return `
-      <section class="ck-wall-panel">
-        <h2><span>Trainingscenter</span><span class="td-kicker">${esc(TIER_LABEL[tier] || tier)}</span></h2>
-        <div class="ck-tier-tabs ck-tier-tabs--wall" role="group" aria-label="Stufe">
-          ${markTiers
-            .map(
-              (t) =>
-                `<button type="button" data-ck-tier="${t}" aria-pressed="${t === tier ? "true" : "false"}" class="ck-tier-${t}">${TIER_LABEL[t]}</button>`
-            )
-            .join("")}
+      <div class="ck-panel">
+        <h2><span>Respekt diese Woche</span><span class="td-kicker">${filled}/5</span></h2>
+        <div class="ck-respect-list">
+          ${
+            stars
+              .map((s) => {
+                const pct =
+                  typeof s.value === "number" && s.value <= 1
+                    ? `${Math.round(s.value * 100)} %`
+                    : String(s.value ?? "–");
+                const target =
+                  typeof s.target === "number" && s.target <= 1
+                    ? `${Math.round(s.target * 100)} %`
+                    : String(s.target ?? "");
+                const state = s.comingSoon
+                  ? "kommt bald"
+                  : s.filled
+                    ? "erreicht"
+                    : `${pct} / ${target}`;
+                return `<div class="ck-respect-row ${s.filled && !s.comingSoon ? "is-on" : ""} ${s.comingSoon ? "is-soon" : ""}">
+                  <span class="ck-star ${s.filled && !s.comingSoon ? "ck-star--on" : "ck-star--empty"}">★</span>
+                  <div><strong>${esc(s.label)}</strong><p class="ck-tiny ck-muted">${esc(state)}</p></div>
+                </div>`;
+              })
+              .join("") || `<p class="ck-muted ck-small">Noch keine Respekt-Daten.</p>`
+          }
         </div>
-        <div class="ck-wall-training">
-          ${training.missions
-            .map((m) => {
-              const goal = goalById(m.goalId);
-              const c = m.tiers[tier] || { sicher: 0, teilweise: 0, nochNicht: 0, offen: 0 };
-              const w = (k) => ((k / N) * 100).toFixed(1);
-              return `<div class="ck-wall-tbar">
-                <div class="ck-wall-tbar__head"><strong>M${goal ? goal.number : "?"}</strong><span>${esc(goal?.text || "")}</span><em>${c.sicher}/${N}</em></div>
-                <div class="ck-stack ck-stack--wall"><span style="width:${w(c.sicher)}%;background:${color}"></span><span style="width:${w(c.teilweise)}%;background:rgba(148,163,184,.55)"></span><span style="width:${w(c.nochNicht)}%;background:rgba(148,163,184,.28)"></span></div>
+      </div>`;
+  }
+
+  function renderSeasonBarPanel() {
+    const bar = season()?.seasonBar || {};
+    const tiers = season()?.config?.seasonTiers || [];
+    const xp = Number(bar.xp) || 0;
+    const next = bar.next;
+    const filled = Number(bar.filledCount) || 0;
+    return `
+      <div class="ck-panel">
+        <h2><span>Season-Leiste</span><span class="td-kicker">${num(xp)} XP</span></h2>
+        <div class="ck-season-track" role="list">
+          ${tiers
+            .map((t, i) => {
+              const on = i < filled;
+              const nextHit = next && next.xp === t.xp;
+              return `<div class="ck-season-tier ${on ? "is-on" : ""} ${nextHit ? "is-next" : ""}" role="listitem">
+                <strong>${num(t.xp)}</strong>
+                <span>${esc(t.label)}</span>
               </div>`;
             })
             .join("")}
         </div>
-        <div class="ck-legend">
-          <span><i class="ck-lg" style="background:${color}"></i>sicher</span>
-          <span><i class="ck-lg" style="background:rgba(148,163,184,.55)"></i>teilweise</span>
-          <span><i class="ck-lg" style="background:rgba(148,163,184,.28)"></i>angefangen</span>
-        </div>
+        ${
+          next
+            ? `<p class="ck-small">noch <strong>${num(bar.remaining)}</strong> bis ${esc(next.label)}</p>`
+            : `<p class="ck-small ck-win">Alle Season-Stufen erreicht.</p>`
+        }
+        ${bar.xpSource === "gesamt" ? `<p class="ck-tiny ck-muted">XP gesamt (kein Einheits-Zeitstempel).</p>` : ""}
+      </div>`;
+  }
+
+  function highlightName(entry) {
+    if (namesOnBeamer()) return esc(entry?.name || "Jemand");
+    return "Jemand";
+  }
+
+  function renderHighlightsPanel() {
+    const hl = season()?.highlights || {};
+    const keys = Object.keys(HIGHLIGHT_LABELS);
+    const cards = keys
+      .map((key) => {
+        const list = Array.isArray(hl[key]) ? hl[key] : [];
+        const label = HIGHLIGHT_LABELS[key];
+        let body;
+        if (!list.length) {
+          body = `<p class="ck-muted ck-small">Heute noch niemand.</p>`;
+        } else if (!namesOnBeamer()) {
+          body = `<p class="ck-big">${list.length}</p><p class="ck-small ck-muted">${list.length === 1 ? "Person" : "Personen"}</p>`;
+        } else {
+          body = `<ul class="ck-hl-names">${list.map((p) => `<li>${highlightName(p)}</li>`).join("")}</ul>`;
+        }
+        return `<article class="ck-hl-card"><h3>${esc(label)}</h3>${body}</article>`;
+      })
+      .join("");
+    return `
+      <div class="ck-panel">
+        <h2><span>Highlights heute</span><span class="td-kicker">positiv</span></h2>
+        <div class="ck-hl-grid">${cards}</div>
+      </div>`;
+  }
+
+  function renderBeamerJoinedCount() {
+    const wall = ck.data?.wall || {};
+    const n = wall.classSize || (ck.data?.students || []).length || 0;
+    const planned = Number(wall.plannedCount) || students().filter((s) => s.today).length;
+    return `
+      <section class="ck-panel ck-joined">
+        <h2><span>Wer ist schon dabei?</span><span class="td-kicker">heute</span></h2>
+        <p class="ck-big">${planned}<span class="ck-of"> / ${n}</span></p>
+        <p class="ck-small ck-muted">Tagesziel gesetzt – Namen nur in der Lehrkraft-Ansicht.</p>
       </section>`;
   }
 
-  function renderBeamerWall() {
+  function renderBeamerViewA() {
     return `
-      <div class="ck-wall">
-        ${renderBeamerPulse()}
-        ${renderBeamerRoster()}
-        ${renderBeamerPodiums()}
-        ${renderBeamerTraining()}
-        <div class="ck-wall-game">
-          ${renderGoalCard()}${renderMissionCard()}${renderRaffleCard()}
+      <div class="ck-beamer-view ck-beamer-view--a" data-view="A">
+        ${renderKpis()}
+        <div class="ck-beamer-ab">
+          ${renderSeasonMap(false)}
+          ${renderBossPanel(false)}
+        </div>
+        ${renderBeamerJoinedCount()}
+      </div>`;
+  }
+
+  function tickerDisplayText() {
+    const items = season()?.ticker || [];
+    if (!items.length) return "";
+    const sec = Number(season()?.config?.tickerSeconds) || 20;
+    const now = Date.now();
+    if (!ck.tickerShownAt || now - ck.tickerShownAt >= sec * 1000) {
+      if (ck.tickerShownAt) ck.tickerIdx = (ck.tickerIdx + 1) % items.length;
+      ck.tickerShownAt = now;
+    }
+    const item = items[ck.tickerIdx % items.length];
+    return item?.text || "";
+  }
+
+  function renderTickerStrip() {
+    const text = tickerDisplayText();
+    if (!text) return `<div class="ck-ticker ck-ticker--empty"><span class="ck-muted">Noch keine positiven Ereignisse.</span></div>`;
+    return `<div class="ck-ticker" aria-live="polite"><span class="ck-ticker-kicker">Live</span><span class="ck-ticker-text">${esc(text)}</span></div>`;
+  }
+
+  function renderSideQuestCard() {
+    const q = season()?.sideQuest;
+    if (!q) return "";
+    const pct = q.ziel ? Math.min(100, Math.round((q.progress / q.ziel) * 100)) : 0;
+    return `
+      <div class="ck-panel ck-sidequest ${q.done ? "is-done" : ""}">
+        <h2><span>Side Quest</span><span class="td-kicker">${q.done ? "geschafft" : "heute"}</span></h2>
+        <p class="ck-small"><strong>${esc(q.text)}</strong></p>
+        <div class="ck-goalbar"><b style="width:${pct}%"></b></div>
+        <p class="ck-small">${q.progress} / ${q.ziel}${q.xp ? ` · +${q.xp} XP` : ""}</p>
+      </div>`;
+  }
+
+  function renderCrewProgressChips() {
+    const crews = season()?.crews || [];
+    if (!crews.length) return "";
+    return `
+      <div class="ck-crew-chips" aria-label="Crew-Fortschritt">
+        ${crews
+          .map(
+            (c) =>
+              `<span class="ck-crew-chip" style="--ck-crew:${esc(c.color || "#22d3ee")}"><strong>${esc(c.name || "Crew")}</strong> ${esc(c.label || "0/0")}</span>`
+          )
+          .join("")}
+      </div>`;
+  }
+
+  function renderCrewDrawShow() {
+    const show = ck.crewDrawShow;
+    if (!show?.names?.length) return "";
+    return `<div class="ck-slot-show" aria-hidden="true">${show.names
+      .map((n, i) => `<span class="ck-slot-name" style="animation-delay:${i * 0.12}s">${esc(n)}</span>`)
+      .join("")}</div>`;
+  }
+
+  function renderBeamerViewB() {
+    return `
+      <div class="ck-beamer-view ck-beamer-view--b" data-view="B">
+        ${renderTickerStrip()}
+        ${renderCrewProgressChips()}
+        <div class="ck-beamer-b-grid">
+          ${renderRespectPanel()}
+          ${renderSeasonBarPanel()}
+          ${renderRaffleCard()}
+          ${renderSideQuestCard()}
+          ${renderGoalCard()}
         </div>
       </div>`;
+  }
+
+  function renderBeamerViewC() {
+    return `
+      <div class="ck-beamer-view ck-beamer-view--c" data-view="C">
+        ${renderCrewProgressChips()}
+        ${renderCrewDrawShow()}
+        ${renderHighlightsPanel()}
+      </div>`;
+  }
+
+  function renderBeamerWall() {
+    const view =
+      ck.beamerView === "B"
+        ? renderBeamerViewB()
+        : ck.beamerView === "C"
+          ? renderBeamerViewC()
+          : renderBeamerViewA();
+    return `<div class="ck-wall ck-wall--season">${view}</div>`;
+  }
+
+  function renderTeacherMapBoss() {
+    if (!season()?.map && !season()?.boss) return "";
+    return `
+      <section class="ck-teacher-season" aria-label="Season kompakt">
+        <div class="ck-beamer-ab ck-beamer-ab--teacher">
+          ${renderSeasonMap(true)}
+          ${renderBossPanel(true)}
+        </div>
+      </section>`;
   }
 
   /* ---------- Schublade ---------- */
@@ -1427,7 +1814,7 @@
           <div class="ck ck--beamer">
             ${toastHtml}${error}
             ${renderHead()}
-            ${renderBeamerWall()}
+            <div class="td-panel td-empty"><strong>${esc(d.message || "Keine Unterrichtseinheit.")}</strong></div>
           </div>`;
         return;
       }
@@ -1455,6 +1842,7 @@
           ${renderCenter()}
           ${renderRight()}
         </section>
+        ${renderTeacherMapBoss()}
         ${renderGame()}
         <section class="ck-bottom">
           ${renderPulse()}${renderTimeline()}
@@ -1464,6 +1852,7 @@
           ${renderRecent()}
         </details>
         ${renderDrawer()}
+        ${renderHelpModal()}
       </div>`;
   }
 
@@ -1558,7 +1947,9 @@
         goalIds: firstTwo,
         tier: levels().missionTiers[0] || "rookie",
         dueDate: target?.date || "",
-        title: ""
+        title: "",
+        lootXp: "",
+        lootText: ""
       };
       render();
       return;
@@ -1593,7 +1984,9 @@
           goalIds: ck.form.goalIds,
           tier: ck.form.tier,
           dueDate: ck.form.dueDate || null,
-          title: ck.form.title || ""
+          title: ck.form.title || "",
+          lootXp: ck.form.lootXp === "" || ck.form.lootXp == null ? null : Number(ck.form.lootXp),
+          lootText: ck.form.lootText || ""
         });
         ck.form = null;
         await load(false);
@@ -1607,9 +2000,233 @@
     }
   }
 
+  async function loadCrewsDraft() {
+    const seasonKey = season()?.seasonKey || ck.data?.levelCheck?.id || `class-${ck.classId}`;
+    const data = await ck.ctx.api(
+      `/api/teacher/cockpit/crews?classId=${encodeURIComponent(ck.classId)}&seasonKey=${encodeURIComponent(seasonKey)}`
+    );
+    ck.crewsDraft = data;
+    return data;
+  }
+
+  async function crewsAction(kind) {
+    const seasonKey = season()?.seasonKey || ck.data?.levelCheck?.id || `class-${ck.classId}`;
+    if (kind === "open") {
+      ck.crewsOpen = true;
+      ck.crewsBusy = true;
+      render();
+      try {
+        await loadCrewsDraft();
+      } catch (err) {
+        flash(err.message || "Crews laden fehlgeschlagen.");
+      } finally {
+        ck.crewsBusy = false;
+        render();
+      }
+      return;
+    }
+    if (kind === "close") {
+      ck.crewsOpen = false;
+      render();
+      return;
+    }
+    if (kind === "draw") {
+      ck.crewsBusy = true;
+      render();
+      try {
+        const res = await post("/api/teacher/cockpit/crews/draw", {
+          classId: ck.classId,
+          seasonKey
+        });
+        ck.crewsDraft = { crews: res.crews, seasonKey };
+        const names = (res.crews || []).flatMap((c) =>
+          (c.members || []).map((m) => m.shortName || m.name)
+        );
+        ck.crewDrawShow = { names: names.slice(0, 12) };
+        setTimeout(() => {
+          ck.crewDrawShow = null;
+          render();
+        }, 4000);
+        flash(res.message || "Ausgelost.");
+        await load(false);
+      } catch (err) {
+        flash(err.message || "Auslosen fehlgeschlagen.");
+      } finally {
+        ck.crewsBusy = false;
+        render();
+      }
+      return;
+    }
+    if (kind === "release") {
+      if (!window.confirm("Crews freigeben? Danach kein Tauschen mehr.")) return;
+      ck.crewsBusy = true;
+      render();
+      try {
+        const res = await post("/api/teacher/cockpit/crews/release", {
+          classId: ck.classId,
+          seasonKey
+        });
+        ck.crewsDraft = { crews: res.crews, seasonKey };
+        flash(res.message || "Freigegeben.");
+        await load(false);
+      } catch (err) {
+        flash(err.message || "Freigabe fehlgeschlagen.");
+      } finally {
+        ck.crewsBusy = false;
+        render();
+      }
+    }
+  }
+
+  async function saveCrewMeta(crewId) {
+    const name = ck.el.querySelector(`[data-ck-crew-name="${crewId}"]`)?.value;
+    const color = ck.el.querySelector(`[data-ck-crew-color="${crewId}"]`)?.value;
+    const tagText = ck.el.querySelector(`[data-ck-crew-tag="${crewId}"]`)?.value;
+    try {
+      await ck.ctx.api(`/api/teacher/cockpit/crews/${encodeURIComponent(crewId)}`, {
+        method: "PUT",
+        body: JSON.stringify({ name, color, tagText })
+      });
+      await loadCrewsDraft();
+      flash("Crew gespeichert.");
+      render();
+    } catch (err) {
+      flash(err.message || "Speichern fehlgeschlagen.");
+    }
+  }
+
+  async function swapIntoCrew(toCrewId, studentId) {
+    if (!studentId) return;
+    try {
+      const res = await post("/api/teacher/cockpit/crews/swap", {
+        classId: ck.classId,
+        toCrewId,
+        studentId: Number(studentId)
+      });
+      ck.crewsDraft = { crews: res.crews, seasonKey: season()?.seasonKey };
+      flash(res.message || "Getauscht.");
+      render();
+    } catch (err) {
+      flash(err.message || "Tauschen fehlgeschlagen.");
+    }
+  }
+
+  async function setSideQuest(templateId) {
+    ck.busy = true;
+    render();
+    try {
+      const res = await post("/api/teacher/cockpit/side-quests", {
+        classId: ck.classId,
+        templateId
+      });
+      flash(res.message || "Side Quest gesetzt.");
+      await load(false);
+    } catch (err) {
+      flash(err.message || "Side Quest fehlgeschlagen.");
+    } finally {
+      ck.busy = false;
+      render();
+    }
+  }
+
+  async function finishHelpWithKind(kind) {
+    const m = ck.helpModal;
+    if (!m) return;
+    let helpedByStudentId = null;
+    if (kind === "peer") {
+      helpedByStudentId = Number(ck.el.querySelector("[data-ck-help-peer]")?.value);
+      if (!helpedByStudentId) {
+        flash("Bitte Mitschüler:in wählen.");
+        return;
+      }
+    }
+    ck.busy = true;
+    render();
+    try {
+      await ck.ctx.api("/api/teacher/coaching", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "close_help",
+          studentId: m.studentId,
+          date: ck.data?.date || ck.live?.date,
+          logEntryId: m.entryId || null,
+          goalId: m.goalId || null
+        })
+      });
+      await post("/api/teacher/cockpit/help-attribution", {
+        classId: ck.classId,
+        studentId: m.studentId,
+        date: ck.data?.date || ck.live?.date,
+        helpedByKind: kind,
+        helpedByStudentId
+      });
+      ck.helpModal = null;
+      flash("Hilfe abgeschlossen.");
+      await load(false);
+      if (ck.ctx?.setView) {
+        /* Live-Spuren neu laden über parent */
+      }
+    } catch (err) {
+      flash(err.message || "Hilfe speichern fehlgeschlagen.");
+    } finally {
+      ck.busy = false;
+      render();
+    }
+  }
+
   function onClick(event) {
     if (!ck.active) return;
     const t = event.target;
+    const coachClose = t.closest('[data-coach="close_help"]');
+    if (coachClose && !ck.beamer) {
+      event.preventDefault();
+      event.stopPropagation();
+      const studentId = Number(coachClose.getAttribute("data-student"));
+      const st = (ck.data?.students || []).find((s) => Number(s.id) === studentId);
+      ck.helpModal = {
+        studentId,
+        studentName: st?.shortName || st?.name || "",
+        entryId: coachClose.getAttribute("data-entry") || "",
+        goalId: coachClose.getAttribute("data-goal") || ""
+      };
+      render();
+      return;
+    }
+    const helpKind = t.closest("[data-ck-help-kind]");
+    if (helpKind) {
+      finishHelpWithKind(helpKind.getAttribute("data-ck-help-kind"));
+      return;
+    }
+    if (t.closest("[data-ck-help-cancel]")) {
+      ck.helpModal = null;
+      render();
+      return;
+    }
+    const crewsBtn = t.closest("[data-ck-crews]");
+    if (crewsBtn) {
+      crewsAction(crewsBtn.getAttribute("data-ck-crews"));
+      return;
+    }
+    const crewSave = t.closest("[data-ck-crew-save]");
+    if (crewSave) {
+      saveCrewMeta(crewSave.getAttribute("data-ck-crew-save"));
+      return;
+    }
+    const sq = t.closest("[data-ck-sq]");
+    if (sq) {
+      const kind = sq.getAttribute("data-ck-sq");
+      if (kind === "set") {
+        ck.sqRepick = false;
+        setSideQuest(sq.getAttribute("data-id"));
+      } else if (kind === "pick") {
+        ck.sqRepick = true;
+        render();
+      } else if (kind === "cancel-pick") {
+        ck.sqRepick = false;
+        render();
+      }
+      return;
+    }
     const view = t.closest("[data-ck-view]");
     if (view) {
       ck.view = view.getAttribute("data-ck-view");
@@ -1619,14 +2236,36 @@
     if (t.closest("[data-ck-beamer]")) {
       ck.beamer = !ck.beamer;
       ck.drawerId = null;
+      if (!ck.beamer) ck.beamerPaused = false;
       restartTimer();
       if (ck.beamer && !document.hidden) load(true);
       else render();
       return;
     }
-    if (t.closest("[data-ck-podiums]")) {
-      ck.showPodiums = !ck.showPodiums;
+    if (t.closest("[data-ck-fullscreen]")) {
+      toggleFullscreen();
+      return;
+    }
+    if (t.closest("[data-ck-names]")) {
+      ck.showNamesOnBeamer = !namesOnBeamer();
       render();
+      return;
+    }
+    if (t.closest("[data-ck-pause]")) {
+      ck.beamerPaused = !ck.beamerPaused;
+      armViewTimer();
+      render();
+      return;
+    }
+    const viewSet = t.closest("[data-ck-view-set]");
+    if (viewSet) {
+      ck.beamerView = viewSet.getAttribute("data-ck-view-set") || "A";
+      armViewTimer();
+      render();
+      return;
+    }
+    if (t.closest("[data-ck-boss-win]")) {
+      grantBossWin();
       return;
     }
     const tier = t.closest("[data-ck-tier]");
@@ -1677,7 +2316,14 @@
   }
 
   function onFormInput(event) {
-    if (!ck.active || !ck.form) return;
+    if (!ck.active) return;
+    const swap = event.target.getAttribute?.("data-ck-crew-swap");
+    if (swap && event.target.tagName === "SELECT") {
+      swapIntoCrew(swap, event.target.value);
+      event.target.value = "";
+      return;
+    }
+    if (!ck.form) return;
     const field = event.target.getAttribute?.("data-ck-form");
     if (!field) return;
     if (field === "goal") {
@@ -1689,7 +2335,13 @@
         .filter((id) => set.has(id));
     } else if (field === "tier") ck.form.tier = event.target.value;
     else if (field === "due") ck.form.dueDate = event.target.value;
-    else if (field === "title") {
+    else if (field === "lootXp") {
+      ck.form.lootXp = event.target.value;
+      return;
+    } else if (field === "lootText") {
+      ck.form.lootText = event.target.value;
+      return;
+    } else if (field === "title") {
       ck.form.title = event.target.value;
       return;
     }
@@ -1698,9 +2350,23 @@
   }
 
   function onKey(event) {
-    if (ck.active && event.key === "Escape" && ck.drawerId != null) {
+    if (!ck.active) return;
+    if (event.key === "Escape" && ck.drawerId != null) {
       ck.drawerId = null;
       render();
+      return;
+    }
+    if (!ck.beamer) return;
+    if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+      const i = BEAMER_VIEWS.indexOf(ck.beamerView);
+      const next =
+        event.key === "ArrowRight"
+          ? BEAMER_VIEWS[(i + 1) % BEAMER_VIEWS.length]
+          : BEAMER_VIEWS[(i - 1 + BEAMER_VIEWS.length) % BEAMER_VIEWS.length];
+      ck.beamerView = next;
+      armViewTimer();
+      render();
+      event.preventDefault();
     }
   }
 
@@ -1743,6 +2409,9 @@
       ck.data = null;
       ck.drawerId = null;
       ck.form = null;
+      ck.forceBossWin = false;
+      ck.bossConfetti = false;
+      ck.showNamesOnBeamer = null;
     }
     const key = `${ctx.classId}|${ctx.levelCheckId || ""}`;
     const inFlight = ck.loading && ck.loadingKey === key;
@@ -1750,6 +2419,8 @@
       if (unitChanged) {
         ck.drawerId = null;
         ck.form = null;
+        ck.forceBossWin = false;
+        ck.bossConfetti = false;
       }
       ck.loadingKey = key;
       load(false);
