@@ -1,0 +1,26 @@
+[
+  {
+    "n": 1,
+    "name": "Satz des Pythagoras",
+    "wz": "py-01",
+    "url": "pythagoras/satz-des-pythagoras/"
+  },
+  {
+    "n": 2,
+    "name": "Hypotenuse und Kathete",
+    "wz": "py-02",
+    "url": "pythagoras/hypotenuse-und-kathete/"
+  },
+  {
+    "n": 3,
+    "name": "Pythagoras in Flächen",
+    "wz": "py-03",
+    "url": "pythagoras/pythagoras-in-flaechen/"
+  },
+  {
+    "n": 4,
+    "name": "Pythagoras in Körpern",
+    "wz": "py-04",
+    "url": "pythagoras/pythagoras-in-koerpern/"
+  }
+]

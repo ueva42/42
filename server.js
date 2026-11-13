@@ -75,6 +75,7 @@ import { migrateCoachTables, registerCoachRoutes } from "./lib/coach-api.js";
 import {
   applyTrigPracticeLinks,
   assignPotenzenGoalIds,
+  assignPythagorasGoalIds,
   assignQuadratischeGoalIds,
   assignTrainingGoalIds,
   assignTrigonometrieGoalIds,
@@ -12938,17 +12939,18 @@ app.patch(
   }
 );
 
-/** Bekannte Trainings-IDs (qg-01, pw-01, …) jetzt für alle passenden Unterthemen setzen. */
+/** Bekannte Trainings-IDs (qg-01, pw-01, py-01, …) jetzt für alle passenden Unterthemen setzen. */
 app.post("/api/teacher/training-wz/sync", isTeacher, async (req, res) => {
   try {
     await assignTrainingGoalIds(pool);
     await assignPotenzenGoalIds(pool);
     await assignQuadratischeGoalIds(pool);
     await assignTrigonometrieGoalIds(pool);
+    await assignPythagorasGoalIds(pool);
     res.json({
       success: true,
       message:
-        "Trainings-IDs aktualisiert (Funktionen, Potenzen, Quadratische Gleichungen, Trigonometrie)."
+        "Trainings-IDs aktualisiert (Funktionen, Potenzen, Quadratische Gleichungen, Trigonometrie, Pythagoras)."
     });
   } catch (err) {
     console.error("❌ POST /api/teacher/training-wz/sync:", err);

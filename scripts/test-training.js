@@ -17,6 +17,11 @@ import {
   POTENZEN_GOAL_ASSIGNMENTS,
   POTENZEN_LEVEL_TEXTS,
   POTENZEN_THEMA,
+  PY_ASSIGN_TOPIC,
+  PY_CITY,
+  PY_GOAL_ASSIGNMENTS,
+  PY_LEVEL_TEXTS,
+  PY_THEMA,
   QG_ASSIGN_TOPIC,
   QG_CITY,
   QG_GOAL_ASSIGNMENTS,
@@ -60,6 +65,8 @@ import {
   assignPotenzenGoalIds,
   assignPotenzenLevelTexts,
   applyTrigPracticeLinks,
+  assignPythagorasGoalIds,
+  assignPythagorasLevelTexts,
   assignQuadratischeGoalIds,
   assignQuadratischeLevelTexts,
   assignTrainingGoalIds,
@@ -76,6 +83,7 @@ const TOKEN = "aaaaaaaaaaaaaaaa";
 const POT = "eeeeeeeeeeeeeeee";
 const QG = "ffffffffffffffff";
 const TRIG = "gggggggggggggggg";
+const PY = "hhhhhhhhhhhhhhhh";
 const REVOKED = "bbbbbbbbbbbbbbbb";
 const RATE = "cccccccccccccccc";
 const UNKNOWN = "dddddddddddddddd";
@@ -199,10 +207,45 @@ assert.equal(wzForThema("trigonometrie").has("fkt-01"), false);
 assert.equal(wzForThema("trigonometrie").has("pw-01"), false);
 assert.equal(wzForThema("trigonometrie").has("qg-01"), false);
 assert.equal(wzForThema("trigonometrie").has("fkt-26"), false);
+assert.equal(wzForThema("trigonometrie").has("py-01"), false);
 for (const wz of wzForThema("trigonometrie")) {
   assert.equal(wzForThema("funktionen").has(wz), false);
   assert.equal(wzForThema("potenzen").has(wz), false);
   assert.equal(wzForThema("quadratische-gleichungen").has(wz), false);
+}
+
+const pythagoras = loadHalte("pythagoras");
+const pyErwartet = [
+  [1, "py-01", "Satz des Pythagoras", "pythagoras/satz-des-pythagoras/"],
+  [2, "py-02", "Hypotenuse und Kathete", "pythagoras/hypotenuse-und-kathete/"],
+  [3, "py-03", "Pythagoras in Flächen", "pythagoras/pythagoras-in-flaechen/"],
+  [4, "py-04", "Pythagoras in Körpern", "pythagoras/pythagoras-in-koerpern/"]
+];
+assert.equal(pythagoras.length, 4);
+assert.deepEqual(
+  pythagoras.map((item) => [item.n, item.wz, item.name, item.url]),
+  pyErwartet
+);
+assert.equal(pythagoras.some((item) => /startklar/i.test(item.name)), false);
+assert.equal(
+  pythagoras.some((item) => String(item.url).includes("pythagoras/pythagoras/pythagoras")),
+  false
+);
+assert.equal(wzForThema("pythagoras").size, 4);
+assert.equal(PY_THEMA, "pythagoras");
+assert.equal(wzForThema("funktionen").has("py-01"), false);
+assert.equal(wzForThema("potenzen").has("py-01"), false);
+assert.equal(wzForThema("quadratische-gleichungen").has("py-01"), false);
+assert.equal(wzForThema("trigonometrie").has("py-01"), false);
+assert.equal(wzForThema("pythagoras").has("fkt-01"), false);
+assert.equal(wzForThema("pythagoras").has("pw-01"), false);
+assert.equal(wzForThema("pythagoras").has("qg-01"), false);
+assert.equal(wzForThema("pythagoras").has("trig-01"), false);
+for (const wz of wzForThema("pythagoras")) {
+  assert.equal(wzForThema("funktionen").has(wz), false);
+  assert.equal(wzForThema("potenzen").has(wz), false);
+  assert.equal(wzForThema("quadratische-gleichungen").has(wz), false);
+  assert.equal(wzForThema("trigonometrie").has(wz), false);
 }
 assert.equal(
   normalizeDashGoalName("Einheitskreis \u2013 nur Sinus"),
@@ -440,6 +483,31 @@ for (const [wz, name] of POTENZEN_GOAL_ASSIGNMENTS) {
   assert.match(halt.url, /^potenzen\/[a-z0-9-]+\/$/);
   assert.equal(haltForStoredWz(potenzen, wz).url, halt.url);
 }
+assert.equal(PY_GOAL_ASSIGNMENTS.length, 4);
+const pyWz = PY_GOAL_ASSIGNMENTS.map(([wz]) => wz);
+const pyNames = PY_GOAL_ASSIGNMENTS.map(([, name]) => normalizeGoalName(name));
+assert.equal(new Set(pyWz).size, pyWz.length);
+assert.equal(new Set(pyNames).size, pyNames.length);
+assert.deepEqual(pyWz, ["py-01", "py-02", "py-03", "py-04"]);
+assert.equal(pyWz.includes("fkt-01"), false);
+assert.equal(assignWz.includes("py-01"), false);
+assert.equal(pyNames.includes(normalizeGoalName("startklar – Quadrieren und Wurzeln")), false);
+for (const [wz, name] of PY_GOAL_ASSIGNMENTS) {
+  const halt = pythagoras.find((item) => item.wz === wz);
+  assert.equal(halt.name, name);
+  assert.match(halt.url, /^pythagoras\/[a-z0-9-]+\/$/);
+  assert.equal(haltForStoredWz(pythagoras, wz).url, halt.url);
+}
+assert.equal(trainingWzForTopicGoal("Satz des Pythagoras", "Satz des Pythagoras"), "py-01");
+assert.equal(trainingWzForTopicGoal("Satz des Pythagoras", "Hypotenuse und Kathete"), "py-02");
+assert.equal(trainingWzForTopicGoal("Satz des Pythagoras", "Pythagoras in Flächen"), "py-03");
+assert.equal(trainingWzForTopicGoal("Satz des Pythagoras", "Pythagoras in Körpern"), "py-04");
+assert.equal(
+  trainingWzForTopicGoal("Satz des Pythagoras", "startklar – Quadrieren und Wurzeln"),
+  null
+);
+assert.equal(trainingWzForTopicGoal("Satz des Pythagoras", "Unbekannt"), null);
+assert.equal(trainingWzForTopicGoal("Pythagoras", "Satz des Pythagoras"), null);
 assert.equal(haltForStoredWz(halte, "Geraden zeichnen"), null);
 assert.equal(haltForStoredWz(halte, ""), null);
 assert.equal(haltForStoredWz(potenzen, "Potenzen"), null);
@@ -475,6 +543,11 @@ assert.equal(isCityMapTopic("Trigonometrie in der Ebene"), false);
 assert.equal(isCityMapTopic("Einheitskreis"), false);
 assert.equal(isCityMapTopic("Einheitskreis \u2013 nur Sinus"), false);
 assert.equal(isCityMapTopic("Einheitskreis - nur Sinus"), false);
+assert.equal(isCityMapTopic("Satz des Pythagoras"), true);
+assert.equal(isCityMapTopic("  SATZ   des   Pythagoras "), true);
+assert.equal(isCityMapTopic("Pythagoras"), false);
+assert.equal(isCityMapTopic("Satz des Pythagoras Plus"), false);
+assert.equal(isCityMapTopic("Hypotenuse und Kathete"), false);
 const city = cityUrl(TOKEN, "1,5");
 assert.equal(
   city,
@@ -531,6 +604,33 @@ assert.equal(cityMapLabel(QG_THEMA), "Stadtkarte öffnen");
 assert.equal(cityMapLabel(POTENZEN_THEMA), "Trainingscenter öffnen");
 assert.equal(cityMapLabel("funktionen"), "Stadtkarte öffnen");
 assert.equal(cityMapLabel(TRIG_THEMA), "Stadtkarte öffnen");
+assert.equal(cityMapLabel(PY_THEMA), "Stadtkarte öffnen");
+const cityPy = cityUrl(TOKEN, "3", undefined, PY_CITY);
+assert.equal(
+  cityPy,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=3&k=9&d=pythagoras`
+);
+assert.equal(cityPy.includes("h="), false);
+assert.equal(cityPy.includes("d=funktionen"), false);
+assert.equal(cityPy.includes("d=potenzen"), false);
+assert.equal(cityPy.includes("k=10"), false);
+const cityPyHalt = cityUrl(TOKEN, "3", 1, PY_CITY);
+assert.equal(
+  cityPyHalt,
+  `https://trainingscenter.streetsoflogic.de/?t=${TOKEN}&note=3&k=9&d=pythagoras&h=1`
+);
+assert.equal(cityUrl(TOKEN, "3", 4, PY_CITY).endsWith("&h=4"), true);
+const pyStation = stationUrl(haltForStoredWz(pythagoras, "py-01").url, TOKEN, "3");
+assert.equal(
+  pyStation,
+  `https://trainingscenter.streetsoflogic.de/pythagoras/satz-des-pythagoras/?t=${TOKEN}&note=3`
+);
+assert.equal(
+  stationUrl(haltForStoredWz(pythagoras, "py-04").url, TOKEN, "2"),
+  `https://trainingscenter.streetsoflogic.de/pythagoras/pythagoras-in-koerpern/?t=${TOKEN}&note=2`
+);
+assert.equal(stationUrl("pythagoras/pythagoras/satz-des-pythagoras/", TOKEN, "3"), null);
+assert.equal(stationUrl("pythagoras/satz-des-pythagoras/extra/", TOKEN, "3"), null);
 const cityTrig = cityUrl(TOKEN, "3", undefined, TRIG_CITY);
 assert.equal(
   cityTrig,
@@ -630,6 +730,19 @@ assert.equal(
   validatePayload(body({ wz: "fkt-01" }), { allowedWz: wzForThema("potenzen") }).ok,
   false
 );
+assert.equal(
+  validatePayload(body({ wz: "py-01" }), { allowedWz: wzForThema("pythagoras") }).ok,
+  true
+);
+assert.equal(
+  validatePayload(body({ wz: "py-04" }), { allowedWz: wzForThema("pythagoras") }).ok,
+  true
+);
+assert.equal(
+  validatePayload(body({ wz: "pw-01" }), { allowedWz: wzForThema("pythagoras") }).ok,
+  false
+);
+assert.equal(validatePayload(body({ wz: "py-01" })).ok, false);
 assert.equal(validatePayload(body({ wz: "fkt-25" })).ok, true);
 assert.equal(validatePayload(body({ wz: "fkt-26" })).ok, true);
 
@@ -1052,6 +1165,91 @@ assert.deepEqual(trigOhneNote.get("t1"), {
   beschriftung: "Stadtkarte öffnen"
 });
 
+const pyThemaGelesen = [];
+const pyMaps = await cityMapsForGoals(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      if (q.includes("FROM level_check_goals")) {
+        return {
+          rows: [
+            {
+              id: "py1",
+              training_wz: "py-01",
+              level_check_id: "lc-py",
+              name: "Satz des Pythagoras"
+            },
+            {
+              id: "py-start",
+              training_wz: null,
+              level_check_id: "lc-py",
+              name: "Satz des Pythagoras"
+            },
+            {
+              id: "py-fkt",
+              training_wz: "fkt-01",
+              level_check_id: "lc-py",
+              name: "Satz des Pythagoras"
+            }
+          ].filter((row) => new Set(params[0]).has(row.id))
+        };
+      }
+      if (q.startsWith("SELECT token")) {
+        pyThemaGelesen.push(params[1]);
+        assert.equal(params[1], "pythagoras");
+        return { rows: [{ token: PY }] };
+      }
+      if (q.startsWith("SELECT target_grade_key")) {
+        if (params[1] === "lc-py") return { rows: [{ target_grade_key: "3", target_grade: null }] };
+        return { rows: [] };
+      }
+      if (q.startsWith("INSERT INTO training_tokens")) {
+        throw new Error("vorhandene Pythagoras-Kennung soll wiederverwendet werden");
+      }
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  ["py1", "py-start", "py-fkt"]
+);
+assert.deepEqual(pyThemaGelesen, ["pythagoras"]);
+assert.equal(pyMaps.get("py1").url, cityPyHalt.replaceAll(TOKEN, PY));
+assert.equal(pyMaps.get("py1").beschriftung, "Stadtkarte öffnen");
+assert.equal(pyMaps.get("py1").url.includes("k=9"), true);
+assert.equal(pyMaps.get("py1").url.includes("d=pythagoras"), true);
+assert.equal(pyMaps.get("py1").url.endsWith("&h=1"), true);
+assert.equal(pyMaps.has("py-start"), false);
+assert.equal(pyMaps.has("py-fkt"), false);
+
+const pyOhneNote = await cityMapsForGoals(
+  {
+    async query(sql, params = []) {
+      const q = sql.replace(/\s+/g, " ").trim();
+      if (q.includes("FROM level_check_goals")) {
+        return {
+          rows: [
+            {
+              id: "py1",
+              training_wz: "py-01",
+              level_check_id: "lc-py",
+              name: "Satz des Pythagoras"
+            }
+          ]
+        };
+      }
+      if (q.startsWith("SELECT token")) return { rows: [{ token: PY }] };
+      if (q.startsWith("SELECT target_grade_key")) return { rows: [] };
+      throw new Error(`unerwartetes SQL: ${q}`);
+    }
+  },
+  7,
+  ["py1"]
+);
+assert.deepEqual(pyOhneNote.get("py1"), {
+  url: null,
+  beschriftung: "Stadtkarte öffnen"
+});
+
 async function captureAssign(run) {
   const calls = [];
   await run({
@@ -1247,6 +1445,52 @@ assert.deepEqual(
 assert.match(trigPractice[0].sql, /forschendphaenomenal/);
 assert.match(trigPractice[0].sql, /practice_url = \$2/);
 assert.doesNotMatch(trigPractice[0].sql, /trainingscenter/);
+
+assert.equal(PY_GOAL_ASSIGNMENTS.length, 4);
+assert.equal(PY_ASSIGN_TOPIC, "satz des pythagoras");
+const pyAssign = await captureAssign(assignPythagorasGoalIds);
+assert.equal(pyAssign.length, 1);
+assert.equal(pyAssign[0].params[0], PY_ASSIGN_TOPIC);
+for (const wz of ["py-01", "py-02", "py-03", "py-04"]) {
+  assert.equal(pyAssign[0].params.includes(wz), true);
+}
+assert.equal(pyAssign[0].params.includes("satz des pythagoras"), true);
+assert.equal(pyAssign[0].params.includes("hypotenuse und kathete"), true);
+assert.equal(pyAssign[0].params.includes("pythagoras in flächen"), true);
+assert.equal(pyAssign[0].params.includes("pythagoras in körpern"), true);
+assert.equal(pyAssign[0].params.includes(normalizeGoalName("startklar – Quadrieren und Wurzeln")), false);
+assert.equal(pyAssign[0].params.includes("fkt-01"), false);
+assert.equal(pyAssign[0].params.includes("pw-01"), false);
+assert.equal(pyAssign[0].params.includes("qg-01"), false);
+assert.equal(pyAssign[0].params.includes("trig-01"), false);
+assert.match(pyAssign[0].sql, /SET training_wz = m\.wz/);
+assert.doesNotMatch(pyAssign[0].sql, /training_wz IS NULL/);
+for (const [wz, name] of PY_GOAL_ASSIGNMENTS) {
+  const halt = pythagoras.find((item) => item.wz === wz);
+  assert.equal(halt.name, name);
+  assert.match(halt.url, /^pythagoras\/[a-z0-9-]+\/$/);
+}
+
+assert.equal(PY_LEVEL_TEXTS.length, 1);
+assert.equal(PY_LEVEL_TEXTS[0].name, "Pythagoras in Körpern");
+assert.equal(PY_LEVEL_TEXTS[0].rookie, undefined);
+assert.equal(PY_LEVEL_TEXTS[0].operator, undefined);
+assert.equal(
+  PY_LEVEL_TEXTS[0].streetLegend,
+  "Ich übertrage Streckenzüge auf das Netz, berechne Flächeninhalte in Körpern und begründe meine Ergebnisse in Sachaufgaben."
+);
+const pyText = await captureAssign(assignPythagorasLevelTexts);
+assert.equal(pyText.length, 1);
+assert.equal(pyText[0].params[0], PY_ASSIGN_TOPIC);
+assert.equal(pyText[0].params.includes("pythagoras in körpern"), true);
+assert.equal(pyText[0].params.includes(PY_LEVEL_TEXTS[0].streetLegend), true);
+assert.equal(pyText[0].params.includes("hypotenuse und kathete"), false);
+assert.equal(pyText[0].params.includes("pythagoras in flächen"), false);
+assert.match(pyText[0].sql, /street_legend_goal_text = m\.street_legend_text/);
+assert.doesNotMatch(pyText[0].sql, /rookie_goal_text/);
+assert.doesNotMatch(pyText[0].sql, /operator_goal_text/);
+assert.doesNotMatch(pyText[0].sql, /training_wz/);
+assert.doesNotMatch(pyText[0].sql, /level_check_marks/);
 assert.doesNotMatch(trigPractice[0].sql, /training_wz/);
 assert.doesNotMatch(trigPractice[0].sql, /level_check_marks/);
 
@@ -1476,6 +1720,7 @@ function memoryPool() {
         if (params[1] === "lc-qg") return { rows: [{ target_grade_key: "2", target_grade: null }] };
         if (params[1] === "lc-bin") return { rows: [{ target_grade_key: "5", target_grade: null }] };
         if (params[1] === "lc-trig") return { rows: [{ target_grade_key: "3", target_grade: null }] };
+        if (params[1] === "lc-py") return { rows: [{ target_grade_key: "3", target_grade: null }] };
         if (params[1] === "lc-lin") return { rows: [{ target_grade_key: "4", target_grade: null }] };
         return { rows: [] };
       }
@@ -2402,6 +2647,210 @@ try {
 
   extraChecks.length = 0;
   db.results = db.results.filter((item) => item.wz !== "trig-99");
+
+  db.tokens.push({
+    token: PY,
+    student_id: 7,
+    thema: "pythagoras",
+    revoked_at: null
+  });
+  const kennungenVorPy = db.tokens
+    .filter((item) => item.thema !== "pythagoras")
+    .map((item) => `${item.token}:${item.thema}:${item.revoked_at || ""}`)
+    .sort();
+  extraChecks.push({
+    id: "lc-py",
+    name: "Satz des Pythagoras",
+    subject: "Mathematik",
+    goals: [
+      {
+        id: "py1",
+        text: "Satz des Pythagoras",
+        trainingWz: "py-01",
+        mark: { tiers: { rookie: { status: "sicher" } } }
+      },
+      { id: "py2", text: "Hypotenuse und Kathete", trainingWz: "py-02" },
+      { id: "py3", text: "Pythagoras in Flächen", trainingWz: "py-03" },
+      { id: "py4", text: "Pythagoras in Körpern", trainingWz: "py-04" },
+      { id: "py-start", text: "startklar – Quadrieren und Wurzeln" }
+    ]
+  });
+
+  function pyBody(extra = {}) {
+    return body({
+      token: PY,
+      wz: "py-01",
+      thema: "pythagoras",
+      levels: levels(
+        { solved: 6, first: 4, safe: true },
+        { solved: 6, first: 2, safe: true },
+        { solved: 0, first: 0, safe: false }
+      ),
+      kontrolle: true,
+      problem: true,
+      ichKann: { rookie: "sicher", operator: "sicher", streetLegend: null },
+      ...extra
+    });
+  }
+
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body({ wz: "py-01" }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(pyBody({ wz: "fkt-01", thema: undefined }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(pyBody({ thema: "funktionen" }))
+  })).status, 400);
+  assert.equal((await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(pyBody({ wz: "py-99" }))
+  })).status, 400);
+  assert.equal(db.results.some((item) => item.wz === "py-01"), false);
+  const fktVorPy = db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved;
+
+  const savedPy = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain", Origin: TRAINING_ORIGIN },
+    body: JSON.stringify(pyBody({ thema: undefined }))
+  });
+  assert.equal(savedPy.status, 200);
+  assert.equal(savedPy.headers.get("access-control-allow-origin"), TRAINING_ORIGIN);
+  const pyStored = db.results.find((item) => item.wz === "py-01");
+  assert.equal(pyStored.merged.levels.rookie.solved, 6);
+  assert.equal(pyStored.merged.levels.rookie.safe, true);
+  assert.equal(pyStored.last_raw.token, undefined);
+  assert.equal(db.results.find((item) => item.wz === "fkt-01").merged.levels.rookie.solved, fktVorPy);
+
+  const lowerPy = await call("/api/training/results", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(pyBody({
+      thema: undefined,
+      levels: levels(
+        { solved: 1, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false },
+        { solved: 0, first: 0, safe: false }
+      ),
+      kontrolle: false,
+      problem: false
+    }))
+  });
+  assert.equal(lowerPy.status, 200);
+  const pyAgain = db.results.find((item) => item.wz === "py-01");
+  assert.equal(pyAgain.merged.levels.rookie.solved, 6);
+  assert.equal(pyAgain.merged.levels.rookie.safe, true);
+  assert.equal(pyAgain.merged.levels.operator.solved, 6);
+  assert.equal(pyAgain.merged.levels.operator.safe, true);
+  assert.equal(pyAgain.merged.kontrolle, true);
+  assert.equal(pyAgain.merged.problem, true);
+
+  for (const wz of ["py-02", "py-03", "py-04"]) {
+    const savedMore = await call("/api/training/results", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(pyBody({
+        wz,
+        thema: "pythagoras",
+        levels: levels(
+          { solved: 6, first: 3, safe: true },
+          { solved: 0, first: 0, safe: false },
+          { solved: 0, first: 0, safe: false }
+        )
+      }))
+    });
+    assert.equal(savedMore.status, 200, wz);
+  }
+
+  db.results.push({
+    student_id: 7,
+    wz: "py-99",
+    merged: { wz: "py-99", levels: {}, kontrolle: false },
+    last_raw: {},
+    updated_at: new Date().toISOString()
+  });
+  const pyStatus = await call("/api/training/status?t=" + PY, {
+    headers: { Origin: TRAINING_ORIGIN }
+  });
+  assert.equal(pyStatus.status, 200);
+  assert.equal(pyStatus.json.zielnote, "3");
+  assert.notEqual(pyStatus.json.zielnote, "1,5");
+  assert.notEqual(pyStatus.json.zielnote, "2");
+  assert.deepEqual(Object.keys(pyStatus.json.halte).sort(), ["py-01", "py-02", "py-03", "py-04"]);
+  for (const key of Object.keys(pyStatus.json.halte)) assert.match(key, /^py-0[1-4]$/);
+  assert.equal(pyStatus.json.halte["fkt-01"], undefined);
+  assert.equal(pyStatus.json.halte["pw-01"], undefined);
+  assert.equal(pyStatus.json.halte["qg-01"], undefined);
+  assert.equal(pyStatus.json.halte["trig-01"], undefined);
+  assert.equal(pyStatus.json.halte["py-99"], undefined);
+  assert.deepEqual(Object.keys(pyStatus.json.halte["py-01"]).sort(), [
+    "kontrolle",
+    "operator",
+    "rookie",
+    "streetLegend"
+  ]);
+  assert.deepEqual(Object.keys(pyStatus.json.halte["py-01"].rookie).sort(), ["safe", "solved"]);
+  const pyStatusThema = await call("/api/training/status?t=" + PY + "&thema=pythagoras");
+  assert.equal(pyStatusThema.status, 200);
+  assert.equal(pyStatusThema.json.zielnote, "3");
+  assert.equal((await call("/api/training/status?t=" + PY + "&thema=funktionen")).status, 400);
+  assert.equal((await call("/api/training/status?t=" + TOKEN + "&thema=pythagoras")).status, 400);
+  assert.equal((await call("/api/training/status?t=" + POT + "&thema=pythagoras")).status, 400);
+  assert.equal((await call("/api/training/status?t=" + TRIG + "&thema=pythagoras")).status, 400);
+
+  assert.deepEqual(
+    db.tokens
+      .filter((item) => item.thema !== "pythagoras")
+      .map((item) => `${item.token}:${item.thema}:${item.revoked_at || ""}`)
+      .sort(),
+    kennungenVorPy
+  );
+  assert.equal(db.tokens.filter((item) => item.thema === "pythagoras").length, 1);
+
+  const lernstandPy = await call("/api/student/training");
+  assert.equal(lernstandPy.status, 200);
+  assert.equal(db.tokens.filter((item) => item.thema === "pythagoras").length, 1);
+  assert.equal(db.tokens.find((item) => item.thema === "potenzen").token, POT);
+  const pyTopic = lernstandPy.json.topics.find((topic) => topic.name === "Satz des Pythagoras");
+  assert.equal(pyTopic.showStadtkarte, true);
+  assert.equal(pyTopic.isFunktionen, false);
+  assert.equal(pyTopic.beschriftung, "Stadtkarte öffnen");
+  assert.equal(pyTopic.zielnote, "3");
+  assert.equal(
+    pyTopic.stadtkarte,
+    `https://trainingscenter.streetsoflogic.de/?t=${PY}&note=3&k=9&d=pythagoras`
+  );
+  assert.equal(pyTopic.stadtkarte.includes("h="), false);
+  assert.equal(
+    pyTopic.goals.find((goal) => goal.goalId === "py1").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/pythagoras/satz-des-pythagoras/?t=${PY}&note=3`
+  );
+  assert.equal(
+    pyTopic.goals.find((goal) => goal.goalId === "py2").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/pythagoras/hypotenuse-und-kathete/?t=${PY}&note=3`
+  );
+  assert.equal(
+    pyTopic.goals.find((goal) => goal.goalId === "py3").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/pythagoras/pythagoras-in-flaechen/?t=${PY}&note=3`
+  );
+  assert.equal(
+    pyTopic.goals.find((goal) => goal.goalId === "py4").trainingUrl,
+    `https://trainingscenter.streetsoflogic.de/pythagoras/pythagoras-in-koerpern/?t=${PY}&note=3`
+  );
+  assert.equal(pyTopic.goals.some((goal) => goal.goalId === "py-start"), false);
+  assert.equal(pyTopic.goals.length, 4);
+  assert.equal(pyTopic.pensum, "Operator: 1 von 4");
+  assert.equal(pyTopic.goals.some((goal) => String(goal.wz || "").startsWith("fkt-")), false);
+
+  extraChecks.length = 0;
+  db.results = db.results.filter((item) => !String(item.wz).startsWith("py-"));
 
   assert.equal((await call("/api/training/results", {
     method: "POST",
