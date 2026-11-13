@@ -3,6 +3,81 @@
  * Live-Spuren aus /api/teacher/regulation, Missionen, Training und Klassen-Spiel aus /api/teacher/cockpit.
  * Hinweise, keine Rangliste: Listen sind alphabetisch, Klassen-Mission zeigt nur Zahlen.
  */
+
+/** Shared „Wer hat geholfen?“ – Heute (teacher-app) und Cockpit. */
+window.SolHelpAttribution = (function () {
+  const KIND_BUTTONS = [
+    { id: "lehrkraft", label: "Lehrkraft" },
+    { id: "logic_coach", label: "Logic Coach" },
+    { id: "taktik_deck", label: "Taktik-Deck" },
+    { id: "niemand", label: "niemand" }
+  ];
+  const KIND_LABELS = {
+    lehrkraft: "Lehrkraft",
+    peer: "Mitschüler:in",
+    logic_coach: "Logic Coach",
+    taktik_deck: "Taktik-Deck",
+    niemand: "niemand"
+  };
+
+  function renderModal({ esc, studentName, peerOptionsHtml }) {
+    const e = typeof esc === "function" ? esc : (s) => String(s ?? "");
+    const kinds = KIND_BUTTONS.map(
+      (k) =>
+        `<button type="button" class="ck-btn ck-btn-sm" data-ck-help-kind="${e(k.id)}">${e(k.label)}</button>`
+    ).join("");
+    return `
+      <div class="ck-drawer-layer" role="dialog" aria-modal="true" aria-label="Wer hat geholfen?">
+        <button type="button" class="ck-drawer-backdrop" data-ck-help-cancel aria-label="Abbrechen"></button>
+        <aside class="ck-drawer ck-drawer--help">
+          <header class="ck-drawer-head"><div><h3>Wer hat geholfen?</h3><p class="ck-small ck-muted">${e(studentName || "")}</p></div></header>
+          <div class="ck-acts ck-help-kinds">${kinds}</div>
+          <label class="ck-form-full">Mitschüler:in
+            <select class="ck-input" data-ck-help-peer><option value="">– wählen –</option>${peerOptionsHtml || ""}</select>
+          </label>
+          <div class="ck-acts">
+            <button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-ck-help-kind="peer">Mitschüler:in speichern</button>
+            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-cancel>Abbrechen</button>
+          </div>
+        </aside>
+      </div>`;
+  }
+
+  async function closeWithAttribution(api, payload) {
+    const {
+      classId,
+      studentId,
+      date,
+      entryId,
+      goalId,
+      kind,
+      helpedByStudentId
+    } = payload || {};
+    await api("/api/teacher/coaching", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "close_help",
+        studentId,
+        date: date || null,
+        logEntryId: entryId || null,
+        goalId: goalId || null
+      })
+    });
+    await api("/api/teacher/cockpit/help-attribution", {
+      method: "POST",
+      body: JSON.stringify({
+        classId,
+        studentId,
+        date: date || null,
+        helpedByKind: kind,
+        helpedByStudentId: helpedByStudentId || null
+      })
+    });
+  }
+
+  return { KIND_BUTTONS, KIND_LABELS, renderModal, closeWithAttribution };
+})();
+
 (function () {
   /** Lehrer-Ansicht: ruhig. Beamer: season.config.pollSeconds (Fallback 30s); letzte ~12 Min der Stunde öfter. */
   const REFRESH_MS = 60000;
@@ -286,6 +361,7 @@
       ck.error = "";
       ck.updatedAt = new Date();
       syncNamesDefault();
+      if (season()?.boss?.forceWin) ck.forceBossWin = true;
       if (ck.data?.game?.raffle?.drawn) {
         const key = raffleAutoKey();
         if (key) ck.autoRaffleDoneKey = key;
@@ -419,10 +495,11 @@
     ck.busy = true;
     render();
     try {
-      await post("/api/teacher/cockpit/boss-win", { classId: ck.classId });
+      const res = await post("/api/teacher/cockpit/boss-win", { classId: ck.classId });
       ck.forceBossWin = true;
       maybeCelebrateBoss();
-      flash("Boss-Sieg freigegeben (nur lokal, Stufe 1).");
+      flash(res?.message || "Boss besiegt – Beute freigeschaltet.");
+      await load(false);
     } catch (err) {
       flash(err.message || "Boss-Sieg hat nicht geklappt.");
     } finally {
@@ -1310,11 +1387,11 @@
     const showPick = !q || ck.sqRepick;
     let body;
     if (q && !showPick) {
-      body = `<p class="ck-small"><strong>${esc(q.text)}</strong></p>
+      body = `<p class="ck-small"><strong>${esc(q.text)}</strong>${q.auto ? ` <span class="ck-tiny ck-muted">(auto)</span>` : ""}</p>
         <p class="ck-small">${q.progress} / ${q.ziel}${q.done ? " · geschafft" : ""}</p>
         <div class="ck-acts"><button type="button" class="ck-btn ck-btn-sm" data-ck-sq="pick" ${ck.busy ? "disabled" : ""}>Andere wählen</button></div>`;
     } else {
-      body = `${q ? `<p class="ck-tiny ck-muted">Aktuell: ${esc(q.text)} – neue Vorlage überschreibt.</p>` : `<p class="ck-small ck-muted">Morgens eine Vorlage wählen – Fortschritt aus Ereignissen.</p>`}
+      body = `${q ? `<p class="ck-tiny ck-muted">Aktuell: ${esc(q.text)} – neue Vorlage überschreibt.</p>` : `<p class="ck-small ck-muted">Ohne Wahl wird morgens automatisch rotiert – Fortschritt aus Ereignissen.</p>`}
         <div class="ck-acts ck-sq-list">${templates
           .map(
             (t) =>
@@ -1327,6 +1404,38 @@
       <div class="ck-panel ck-game-card">
         <h2><span>Side Quest</span><span class="td-kicker">heute</span></h2>
         ${body}
+      </div>`;
+  }
+
+  function studentLabel(id) {
+    const s = (ck.data?.students || []).find((x) => Number(x.id) === Number(id));
+    return s?.shortName || s?.name || `#${id}`;
+  }
+
+  function renderAvoidPairsBlock() {
+    const pairs = ck.crewsDraft?.avoidPairs || [];
+    const students = ck.data?.students || [];
+    const opts = students
+      .map((s) => `<option value="${esc(s.id)}">${esc(s.shortName || s.name)}</option>`)
+      .join("");
+    const list =
+      pairs.length > 0
+        ? `<ul class="ck-avoid-list">${pairs
+            .map(
+              (p) =>
+                `<li>${esc(studentLabel(p.studentA))} · ${esc(studentLabel(p.studentB))}</li>`
+            )
+            .join("")}</ul>`
+        : `<p class="ck-tiny ck-muted">Keine Paare hinterlegt.</p>`;
+    return `
+      <div class="ck-avoid">
+        <p class="ck-tiny"><strong>Nicht zusammen</strong></p>
+        ${list}
+        <div class="ck-avoid-add">
+          <select class="ck-input" data-ck-avoid-a aria-label="Schüler:in A"><option value="">– A –</option>${opts}</select>
+          <select class="ck-input" data-ck-avoid-b aria-label="Schüler:in B"><option value="">– B –</option>${opts}</select>
+          <button type="button" class="ck-btn ck-btn-sm" data-ck-crews="avoid-add" ${ck.crewsBusy ? "disabled" : ""}>Paar speichern</button>
+        </div>
       </div>`;
   }
 
@@ -1368,7 +1477,9 @@
         : `<p class="ck-small ck-muted">Noch keine Crews für diese Season.</p>`;
       body = `
         <p class="ck-tiny ck-muted">Season: ${esc(seasonKey)}${released || (list.length && list[0]?.released) ? " · freigegeben" : hasDraft ? " · Entwurf" : ""}</p>
+        ${ck.crewDrawShow ? renderCrewDrawShow() : ""}
         ${rows}
+        ${renderAvoidPairsBlock()}
         <div class="ck-acts">
           <button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-ck-crews="draw" ${ck.crewsBusy ? "disabled" : ""}>Auslosen</button>
           <button type="button" class="ck-btn ck-btn-hot ck-btn-sm" data-ck-crews="release" ${!list.length || ck.crewsBusy || list.every((c) => c.released) ? "disabled" : ""}>Freigeben</button>
@@ -1384,31 +1495,16 @@
 
   function renderHelpModal() {
     const m = ck.helpModal;
-    if (!m) return "";
+    if (!m || !window.SolHelpAttribution) return "";
     const peers = (ck.data?.students || [])
       .filter((s) => Number(s.id) !== Number(m.studentId))
       .map((s) => `<option value="${esc(s.id)}">${esc(s.shortName || s.name)}</option>`)
       .join("");
-    return `
-      <div class="ck-drawer-layer" role="dialog" aria-modal="true" aria-label="Wer hat geholfen?">
-        <button type="button" class="ck-drawer-backdrop" data-ck-help-cancel aria-label="Abbrechen"></button>
-        <aside class="ck-drawer ck-drawer--help">
-          <header class="ck-drawer-head"><div><h3>Wer hat geholfen?</h3><p class="ck-small ck-muted">${esc(m.studentName || "")}</p></div></header>
-          <div class="ck-acts ck-help-kinds">
-            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-kind="lehrkraft">Lehrkraft</button>
-            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-kind="logic_coach">Logic Coach</button>
-            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-kind="taktik_deck">Taktik-Deck</button>
-            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-kind="niemand">niemand</button>
-          </div>
-          <label class="ck-form-full">Mitschüler:in
-            <select class="ck-input" data-ck-help-peer><option value="">– wählen –</option>${peers}</select>
-          </label>
-          <div class="ck-acts">
-            <button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-ck-help-kind="peer">Mitschüler:in speichern</button>
-            <button type="button" class="ck-btn ck-btn-sm" data-ck-help-cancel>Abbrechen</button>
-          </div>
-        </aside>
-      </div>`;
+    return window.SolHelpAttribution.renderModal({
+      esc,
+      studentName: m.studentName || "",
+      peerOptionsHtml: peers
+    });
   }
 
   function renderGame() {
@@ -1656,10 +1752,25 @@
 
   function renderCrewDrawShow() {
     const show = ck.crewDrawShow;
-    if (!show?.names?.length) return "";
-    return `<div class="ck-slot-show" aria-hidden="true">${show.names
-      .map((n, i) => `<span class="ck-slot-name" style="animation-delay:${i * 0.12}s">${esc(n)}</span>`)
-      .join("")}</div>`;
+    if (!show?.crews?.length) return "";
+    const step = Number(show.step) || 0.35;
+    let delay = 0;
+    const buckets = show.crews
+      .map((c) => {
+        const chips = (c.members || [])
+          .map((n) => {
+            const d = delay;
+            delay += step;
+            return `<span class="ck-draw-chip" style="animation-delay:${d.toFixed(2)}s">${esc(n)}</span>`;
+          })
+          .join("");
+        return `<div class="ck-draw-bucket" style="--ck-crew:${esc(c.color || "#22d3ee")}">
+          <strong>${esc(c.name || "Crew")}</strong>
+          <div class="ck-draw-bucket__slots">${chips}</div>
+        </div>`;
+      })
+      .join("");
+    return `<div class="ck-draw-show" aria-hidden="true">${buckets}</div>`;
   }
 
   function renderBeamerViewB() {
@@ -2030,6 +2141,32 @@
       render();
       return;
     }
+    if (kind === "avoid-add") {
+      const a = Number(ck.el.querySelector("[data-ck-avoid-a]")?.value);
+      const b = Number(ck.el.querySelector("[data-ck-avoid-b]")?.value);
+      if (!a || !b || a === b) {
+        flash("Zwei verschiedene Schüler:innen wählen.");
+        return;
+      }
+      ck.crewsBusy = true;
+      render();
+      try {
+        const res = await post("/api/teacher/cockpit/crews/avoid", {
+          classId: ck.classId,
+          studentA: a,
+          studentB: b
+        });
+        if (ck.crewsDraft) ck.crewsDraft.avoidPairs = res.avoidPairs || [];
+        else await loadCrewsDraft();
+        flash(res.message || "Paar gespeichert.");
+      } catch (err) {
+        flash(err.message || "Paar speichern fehlgeschlagen.");
+      } finally {
+        ck.crewsBusy = false;
+        render();
+      }
+      return;
+    }
     if (kind === "draw") {
       ck.crewsBusy = true;
       render();
@@ -2038,15 +2175,24 @@
           classId: ck.classId,
           seasonKey
         });
-        ck.crewsDraft = { crews: res.crews, seasonKey };
-        const names = (res.crews || []).flatMap((c) =>
-          (c.members || []).map((m) => m.shortName || m.name)
-        );
-        ck.crewDrawShow = { names: names.slice(0, 12) };
+        ck.crewsDraft = {
+          crews: res.crews,
+          seasonKey,
+          avoidPairs: ck.crewsDraft?.avoidPairs || []
+        };
+        const drawCrews = (res.crews || []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          color: c.color,
+          members: (c.members || []).map((m) => m.shortName || m.name)
+        }));
+        const total = drawCrews.reduce((n, c) => n + (c.members?.length || 0), 0);
+        const step = total > 0 ? Math.min(0.45, 5.2 / total) : 0.35;
+        ck.crewDrawShow = { crews: drawCrews, step };
         setTimeout(() => {
           ck.crewDrawShow = null;
           render();
-        }, 4000);
+        }, 6000);
         flash(res.message || "Ausgelost.");
         await load(false);
       } catch (err) {
@@ -2066,7 +2212,11 @@
           classId: ck.classId,
           seasonKey
         });
-        ck.crewsDraft = { crews: res.crews, seasonKey };
+        ck.crewsDraft = {
+          crews: res.crews,
+          seasonKey,
+          avoidPairs: ck.crewsDraft?.avoidPairs || []
+        };
         flash(res.message || "Freigegeben.");
         await load(false);
       } catch (err) {
@@ -2131,7 +2281,7 @@
 
   async function finishHelpWithKind(kind) {
     const m = ck.helpModal;
-    if (!m) return;
+    if (!m || !window.SolHelpAttribution) return;
     let helpedByStudentId = null;
     if (kind === "peer") {
       helpedByStudentId = Number(ck.el.querySelector("[data-ck-help-peer]")?.value);
@@ -2143,29 +2293,18 @@
     ck.busy = true;
     render();
     try {
-      await ck.ctx.api("/api/teacher/coaching", {
-        method: "POST",
-        body: JSON.stringify({
-          action: "close_help",
-          studentId: m.studentId,
-          date: ck.data?.date || ck.live?.date,
-          logEntryId: m.entryId || null,
-          goalId: m.goalId || null
-        })
-      });
-      await post("/api/teacher/cockpit/help-attribution", {
+      await window.SolHelpAttribution.closeWithAttribution(ck.ctx.api, {
         classId: ck.classId,
         studentId: m.studentId,
         date: ck.data?.date || ck.live?.date,
-        helpedByKind: kind,
+        entryId: m.entryId || null,
+        goalId: m.goalId || null,
+        kind,
         helpedByStudentId
       });
       ck.helpModal = null;
       flash("Hilfe abgeschlossen.");
       await load(false);
-      if (ck.ctx?.setView) {
-        /* Live-Spuren neu laden über parent */
-      }
     } catch (err) {
       flash(err.message || "Hilfe speichern fehlgeschlagen.");
     } finally {
@@ -2351,6 +2490,11 @@
 
   function onKey(event) {
     if (!ck.active) return;
+    if (event.key === "Escape" && ck.helpModal) {
+      ck.helpModal = null;
+      render();
+      return;
+    }
     if (event.key === "Escape" && ck.drawerId != null) {
       ck.drawerId = null;
       render();

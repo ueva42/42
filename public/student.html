@@ -1942,6 +1942,122 @@ body.student-app .notif-panel {
   margin-top: 10px;
 }
 
+.hub-crew-card {
+  max-width: 520px;
+}
+
+.hub-crew-form {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.hub-crew-label {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #9eb6ff;
+}
+
+.hub-crew-input {
+  width: 100%;
+  max-width: 100%;
+}
+
+.hub-crew-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hub-crew-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: var(--swatch, #22d3ee);
+  cursor: pointer;
+  padding: 0;
+}
+
+.hub-crew-swatch.is-active {
+  border-color: #f8fafc;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.45);
+}
+
+.hub-crew-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.hub-crew-msg {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.hub-crew-msg.is-ok {
+  color: #6ee7b7;
+}
+
+.hub-crew-msg.is-err {
+  color: #fca5a5;
+}
+
+.hub-crew-readonly {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.hub-crew-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--swatch, #22d3ee);
+  display: inline-block;
+  margin-top: 2px;
+}
+
+.char-beamer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 14px;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.char-beamer-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #22d3ee;
+}
+
+.char-beamer-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.char-beamer-msg {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.char-beamer-msg.is-ok {
+  color: #6ee7b7;
+}
+
+.char-beamer-msg.is-err {
+  color: #fca5a5;
+}
+
 .hub-grid-main {
   display: grid;
   gap: 20px;
@@ -15364,8 +15480,8 @@ button.today-city-map {
 <script src="/js/logbuch-strategies.js?v=3"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-coach.js?v=8"></script>
-<script src="/js/logbuch-hub.js?v=52"></script>
-<script src="/js/logbuch-visuals.js?v=20"></script>
+<script src="/js/logbuch-hub.js?v=53"></script>
+<script src="/js/logbuch-visuals.js?v=21"></script>
 <script src="/js/logbuch-reminders.js?v=6"></script>
 <script src="/js/logbuch-group-invites.js?v=3"></script>
 <script src="/js/logbuch-swipe.js"></script>
@@ -15664,6 +15780,7 @@ function updateStudentProfile(u, levels, character, traits, featureModules) {
     characterImage: character?.image_url || null,
     characterName: character?.name || null,
     traits: traitList,
+    beamerNameOk: u.beamerNameOk === true || u.beamer_name_ok === true,
     featureModules: featureModules && typeof featureModules === "object" ? featureModules : null,
     regelregalUrl: String(u.regelregalUrl || "").trim(),
     regelregalLabel: String(u.regelregalLabel || "").trim() || "Regelregal",
@@ -15787,7 +15904,7 @@ window.loadMe = async function loadMe() {
     window.LogbuchVisuals.renderXpDashboard(xpDiv, __latestXpLog, window.__studentProfile);
   }
 
-  if (data.character) {
+  {
     const charRoot = document.getElementById("charakter-screen-root");
     if (window.LogbuchVisuals && charRoot) {
       window.LogbuchVisuals.renderCharacterPage(charRoot, u, data, window.__studentProfile);

@@ -18,7 +18,8 @@
     loading: false,
     toast: "",
     explain: "",
-    training: null
+    training: null,
+    helpModal: null
   };
 
   const appEl = document.getElementById("app");
@@ -221,8 +222,54 @@
         <button type="button" data-heute="spuren" aria-pressed="${state.heuteMode === "spuren" ? "true" : "false"}">Spuren</button>
         <button type="button" data-heute="themen" aria-pressed="${state.heuteMode === "themen" ? "true" : "false"}">Themen</button>
       </div>`;
-    if (state.heuteMode === "themen") return `${toast()}${head}${renderTopics()}`;
-    return `${toast()}${head}${renderLanes()}`;
+    const helpModal = renderHelpModal();
+    if (state.heuteMode === "themen") return `${toast()}${head}${renderTopics()}${helpModal}`;
+    return `${toast()}${head}${renderLanes()}${helpModal}`;
+  }
+
+  function renderHelpModal() {
+    const m = state.helpModal;
+    if (!m || !window.SolHelpAttribution) return "";
+    const peers = students()
+      .filter((s) => Number(s.id) !== Number(m.studentId))
+      .map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`)
+      .join("");
+    return window.SolHelpAttribution.renderModal({
+      esc: escapeHtml,
+      studentName: m.studentName || "",
+      peerOptionsHtml: peers
+    });
+  }
+
+  async function finishHelpWithKind(kind) {
+    const m = state.helpModal;
+    if (!m || !window.SolHelpAttribution) return;
+    let helpedByStudentId = null;
+    if (kind === "peer") {
+      helpedByStudentId = Number(appEl.querySelector("[data-ck-help-peer]")?.value);
+      if (!helpedByStudentId) {
+        state.toast = "Bitte Mitschüler:in wählen.";
+        render();
+        return;
+      }
+    }
+    try {
+      await window.SolHelpAttribution.closeWithAttribution(api, {
+        classId: state.classId,
+        studentId: m.studentId,
+        date: state.view?.date,
+        entryId: m.entryId || null,
+        goalId: m.goalId || null,
+        kind,
+        helpedByStudentId
+      });
+      state.helpModal = null;
+      state.toast = "Hilfe abgeschlossen.";
+      await loadView();
+    } catch (err) {
+      state.toast = err.message || "Hilfe speichern fehlgeschlagen.";
+      render();
+    }
   }
 
   function toast() {
@@ -950,10 +997,35 @@
       render();
       return;
     }
+    const helpKind = event.target.closest("[data-ck-help-kind]");
+    if (helpKind) {
+      event.preventDefault();
+      finishHelpWithKind(helpKind.getAttribute("data-ck-help-kind")).catch(() => {});
+      return;
+    }
+    if (event.target.closest("[data-ck-help-cancel]")) {
+      event.preventDefault();
+      state.helpModal = null;
+      render();
+      return;
+    }
     const coachBtn = event.target.closest("[data-coach]");
     if (coachBtn) {
       event.preventDefault();
-      coach(coachBtn.getAttribute("data-coach"), coachBtn).catch((err) => {
+      const action = coachBtn.getAttribute("data-coach");
+      if (action === "close_help") {
+        const studentId = Number(coachBtn.getAttribute("data-student"));
+        const st = students().find((s) => Number(s.id) === studentId);
+        state.helpModal = {
+          studentId,
+          studentName: st?.name || "",
+          entryId: coachBtn.getAttribute("data-entry") || "",
+          goalId: coachBtn.getAttribute("data-goal") || ""
+        };
+        render();
+        return;
+      }
+      coach(action, coachBtn).catch((err) => {
         state.toast = err.message || "Das konnte nicht gespeichert werden.";
         render();
       });

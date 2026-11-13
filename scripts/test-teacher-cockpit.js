@@ -29,7 +29,12 @@ import {
   unitTimeline,
   wrapStatusForLevels
 } from "../lib/teacher-cockpit.js";
-import { migrateCockpitTables, registerTeacherCockpitRoutes } from "../lib/teacher-cockpit-api.js";
+import {
+  migrateCockpitTables,
+  registerTeacherCockpitRoutes,
+  dayOfYearFromIso,
+  pickSideQuestTemplate
+} from "../lib/teacher-cockpit-api.js";
 
 const TODAY = "2026-11-10";
 const goalIds = ["g1", "g2", "g3", "g4", "g5"].map((g) => `00000000-0000-4000-8000-0000000000${g.slice(1).padStart(2, "0")}`);
@@ -343,7 +348,10 @@ const db = {
   ],
   missions: [],
   draws: [],
-  awards: []
+  awards: [],
+  planned: [],
+  avoidPairs: [],
+  sideQuests: []
 };
 const awarded = [];
 let user = { id: 5, role: "teacher", school_id: 1 };
@@ -372,11 +380,29 @@ const pool = {
       }
       return { rows: [...counts].map(([user_id, n]) => ({ user_id, n })) };
     }
+    if (
+      s.includes("FROM level_check_marks") &&
+      s.includes("status = 'sicher'") &&
+      s.includes("updated_at::date")
+    ) {
+      const ids = params[0] || [];
+      const since = String(params[1]).slice(0, 10);
+      const until = String(params[2]).slice(0, 10);
+      return {
+        rows: db.marks
+          .filter((m) => {
+            if (!ids.includes(m.user_id) || m.status !== "sicher") return false;
+            const d = m.updated_at.toISOString().slice(0, 10);
+            return d >= since && d <= until;
+          })
+          .map((m) => ({ user_id: m.user_id, tier: m.tier }))
+      };
+    }
     if (s.includes("FROM level_check_marks")) {
       return { rows: db.marks.filter((m) => params[0].includes(m.user_id) && params[1].includes(m.goal_id)) };
     }
     if (s.includes("SELECT DISTINCT user_id") && s.includes("FROM log_entries")) {
-      return { rows: [{ user_id: 11 }, { user_id: 12 }] };
+      return { rows: (db.planned || []).map((user_id) => ({ user_id })) };
     }
     if (s.includes("AS finished_at") && s.includes("FROM log_entries le")) {
       return {
@@ -430,7 +456,10 @@ const pool = {
         mission_numbers: JSON.parse(params[5]),
         tier: params[6],
         due_date: params[7],
-        active: true
+        active: true,
+        loot_xp: params[9] ?? null,
+        loot_text: params[10] ?? null,
+        boss_won_at: null
       };
       db.missions.push(row);
       return { rows: [{ id: row.id }] };
@@ -441,6 +470,21 @@ const pool = {
     if (s.includes("UPDATE class_learning_missions SET active = FALSE, closed_at = COALESCE")) {
       for (const m of db.missions) if (m.id === params[0]) m.active = false;
       return { rows: [] };
+    }
+    if (s.includes("UPDATE class_learning_missions SET boss_won_at = NOW()")) {
+      const m = db.missions.find((row) => row.id === params[0] && row.active && !row.boss_won_at);
+      if (!m) return { rows: [] };
+      m.boss_won_at = new Date(`${TODAY}T12:00:00`);
+      return {
+        rows: [
+          {
+            id: m.id,
+            boss_won_at: m.boss_won_at,
+            loot_xp: m.loot_xp ?? null,
+            loot_text: m.loot_text ?? null
+          }
+        ]
+      };
     }
     if (s.includes("FROM class_raffle_draws d")) {
       const row = db.draws.find((d) => d.class_id === params[0] && d.draw_date === params[1]);
@@ -508,30 +552,78 @@ const pool = {
     if (s.includes("FROM teacher_coaching_state")) return { rows: [] };
     if (s.includes("FROM cockpit_events")) return { rows: [] };
     if (s.includes("FROM crews") || s.includes("FROM crews c")) return { rows: [] };
-    if (s.includes("FROM side_quests")) return { rows: [] };
-    if (s.includes("FROM crew_avoid_pairs")) return { rows: [] };
+    if (s.includes("FROM side_quests")) {
+      const classId = Number(params[0]);
+      const day = String(params[1] || "").slice(0, 10);
+      return {
+        rows: db.sideQuests.filter((q) => q.class_id === classId && String(q.quest_date).slice(0, 10) === day)
+      };
+    }
+    if (s.includes("FROM crew_avoid_pairs")) {
+      return {
+        rows: db.avoidPairs
+          .filter((p) => p.class_id === Number(params[0]))
+          .map((p) => ({ student_a: p.student_a, student_b: p.student_b }))
+      };
+    }
     if (s.includes("INSERT INTO cockpit_events")) return { rows: [{ id: "e1", created_at: new Date() }] };
     if (s.includes("INSERT INTO crews")) return { rows: [{ id: "crew-1" }] };
     if (s.includes("INSERT INTO crew_members")) return { rows: [] };
-    if (s.includes("INSERT INTO crew_avoid_pairs")) return { rows: [] };
+    if (s.includes("INSERT INTO crew_avoid_pairs")) {
+      const classId = Number(params[0]);
+      const a = Number(params[1]);
+      const b = Number(params[2]);
+      if (!db.avoidPairs.some((p) => p.class_id === classId && p.student_a === a && p.student_b === b)) {
+        db.avoidPairs.push({ class_id: classId, student_a: a, student_b: b });
+      }
+      return { rows: [] };
+    }
     if (s.includes("INSERT INTO side_quests")) {
-      return {
-        rows: [
-          {
-            id: "sq-1",
-            quest_date: TODAY,
-            typ: "reflexion",
-            text: "Alle reflektieren heute",
-            ziel: 3,
-            xp: 50,
-            progress: 0,
-            done: false
-          }
-        ]
+      const classId = Number(params[1]);
+      const day = String(params[2]).slice(0, 10);
+      const existing = db.sideQuests.find(
+        (q) => q.class_id === classId && String(q.quest_date).slice(0, 10) === day
+      );
+      if (existing) {
+        if (s.includes("DO UPDATE")) {
+          existing.typ = params[3];
+          existing.text = params[4];
+          existing.ziel = params[5];
+          existing.xp = params[6];
+          existing.progress = 0;
+          existing.done = false;
+          return { rows: [existing] };
+        }
+        return { rows: [] };
+      }
+      const row = {
+        id: `sq-${db.sideQuests.length + 1}`,
+        school_id: params[0],
+        class_id: classId,
+        quest_date: day,
+        typ: params[3],
+        text: params[4],
+        ziel: params[5],
+        xp: params[6],
+        progress: 0,
+        done: false
       };
+      db.sideQuests.push(row);
+      return { rows: [row] };
     }
     if (s.includes("UPDATE crews SET")) return { rows: [] };
-    if (s.includes("UPDATE side_quests SET")) return { rows: [] };
+    if (s.includes("UPDATE side_quests SET")) {
+      const q = db.sideQuests.find((row) => row.id === params[0]);
+      if (q) {
+        if (params.length >= 3 && typeof params[2] === "boolean") {
+          q.progress = params[1];
+          q.done = params[2];
+        } else {
+          q.progress = params[1];
+        }
+      }
+      return { rows: [] };
+    }
     if (s.includes("UPDATE teacher_coaching_state")) return { rows: [] };
     if (s.includes("DELETE FROM")) return { rows: [] };
     if (s.includes("CREATE TABLE") || s.includes("CREATE INDEX") || s.includes("DO $$") || s.includes("ALTER TABLE")) {
@@ -620,9 +712,10 @@ try {
   assert.ok(Array.isArray(d.season.gaps));
   assert.equal(typeof d.season.showNamesOnBeamer, "boolean");
   assert.ok(d.season.kpis && typeof d.season.kpis.classSize === "number");
+  assert.ok(d.season.sideQuest, "Side Quest wird ohne Vorlage automatisch gesetzt");
+  assert.equal(d.season.sideQuest.auto, true);
   r = await call("POST", "/api/teacher/cockpit/boss-win", { classId: 1 });
-  assert.equal(r.status, 200);
-  assert.equal(r.body.clientOnly, true);
+  assert.equal(r.status, 400, "Boss-Sieg ohne aktive Mission");
   // CHECK.subject = Mathe → Stammgruppen-Fallback (keine Mathe-work-Sessions)
   assert.equal(d.teamsInfo.source, "roster");
   assert.equal(d.teamsInfo.subject, "Mathe");
@@ -712,14 +805,33 @@ try {
     levelCheckId: "lc-1",
     goalIds: [goalIds[0]],
     tier: "operator",
-    title: "Alle Mission 1 auf Operator"
+    title: "Alle Mission 1 auf Operator",
+    lootXp: 30
   });
   assert.equal(db.missions.filter((m) => m.active).length, 1, "immer nur eine aktive Klassen-Mission");
+
+  const awardedBeforeBoss = awarded.length;
+  r = await call("POST", "/api/teacher/cockpit/boss-win", { classId: 1 });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.clientOnly, undefined);
+  assert.ok(r.body.bossWonAt, "boss_won_at gesetzt");
+  assert.equal(r.body.lootXp, 30);
+  assert.equal(r.body.perStudent, 10, "30 XP / 3 Schüler");
+  assert.equal(r.body.awardedTotal, 30);
+  assert.equal(awarded.length - awardedBeforeBoss, 3, "Boss-Beute an alle aktiven Schüler");
+  assert.ok(awarded.slice(awardedBeforeBoss).every((a) => a.source === "klassenspiel_boss"));
+  r = await call("POST", "/api/teacher/cockpit/boss-win", { classId: 1 });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.already, true, "zweiter Boss-Sieg ist no-op");
+  assert.equal(awarded.length - awardedBeforeBoss, 3, "keine doppelte Boss-XP");
 
   r = await call("GET", "/api/teacher/cockpit?classId=1");
   assert.equal(r.body.game.mission.title, "Alle Mission 1 auf Operator");
   assert.equal(r.body.game.mission.done, 1, "nur Mila hat Mission 1 auf Operator sicher");
   assert.equal(r.body.game.mission.total, 3);
+  assert.ok(r.body.game.mission.bossWonAt, "Mission trägt bossWonAt");
+  assert.equal(r.body.season?.boss?.forceWin, true, "Season forceWin aus DB");
+  assert.equal(r.body.season?.boss?.defeated, true, "Boss als besiegt");
   assert.equal(r.body.game.raffle.drawn.winnerId, 13);
   assert.equal(r.body.game.team.name, "Team Blau");
 
@@ -817,6 +929,37 @@ try {
   user = { id: 12, role: "student", school_id: 1, class_id: 1 };
   r = await call("POST", "/api/teacher/cockpit/raffle", { classId: 1 });
   assert.equal(r.status, 403, "Schüler:innen können nicht ziehen");
+
+  user = { id: 5, role: "teacher", school_id: 1 };
+  assert.equal(dayOfYearFromIso("2026-01-01"), 1);
+  const tpl = pickSideQuestTemplate(
+    [
+      { id: "a", typ: "taktik_deck", text: "A" },
+      { id: "b", typ: "hilfe_erledigt", text: "B" }
+    ],
+    "2026-01-01"
+  );
+  assert.equal(tpl.id, "b", "Tag 1 → Index 1");
+
+  r = await call("GET", "/api/teacher/cockpit/side-quests?classId=1");
+  assert.equal(r.status, 200);
+  assert.equal(r.body.auto, false, "bereits aus Season-Load gesetzt");
+  assert.ok(r.body.quest?.typ);
+
+  r = await call("POST", "/api/teacher/cockpit/side-quests", {
+    classId: 1,
+    templateId: "reflektieren"
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.quest.typ, "reflexion");
+
+  r = await call("POST", "/api/teacher/cockpit/crews/avoid", {
+    classId: 1,
+    studentA: 11,
+    studentB: 12
+  });
+  assert.equal(r.status, 200);
+  assert.ok(r.body.avoidPairs.some((p) => p.studentA === 11 && p.studentB === 12));
 
   console.log("✔ teacher-cockpit: alle Prüfungen bestanden");
 } finally {

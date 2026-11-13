@@ -144,6 +144,17 @@
 
   window.StudentAssets = { icon, hero };
 
+  /** Preset-Farben für Crew-Naming (gleich wie Cockpit-Fallback). */
+  const CREW_COLOR_SWATCHES = [
+    "#22d3ee",
+    "#f472b6",
+    "#a78bfa",
+    "#fbbf24",
+    "#34d399",
+    "#fb923c",
+    "#67e8f9"
+  ];
+
   const state = {
     todayDate: null,
     blocks: [],
@@ -151,7 +162,8 @@
     feedback: [],
     feedbackLabels: {},
     coachEnabled: false,
-    classGame: null
+    classGame: null,
+    crew: null
   };
 
   function todayIso() {
@@ -476,18 +488,19 @@
     }
 
     const r = g.raffle || {};
+    const myTickets = Number(r.myTickets) || 0;
     const raffleTitle = r.drawn
       ? r.drawn.youWon
         ? `Du hast heute gewonnen: +${r.drawn.xp} XP!`
         : `Heute gewonnen: ${ui.escapeHtml(r.drawn.winnerShort)} (+${r.drawn.xp} XP).`
       : r.inPot
-        ? `Du bist im Lostopf (${r.eligibleCount} Lose).`
+        ? `Du bist im Lostopf${myTickets ? ` · ${myTickets} Los${myTickets === 1 ? "" : "e"}` : ""} (${r.eligibleCount} dabei).`
         : "Noch nicht im Lostopf";
     const raffleMeta = r.drawn
       ? "Glückwunsch an die Gewinner:in – morgen geht’s weiter."
       : r.inPot
         ? "Deine Lehrkraft zieht im Cockpit."
-        : "Schließ deinen Tag ab, dann bist du im Lostopf.";
+        : "Plane, reflektiere, schätze gut ein oder hilf mit – dann gibt’s Lose.";
     cards.push(classGameCard("Glücks-Ziehung", raffleTitle, raffleMeta, { empty: !r.drawn && !r.inPot }));
 
     if (g.team) {
@@ -524,6 +537,124 @@
         <h2 class="hub-block-label">Klassen-Spiel</h2>
         <div class="hub-class-game-grid">${cards.join("")}</div>
       </section>`;
+  }
+
+  /** Crew-Naming: nur wenn API eine Crew liefert. Bearbeiten nur bei canEdit. */
+  function renderCrewPanel(ui) {
+    const crew = state.crew;
+    if (!crew || !crew.id) return "";
+    const memberCount = Array.isArray(crew.members) ? crew.members.length : 0;
+    const canEdit = crew.canEdit === true;
+    const name = crew.name || "";
+    const tagText = crew.tagText || "";
+    const color = crew.color || CREW_COLOR_SWATCHES[0];
+    const swatches = CREW_COLOR_SWATCHES.includes(color)
+      ? CREW_COLOR_SWATCHES
+      : [color, ...CREW_COLOR_SWATCHES];
+
+    const statusLine = canEdit
+      ? "Noch nicht freigegeben – ihr könnt Name, Farbe und Tag festlegen (ein Gerät pro Crew)."
+      : "Freigegeben – nur noch lesen.";
+
+    const formHtml = canEdit
+      ? `
+        <div class="hub-crew-form">
+          <label class="hub-crew-label" for="hubCrewName">Crew-Name</label>
+          <input class="logbuch-input hub-crew-input" id="hubCrewName" type="text" maxlength="40" value="${ui.escapeHtml(name)}" placeholder="z. B. Neon Riders" autocomplete="off">
+          <label class="hub-crew-label" for="hubCrewTag">Tag / Motto</label>
+          <input class="logbuch-input hub-crew-input" id="hubCrewTag" type="text" maxlength="40" value="${ui.escapeHtml(tagText)}" placeholder="kurzer Tag" autocomplete="off">
+          <p class="hub-crew-label">Farbe</p>
+          <div class="hub-crew-swatches" role="group" aria-label="Crew-Farbe">
+            ${swatches
+              .map(
+                (c) => `
+              <button type="button" class="hub-crew-swatch${c === color ? " is-active" : ""}" data-crew-color="${ui.escapeHtml(c)}" style="--swatch:${ui.escapeHtml(c)}" aria-label="Farbe ${ui.escapeHtml(c)}" aria-pressed="${c === color ? "true" : "false"}"></button>`
+              )
+              .join("")}
+          </div>
+          <input type="hidden" id="hubCrewColor" value="${ui.escapeHtml(color)}">
+          <div class="hub-crew-actions">
+            <button type="button" class="hub-btn-ghost hub-btn-compact" id="hubCrewSave">Speichern</button>
+            <span class="hub-crew-msg" id="hubCrewMsg" hidden></span>
+          </div>
+        </div>`
+      : `
+        <div class="hub-crew-readonly">
+          <p class="hub-class-game-card__title">${ui.escapeHtml(name || "Ohne Namen")}</p>
+          ${tagText ? `<p class="hub-class-game-card__meta">${ui.escapeHtml(tagText)}</p>` : ""}
+          <span class="hub-crew-color-dot" style="--swatch:${ui.escapeHtml(color)}" aria-hidden="true"></span>
+        </div>`;
+
+    return `
+      <section class="hub-block hub-crew" style="margin:14px 0 4px" id="hubCrewPanel">
+        <h2 class="hub-block-label">Crew</h2>
+        <article class="hub-class-game-card hub-crew-card">
+          <p class="hub-class-game-card__label">Eure Crew</p>
+          <p class="hub-class-game-card__meta">${memberCount} Mitglied${memberCount === 1 ? "" : "er"} · ${ui.escapeHtml(statusLine)}</p>
+          ${formHtml}
+        </article>
+      </section>`;
+  }
+
+  function bindCrewPanel(root) {
+    const panel = root.querySelector("#hubCrewPanel");
+    if (!panel || !state.crew?.canEdit) return;
+
+    panel.querySelectorAll("[data-crew-color]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const value = btn.getAttribute("data-crew-color") || "";
+        const hidden = panel.querySelector("#hubCrewColor");
+        if (hidden) hidden.value = value;
+        panel.querySelectorAll("[data-crew-color]").forEach((el) => {
+          const on = el === btn;
+          el.classList.toggle("is-active", on);
+          el.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+      });
+    });
+
+    panel.querySelector("#hubCrewSave")?.addEventListener("click", async () => {
+      const msg = panel.querySelector("#hubCrewMsg");
+      const name = panel.querySelector("#hubCrewName")?.value?.trim() || "";
+      const tagText = panel.querySelector("#hubCrewTag")?.value?.trim() || "";
+      const color = panel.querySelector("#hubCrewColor")?.value || "";
+      const setMsg = (text, ok) => {
+        if (!msg) return;
+        msg.hidden = !text;
+        msg.textContent = text || "";
+        msg.classList.toggle("is-ok", !!ok);
+        msg.classList.toggle("is-err", !!text && !ok);
+      };
+      setMsg("Speichern…", true);
+      try {
+        const res = await fetch("/api/student/cockpit/crew", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            crewId: state.crew.id,
+            name: name || null,
+            color: color || null,
+            tagText: tagText || null
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) {
+          setMsg(data.message || "Speichern fehlgeschlagen.", false);
+          return;
+        }
+        state.crew = {
+          ...state.crew,
+          name: name || state.crew.name,
+          color: color || state.crew.color,
+          tagText: tagText || state.crew.tagText
+        };
+        setMsg(data.message || "Gespeichert.", true);
+      } catch (err) {
+        console.error(err);
+        setMsg("Netzwerkfehler.", false);
+      }
+    });
   }
 
   function traitListFromProfile(p) {
@@ -624,6 +755,7 @@
         </section>
 
         ${renderStatusPanel(ui, stats, step)}
+        ${renderCrewPanel(ui)}
         ${
           window.StudentFeatureModules?.isModuleEnabled?.("missionen") === false
             ? ""
@@ -681,6 +813,8 @@
           : s;
       navigate(target.section, target.query);
     });
+
+    bindCrewPanel(root);
   }
 
   async function loadTodayData() {
@@ -821,14 +955,41 @@
     }
   }
 
+  async function loadCrew() {
+    try {
+      const res = await fetch("/api/student/cockpit/crew", { credentials: "same-origin" });
+      if (!res.ok) {
+        state.crew = null;
+        return;
+      }
+      const data = await res.json();
+      state.crew = data.crew || null;
+    } catch (err) {
+      console.error(err);
+      state.crew = null;
+    }
+  }
+
   async function init() {
-    await Promise.all([loadTodayData(), loadTeacherFeedback(), loadCoachFlag(), loadClassGame()]);
+    await Promise.all([
+      loadTodayData(),
+      loadTeacherFeedback(),
+      loadCoachFlag(),
+      loadClassGame(),
+      loadCrew()
+    ]);
     render();
     refreshStats();
   }
 
   async function refresh() {
-    await Promise.all([loadTodayData(), loadTeacherFeedback(), loadCoachFlag(), loadClassGame()]);
+    await Promise.all([
+      loadTodayData(),
+      loadTeacherFeedback(),
+      loadCoachFlag(),
+      loadClassGame(),
+      loadCrew()
+    ]);
     render();
     refreshStats();
   }

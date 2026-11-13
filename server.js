@@ -121,6 +121,12 @@ import {
   midCheckFlagsForTimetable,
   normalizeSubjectKey
 } from "./lib/logbuch-day.js";
+import {
+  onPlanSaved,
+  onCheckSaved,
+  onReflectSaved,
+  onLevelConfirmed
+} from "./lib/cockpit-event-hooks.js";
 console.log("🚨 SERVER.JS – DIESE VERSION WIRD VERWENDET – MARKER A1");
 
 // -------------------------------------------------------
@@ -6002,6 +6008,7 @@ app.get("/api/student/me", isStudent, async (req, res) => {
            u.has_seen_start_briefing,
            u.freedom_rank,u.freedom_rank_updated_at,
            u.class_id,
+           COALESCE(u.beamer_name_ok, FALSE) AS beamer_name_ok,
            c.feature_modules AS class_feature_modules,
            l.name AS level_name,l.min_xp AS level_min_xp
     FROM users u
@@ -6022,6 +6029,8 @@ app.get("/api/student/me", isStudent, async (req, res) => {
   user.freedom_rank_icon = freedomRank.icon;
   user.freedom_rank_color = freedomRank.color;
   user.freedom_rank_symbol = freedomRank.symbol;
+  user.beamer_name_ok = user.beamer_name_ok === true;
+  user.beamerNameOk = user.beamer_name_ok;
   // Anzeige: Freiheitsrang statt XP-Levelname
   user.display_rank_label = freedomRank.label;
   let character = null;
@@ -6254,7 +6263,7 @@ async function loadLogEntryForSharedActor(actorId, entryId) {
     `
     SELECT
       le.id, le.user_id, le.school_id, le.date, le.timeslot, le.subject, le.goal,
-      le.what_goal_text, le.how_goal_text, le.details_text,
+      le.what_goal_id, le.what_goal_text, le.how_goal_text, le.details_text,
       le.selected_level, le.level_goal_text, le.confidence_before,
       le.role_goal_text, le.role_goal_role_name, le.created_at,
       COALESCE(le.entry_kind, 'lesson') AS entry_kind,
@@ -7127,6 +7136,13 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
           studentId
         ]
       );
+      await onPlanSaved(pool, {
+        studentId,
+        schoolId: targetSchoolId,
+        classId: targetCtx.classId || classId,
+        subject,
+        goalId: finalWhatGoalId
+      });
       return res.json({
         success: true,
         entry: upd.rows[0],
@@ -7213,6 +7229,14 @@ app.post("/api/student/log/plan", isStudent, async (req, res) => {
     } catch (cityErr) {
       console.error("⚠️ Stadtkarte nach Plan-Speichern:", cityErr.message || cityErr);
     }
+
+    await onPlanSaved(pool, {
+      studentId,
+      schoolId: targetSchoolId,
+      classId: targetCtx.classId || classId,
+      subject,
+      goalId: finalWhatGoalId
+    });
 
     res.json({
       success: true,
@@ -7537,6 +7561,14 @@ app.patch("/api/student/log/plan/:entryId", isStudent, async (req, res) => {
     } catch (cityErr) {
       console.error("⚠️ Stadtkarte nach Plan-Update:", cityErr.message || cityErr);
     }
+
+    await onPlanSaved(pool, {
+      studentId,
+      schoolId: effectiveSchoolId,
+      classId: ownerClassId || classId,
+      subject,
+      goalId: cleanWhatGoalId
+    });
 
     res.json({
       success: true,
@@ -8496,7 +8528,7 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
     }
 
     const entryRes = await pool.query(
-      "SELECT id, date, subject FROM log_entries WHERE id=$1 AND user_id=$2",
+      "SELECT id, date, subject, what_goal_id FROM log_entries WHERE id=$1 AND user_id=$2",
       [logEntryId, studentId]
     );
 
@@ -8607,6 +8639,13 @@ app.post("/api/student/log/check", isStudent, async (req, res) => {
     );
 
     await awardLogbuchXP(studentId, LOGBUCH_XP.check, "logbuch_check", schoolId);
+
+    await onCheckSaved(pool, {
+      studentId,
+      schoolId,
+      subject: entryRes.rows[0].subject || undefined,
+      goalId: entryRes.rows[0].what_goal_id || undefined
+    });
 
     res.json({
       success: true,
@@ -8961,6 +9000,14 @@ app.post("/api/student/log/reflect", isStudent, async (req, res) => {
       console.error("⚠️ reflect XP:", xpErr);
     }
 
+    await onReflectSaved(pool, {
+      studentId,
+      schoolId,
+      subject: access.entry?.subject || undefined,
+      goalId: access.entry?.what_goal_id || undefined,
+      goalAchieved: parsed.goalAchieved
+    });
+
     res.json({
       success: true,
       reflection: insertRes.rows[0],
@@ -9061,6 +9108,13 @@ app.patch("/api/student/log/reflect/:logEntryId", isStudent, async (req, res) =>
         parsed.strategyHelpedAnswer
       ]
     );
+
+    await onReflectSaved(pool, {
+      studentId,
+      subject: access.entry?.subject || undefined,
+      goalId: access.entry?.what_goal_id || undefined,
+      goalAchieved: parsed.goalAchieved
+    });
 
     res.json({ success: true, updated: true });
   } catch (err) {
@@ -10369,6 +10423,13 @@ app.post(
       );
 
       await awardLogbuchXP(studentId, xpAmount, `levelcheck_${tier}`, schoolId);
+
+      await onLevelConfirmed(pool, {
+        studentId,
+        schoolId,
+        classId,
+        subject: checkRow.subject || checkRow.name || undefined
+      });
 
       res.json({
         success: true,

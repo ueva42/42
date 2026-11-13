@@ -12,6 +12,7 @@ import {
   pickHighlights,
   missionRings,
   raffleTicketCount,
+  buildRafflePot,
   formatBossShield,
   daysUntil
 } from "../lib/cockpit-season.js";
@@ -250,6 +251,17 @@ function testExtras() {
     }) === 4,
     "Lose 1+1+2"
   );
+
+  const pot = buildRafflePot([
+    { id: 11, tickets: 2 },
+    { id: 12, tickets: 0 },
+    { id: 13, tickets: 1 }
+  ]);
+  assert(pot.length === 3, "Lostopf-Länge = Summe Lose");
+  assert(pot.filter((id) => id === 11).length === 2, "ID 11 zweimal");
+  assert(pot.filter((id) => id === 13).length === 1, "ID 13 einmal");
+  assert(!pot.includes(12), "0 Lose → nicht im Topf");
+  assert(buildRafflePot([]).length === 0, "leerer Topf");
 
   assert(
     formatBossShield("2026-11-17") === "BOSS-FIGHT · DI 17.11.",

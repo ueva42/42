@@ -96,7 +96,8 @@ window.LogbuchVisuals = {
     direct: "XP erhalten",
     group_role: "Gruppenrolle geschafft",
     klassenspiel_ziehung: "Glücks-Ziehung gewonnen",
-    klassenspiel_team: "Team des Tages"
+    klassenspiel_team: "Team des Tages",
+    klassenspiel_boss: "Boss-Beute (Klassen-XP)"
   },
 
   xpEventKey(raw) {
@@ -592,6 +593,10 @@ window.LogbuchVisuals = {
     const char = data.character;
     const traits = (data.traits || []).map((t) => `<span class="open-goal-chip">${V.escape(t)}</span>`).join("");
     const items = (data.items || []).map((i) => `<span class="open-goal-chip">${V.escape(i)}</span>`).join("");
+    const beamerOk =
+      profile?.beamerNameOk === true ||
+      u?.beamerNameOk === true ||
+      u?.beamer_name_ok === true;
 
     container.innerHTML = V.pageShell(`
       ${V.pageKpi(
@@ -611,17 +616,60 @@ window.LogbuchVisuals = {
       <div class="character-app-grid">
         <div class="student-card character-profile-card">
           <div class="card-content">
-            ${char?.image_url ? `<img class="char-img" src="${V.escape(char.image_url)}" alt="${V.escape(char?.name || "")}">` : ""}
+            ${char?.image_url ? `<img class="char-img" src="${V.escape(char.image_url)}" alt="${V.escape(char?.name || "")}">` : `<p class="empty-state-card__text">Noch kein Charakter gewählt.</p>`}
           </div>
         </div>
         <div class="student-card">
           <div class="card-content">
             ${V.sectionBlock("Eigenschaften", traits ? `<div class="open-goal-chips">${traits}</div>` : `<p class="empty-state-card__text">Noch keine Eigenschaften.</p>`)}
             ${V.sectionBlock("Items", items ? `<div class="open-goal-chips">${items}</div>` : `<p class="empty-state-card__text">Noch keine Items.</p>`)}
+            ${V.sectionBlock(
+              "Beamer",
+              `<label class="char-beamer-toggle">
+                <input type="checkbox" id="charBeamerNameOk" ${beamerOk ? "checked" : ""}>
+                <span>Mein Name darf am Beamer stehen</span>
+              </label>
+              <p class="char-beamer-hint">Nur wenn du zustimmst, erscheint dein Name im Klassen-Ticker. Standard: aus.</p>
+              <p class="char-beamer-msg" id="charBeamerMsg" hidden></p>`
+            )}
           </div>
         </div>
       </div>
     `);
+
+    const checkbox = container.querySelector("#charBeamerNameOk");
+    const msg = container.querySelector("#charBeamerMsg");
+    checkbox?.addEventListener("change", async () => {
+      const value = !!checkbox.checked;
+      const setMsg = (text, ok) => {
+        if (!msg) return;
+        msg.hidden = !text;
+        msg.textContent = text || "";
+        msg.classList.toggle("is-ok", !!ok);
+        msg.classList.toggle("is-err", !!text && !ok);
+      };
+      setMsg("Speichern…", true);
+      try {
+        const res = await fetch("/api/student/beamer-name", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ beamerNameOk: value })
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok || payload.success === false) {
+          checkbox.checked = !value;
+          setMsg(payload.message || "Speichern fehlgeschlagen.", false);
+          return;
+        }
+        if (window.__studentProfile) window.__studentProfile.beamerNameOk = value;
+        setMsg(value ? "Name am Beamer erlaubt." : "Name am Beamer aus.", true);
+      } catch (err) {
+        console.error(err);
+        checkbox.checked = !value;
+        setMsg("Netzwerkfehler.", false);
+      }
+    });
   },
 
   kpiStatCard({ value, label, sublabel, accent, variant = "" }) {

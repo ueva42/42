@@ -834,3 +834,64 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
   from { opacity: 0; transform: translateY(-18px) scale(1.15); filter: blur(2px); }
   to { opacity: 1; transform: none; filter: none; }
 }
+.ck-draw-show {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 0 0 16px;
+  min-height: 72px;
+}
+.ck-draw-bucket {
+  border: 1px solid color-mix(in srgb, var(--ck-crew, #22d3ee) 55%, transparent);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(15, 23, 42, 0.55);
+}
+.ck-draw-bucket strong {
+  display: block;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--ck-crew, #22d3ee);
+  margin-bottom: 6px;
+}
+.ck-draw-bucket__slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 28px;
+}
+.ck-draw-chip {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ck-crew, #22d3ee) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ck-crew, #22d3ee) 45%, transparent);
+  font-size: 0.78rem;
+  opacity: 0;
+  animation: ck-draw-land 0.5s ease-out forwards;
+}
+@keyframes ck-draw-land {
+  from { opacity: 0; transform: translateY(-14px) scale(1.08); }
+  to { opacity: 1; transform: none; }
+}
+.ck-avoid {
+  margin: 10px 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+.ck-avoid-list {
+  margin: 4px 0 8px;
+  padding-left: 1.1em;
+  font-size: 0.78rem;
+}
+.ck-avoid-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.ck-avoid-add .ck-input {
+  min-width: 0;
+  flex: 1 1 120px;
+}
