@@ -8,7 +8,12 @@ import {
   isGemeldet,
   bossState,
   respectWeek,
+  buildRespectWeek,
+  starsFilledCount,
+  weekBoundsBerlin,
+  learningDaysThisWeek,
   seasonProgress,
+  seasonTrack,
   pickHighlights,
   missionRings,
   raffleTicketCount,
@@ -146,33 +151,148 @@ function testBossState() {
   assert(forced.defeated && forced.lootUnlocked, "forceWin → Sieg");
 }
 
+function testWeekBoundsBerlin() {
+  // 2026-11-14 = Samstag → Mo 09.11. … So 15.11.
+  const w = weekBoundsBerlin("2026-11-14");
+  assert(w.start === "2026-11-09", `week start ${w.start}`);
+  assert(w.end === "2026-11-15", `week end ${w.end}`);
+  const mon = weekBoundsBerlin("2026-11-09");
+  assert(mon.start === "2026-11-09" && mon.end === "2026-11-15", "Montag bleibt in derselben Woche");
+}
+
 function testRespectWeek() {
-  const stars = respectWeek({
-    plannedRate: 0.85,
-    reflectedRate: 0.5,
-    assessmentRate: 0.7,
-    streakOk: true,
+  const days = [
+    { date: "2026-11-09", plannedCount: 9, reflectedCount: 8, classSize: 10 },
+    { date: "2026-11-10", plannedCount: 8, reflectedCount: 7, classSize: 10 },
+    { date: "2026-11-11", plannedCount: 9, reflectedCount: 6, classSize: 10 }
+  ];
+  const stars = buildRespectWeek({
+    learningDaysThisWeek: days,
+    assessment: { basis: 10, passed: 7 },
     helpedCount: 0,
+    helpedAvailable: true,
     config: CONFIG
   });
   assert(stars.length === 5, "5 Sterne");
-  assert(stars.find((s) => s.id === "geplant")?.filled === true, "geplant filled");
-  assert(stars.find((s) => s.id === "reflektiert")?.filled === false, "reflektiert empty");
-  assert(stars.find((s) => s.id === "gutEingeschätzt")?.filled === true, "gut eingeschätzt");
-  assert(stars.find((s) => s.id === "drangeblieben")?.filled === true, "drangeblieben");
+  assert(stars.every((s) => ["erreicht", "offen", "keine_daten"].includes(s.status)), "status enum");
+  assert(stars.every((s) => s.filled === (s.status === "erreicht")), "filled nur bei erreicht");
+
+  const geplant = stars.find((s) => s.id === "geplant");
+  assert(geplant?.einheit === "%", "geplant einheit %");
+  assert(geplant?.ziel === 80, "geplant ziel 80");
+  assert(typeof geplant?.wert === "number" && geplant.wert >= 80, "geplant wert %");
+  assert(geplant?.text === "Ziel 80 %", "geplant text");
+  assert(geplant?.status === "erreicht", "geplant erreicht");
+
+  const reflektiert = stars.find((s) => s.id === "reflektiert");
+  assert(reflektiert?.einheit === "%", "reflektiert einheit %");
+  assert(reflektiert?.ziel === 70, "reflektiert ziel 70");
+
+  const gut = stars.find((s) => s.id === "gutEingeschätzt");
+  assert(gut?.status === "erreicht", "gut 70% erreicht");
+  assert(gut?.einheit === "%", "gut einheit %");
+  assert(gut?.wert === 70, "gut wert 70");
+
+  const streak = stars.find((s) => s.id === "drangeblieben");
+  assert(streak?.einheit === "Lerntage", "streak einheit");
+  assert(streak?.ziel === respectStars.drangebliebenDays, "streak ziel");
+  assert(streak?.text === "3 / 3 Lerntage", `streak text ${streak?.text}`);
+  assert(streak?.status === "erreicht", "streak erreicht");
+  assert(streak?.wert === 3, "streak wert 3");
+
   const help = stars.find((s) => s.id === "geholfen");
-  assert(help?.comingSoon !== true, "geholfen verfügbar wenn helpedAvailable default");
-  assert(help?.target === respectStars.geholfenCount, "geholfen target");
+  assert(help?.status === "offen", "helped 0 → offen");
+  assert(help?.einheit === "Hilfen", "helped einheit");
+  assert(help?.wert === 0, "helped wert 0");
+  assert(help?.text === "0 / 10 Hilfen", "helped text");
+  assert(help?.comingSoon !== true, "helped verfügbar");
+  assert(starsFilledCount(stars) === 4, "4 Sterne gefüllt (ohne Hilfe)");
+
+  // 0/0 assessment → keine_daten, nicht erreicht
+  const emptyAssess = buildRespectWeek({
+    learningDaysThisWeek: days,
+    assessment: { basis: 0, passed: 0 },
+    helpedCount: 4,
+    config: CONFIG
+  }).find((s) => s.id === "gutEingeschätzt");
+  assert(emptyAssess?.status === "keine_daten", "0/0 → keine_daten");
+  assert(emptyAssess?.filled === false, "0/0 nicht filled");
+  assert(emptyAssess?.text === "noch kein Levelcheck", "0/0 text");
+  assert(emptyAssess?.wert == null, "0/0 wert null");
+
+  // Keine Lerntage
+  const noDays = buildRespectWeek({
+    learningDaysThisWeek: [],
+    assessment: { basis: 0, passed: 0 },
+    helpedCount: 0,
+    config: CONFIG
+  });
+  assert(noDays.find((s) => s.id === "geplant")?.status === "keine_daten", "ohne Lerntag geplant");
+  assert(noDays.find((s) => s.id === "drangeblieben")?.status === "keine_daten", "ohne Lerntag streak");
+  assert(noDays.find((s) => s.id === "geholfen")?.status === "offen", "0 Hilfen bleibt offen");
+
+  // helpedAvailable false
   const soon = respectWeek({
-    plannedRate: 0,
-    reflectedRate: 0,
-    assessmentRate: 0,
-    streakOk: false,
+    learningDaysThisWeek: days,
+    assessment: { basis: 1, passed: 1 },
     helpedCount: 0,
     helpedAvailable: false,
     config: CONFIG
   }).find((s) => s.id === "geholfen");
-  assert(soon?.comingSoon === true, "geholfen comingSoon wenn nicht verfügbar");
+  assert(soon?.status === "keine_daten", "Hilfe inaktiv → keine_daten");
+  assert(soon?.comingSoon === true, "comingSoon Kompatibilität");
+
+  // Streak-Zählung: Lücke unterbricht
+  const broken = buildRespectWeek({
+    learningDaysThisWeek: [
+      { date: "2026-11-09", plannedCount: 9, reflectedCount: 5, classSize: 10 },
+      { date: "2026-11-10", plannedCount: 5, reflectedCount: 5, classSize: 10 }, // < 80 %
+      { date: "2026-11-11", plannedCount: 9, reflectedCount: 5, classSize: 10 },
+      { date: "2026-11-12", plannedCount: 9, reflectedCount: 5, classSize: 10 }
+    ],
+    assessment: { basis: 1, passed: 0 },
+    helpedCount: 12,
+    config: CONFIG
+  });
+  const brokenStreak = broken.find((s) => s.id === "drangeblieben");
+  assert(brokenStreak?.wert === 2, `streak nach Lücke max 2, got ${brokenStreak?.wert}`);
+  assert(brokenStreak?.status === "offen", "streak 2 < 3 → offen");
+  assert(broken.find((s) => s.id === "geholfen")?.status === "erreicht", "12 Hilfen erreicht");
+}
+
+function testLearningDays() {
+  // Mit Stundenplan Mo+Mi (1,3), heute Fr 13.11.
+  const withTt = learningDaysThisWeek({
+    isoToday: "2026-11-13",
+    classSize: 10,
+    timetableWeekdays: [1, 3],
+    dayCounts: [
+      { date: "2026-11-09", planned: 2, reflected: 1 },
+      { date: "2026-11-11", planned: 0, reflected: 0 },
+      { date: "2026-11-12", planned: 8, reflected: 4 }
+    ]
+  });
+  assert(
+    withTt.map((d) => d.date).join(",") === "2026-11-09,2026-11-11",
+    `timetable learning days ${withTt.map((d) => d.date)}`
+  );
+  assert(withTt.find((d) => d.date === "2026-11-11")?.plannedCount === 0, "Lerntag auch ohne Plan");
+
+  // Ohne Stundenplan: nur Tage mit ≥1 geplant
+  const noTt = learningDaysThisWeek({
+    isoToday: "2026-11-13",
+    classSize: 10,
+    timetableWeekdays: [],
+    dayCounts: [
+      { date: "2026-11-10", planned: 3, reflected: 1 },
+      { date: "2026-11-11", planned: 0, reflected: 0 },
+      { date: "2026-11-12", planned: 1, reflected: 0 }
+    ]
+  });
+  assert(
+    noTt.map((d) => d.date).join(",") === "2026-11-10,2026-11-12",
+    `fallback learning days ${noTt.map((d) => d.date)}`
+  );
 }
 
 function testPickHighlightsUniqueness() {
@@ -233,6 +353,30 @@ function testSeasonProgress() {
   assert(zero.filledCount === 0 && zero.remaining === 1000, "Start");
 }
 
+function testSeasonTrack() {
+  const track = seasonTrack(2433, [
+    { xp: 1000, label: "A" },
+    { xp: 2000, label: "B" },
+    { xp: 3000, label: "C" }
+  ]);
+  assert(Math.abs(track.fillRatio - 2433 / 3000) < 1e-9, `fillRatio ${track.fillRatio}`);
+  assert(Math.abs(track.segmentFill - 0.433) < 1e-9, `segmentFill ${track.segmentFill}`);
+  assert(track.markers[0].state === "erreicht", "marker 1000 erreicht");
+  assert(track.markers[1].state === "erreicht", "marker 2000 erreicht");
+  assert(track.markers[2].state === "naechste", "marker 3000 nächste");
+  assert(track.markers[2].remaining === 567, "noch 567");
+
+  const below = seasonTrack(400, [{ xp: 1000, label: "A" }, { xp: 2000, label: "B" }]);
+  assert(Math.abs(below.segmentFill - 0.4) < 1e-9, "unter erster Stufe segmentFill");
+  assert(below.markers[0].state === "naechste", "erste ist nächste");
+  assert(below.markers[1].state === "spaeter", "zweite später");
+
+  const done = seasonTrack(5000, seasonTiers);
+  assert(done.fillRatio === 1, "oben fillRatio 1");
+  assert(done.segmentFill === 1, "oben segmentFill 1");
+  assert(done.markers.every((m) => m.state === "erreicht"), "alle erreicht");
+}
+
 function testExtras() {
   const rings = missionRings({
     classSize: 10,
@@ -244,13 +388,33 @@ function testExtras() {
 
   assert(
     raffleTicketCount({
-      planned: true,
-      reflected: true,
-      gutEingeschätzt: true,
-      helped: false
+      plannedToday: true,
+      reflectedToday: true,
+      gutEingeschätzt7d: true,
+      helpedTodayCount: 0
     }) === 4,
     "Lose 1+1+2"
   );
+  assert(
+    raffleTicketCount({
+      plannedToday: true,
+      reflectedToday: true,
+      gutEingeschätzt7d: true,
+      helpedTodayCount: 3
+    }) === 5,
+    "Lose mit Hilfe cap maxPerPerson 5 (1+1+2+2)"
+  );
+  assert(
+    raffleTicketCount({
+      plannedToday: false,
+      reflectedToday: false,
+      gutEingeschätzt7d: false,
+      helpedTodayCount: 5
+    }) === 2,
+    "Hilfe allein max geholfenMax 2"
+  );
+  assert(CONFIG.raffleTickets.geholfenMax === 2, "config geholfenMax");
+  assert(CONFIG.raffleTickets.maxPerPerson === 5, "config maxPerPerson");
 
   const pot = buildRafflePot([
     { id: 11, tickets: 2 },
@@ -274,9 +438,12 @@ function main() {
   testMatchCityMap();
   testIsBestaetigtPriority();
   testBossState();
+  testWeekBoundsBerlin();
   testRespectWeek();
+  testLearningDays();
   testPickHighlightsUniqueness();
   testSeasonProgress();
+  testSeasonTrack();
   testExtras();
   console.log("ok — cockpit-season tests passed");
 }

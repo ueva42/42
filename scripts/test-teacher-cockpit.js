@@ -518,6 +518,7 @@ const pool = {
       return { rows: [{ id: row.id }] };
     }
     if (s.includes("FROM level_check_targets")) return { rows: [{ user_id: 11, target_grade_key: "3" }] };
+    if (s.includes("level_check_checkpoint_evaluations")) return { rows: [] };
     if (s.includes("FROM level_check_proofs")) return { rows: [] };
     if (s.includes("FROM training_results")) {
       return {
@@ -627,6 +628,12 @@ const pool = {
     if (s.includes("UPDATE teacher_coaching_state")) return { rows: [] };
     if (s.includes("DELETE FROM")) return { rows: [] };
     if (s.includes("CREATE TABLE") || s.includes("CREATE INDEX") || s.includes("DO $$") || s.includes("ALTER TABLE")) {
+      return { rows: [] };
+    }
+    // New cockpit season SELECTs (week aggregates, helped counts, etc.): empty is fine for smoke.
+    // Keep throwing for non-SELECT so INSERT/UPDATE bugs still surface.
+    const trimmed = s.trimStart();
+    if (/^SELECT\b/i.test(trimmed) || /^\(\s*SELECT\b/i.test(trimmed)) {
       return { rows: [] };
     }
     throw new Error(`Unerwartete Abfrage: ${s.slice(0, 120)}`);

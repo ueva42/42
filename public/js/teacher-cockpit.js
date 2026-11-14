@@ -131,6 +131,9 @@ window.SolHelpAttribution = (function () {
     beamerView: "A",
     beamerPaused: false,
     showNamesOnBeamer: null,
+    fakeFullscreen: false,
+    chromeVisible: false,
+    chromeHideTimer: null,
     forceBossWin: false,
     bossConfetti: false,
     drawerId: null,
@@ -158,15 +161,96 @@ window.SolHelpAttribution = (function () {
     return ck.data?.season || null;
   }
 
+  function isPresentation() {
+    return !!document.fullscreenElement || !!ck.fakeFullscreen;
+  }
+
+  function controlsVisible() {
+    return !isPresentation() || !!ck.chromeVisible;
+  }
+
+  function namesStorageKey(classId) {
+    return `ck-names-${Number(classId) || 0}`;
+  }
+
+  function loadNamesPref(classId) {
+    try {
+      const raw = localStorage.getItem(namesStorageKey(classId));
+      if (raw === "1" || raw === "true") return true;
+      if (raw === "0" || raw === "false") return false;
+    } catch (_) {
+      /* ignore */
+    }
+    return null;
+  }
+
+  function saveNamesPref(classId, on) {
+    try {
+      localStorage.setItem(namesStorageKey(classId), on ? "1" : "0");
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   function namesOnBeamer() {
     if (ck.showNamesOnBeamer != null) return !!ck.showNamesOnBeamer;
     return season()?.showNamesOnBeamer !== false;
   }
 
   function syncNamesDefault() {
-    if (ck.showNamesOnBeamer == null && season() && typeof season().showNamesOnBeamer === "boolean") {
+    if (ck.showNamesOnBeamer != null) return;
+    const stored = ck.classId != null ? loadNamesPref(ck.classId) : null;
+    if (stored != null) {
+      ck.showNamesOnBeamer = stored;
+      return;
+    }
+    if (season() && typeof season().showNamesOnBeamer === "boolean") {
       ck.showNamesOnBeamer = season().showNamesOnBeamer;
     }
+  }
+
+  function displayPersonName(shortName, fullName) {
+    if (!namesOnBeamer()) return "Jemand";
+    return shortName || fullName || "Jemand";
+  }
+
+  function syncPresentationClasses() {
+    const on = isPresentation();
+    document.body.classList.toggle("ck--presentation", on);
+    document.body.classList.toggle("ck-fake-fullscreen", !!ck.fakeFullscreen && !document.fullscreenElement);
+    const root = ck.el?.querySelector?.(".ck") || ck.el;
+    root?.classList?.toggle("ck--presentation", on);
+  }
+
+  function armChromeHide() {
+    if (ck.chromeHideTimer) clearTimeout(ck.chromeHideTimer);
+    ck.chromeHideTimer = setTimeout(() => {
+      ck.chromeVisible = false;
+      ck.chromeHideTimer = null;
+      render();
+    }, 3000);
+  }
+
+  function showPresentationChrome() {
+    if (!isPresentation()) return;
+    const was = ck.chromeVisible;
+    ck.chromeVisible = true;
+    armChromeHide();
+    if (!was) render();
+  }
+
+  function exitPresentation() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+    ck.fakeFullscreen = false;
+    ck.chromeVisible = false;
+    if (ck.chromeHideTimer) {
+      clearTimeout(ck.chromeHideTimer);
+      ck.chromeHideTimer = null;
+    }
+    syncPresentationClasses();
+    render();
   }
 
   function bossEffective() {
@@ -479,15 +563,26 @@ window.SolHelpAttribution = (function () {
   }
 
   async function toggleFullscreen() {
-    try {
-      if (!document.fullscreenElement) {
-        await (ck.el?.requestFullscreen?.() || document.documentElement.requestFullscreen());
-      } else {
-        await document.exitFullscreen();
-      }
-    } catch (_) {
-      flash("Vollbild nicht verfügbar.");
+    if (isPresentation()) {
+      exitPresentation();
+      return;
     }
+    const root = ck.el?.querySelector?.(".ck") || ck.el || document.documentElement;
+    try {
+      if (root.requestFullscreen) {
+        await root.requestFullscreen();
+      } else if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        throw new Error("no fullscreen");
+      }
+      ck.fakeFullscreen = false;
+    } catch (_) {
+      ck.fakeFullscreen = true;
+      ck.chromeVisible = false;
+    }
+    syncPresentationClasses();
+    render();
   }
 
   async function grantBossWin() {
@@ -516,34 +611,35 @@ window.SolHelpAttribution = (function () {
 
   function respectStarsHtml() {
     const stars = season()?.respect || [];
-    if (!stars.length) {
-      return `<div class="ck-stars" title="Respekt diese Woche" aria-label="Respekt-Sterne">${Array.from({ length: 5 }, () => `<span class="ck-star ck-star--empty" aria-hidden="true">★</span>`).join("")}</div>`;
-    }
-    return `<div class="ck-stars" aria-label="Respekt ${season()?.starsFilledCount || 0} von 5">
-      ${stars
-        .map((s) => {
-          const soon = s.comingSoon;
-          const filled = !soon && s.filled;
-          const title = soon
-            ? `${s.label}: kommt bald`
-            : `${s.label}${filled ? " · erreicht" : " · noch offen"}`;
-          return `<span class="ck-star ${filled ? "ck-star--on" : "ck-star--empty"}" title="${esc(title)}" aria-label="${esc(title)}">★</span>`;
-        })
-        .join("")}
+    const filledCount =
+      Number(season()?.starsFilledCount) || stars.filter((s) => s.status === "erreicht").length;
+    const five = Array.from({ length: 5 }, (_, i) => stars[i] || { status: "offen" });
+    const cells = five
+      .map((s) => {
+        const on = s.status === "erreicht";
+        return `<span class="ck-star ck-star--head ${on ? "ck-star--on" : "ck-star--empty"}" aria-hidden="true">★</span>`;
+      })
+      .join("");
+    return `<div class="ck-respekt-box" aria-label="Respekt ${filledCount} von 5 diese Woche">
+      <span class="ck-respekt-box__lab">RESPEKT</span>
+      <div class="ck-stars ck-stars--head">${cells}</div>
     </div>`;
   }
 
   function seasonKicker() {
     const d = ck.data;
     const map = season()?.map;
-    const place =
-      (map?.mode === "city" && (map.ort || map.name)) ||
-      d?.levelCheck?.name ||
-      d?.levelCheck?.subject ||
-      "Einheit";
-    const lc = d?.levelCheck?.name || "";
-    const cls = d?.class?.name || "";
-    return `${cls}${cls ? " · " : ""}SEASON ${place}${lc ? ` · ${lc}` : ""}`;
+    const cls = String(d?.class?.name || "").trim();
+    const thema = String(d?.levelCheck?.name || "").trim();
+    const fach = String(d?.levelCheck?.subject || "").trim();
+    const ort = String(map?.ort || "").trim();
+    let raw;
+    if (ort) {
+      raw = [cls, `SEASON ${ort}`, thema].filter(Boolean).join(" · ");
+    } else {
+      raw = [cls, fach, thema].filter(Boolean).join(" · ");
+    }
+    return raw.toUpperCase();
   }
 
   function examHeadline() {
@@ -560,8 +656,31 @@ window.SolHelpAttribution = (function () {
   }
 
   function renderHead() {
-    const d = ck.data;
     const live = liveData();
+    const lesson = live.lesson?.label ? ` · Stunde ${esc(live.lesson.label)}` : "";
+    const examLine = examHeadline();
+    const noLesson = season()?.kpis?.noLessonToday === true;
+    return `
+      <div class="ck-context ck-context--sticky">
+        <div class="ck-context-main">
+          <p class="td-kicker ck-kicker">${esc(seasonKicker())}${lesson}</p>
+          <div class="ck-title-row">
+            <h1 class="td-title">Cockpit</h1>
+            ${respectStarsHtml()}
+          </div>
+          ${examLine ? `<p class="ck-dates">${examLine}</p>` : ""}
+          ${noLesson ? `<p class="ck-no-lesson" role="status">Heute keine Stunde – Stand der Woche</p>` : ""}
+        </div>
+      </div>`;
+  }
+
+  function renderControls(opts = {}) {
+    const presentation = isPresentation();
+    const asChrome = opts.asChrome === true;
+    if (asChrome && !presentation) return "";
+    if (presentation && !asChrome) return "";
+    if (presentation && asChrome && !ck.chromeVisible) return "";
+    const d = ck.data;
     const units = d?.levelChecks || [];
     const options = units
       .map(
@@ -569,44 +688,51 @@ window.SolHelpAttribution = (function () {
           `<option value="${esc(u.id)}" ${String(u.id) === String(d?.levelCheck?.id) ? "selected" : ""}>${esc(u.subject)} · ${esc(u.name)}</option>`
       )
       .join("");
-    const lesson = live.lesson?.label ? ` · Stunde ${esc(live.lesson.label)}` : "";
     const stamp = ck.updatedAt
       ? ck.updatedAt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
       : "–";
     const pollSec = Number(season()?.config?.pollSeconds) || 30;
-    const examLine = examHeadline();
     const namesOn = namesOnBeamer();
+    const viewSeg = BEAMER_VIEWS.map(
+      (v) =>
+        `<button type="button" class="ck-view-dot ${ck.beamerView === v ? "is-on" : ""}" data-ck-view-set="${v}" aria-pressed="${ck.beamerView === v ? "true" : "false"}">${v}</button>`
+    ).join("");
     return `
-      <div class="ck-context ck-context--sticky">
-        <div>
-          <p class="td-kicker">${esc(seasonKicker())}${lesson}</p>
-          <h1 class="td-title">Cockpit</h1>
-          ${examLine ? `<p class="ck-dates">${examLine}</p>` : ""}
+      <div class="ck-controls ${asChrome ? "ck-controls--chrome is-visible" : ""}" data-ck-controls>
+        <div class="ck-controls__left">
+          ${
+            units.length
+              ? `<label class="sr-only" for="unitSelect">Unterrichtseinheit</label>
+                 <select id="unitSelect" class="td-select ck-select" aria-label="Unterrichtseinheit">${options}</select>`
+              : ""
+          }
+          <span class="ck-live" title="${
+            ck.beamer
+              ? `Beamer: alle ${pollSec} s, in den letzten 12 Min der Stunde alle 8 s`
+              : "Aktualisiert sich jede Minute von selbst"
+          }"><i></i>Live · ${esc(stamp)}</span>
         </div>
-        <div class="ck-context-side">
-          ${respectStarsHtml()}
-          <div class="ck-context-row">
-            ${!ck.beamer && units.length ? `<label class="sr-only" for="unitSelect">Unterrichtseinheit</label><select id="unitSelect" class="td-select ck-select" aria-label="Unterrichtseinheit">${options}</select>` : ""}
-            ${ck.beamer && units.length ? `<label class="sr-only" for="unitSelect">Unterrichtseinheit</label><select id="unitSelect" class="td-select ck-select ck-select--beamer" aria-label="Unterrichtseinheit">${options}</select>` : ""}
-            <span class="ck-live" title="${
-              ck.beamer
-                ? `Beamer: alle ${pollSec} s, in den letzten 12 Min der Stunde alle 8 s`
-                : "Aktualisiert sich jede Minute von selbst"
-            }"><i></i>Live · ${esc(stamp)}</span>
-            <button type="button" class="ck-btn ${ck.beamer ? "ck-btn-go" : ""}" data-ck-beamer title="Beamer = Spielansichten · Lehrkraft = Hilfe, Heatmap, Training">${ck.beamer ? "Lehrkraft" : "Beamer"}</button>
-            <button type="button" class="ck-btn" data-ck-fullscreen title="Vollbild">Vollbild</button>
-            <button type="button" class="ck-btn ${namesOn ? "ck-btn-go" : ""}" data-ck-names title="Namen bei Highlights auf dem Beamer">${namesOn ? "Namen an" : "Namen aus"}</button>
-            ${
-              ck.beamer
-                ? `<button type="button" class="ck-btn ${ck.beamerPaused ? "ck-btn-go" : ""}" data-ck-pause title="Ansichtswechsel pausieren">${ck.beamerPaused ? "Weiter" : "Pause"}</button>
-                   <span class="ck-view-dots" aria-label="Beamer-Ansicht">
-                     ${BEAMER_VIEWS.map((v) => `<button type="button" class="ck-view-dot ${ck.beamerView === v ? "is-on" : ""}" data-ck-view-set="${v}" aria-pressed="${ck.beamerView === v ? "true" : "false"}">${v}</button>`).join("")}
-                   </span>`
-                : ""
-            }
+        <div class="ck-controls__right">
+          <button type="button" class="ck-btn ${ck.beamer ? "" : "ck-btn-go"}" data-ck-beamer data-mode="teacher" title="Lehrkraft-Ansicht">Lehrkraft-Ansicht</button>
+          <div class="ck-beamer-group" role="group" aria-label="Beamer">
+            <button type="button" class="ck-btn ${ck.beamer ? "ck-btn-go" : ""}" data-ck-beamer data-mode="beamer" title="Beamer-Ansicht">Beamer-Ansicht</button>
+            <button type="button" class="ck-btn ${isPresentation() ? "ck-btn-go" : ""}" data-ck-fullscreen title="Vollbild">Vollbild</button>
+            <button type="button" class="ck-btn ${namesOn ? "ck-btn-go" : ""}" data-ck-names title="Namen in Highlights, Ticker und Ziehung">${namesOn ? "Namen an" : "Namen aus"}</button>
+            <button type="button" class="ck-btn ${ck.beamerPaused ? "ck-btn-go" : ""}" data-ck-pause title="Ansichtswechsel pausieren">${ck.beamerPaused ? "Weiter" : "Pause"}</button>
+            <span class="ck-view-dots" aria-label="Beamer-Ansicht A B C">${viewSeg}</span>
           </div>
         </div>
       </div>`;
+  }
+
+  function renderPresentationDots() {
+    if (!isPresentation()) return "";
+    return `<div class="ck-pres-dots" aria-label="Beamer-Ansicht">
+      ${BEAMER_VIEWS.map(
+        (v) =>
+          `<button type="button" class="ck-pres-dot ${ck.beamerView === v ? "is-on" : ""}" data-ck-view-set="${v}" aria-label="Ansicht ${v}" aria-pressed="${ck.beamerView === v ? "true" : "false"}"></button>`
+      ).join("")}
+    </div>`;
   }
 
   function renderKpis() {
@@ -1273,47 +1399,43 @@ window.SolHelpAttribution = (function () {
   function raffleRulesPills() {
     const rules = season()?.raffleRules || [];
     if (!rules.length) return "";
-    const helpSoon = (season()?.respect || []).find((s) => s.id === "geholfen")?.comingSoon;
     return `<div class="ck-pills" aria-label="Los-Regeln">${rules
-      .map((r) => {
-        const soon = r.id === "geholfen" && helpSoon ? " · bald" : "";
-        return `<span class="ck-pill">${esc(r.label)} +${esc(r.tickets)}${soon}</span>`;
-      })
+      .map((r) => `<span class="ck-pill">${esc(r.label)} +${esc(r.tickets)}</span>`)
       .join("")}</div>`;
   }
 
   function renderRaffleCard() {
     const r = ck.data.game?.raffle || {};
-    const n = (ck.data.students || []).length;
-    const gaps = season()?.gaps || [];
-    const eligibilityNote = gaps.some((g) => /raffle|Los|ticket/i.test(g))
-      ? ""
-      : `<p class="ck-tiny ck-muted">API zählt vorerst Abschlüsse (reflektiert). Neue Regeln oben – volle Ticket-Zählung folgt.</p>`;
+    const ticketTotal = r.ticketTotal ?? r.potSize ?? r.eligibleCount ?? 0;
+    const withTickets = r.studentsWithTickets ?? r.eligibleCount ?? 0;
+    const showControls = controlsVisible();
+    const winnerLabel = displayPersonName(r.drawn?.winnerShort, r.drawn?.winnerName);
     let body;
     if (ck.reveal === "rolling") {
       body = `<div class="ck-raffle-roll"><span></span><span></span><span></span></div><p class="ck-small ck-muted">Die Lose werden gemischt …</p>`;
     } else if (r.drawn) {
       body = `
-        <div class="ck-raffle-win ${ck.reveal === "show" ? "ck-raffle-win--pop" : ""}">
+        <div class="ck-raffle-win ck-raffle-win--lg ${ck.reveal === "show" ? "ck-raffle-win--pop" : ""}">
           <span class="ck-raffle-star">★</span>
-          <strong>${esc(r.drawn.winnerShort || r.drawn.winnerName || "?")}</strong>
-          <span class="ck-small">+${r.drawn.xp} XP</span>
+          <strong>${esc(winnerLabel)}</strong>
+          <span class="ck-raffle-xp">+${r.drawn.xp} XP</span>
         </div>
-        <p class="ck-small ck-muted">Gezogen aus ${r.drawn.eligibleCount} Losen. Morgen gibt es eine neue Ziehung.</p>`;
+        ${raffleRulesPills()}
+        <p class="ck-small ck-muted">${ticketTotal} Lose von ${withTickets} Schüler:innen im Topf</p>`;
     } else {
       body = `
-        <p class="ck-big">${r.eligibleCount || 0} <span class="ck-muted ck-small">von ${n} im Lostopf</span></p>
+        <p class="ck-big ck-raffle-pot">${ticketTotal} Lose von ${withTickets} Schüler:innen im Topf</p>
         ${raffleRulesPills()}
-        <p class="ck-small ck-muted">Lose für Lernen: geplant, reflektiert, gut eingeschätzt – nicht für Tempo.</p>
-        ${eligibilityNote}
-        ${raffleAutoHint()}
-        <div class="ck-acts">${xpPicker("raffle", ck.raffleXp)}</div>
-        <div class="ck-acts"><button type="button" class="ck-btn ck-btn-go" data-ck-raffle ${r.eligibleCount && !ck.busy ? "" : "disabled"}>Ziehung starten</button></div>`;
+        ${
+          showControls
+            ? `<div class="ck-acts">${xpPicker("raffle", ck.raffleXp)}</div>
+               <div class="ck-acts"><button type="button" class="ck-btn ck-btn-go" data-ck-raffle ${r.eligibleCount && !ck.busy ? "" : "disabled"}>Ziehung starten</button></div>`
+            : ""
+        }`;
     }
     return `
-      <div class="ck-panel ck-game-card">
+      <div class="ck-panel ck-game-card ck-raffle-card">
         <h2><span>Glücks-Ziehung</span><span class="td-kicker">einmal am Tag</span></h2>
-        ${r.drawn ? raffleRulesPills() : ""}
         ${body}
       </div>`;
   }
@@ -1586,32 +1708,49 @@ window.SolHelpAttribution = (function () {
       </div>`;
   }
 
+  function respectWertDisplay(s) {
+    if (s.status === "keine_daten" || s.wert == null) return "–";
+    const einheit = s.einheit || "";
+    if (einheit === "%") return `${s.wert} %`;
+    if (einheit === "Lerntage") return `${s.wert} / ${s.ziel} Lerntage`;
+    if (einheit === "Hilfen") return `${s.wert} / ${s.ziel} Hilfen`;
+    if (s.text && /\/|%|Hilfen|Lerntage/.test(s.text) && !/^Ziel\b/i.test(s.text)) return s.text;
+    return String(s.wert);
+  }
+
+  function respectSubDisplay(s) {
+    if (s.text) return s.text;
+    if (s.ziel != null && s.einheit === "%") return `Ziel ${s.ziel} %`;
+    if (s.ziel != null) return `Ziel ${s.ziel}${s.einheit ? ` ${s.einheit}` : ""}`;
+    return "";
+  }
+
   function renderRespectPanel() {
     const stars = season()?.respect || [];
-    const filled = season()?.starsFilledCount || 0;
+    const filled = Number(season()?.starsFilledCount) || stars.filter((s) => s.status === "erreicht").length;
     return `
-      <div class="ck-panel">
-        <h2><span>Respekt diese Woche</span><span class="td-kicker">${filled}/5</span></h2>
+      <div class="ck-panel ck-respect-panel">
+        <h2><span>Respekt diese Woche</span><span class="td-kicker">${filled} / 5</span></h2>
         <div class="ck-respect-list">
           ${
             stars
               .map((s) => {
-                const pct =
-                  typeof s.value === "number" && s.value <= 1
-                    ? `${Math.round(s.value * 100)} %`
-                    : String(s.value ?? "–");
-                const target =
-                  typeof s.target === "number" && s.target <= 1
-                    ? `${Math.round(s.target * 100)} %`
-                    : String(s.target ?? "");
-                const state = s.comingSoon
-                  ? "kommt bald"
-                  : s.filled
-                    ? "erreicht"
-                    : `${pct} / ${target}`;
-                return `<div class="ck-respect-row ${s.filled && !s.comingSoon ? "is-on" : ""} ${s.comingSoon ? "is-soon" : ""}">
-                  <span class="ck-star ${s.filled && !s.comingSoon ? "ck-star--on" : "ck-star--empty"}">★</span>
-                  <div><strong>${esc(s.label)}</strong><p class="ck-tiny ck-muted">${esc(state)}</p></div>
+                const status = s.status || (s.filled ? "erreicht" : "offen");
+                const wert = respectWertDisplay(s);
+                const sub = respectSubDisplay(s);
+                const starClass =
+                  status === "erreicht"
+                    ? "ck-star--on"
+                    : status === "keine_daten"
+                      ? "ck-star--dashed"
+                      : "ck-star--empty";
+                return `<div class="ck-respect-row is-${esc(status)}">
+                  <span class="ck-star ck-star--panel ${starClass}" aria-hidden="true">★</span>
+                  <div class="ck-respect-row__mid"><strong>${esc(s.label)}</strong></div>
+                  <div class="ck-respect-row__val">
+                    <span class="ck-respect-wert">${esc(wert)}</span>
+                    ${sub ? `<span class="ck-respect-sub">${esc(sub)}</span>` : ""}
+                  </div>
                 </div>`;
               })
               .join("") || `<p class="ck-muted ck-small">Noch keine Respekt-Daten.</p>`
@@ -1622,37 +1761,56 @@ window.SolHelpAttribution = (function () {
 
   function renderSeasonBarPanel() {
     const bar = season()?.seasonBar || {};
-    const tiers = season()?.config?.seasonTiers || [];
-    const xp = Number(bar.xp) || 0;
-    const next = bar.next;
-    const filled = Number(bar.filledCount) || 0;
+    const markers = Array.isArray(bar.markers) ? bar.markers : [];
+    const tiers = markers.length
+      ? markers
+      : (season()?.config?.seasonTiers || []).map((t, i) => ({
+          xp: t.xp,
+          label: t.label,
+          state: i < (bar.filledCount || 0) ? "erreicht" : i === (bar.filledCount || 0) ? "naechste" : "spaeter",
+          remaining: bar.next && bar.next.xp === t.xp ? bar.remaining : undefined
+        }));
+    const xp = Number(bar.currentXp ?? bar.xp) || 0;
+    const fillRatio = Math.max(0, Math.min(1, Number(bar.fillRatio) || 0));
+    const lastXp = tiers.length ? Number(tiers[tiers.length - 1].xp) || 1 : 1;
+    const title =
+      bar.title || (bar.xpSource === "einheit" || bar.titleKey === "einheit" ? "Season-XP" : "Klassen-XP");
+    const markerHtml = tiers
+      .map((t) => {
+        const left = Math.max(0, Math.min(100, (Number(t.xp) / lastXp) * 100));
+        return `<span class="ck-season-mark is-${esc(t.state || "spaeter")}" style="left:${left}%" title="${esc(t.label)} · ${num(t.xp)} XP"></span>`;
+      })
+      .join("");
+    const cards = tiers
+      .map((t) => {
+        const state = t.state || "spaeter";
+        let detail = esc(t.label);
+        if (state === "erreicht") detail = `✔ freigeschaltet`;
+        else if (state === "naechste") detail = `noch ${num(t.remaining != null ? t.remaining : Math.max(0, t.xp - xp))} XP`;
+        return `<div class="ck-season-tier is-${esc(state)}" role="listitem">
+          <strong>${num(t.xp)}</strong>
+          <span>${detail}</span>
+        </div>`;
+      })
+      .join("");
     return `
-      <div class="ck-panel">
-        <h2><span>Season-Leiste</span><span class="td-kicker">${num(xp)} XP</span></h2>
-        <div class="ck-season-track" role="list">
-          ${tiers
-            .map((t, i) => {
-              const on = i < filled;
-              const nextHit = next && next.xp === t.xp;
-              return `<div class="ck-season-tier ${on ? "is-on" : ""} ${nextHit ? "is-next" : ""}" role="listitem">
-                <strong>${num(t.xp)}</strong>
-                <span>${esc(t.label)}</span>
-              </div>`;
-            })
-            .join("")}
+      <div class="ck-panel ck-season-panel">
+        <h2><span>${esc(title)}</span><span class="td-kicker">${num(xp)} XP</span></h2>
+        <div class="ck-season-bar" aria-label="${esc(title)} ${num(xp)} XP">
+          <div class="ck-season-bar__track">
+            <div class="ck-season-bar__fill" style="width:${(fillRatio * 100).toFixed(2)}%"></div>
+            ${markerHtml}
+            <span class="ck-season-now" style="left:${(fillRatio * 100).toFixed(2)}%">
+              <i></i><em>${num(xp)} XP</em>
+            </span>
+          </div>
         </div>
-        ${
-          next
-            ? `<p class="ck-small">noch <strong>${num(bar.remaining)}</strong> bis ${esc(next.label)}</p>`
-            : `<p class="ck-small ck-win">Alle Season-Stufen erreicht.</p>`
-        }
-        ${bar.xpSource === "gesamt" ? `<p class="ck-tiny ck-muted">XP gesamt (kein Einheits-Zeitstempel).</p>` : ""}
+        <div class="ck-season-track" role="list">${cards}</div>
       </div>`;
   }
 
   function highlightName(entry) {
-    if (namesOnBeamer()) return esc(entry?.name || "Jemand");
-    return "Jemand";
+    return esc(displayPersonName(entry?.name, entry?.fullName));
   }
 
   function renderHighlightsPanel() {
@@ -1704,35 +1862,71 @@ window.SolHelpAttribution = (function () {
       </div>`;
   }
 
-  function tickerDisplayText() {
-    const items = season()?.ticker || [];
-    if (!items.length) return "";
-    const sec = Number(season()?.config?.tickerSeconds) || 20;
-    const now = Date.now();
-    if (!ck.tickerShownAt || now - ck.tickerShownAt >= sec * 1000) {
-      if (ck.tickerShownAt) ck.tickerIdx = (ck.tickerIdx + 1) % items.length;
-      ck.tickerShownAt = now;
-    }
-    const item = items[ck.tickerIdx % items.length];
-    return item?.text || "";
+  function tickerItemText(item) {
+    if (!item) return "";
+    if (!namesOnBeamer()) return item.textAnon || item.text || "";
+    return item.text || "";
   }
 
   function renderTickerStrip() {
-    const text = tickerDisplayText();
-    if (!text) return `<div class="ck-ticker ck-ticker--empty"><span class="ck-muted">Noch keine positiven Ereignisse.</span></div>`;
-    return `<div class="ck-ticker" aria-live="polite"><span class="ck-ticker-kicker">Live</span><span class="ck-ticker-text">${esc(text)}</span></div>`;
+    const items = season()?.ticker || [];
+    if (!items.length) return "";
+    const show = items.slice(0, 3);
+    // Rotate window among set every tickerSeconds if more than 3
+    if (items.length > 3) {
+      const sec = Number(season()?.config?.tickerSeconds) || 20;
+      const now = Date.now();
+      if (!ck.tickerShownAt || now - ck.tickerShownAt >= sec * 1000) {
+        if (ck.tickerShownAt) ck.tickerIdx = (ck.tickerIdx + 1) % items.length;
+        ck.tickerShownAt = now;
+      }
+      const start = ck.tickerIdx % items.length;
+      const rotated = [];
+      for (let i = 0; i < 3; i += 1) rotated.push(items[(start + i) % items.length]);
+      show.length = 0;
+      show.push(...rotated);
+    }
+    const typColor = {
+      tagesziel_gesetzt: "cyan",
+      tagesziel_geschafft: "green",
+      reflexion: "violet",
+      level_bestaetigt: "amber",
+      hilfe_erledigt: "pink",
+      boss_besiegt: "orange",
+      side_quest_done: "green",
+      ziehung: "amber",
+      serie: "cyan",
+      crew_tag: "violet"
+    };
+    return `<div class="ck-ticker" aria-live="polite">
+      ${show
+        .map((item) => {
+          const color = typColor[item.typ] || "cyan";
+          return `<span class="ck-ticker-item"><i class="ck-ticker-dot ck-ticker-dot--${color}"></i><span class="ck-ticker-text">${esc(tickerItemText(item))}</span></span>`;
+        })
+        .join("")}
+    </div>`;
   }
 
   function renderSideQuestCard() {
     const q = season()?.sideQuest;
-    if (!q) return "";
+    if (!q) {
+      return `
+        <div class="ck-panel ck-sidequest ck-sidequest--empty">
+          <h2><span>Side Quest</span><span class="td-kicker">heute</span></h2>
+          <p class="ck-sidequest-text">Heute keine Side Quest</p>
+        </div>`;
+    }
     const pct = q.ziel ? Math.min(100, Math.round((q.progress / q.ziel) * 100)) : 0;
     return `
       <div class="ck-panel ck-sidequest ${q.done ? "is-done" : ""}">
         <h2><span>Side Quest</span><span class="td-kicker">${q.done ? "geschafft" : "heute"}</span></h2>
-        <p class="ck-small"><strong>${esc(q.text)}</strong></p>
-        <div class="ck-goalbar"><b style="width:${pct}%"></b></div>
-        <p class="ck-small">${q.progress} / ${q.ziel}${q.xp ? ` · +${q.xp} XP` : ""}</p>
+        <p class="ck-sidequest-text">${esc(q.text)}</p>
+        <div class="ck-goalbar ck-goalbar--sq"><b style="width:${pct}%"></b></div>
+        <div class="ck-sidequest-stats">
+          <span class="ck-sidequest-wert">${q.progress} / ${q.ziel}</span>
+          ${q.xp ? `<span class="ck-sidequest-xp">+${q.xp} XP</span>` : ""}
+        </div>
       </div>`;
   }
 
@@ -1783,7 +1977,6 @@ window.SolHelpAttribution = (function () {
           ${renderSeasonBarPanel()}
           ${renderRaffleCard()}
           ${renderSideQuestCard()}
-          ${renderGoalCard()}
         </div>
       </div>`;
   }
@@ -1911,10 +2104,13 @@ window.SolHelpAttribution = (function () {
   function render() {
     if (!ck.active || !ck.el) return;
     document.body.classList.toggle("ck-beamer", ck.beamer);
+    syncPresentationClasses();
     const toast = ck.toast || ck.ctx?.toast || "";
     const toastHtml = toast ? `<p class="td-toast" role="status">${esc(toast)}</p>` : "";
+    const chrome = renderControls({ asChrome: true });
+    const dots = renderPresentationDots();
     if (!ck.data) {
-      ck.el.innerHTML = `<div class="ck">${toastHtml}<div class="td-panel td-empty"><strong>${ck.error ? esc(ck.error) : "Lade das Cockpit …"}</strong></div></div>`;
+      ck.el.innerHTML = `<div class="ck">${toastHtml}<div class="td-panel td-empty"><strong>${ck.error ? esc(ck.error) : "Lade das Cockpit …"}</strong></div>${dots}${chrome}</div>`;
       return;
     }
     const d = ck.data;
@@ -1925,13 +2121,15 @@ window.SolHelpAttribution = (function () {
           <div class="ck ck--beamer">
             ${toastHtml}${error}
             ${renderHead()}
+            ${renderControls()}
             <div class="td-panel td-empty"><strong>${esc(d.message || "Keine Unterrichtseinheit.")}</strong></div>
+            ${dots}${chrome}
           </div>`;
         return;
       }
-      ck.el.innerHTML = `<div class="ck">${toastHtml}${error}${renderHead()}
+      ck.el.innerHTML = `<div class="ck">${toastHtml}${error}${renderHead()}${renderControls()}
         <div class="td-panel td-empty"><strong>${esc(d.message || "Keine Unterrichtseinheit.")}</strong></div>
-        ${renderGame()}</div>`;
+        ${renderGame()}${dots}${chrome}</div>`;
       return;
     }
     if (ck.beamer) {
@@ -1939,7 +2137,9 @@ window.SolHelpAttribution = (function () {
         <div class="ck ck--beamer">
           ${toastHtml}${error}
           ${renderHead()}
+          ${renderControls()}
           ${renderBeamerWall()}
+          ${dots}${chrome}
         </div>`;
       return;
     }
@@ -1947,6 +2147,7 @@ window.SolHelpAttribution = (function () {
       <div class="ck">
         ${toastHtml}${error}
         ${renderHead()}
+        ${renderControls()}
         ${renderKpis()}
         <section class="ck-grid">
           ${renderLeft()}
@@ -1964,6 +2165,7 @@ window.SolHelpAttribution = (function () {
         </details>
         ${renderDrawer()}
         ${renderHelpModal()}
+        ${dots}${chrome}
       </div>`;
   }
 
@@ -2372,8 +2574,11 @@ window.SolHelpAttribution = (function () {
       render();
       return;
     }
-    if (t.closest("[data-ck-beamer]")) {
-      ck.beamer = !ck.beamer;
+    const beamerBtn = t.closest("[data-ck-beamer]");
+    if (beamerBtn) {
+      const mode = beamerBtn.getAttribute("data-mode");
+      const next = mode === "teacher" ? false : mode === "beamer" ? true : !ck.beamer;
+      ck.beamer = next;
       ck.drawerId = null;
       if (!ck.beamer) ck.beamerPaused = false;
       restartTimer();
@@ -2387,6 +2592,7 @@ window.SolHelpAttribution = (function () {
     }
     if (t.closest("[data-ck-names]")) {
       ck.showNamesOnBeamer = !namesOnBeamer();
+      if (ck.classId != null) saveNamesPref(ck.classId, ck.showNamesOnBeamer);
       render();
       return;
     }
@@ -2490,6 +2696,8 @@ window.SolHelpAttribution = (function () {
 
   function onKey(event) {
     if (!ck.active) return;
+    const tag = (event.target && event.target.tagName) || "";
+    const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || event.target?.isContentEditable;
     if (event.key === "Escape" && ck.helpModal) {
       ck.helpModal = null;
       render();
@@ -2500,7 +2708,13 @@ window.SolHelpAttribution = (function () {
       render();
       return;
     }
-    if (!ck.beamer) return;
+    if (event.key === "Escape" && isPresentation()) {
+      exitPresentation();
+      event.preventDefault();
+      return;
+    }
+    if (!ck.beamer && !isPresentation()) return;
+    if (typing) return;
     if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
       const i = BEAMER_VIEWS.indexOf(ck.beamerView);
       const next =
@@ -2508,10 +2722,42 @@ window.SolHelpAttribution = (function () {
           ? BEAMER_VIEWS[(i + 1) % BEAMER_VIEWS.length]
           : BEAMER_VIEWS[(i - 1 + BEAMER_VIEWS.length) % BEAMER_VIEWS.length];
       ck.beamerView = next;
+      if (!ck.beamer) ck.beamer = true;
       armViewTimer();
       render();
       event.preventDefault();
+      return;
     }
+    if (event.key === " " || event.code === "Space") {
+      ck.beamerPaused = !ck.beamerPaused;
+      armViewTimer();
+      render();
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "n" || event.key === "N") {
+      ck.showNamesOnBeamer = !namesOnBeamer();
+      if (ck.classId != null) saveNamesPref(ck.classId, ck.showNamesOnBeamer);
+      render();
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "z" || event.key === "Z") {
+      runRaffle();
+      event.preventDefault();
+    }
+  }
+
+  function onPresentationPointer() {
+    if (!ck.active || !isPresentation()) return;
+    showPresentationChrome();
+  }
+
+  function onFullscreenChange() {
+    if (!ck.active) return;
+    if (document.fullscreenElement) ck.fakeFullscreen = false;
+    syncPresentationClasses();
+    render();
   }
 
   function bind() {
@@ -2522,6 +2768,9 @@ window.SolHelpAttribution = (function () {
     ck.el.addEventListener("change", onFormInput);
     ck.el.addEventListener("input", onFormInput);
     document.addEventListener("keydown", onKey);
+    document.addEventListener("mousemove", onPresentationPointer);
+    document.addEventListener("touchstart", onPresentationPointer, { passive: true });
+    document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("visibilitychange", () => {
       if (
         ck.active &&
@@ -2555,7 +2804,8 @@ window.SolHelpAttribution = (function () {
       ck.form = null;
       ck.forceBossWin = false;
       ck.bossConfetti = false;
-      ck.showNamesOnBeamer = null;
+      const stored = loadNamesPref(ctx.classId);
+      ck.showNamesOnBeamer = stored;
     }
     const key = `${ctx.classId}|${ctx.levelCheckId || ""}`;
     const inFlight = ck.loading && ck.loadingKey === key;
@@ -2576,7 +2826,13 @@ window.SolHelpAttribution = (function () {
   function hide() {
     ck.active = false;
     stopTimer();
-    document.body.classList.remove("ck-wide", "ck-beamer");
+    if (ck.chromeHideTimer) {
+      clearTimeout(ck.chromeHideTimer);
+      ck.chromeHideTimer = null;
+    }
+    ck.fakeFullscreen = false;
+    ck.chromeVisible = false;
+    document.body.classList.remove("ck-wide", "ck-beamer", "ck--presentation", "ck-fake-fullscreen");
   }
 
   window.TeacherCockpit = { show, hide };
