@@ -342,7 +342,10 @@ window.SolHelpAttribution = (function () {
 
   /* ---------- Daten ---------- */
 
+  // Beamer cannot hide T1/T2 test accounts without a DB/API flag (none exists).
   function students() {
+    // Testkonten (z. B. T1/T2): kein is_test-/Demo-Flag in users — Beamer kann sie
+    // ohne Namensheuristik nicht zuverlässig ausblenden. Siehe Korrektur Runde 4.
     return ck.data?.studentsDetail || [];
   }
 
@@ -727,8 +730,31 @@ window.SolHelpAttribution = (function () {
         ? `<span class="ck-chrome-raffle">${xpPicker("raffle", ck.raffleXp)}
             <button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-ck-raffle ${raffle.eligibleCount && !ck.busy && !raffle.drawn ? "" : "disabled"}>Ziehung</button></span>`
         : "";
+    if (asChrome) {
+      const unitChrome = units.length
+        ? `<span class="ck-chrome-unit">
+            <button type="button" class="ck-btn ck-btn-icon" data-ck-unit-toggle title="Einheit wählen" aria-label="Einheit wählen" aria-expanded="false">⚙</button>
+            <label class="sr-only" for="unitSelect">Unterrichtseinheit</label>
+            <select id="unitSelect" class="td-select ck-select ck-select--chrome" aria-label="Unterrichtseinheit" tabindex="-1">${options}</select>
+          </span>`
+        : "";
+      return `
+      <div class="ck-controls ck-controls--chrome is-visible" data-ck-controls>
+        <div class="ck-controls__left">${unitChrome}</div>
+        <div class="ck-controls__right">
+          <button type="button" class="ck-btn ck-btn-icon" data-ck-beamer data-mode="teacher" title="Lehrkraft-Ansicht" aria-label="Lehrkraft-Ansicht">⌂</button>
+          <div class="ck-beamer-group" role="group" aria-label="Beamer">
+            <button type="button" class="ck-btn ck-btn-icon ${isPresentation() ? "ck-btn-go" : ""}" data-ck-fullscreen title="Vollbild" aria-label="Vollbild">⛶</button>
+            <button type="button" class="ck-btn ck-btn-icon ${namesOn ? "ck-btn-go" : ""}" data-ck-names title="Namen an/aus" aria-label="${namesOn ? "Namen an" : "Namen aus"}">N</button>
+            <button type="button" class="ck-btn ck-btn-icon ${ck.beamerPaused ? "ck-btn-go" : ""}" data-ck-pause title="${ck.beamerPaused ? "Weiter" : "Pause"}" aria-label="${ck.beamerPaused ? "Weiter" : "Pause"}">${ck.beamerPaused ? "▶" : "⏸"}</button>
+            <span class="ck-view-dots" role="group" aria-label="Beamer-Ansichten">${viewSeg}</span>
+            ${raffleChrome}
+          </div>
+        </div>
+      </div>`;
+    }
     return `
-      <div class="ck-controls ${asChrome ? "ck-controls--chrome is-visible" : ""}" data-ck-controls>
+      <div class="ck-controls" data-ck-controls>
         <div class="ck-controls__left">
           ${
             units.length
@@ -1450,7 +1476,7 @@ window.SolHelpAttribution = (function () {
     const initial = String(name).trim().slice(0, 1).toUpperCase() || "?";
     const url = student?.avatarUrl;
     if (url) {
-      return `<span class="ck-av ${sizeClass || ""}"><img src="${esc(url)}" alt="" loading="lazy"><span class="ck-av-fallback" aria-hidden="true">${esc(initial)}</span></span>`;
+      return `<span class="ck-av ${sizeClass || ""}"><img src="${esc(url)}" alt="" loading="lazy" onerror="this.dataset.error='1';this.hidden=true"><span class="ck-av-fallback" aria-hidden="true">${esc(initial)}</span></span>`;
     }
     return `<span class="ck-av ${sizeClass || ""} ck-av--fallback" aria-hidden="true">${esc(initial)}</span>`;
   }
@@ -2172,13 +2198,15 @@ window.SolHelpAttribution = (function () {
   }
 
   function renderBeamerViewC() {
+    const crew = `${renderCrewProgressChips()}${renderCrewDrawShow()}`;
     return `
-      <div class="ck-beamer-view ck-beamer-view--c" data-view="C">
-        ${renderHighlightsPanel()}
-        ${renderRaffleCard()}
+      <div class="ck-beamer-view ck-beamer-view--c ${crew.trim() ? "has-crew" : ""}" data-view="C">
+        <div class="ck-beamer-c-top">
+          ${renderHighlightsPanel()}
+          ${renderRaffleCard()}
+        </div>
         ${renderSeasonBarPanel()}
-        ${renderCrewProgressChips()}
-        ${renderCrewDrawShow()}
+        ${crew}
       </div>`;
   }
 
@@ -2293,6 +2321,22 @@ window.SolHelpAttribution = (function () {
 
   /* ---------- Gesamt ---------- */
 
+  function syncBeamerMetrics() {
+    const root = ck.el?.querySelector?.(".ck--beamer");
+    if (!root) return;
+    const head = root.querySelector(".ck-context--sticky, .ck-context--beamer");
+    const headH = head ? Math.ceil(head.getBoundingClientRect().height) : 72;
+    root.style.setProperty("--ck-beamer-head-h", `${Math.max(48, headH)}px`);
+    const nav = document.querySelector(".td-top");
+    const navHidden =
+      isPresentation() ||
+      !nav ||
+      getComputedStyle(nav).display === "none" ||
+      getComputedStyle(nav).visibility === "hidden";
+    const navH = navHidden ? 0 : Math.ceil(nav.getBoundingClientRect().height) || 56;
+    root.style.setProperty("--ck-nav-h", `${navH}px`);
+  }
+
   function render() {
     if (!ck.active || !ck.el) return;
     document.body.classList.toggle("ck-beamer", ck.beamer);
@@ -2317,6 +2361,7 @@ window.SolHelpAttribution = (function () {
             <div class="td-panel td-empty"><strong>${esc(d.message || "Keine Unterrichtseinheit.")}</strong></div>
             ${dots}${chrome}
           </div>`;
+        syncBeamerMetrics();
         return;
       }
       ck.el.innerHTML = `<div class="ck">${toastHtml}${error}${renderHead()}${renderControls()}
@@ -2333,6 +2378,7 @@ window.SolHelpAttribution = (function () {
           ${renderBeamerWall()}
           ${dots}${chrome}
         </div>`;
+      syncBeamerMetrics();
       return;
     }
     ck.el.innerHTML = `
@@ -2776,6 +2822,25 @@ window.SolHelpAttribution = (function () {
       render();
       return;
     }
+    const unitToggle = t.closest("[data-ck-unit-toggle]");
+    if (unitToggle) {
+      const wrap = unitToggle.closest(".ck-chrome-unit");
+      const select = wrap?.querySelector("select");
+      if (wrap && select) {
+        const open = !wrap.classList.contains("is-open");
+        wrap.classList.toggle("is-open", open);
+        unitToggle.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) {
+          select.focus();
+          try {
+            select.showPicker?.();
+          } catch (_) {
+            /* ignore */
+          }
+        }
+      }
+      return;
+    }
     const beamerBtn = t.closest("[data-ck-beamer]");
     if (beamerBtn) {
       const mode = beamerBtn.getAttribute("data-mode");
@@ -2968,6 +3033,11 @@ window.SolHelpAttribution = (function () {
     render();
   }
 
+  function onBeamerResize() {
+    if (!ck.active || !ck.beamer) return;
+    syncBeamerMetrics();
+  }
+
   function bind() {
     if (ck.bound || !ck.el) return;
     ck.bound = true;
@@ -2979,6 +3049,7 @@ window.SolHelpAttribution = (function () {
     document.addEventListener("mousemove", onPresentationPointer);
     document.addEventListener("touchstart", onPresentationPointer, { passive: true });
     document.addEventListener("fullscreenchange", onFullscreenChange);
+    window.addEventListener("resize", onBeamerResize);
     document.addEventListener("visibilitychange", () => {
       if (
         ck.active &&

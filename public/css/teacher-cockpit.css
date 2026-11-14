@@ -15,11 +15,19 @@
   --ck-fs-meta: clamp(13px, 0.8vw, 16px);
   --ck-fs-name: clamp(14px, 0.85vw, 17px);
   --ck-beamer-head: 72px;
+  --ck-nav-h: 56px;
+  --ck-beamer-head-h: 72px;
   font-family: "IBM Plex Sans", system-ui, sans-serif;
   color: #f8fafc;
 }
 .ck--beamer {
   --ck-beamer-head: 64px;
+  --ck-nav-h: 56px;
+  --ck-beamer-head-h: 72px;
+}
+body.ck--presentation .ck--beamer,
+body.ck-fake-fullscreen .ck--beamer {
+  --ck-nav-h: 0px;
 }
 
 body.ck-wide .td-main {
@@ -208,14 +216,24 @@ body.ck-beamer.ck-wide:fullscreen .ck-context--sticky,
 .ck-controls--chrome {
   position: fixed;
   left: 50%;
-  bottom: 56px;
+  bottom: 18px;
   transform: translateX(-50%);
-  width: min(1100px, calc(100% - 24px));
+  width: min(960px, calc(100% - 24px));
+  max-height: 56px;
   z-index: 60;
-  background: rgba(6, 10, 24, 0.88);
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: rgba(6, 10, 24, 0.72);
+  backdrop-filter: blur(8px);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
 }
 .ck-controls--chrome.is-visible {
   opacity: 1;
@@ -228,12 +246,70 @@ body.ck-beamer .ck-controls--chrome {
   display: flex;
   bottom: 18px;
 }
-body.ck--presentation.ck-beamer .ck-controls--chrome { bottom: 56px; }
+body.ck--presentation.ck-beamer .ck-controls--chrome { bottom: 40px; }
+.ck-controls--chrome .ck-controls__left,
+.ck-controls--chrome .ck-controls__right,
+.ck-controls--chrome .ck-beamer-group {
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin: 0;
+}
+.ck-controls--chrome .ck-live { display: none; }
+.ck-controls--chrome .ck-btn {
+  min-height: 36px;
+  max-height: 40px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.ck-controls--chrome .ck-btn-icon {
+  min-width: 36px;
+  width: 36px;
+  padding: 4px;
+  font-size: 1rem;
+  line-height: 1;
+}
+.ck-controls--chrome .ck-view-dot {
+  min-width: 0;
+  min-height: 36px;
+  max-height: 40px;
+  padding: 0 8px;
+  font-size: 0.68rem;
+}
+.ck-controls--chrome .ck-select,
+.ck-controls--chrome .ck-select--chrome {
+  min-height: 32px;
+  max-height: 36px;
+  max-width: 0;
+  opacity: 0;
+  padding: 0;
+  border-width: 0;
+  pointer-events: none;
+  transition: max-width 0.15s ease, opacity 0.15s ease;
+}
+.ck-controls--chrome .ck-chrome-unit.is-open .ck-select--chrome {
+  max-width: 200px;
+  opacity: 1;
+  padding: 0 8px;
+  border-width: 1px;
+  pointer-events: auto;
+}
+.ck-chrome-unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
 .ck-chrome-raffle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+.ck-controls--chrome .ck-chrome-raffle .ck-seg button {
+  min-height: 28px;
+  padding: 0 7px;
+  font-size: 0.68rem;
 }
 .ck-view-dots { display: inline-flex; gap: 4px; }
 .ck-view-dot {
@@ -682,7 +758,7 @@ body.ck-beamer .td-top {
 }
 body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
 .ck--beamer {
-  min-height: calc(100vh - 96px);
+  min-height: 0;
 }
 .ck--beamer .ck-context--sticky {
   top: 0;
@@ -693,48 +769,69 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
 .ck-wall--season {
   gap: 0;
   min-height: 0;
-  height: calc(100dvh - var(--ck-beamer-head));
+  height: calc(100vh - var(--ck-nav-h, 56px) - var(--ck-beamer-head-h, 72px));
   overflow: hidden;
 }
-body.ck--presentation .ck-wall--season {
-  height: calc(100dvh - var(--ck-beamer-head));
-}
-
 .ck-beamer-view {
   display: grid;
-  gap: 10px;
-  height: 100%;
+  gap: 0;
+  box-sizing: border-box;
+  height: calc(100vh - var(--ck-nav-h, 56px) - var(--ck-beamer-head-h, 72px));
+  max-height: 100%;
   min-height: 0;
   overflow: hidden;
+  align-content: space-evenly;
+}
+@supports (height: 100dvh) {
+  .ck-wall--season,
+  .ck-beamer-view {
+    height: calc(100dvh - var(--ck-nav-h, 56px) - var(--ck-beamer-head-h, 72px));
+  }
+}
+.ck-wall--season > .ck-beamer-view {
+  height: 100%;
 }
 .ck-beamer-view--a {
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
 }
 .ck-beamer-view--b {
-  grid-template-rows: minmax(0, 0.55fr) minmax(0, 0.45fr);
+  grid-template-rows: auto auto;
 }
 .ck-beamer-view--b.has-ticker {
-  grid-template-rows: minmax(0, 0.55fr) minmax(0, 0.4fr) auto;
+  grid-template-rows: auto auto auto;
 }
 .ck-beamer-view--c {
-  grid-template-rows: minmax(0, 1.1fr) minmax(0, 0.9fr) auto auto;
+  grid-template-rows: auto auto;
+}
+.ck-beamer-view--c.has-crew {
+  grid-template-rows: auto auto auto;
 }
 .ck-beamer-view--c .ck-crew-chips,
 .ck-beamer-view--c .ck-draw-show {
   margin: 0;
+}
+.ck-beamer-c-top {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+  min-height: 0;
+}
+.ck-beamer-c-top > .ck-panel {
+  height: auto;
+  min-height: 0;
 }
 
 .ck-beamer-ab {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr);
   gap: 12px;
-  align-items: stretch;
+  align-items: start;
   min-height: 0;
-  overflow: hidden;
 }
 .ck-beamer-ab > .ck-panel {
   min-height: 0;
-  overflow: hidden;
+  height: auto;
 }
 .ck-beamer-ab--teacher {
   grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.7fr);
@@ -744,11 +841,12 @@ body.ck--presentation .ck-wall--season {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  align-items: stretch;
   min-height: 0;
-  overflow: hidden;
 }
 .ck-beamer-b-mid > .ck-panel {
-  height: 100%;
+  height: auto;
+  min-height: 100%;
   overflow: hidden;
 }
 .ck-teacher-wall {
@@ -844,12 +942,16 @@ body.ck--presentation .ck-wall--season {
 }
 .ck-boss-energy { margin-bottom: 8px; }
 
-.ck-respect-panel { min-height: 0; }
+.ck-respect-panel { min-height: 0; height: auto; }
+.ck--beamer .ck-respect-panel,
+.ck--beamer .ck-sidequest {
+  height: auto;
+}
 .ck-respect-list {
   display: grid;
-  gap: 6px;
-  grid-template-rows: repeat(5, minmax(0, 1fr));
-  flex: 1;
+  gap: 4px;
+  grid-template-rows: repeat(5, auto);
+  flex: none;
   min-height: 0;
 }
 .ck-respect-row {
@@ -857,12 +959,19 @@ body.ck--presentation .ck-wall--season {
   grid-template-columns: 28px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-  padding: 4px 10px;
-  border-radius: 12px;
+  padding: 3px 8px;
+  border-radius: 10px;
   border: 1px solid var(--ck-line);
   background: rgba(5, 8, 22, 0.45);
   min-height: 0;
 }
+.ck--beamer .ck-respect-row {
+  padding: 2px 8px;
+}
+.ck--beamer .ck-respect-wert {
+  font-size: clamp(13px, 0.95vw, 18px);
+}
+.ck--beamer .ck-star--compact { font-size: 20px; }
 .ck-respect-row.is-erreicht {
   border-color: #FFC74D;
   box-shadow: 0 0 0 1px rgba(255, 199, 77, 0.25);
@@ -1011,13 +1120,28 @@ body.ck--presentation .ck-wall--season {
   font-weight: 700;
 }
 
-.ck-highlights-panel { min-height: 0; overflow: hidden; }
+.ck-highlights-panel { min-height: 0; overflow: hidden; height: auto; }
 .ck-hl-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
-  flex: 1;
+  flex: none;
   min-height: 0;
+}
+.ck--beamer .ck-highlights-panel,
+.ck--beamer .ck-raffle-card,
+.ck--beamer .ck-season-panel {
+  height: auto;
+  flex: none;
+}
+.ck--beamer .ck-map-panel .ck-city {
+  max-height: min(38vh, 400px);
+}
+.ck--beamer .ck-map-panel .ck-city img {
+  max-height: min(38vh, 400px);
+  width: 100%;
+  object-fit: contain;
+  object-position: center top;
 }
 .ck-hl-card {
   border-radius: 16px;
@@ -1096,13 +1220,22 @@ body.ck--presentation .ck-wall--season {
   object-fit: cover;
   z-index: 1;
 }
+.ck-av img[data-error],
+.ck-av img[hidden] {
+  display: none !important;
+}
 .ck-av-fallback,
 .ck-av--fallback {
   font-family: Orbitron, system-ui, sans-serif;
   font-weight: 700;
   color: #e2e8f0;
   font-size: 0.95rem;
+  position: relative;
   z-index: 0;
+}
+/* Letter only when no working image — never over a visible avatar */
+.ck-av:has(img:not([data-error]):not([hidden])) .ck-av-fallback {
+  display: none;
 }
 .ck-av--sm { width: 40px; height: 40px; font-size: 0.85rem; }
 .ck-av--md { width: 48px; height: 48px; }
@@ -1118,9 +1251,15 @@ body.ck--presentation .ck-wall--season {
 .ck-avatar-wall {
   container-type: inline-size;
   min-height: 0;
+  height: auto;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex: none;
+}
+.ck--beamer .ck-avatar-wall {
+  max-height: none;
+  height: auto;
 }
 .ck-av-wall-head {
   display: flex;
@@ -1163,17 +1302,20 @@ body.ck--presentation .ck-wall--season {
 }
 .ck-av-dot--none { background: #64748b; }
 .ck-av-grid {
-  --ck-av-size: clamp(56px, 4.2vw, 72px);
+  --ck-av-size: clamp(48px, 3.8vw, 68px);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: 8px 6px;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 6px 4px;
   align-content: start;
-  flex: 1;
+  flex: none;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
+}
+.ck--beamer .ck-av-grid {
+  --ck-av-size: clamp(44px, 3.4vw, 64px);
 }
 @container (max-width: 900px) {
-  .ck-av-grid { --ck-av-size: 56px; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+  .ck-av-grid { --ck-av-size: 48px; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
 }
 .ck-av-cell {
   display: flex;
@@ -1255,16 +1397,23 @@ body.ck--presentation .ck-wall--season {
 }
 
 @media (max-width: 1100px) {
-  .ck-beamer-ab, .ck-beamer-ab--teacher, .ck-hl-grid, .ck-beamer-b-mid {
+  .ck-beamer-ab--teacher,
+  .ck-hl-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .ck-wall--season,
-  .ck-beamer-view {
-    height: auto;
-    overflow: auto;
+  .ck:not(.ck--beamer) .ck-beamer-ab,
+  .ck:not(.ck--beamer) .ck-beamer-b-mid {
+    grid-template-columns: minmax(0, 1fr);
   }
   .ck-lane-track { grid-template-columns: minmax(0, 1fr); }
   .ck-lane-track__pct { text-align: left; }
+}
+@media (max-width: 820px) {
+  .ck--beamer .ck-beamer-ab,
+  .ck--beamer .ck-beamer-b-mid,
+  .ck--beamer .ck-beamer-c-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 1280px) {
@@ -1369,12 +1518,26 @@ body.ck--presentation .ck-wall--season {
   font-size: var(--ck-fs-hero);
 }
 .ck-raffle-win--lg {
+  display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px;
+  gap: 8px;
+  padding: 16px 12px;
   align-items: center;
+  justify-content: center;
+}
+.ck-raffle-win--lg .ck-av--xl {
+  width: clamp(100px, 12vw, 160px);
+  height: clamp(100px, 12vw, 160px);
+  font-size: clamp(1.6rem, 3vw, 2.6rem);
+  border-width: 3px;
 }
 .ck-raffle-win--lg strong { font-size: var(--ck-fs-hero); }
+.ck-raffle-win--lg .ck-raffle-xp {
+  font-size: clamp(18px, 1.4vw, 28px);
+  color: #a7f3d0;
+  font-weight: 800;
+  font-family: Orbitron, system-ui, sans-serif;
+}
 .ck-raffle-xp { font-size: var(--ck-fs-body); color: #a7f3d0; font-weight: 700; }
 .ck-crew-chips {
   display: flex;
