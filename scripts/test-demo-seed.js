@@ -9,6 +9,7 @@ import {
   DEMO_MATHE_TARGET_GRADE,
   DEMO_MATHE_TOPIC,
   DEMO_STUDENT,
+  DEMO_TEACHER,
   demoMatheCatalogDefinition
 } from "../lib/demo-seed.js";
 import {
@@ -31,6 +32,7 @@ const halte = loadHalte(POTENZEN_THEMA);
 const names = POTENZEN_GOAL_ASSIGNMENTS.map(([, name]) => name);
 
 assert.equal(DEMO_STUDENT, "lina.demo");
+assert.equal(DEMO_TEACHER, "demo.lehrer");
 assert.equal(DEMO_CLASS_NAME, "9a Demo");
 assert.equal(demo.name, "Potenzen und Wurzeln");
 assert.equal(normalizeGoalName(demo.name), POTENZEN_ASSIGN_TOPIC);

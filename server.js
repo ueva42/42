@@ -29,6 +29,7 @@ import {
   getDemoSchoolId,
   demoEffectiveIsoDate,
   DEMO_ADMIN,
+  DEMO_TEACHER,
   DEMO_STUDENT,
   DEMO_PASSWORD
 } from "./lib/demo-seed.js";
@@ -5030,15 +5031,15 @@ app.post("/api/login", async (req, res) => {
     });
   }
 
-  // Demo-Schule: kein Admin-/Lehrer-Login (nur Schüler-Demozugang).
+  // Demo-Schule: kein öffentlicher Admin-Login (Schüler + Lehrkraft ok).
   if (
-    user.name === DEMO_ADMIN &&
-    (user.role === "admin" || user.role === "teacher") &&
+    user.role === "admin" &&
+    (user.name === DEMO_ADMIN || user.name === DEMO_TEACHER) &&
     (await isDemoSchoolId(pool, user.school_id))
   ) {
     return res.json({
       success: false,
-      message: "Demo nur als Schülerin verfügbar."
+      message: "Demo als Admin nicht verfügbar – bitte Schülerin oder Lehrkraft wählen."
     });
   }
 
@@ -5054,6 +5055,7 @@ app.get("/api/demo/status", async (_req, res) => {
     res.json({
       enabled: Boolean(schoolId),
       studentUser: DEMO_STUDENT,
+      teacherUser: DEMO_TEACHER,
       password: DEMO_PASSWORD,
       className: "9a Demo"
     });
@@ -5069,13 +5071,7 @@ app.post("/api/demo/login", async (req, res) => {
       return res.status(404).json({ success: false, message: "Demo nicht verfügbar." });
     }
 
-    // Nur Schüler-Demo – kein Admin-/Lehrer-Demozugang.
-    if (req.body?.role && req.body.role !== "student") {
-      return res.status(404).json({
-        success: false,
-        message: "Demo nur als Schülerin verfügbar."
-      });
-    }
+    const role = req.body?.role === "teacher" ? "teacher" : "student";
 
     await ensureDemoSchool(pool);
     const demoSchoolId = await getDemoSchoolId(pool);
@@ -5083,7 +5079,7 @@ app.post("/api/demo/login", async (req, res) => {
       await syncDemoCharacters(pool, demoSchoolId);
       await refreshDemoLearningSetup(pool, demoSchoolId);
     }
-    const user = await findDemoUser(pool, "student");
+    const user = await findDemoUser(pool, role);
     if (!user) {
       return res.status(503).json({
         success: false,
@@ -5091,7 +5087,9 @@ app.post("/api/demo/login", async (req, res) => {
       });
     }
 
-    await prepareDemoStudentSession(pool, user.id);
+    if (role === "student") {
+      await prepareDemoStudentSession(pool, user.id);
+    }
     loginUserSession(req, res, user, { isDemo: true });
   } catch (err) {
     console.error("❌ /api/demo/login:", err);

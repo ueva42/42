@@ -442,6 +442,17 @@
       cursor: wait;
     }
 
+    .login-demo__btn--secondary {
+      border-color: rgba(148, 163, 184, 0.35);
+      background: rgba(15, 23, 42, 0.55);
+      color: #e2e8f0;
+    }
+
+    .login-demo__btn--secondary:hover {
+      background: rgba(30, 41, 59, 0.75);
+      border-color: rgba(148, 163, 184, 0.55);
+    }
+
     .login-demo.is-hidden {
       display: none;
     }
@@ -567,11 +578,12 @@
         <section class="login-demo is-hidden" id="demoSection" aria-label="Demo ausprobieren">
           <h2 class="login-demo__title">Demo ausprobieren</h2>
           <p class="login-demo__hint">
-            Sofort reinschnuppern – ohne Passwort. Schülerin Lina in Klasse 9a Demo mit Stundenplan,
-            Levelplänen, Hausaufgaben, Gruppenmodus und Beispieldaten.
+            Sofort reinschnuppern – ohne Passwort. Schülerin Lina oder Lehrkraft in Klasse 9a Demo
+            (Stundenplan, Levelpläne, Cockpit, Hausaufgaben, Gruppenmodus).
           </p>
           <div class="login-demo__actions">
             <button type="button" class="login-demo__btn" id="demoStudentBtn">Als Schülerin Lina</button>
+            <button type="button" class="login-demo__btn login-demo__btn--secondary" id="demoTeacherBtn">Als Lehrkraft</button>
           </div>
         </section>
 
@@ -616,6 +628,7 @@
     const togglePassword = document.getElementById("togglePassword");
     const demoSection = document.getElementById("demoSection");
     const demoStudentBtn = document.getElementById("demoStudentBtn");
+    const demoTeacherBtn = document.getElementById("demoTeacherBtn");
 
     function homeForRole(role) {
       if (window.SolAuth?.homeFor) return window.SolAuth.homeFor(role);
@@ -716,9 +729,10 @@
       window.location.replace(target);
     }
 
-    async function doDemoLogin() {
+    async function doDemoLogin(role = "student") {
       hideError();
-      demoStudentBtn.disabled = true;
+      if (demoStudentBtn) demoStudentBtn.disabled = true;
+      if (demoTeacherBtn) demoTeacherBtn.disabled = true;
       loginButton.disabled = true;
 
       try {
@@ -726,7 +740,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify({ role: "student" })
+          body: JSON.stringify({ role })
         });
         const data = await res.json();
 
@@ -746,7 +760,8 @@
         console.error(err);
         showError("Demo-Login fehlgeschlagen. Bitte erneut versuchen.");
       } finally {
-        demoStudentBtn.disabled = false;
+        if (demoStudentBtn) demoStudentBtn.disabled = false;
+        if (demoTeacherBtn) demoTeacherBtn.disabled = false;
         loginButton.disabled = false;
       }
     }
@@ -760,7 +775,8 @@
       } catch (_err) {}
     }
 
-    demoStudentBtn?.addEventListener("click", () => doDemoLogin());
+    demoStudentBtn?.addEventListener("click", () => doDemoLogin("student"));
+    demoTeacherBtn?.addEventListener("click", () => doDemoLogin("teacher"));
     initDemoSection();
 
     function showError(message) {
