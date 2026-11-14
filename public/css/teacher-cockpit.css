@@ -8,8 +8,18 @@
   --ck-amber: #fbbf24;
   --ck-line: rgba(148, 163, 184, 0.18);
   --ck-muted: #94a3b8;
+  --ck-fs-title: clamp(18px, 1.15vw, 24px);
+  --ck-fs-hero: clamp(24px, 1.6vw, 34px);
+  --ck-fs-list: clamp(18px, 1.15vw, 24px);
+  --ck-fs-body: clamp(14px, 0.9vw, 18px);
+  --ck-fs-meta: clamp(13px, 0.8vw, 16px);
+  --ck-fs-name: clamp(14px, 0.85vw, 17px);
+  --ck-beamer-head: 72px;
   font-family: "IBM Plex Sans", system-ui, sans-serif;
   color: #f8fafc;
+}
+.ck--beamer {
+  --ck-beamer-head: 64px;
 }
 
 body.ck-wide .td-main {
@@ -67,6 +77,31 @@ body.ck-fake-fullscreen .td-main {
   background: #060a18;
   border-bottom: 1px solid var(--ck-line);
 }
+.ck-context--beamer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;
+  padding: 6px 8px 8px;
+  margin-bottom: 8px;
+}
+.ck-context--beamer .ck-kicker {
+  margin: 0;
+  font-size: clamp(11px, 0.85vw, 13px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ck-dates--slim {
+  margin: 2px 0 0;
+  font-size: var(--ck-fs-meta);
+  color: var(--ck-muted);
+}
+.ck-context--beamer .ck-respekt-box {
+  padding: 6px 10px;
+}
+.ck-context--beamer .ck-star--head { font-size: 22px; }
 body.ck--presentation .ck-context--sticky,
 body.ck-beamer.ck-wide:fullscreen .ck-context--sticky,
 .ck--beamer:fullscreen .ck-context--sticky,
@@ -186,19 +221,33 @@ body.ck-beamer.ck-wide:fullscreen .ck-context--sticky,
   opacity: 1;
   pointer-events: auto;
 }
-body:not(.ck--presentation) .ck-controls--chrome { display: none; }
-body.ck--presentation .ck-controls:not(.ck-controls--chrome) { display: none !important; }
-
+body:not(.ck--presentation):not(.ck-beamer) .ck-controls--chrome { display: none; }
+body.ck--presentation .ck-controls:not(.ck-controls--chrome),
+body.ck-beamer .ck-controls:not(.ck-controls--chrome) { display: none !important; }
+body.ck-beamer .ck-controls--chrome {
+  display: flex;
+  bottom: 18px;
+}
+body.ck--presentation.ck-beamer .ck-controls--chrome { bottom: 56px; }
+.ck-chrome-raffle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
 .ck-view-dots { display: inline-flex; gap: 4px; }
 .ck-view-dot {
   min-width: 44px;
   min-height: 44px;
+  padding: 0 12px;
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.4);
   background: transparent;
   color: #cbd5e1;
   font-family: Orbitron, system-ui, sans-serif;
   font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
   cursor: pointer;
 }
 .ck-view-dot.is-on {
@@ -260,29 +309,34 @@ body.ck--presentation .ck-pres-dots { display: inline-flex; }
 }
 .ck-panel h2 {
   margin: 0 0 10px;
-  font-size: clamp(22px, 1.5vw, 32px);
+  font-size: var(--ck-fs-title);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
-.ck-panel h2 .td-kicker { margin: 0; font-size: clamp(16px, 1.05vw, 20px); }
+.ck-panel h2 .td-kicker { margin: 0; font-size: var(--ck-fs-meta); }
 .ck--beamer .ck-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
-.ck--beamer .ck-big,
-.ck--beamer .ck-respect-wert,
-.ck--beamer .ck-sidequest-wert,
-.ck--beamer .ck-raffle-win--lg strong {
-  font-size: clamp(28px, 2.2vw, 48px);
+.ck-hero {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: var(--ck-fs-hero);
+  font-weight: 700;
+  margin: 4px 0;
+  line-height: 1.1;
 }
+.ck-body { font-size: var(--ck-fs-body); margin: 4px 0; }
 .ck--beamer .ck-small,
 .ck--beamer .ck-respect-sub,
 .ck--beamer .ck-muted {
-  font-size: clamp(16px, 1.05vw, 22px);
+  font-size: var(--ck-fs-meta);
+}
+.ck--beamer .ck-kpi .ck-num {
+  font-size: clamp(28px, 2.4vw, 48px);
 }
 
 /* KPI */
@@ -636,42 +690,73 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
 }
 
 .ck-wall { display: grid; gap: 14px; margin-top: 4px; }
-.ck-wall--season { gap: 12px; }
+.ck-wall--season {
+  gap: 0;
+  min-height: 0;
+  height: calc(100dvh - var(--ck-beamer-head));
+  overflow: hidden;
+}
+body.ck--presentation .ck-wall--season {
+  height: calc(100dvh - var(--ck-beamer-head));
+}
+
+.ck-beamer-view {
+  display: grid;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.ck-beamer-view--a {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.ck-beamer-view--b {
+  grid-template-rows: minmax(0, 0.55fr) minmax(0, 0.45fr);
+}
+.ck-beamer-view--b.has-ticker {
+  grid-template-rows: minmax(0, 0.55fr) minmax(0, 0.4fr) auto;
+}
+.ck-beamer-view--c {
+  grid-template-rows: minmax(0, 1.1fr) minmax(0, 0.9fr) auto auto;
+}
+.ck-beamer-view--c .ck-crew-chips,
+.ck-beamer-view--c .ck-draw-show {
+  margin: 0;
+}
 
 .ck-beamer-ab {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr);
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
+}
+.ck-beamer-ab > .ck-panel {
+  min-height: 0;
+  overflow: hidden;
 }
 .ck-beamer-ab--teacher {
   grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.7fr);
   margin-top: 12px;
 }
-.ck-beamer-view--b {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  height: calc(100dvh - 140px);
+.ck-beamer-b-mid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
   min-height: 0;
   overflow: hidden;
 }
-body.ck--presentation .ck-beamer-view--b {
-  height: calc(100dvh - 96px);
-}
-.ck-beamer-b-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 12px;
-  flex: 1;
-  min-height: 0;
-}
-.ck-beamer-b-grid > .ck-panel {
+.ck-beamer-b-mid > .ck-panel {
   height: 100%;
   overflow: hidden;
 }
-.ck-joined .ck-big { margin: 4px 0; }
+.ck-teacher-wall {
+  margin-top: 12px;
+}
+.ck-teacher-wall .ck-avatar-wall {
+  max-height: none;
+}
 
 .ck-map-panel { overflow: hidden; }
 .ck-map-panel--compact .ck-city { max-height: 360px; }
@@ -762,20 +847,21 @@ body.ck--presentation .ck-beamer-view--b {
 .ck-respect-panel { min-height: 0; }
 .ck-respect-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   grid-template-rows: repeat(5, minmax(0, 1fr));
   flex: 1;
+  min-height: 0;
 }
 .ck-respect-row {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  padding: 8px 12px;
-  border-radius: 14px;
+  padding: 4px 10px;
+  border-radius: 12px;
   border: 1px solid var(--ck-line);
   background: rgba(5, 8, 22, 0.45);
-  min-height: 48px;
+  min-height: 0;
 }
 .ck-respect-row.is-erreicht {
   border-color: #FFC74D;
@@ -790,36 +876,69 @@ body.ck--presentation .ck-beamer-view--b {
 .ck-respect-row.is-keine_daten strong {
   color: #94a3b8;
 }
+.ck-star--compact { font-size: 24px; }
 .ck-respect-row__mid strong {
-  font-size: clamp(16px, 1.05vw, 22px);
+  font-size: var(--ck-fs-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ck-respect-row__val {
-  display: grid;
-  justify-items: end;
-  gap: 2px;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
   text-align: right;
+  white-space: nowrap;
 }
 .ck-respect-wert {
   font-family: Orbitron, system-ui, sans-serif;
   font-weight: 700;
-  font-size: clamp(18px, 1.4vw, 28px);
+  font-size: var(--ck-fs-list);
   line-height: 1.1;
 }
 .ck-respect-sub {
   color: var(--ck-muted);
-  font-size: clamp(16px, 1.05vw, 20px);
+  font-size: var(--ck-fs-meta);
 }
 
 .ck-season-panel { min-height: 0; }
 .ck-season-bar {
   margin: 4px 0 12px;
+  position: relative;
+}
+.ck-season-bar__xp {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.ck-season-bar__xp em {
+  font-style: normal;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: var(--ck-fs-meta);
+  color: #e2e8f0;
+  white-space: nowrap;
+  line-height: 1;
+}
+.ck-season-bar__xp i {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #e2e8f0;
+  margin-top: 2px;
 }
 .ck-season-bar__track {
   position: relative;
   height: 14px;
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.18);
-  margin: 22px 8px 28px;
+  margin: 28px 8px 12px;
 }
 .ck-season-bar__fill {
   position: absolute;
@@ -841,31 +960,6 @@ body.ck--presentation .ck-beamer-view--b {
 }
 .ck-season-mark.is-erreicht { background: var(--ck-violet); }
 .ck-season-mark.is-naechste { background: var(--ck-pink); box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.35); }
-.ck-season-now {
-  position: absolute;
-  top: -22px;
-  transform: translateX(-50%);
-  display: grid;
-  justify-items: center;
-  gap: 2px;
-  z-index: 3;
-  pointer-events: none;
-}
-.ck-season-now i {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #f8fafc;
-  border: 3px solid var(--ck-violet);
-  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.35);
-}
-.ck-season-now em {
-  font-style: normal;
-  font-family: Orbitron, system-ui, sans-serif;
-  font-size: clamp(12px, 0.9vw, 14px);
-  color: #e2e8f0;
-  white-space: nowrap;
-}
 .ck-season-track {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
@@ -877,17 +971,17 @@ body.ck--presentation .ck-beamer-view--b {
   border: 1px solid var(--ck-line);
   background: rgba(5, 8, 22, 0.45);
   padding: 8px 10px;
-  min-height: 64px;
+  min-height: 56px;
   display: grid;
   gap: 4px;
-  font-size: clamp(16px, 1.05vw, 18px);
+  font-size: var(--ck-fs-meta);
   color: var(--ck-muted);
   opacity: 0.55;
 }
 .ck-season-tier strong {
   font-family: Orbitron, system-ui, sans-serif;
   color: #e2e8f0;
-  font-size: clamp(16px, 1.1vw, 20px);
+  font-size: var(--ck-fs-body);
 }
 .ck-season-tier.is-erreicht {
   opacity: 1;
@@ -917,23 +1011,46 @@ body.ck--presentation .ck-beamer-view--b {
   font-weight: 700;
 }
 
+.ck-highlights-panel { min-height: 0; overflow: hidden; }
 .ck-hl-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
+  flex: 1;
+  min-height: 0;
 }
 .ck-hl-card {
   border-radius: 16px;
   border: 1px solid var(--ck-line);
   background: rgba(5, 8, 22, 0.5);
-  padding: 12px;
-  min-height: 120px;
+  padding: 10px 12px;
+  min-height: 0;
 }
 .ck-hl-card h3 {
   margin: 0 0 8px;
   font-family: Orbitron, system-ui, sans-serif;
-  font-size: 0.82rem;
+  font-size: var(--ck-fs-meta);
   color: var(--ck-cyan);
+}
+.ck-hl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.ck-hl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+.ck-hl-chip__name {
+  font-size: var(--ck-fs-name);
+  font-weight: 600;
+  max-width: 9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ck-teacher-season { margin-top: 12px; }
@@ -985,18 +1102,166 @@ body.ck--presentation .ck-beamer-view--b {
   font-weight: 700;
   color: #e2e8f0;
   font-size: 0.95rem;
+  z-index: 0;
 }
+.ck-av--sm { width: 40px; height: 40px; font-size: 0.85rem; }
 .ck-av--md { width: 48px; height: 48px; }
 .ck-av--lg { width: 64px; height: 64px; font-size: 1.15rem; border-width: 3px; }
+.ck-av--xl { width: 120px; height: 120px; font-size: 2rem; border-width: 3px; }
+.ck-av--wall {
+  width: var(--ck-av-size, 72px);
+  height: var(--ck-av-size, 72px);
+  font-size: calc(var(--ck-av-size, 72px) * 0.32);
+  border: 0;
+}
+
+.ck-avatar-wall {
+  container-type: inline-size;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ck-av-wall-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+.ck-av-wall-head h2 { margin: 0; }
+.ck-av-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: var(--ck-fs-meta);
+  color: #cbd5e1;
+}
+.ck-av-counts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ck-av-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.ck-av-dot--goal { background: var(--ck-cyan); }
+.ck-av-dot--done {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  color: #a7f3d0;
+  font-weight: 800;
+  font-size: 0.85em;
+  font-style: normal;
+  line-height: 1;
+}
+.ck-av-dot--none { background: #64748b; }
+.ck-av-grid {
+  --ck-av-size: clamp(56px, 4.2vw, 72px);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px 6px;
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+@container (max-width: 900px) {
+  .ck-av-grid { --ck-av-size: 56px; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+}
+.ck-av-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.ck-av-ring {
+  position: relative;
+  width: var(--ck-av-size, 72px);
+  height: var(--ck-av-size, 72px);
+  border-radius: 50%;
+  padding: 3px;
+  background: rgba(148, 163, 184, 0.35);
+  box-sizing: border-box;
+}
+.ck-av-ring .ck-av {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.ck-av-cell--none .ck-av-ring {
+  background: rgba(100, 116, 139, 0.55);
+}
+.ck-av-cell--none .ck-av img,
+.ck-av-cell--none .ck-av {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.ck-av-cell--goal .ck-av-ring {
+  background: var(--ck-cyan);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.35);
+}
+.ck-av-cell--done .ck-av-ring {
+  background: linear-gradient(135deg, var(--ck-cyan), var(--ck-violet));
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.35);
+}
+.ck-av-badge {
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  transform: translateX(-50%);
+  z-index: 2;
+  min-height: 16px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  border: 1px solid rgba(2, 6, 23, 0.55);
+}
+.ck-av-badge--goal {
+  background: #083344;
+  color: var(--ck-cyan);
+}
+.ck-av-badge--done {
+  background: #064e3b;
+  color: #a7f3d0;
+  font-size: 11px;
+}
+.ck-av-name {
+  font-size: var(--ck-fs-name);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  color: #e2e8f0;
+}
+.ck-av--pop .ck-av-ring {
+  animation: ck-av-pop 0.6s ease-out;
+}
+@keyframes ck-av-pop {
+  0% { filter: grayscale(1) brightness(0.7); transform: scale(0.92); box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
+  45% { filter: none; transform: scale(1.06); box-shadow: 0 0 18px 2px rgba(34, 211, 238, 0.45); }
+  100% { filter: none; transform: scale(1); box-shadow: none; }
+}
 
 @media (max-width: 1100px) {
-  .ck-beamer-ab, .ck-beamer-ab--teacher, .ck-hl-grid {
+  .ck-beamer-ab, .ck-beamer-ab--teacher, .ck-hl-grid, .ck-beamer-b-mid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .ck-beamer-view--b { height: auto; overflow: auto; }
-  .ck-beamer-b-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: none;
+  .ck-wall--season,
+  .ck-beamer-view {
+    height: auto;
+    overflow: auto;
   }
   .ck-lane-track { grid-template-columns: minmax(0, 1fr); }
   .ck-lane-track__pct { text-align: left; }
@@ -1019,7 +1284,7 @@ body.ck--presentation .ck-beamer-view--b {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ck-live i, .ck-raffle-roll span, .ck-raffle-win--pop, .ck-confetti i, .ck-slot-name { animation: none; }
+  .ck-live i, .ck-raffle-roll span, .ck-raffle-win--pop, .ck-confetti i, .ck-slot-name, .ck-av--pop .ck-av-ring { animation: none; }
 }
 
 /* Stufe 2: Ticker, Side Quest, Crews */
@@ -1027,12 +1292,12 @@ body.ck--presentation .ck-beamer-view--b {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin: 0 0 8px;
-  padding: 8px 12px;
+  margin: 0;
+  padding: 6px 12px;
   border: 1px solid var(--ck-line);
   border-radius: 12px;
   background: rgba(34, 211, 238, 0.08);
-  min-height: 40px;
+  min-height: 36px;
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -1042,7 +1307,7 @@ body.ck--presentation .ck-beamer-view--b {
   gap: 8px;
   min-width: 0;
   flex: 1;
-  font-size: clamp(16px, 1.05vw, 20px);
+  font-size: var(--ck-fs-body);
 }
 .ck-ticker-dot {
   width: 10px;
@@ -1065,12 +1330,12 @@ body.ck--presentation .ck-beamer-view--b {
 }
 .ck-sidequest-text {
   margin: 0 0 10px;
-  font-size: clamp(22px, 1.5vw, 32px);
+  font-size: var(--ck-fs-title);
   font-weight: 700;
   line-height: 1.25;
 }
-.ck-goalbar--sq { height: 16px; }
-.ck-goalbar--sq b { height: 16px; }
+.ck-goalbar--sq { height: 12px; }
+.ck-goalbar--sq b { height: 12px; }
 .ck-sidequest-stats {
   display: flex;
   align-items: baseline;
@@ -1080,21 +1345,37 @@ body.ck--presentation .ck-beamer-view--b {
 .ck-sidequest-wert {
   font-family: Orbitron, system-ui, sans-serif;
   font-weight: 700;
-  font-size: clamp(28px, 2.2vw, 48px);
+  font-size: var(--ck-fs-hero);
 }
 .ck-sidequest-xp {
-  font-size: clamp(16px, 1.05vw, 22px);
+  font-size: var(--ck-fs-body);
   color: #a7f3d0;
   font-weight: 700;
 }
-.ck-raffle-pot { font-size: clamp(18px, 1.4vw, 28px); }
+.ck-raffle-pot { margin: 4px 0; }
+.ck-raffle-pot__n { font-size: var(--ck-fs-hero); }
+.ck-raffle-pot__sub { margin: 0 0 8px; color: var(--ck-muted); }
+.ck-raffle-spin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 150px;
+  padding: 8px 0;
+}
+.ck-raffle-spin-name {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: var(--ck-fs-hero);
+}
 .ck-raffle-win--lg {
   flex-direction: column;
   gap: 6px;
-  padding: 18px 12px;
+  padding: 12px;
+  align-items: center;
 }
-.ck-raffle-win--lg strong { font-size: clamp(28px, 2.2vw, 48px); }
-.ck-raffle-xp { font-size: clamp(18px, 1.4vw, 28px); color: #a7f3d0; font-weight: 700; }
+.ck-raffle-win--lg strong { font-size: var(--ck-fs-hero); }
+.ck-raffle-xp { font-size: var(--ck-fs-body); color: #a7f3d0; font-weight: 700; }
 .ck-crew-chips {
   display: flex;
   flex-wrap: wrap;

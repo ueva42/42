@@ -85,6 +85,11 @@ window.SolHelpAttribution = (function () {
   const BEAMER_LATE_REFRESH_MS = 8000;
   const LATE_WINDOW_MS = 12 * 60 * 1000;
   const BEAMER_VIEWS = ["A", "B", "C"];
+  const BEAMER_VIEW_META = {
+    A: { key: "A", label: "Mission" },
+    B: { key: "B", label: "Klasse" },
+    C: { key: "C", label: "Belohnung" }
+  };
   const HIGHLIGHT_LABELS = {
     gutEingeschätzt: "Gut eingeschätzt",
     planGeschafft: "Plan geschafft",
@@ -154,7 +159,12 @@ window.SolHelpAttribution = (function () {
     tickerIdx: 0,
     tickerShownAt: 0,
     crewDrawShow: null,
-    sqRepick: false
+    sqRepick: false,
+    prevPresence: null,
+    presencePopUntil: null,
+    raffleSpinTimer: null,
+    raffleSpinPool: null,
+    raffleSpinIdx: 0
   };
 
   function season() {
@@ -166,6 +176,7 @@ window.SolHelpAttribution = (function () {
   }
 
   function controlsVisible() {
+    if (ck.beamer) return !!ck.chromeVisible;
     return !isPresentation() || !!ck.chromeVisible;
   }
 
@@ -232,7 +243,7 @@ window.SolHelpAttribution = (function () {
   }
 
   function showPresentationChrome() {
-    if (!isPresentation()) return;
+    if (!ck.beamer && !isPresentation()) return;
     const was = ck.chromeVisible;
     ck.chromeVisible = true;
     armChromeHide();
@@ -445,6 +456,7 @@ window.SolHelpAttribution = (function () {
       ck.error = "";
       ck.updatedAt = new Date();
       syncNamesDefault();
+      notePresenceFromData();
       if (season()?.boss?.forceWin) ck.forceBossWin = true;
       if (ck.data?.game?.raffle?.drawn) {
         const key = raffleAutoKey();
@@ -660,6 +672,17 @@ window.SolHelpAttribution = (function () {
     const lesson = live.lesson?.label ? ` · Stunde ${esc(live.lesson.label)}` : "";
     const examLine = examHeadline();
     const noLesson = season()?.kpis?.noLessonToday === true;
+    if (ck.beamer) {
+      return `
+      <div class="ck-context ck-context--sticky ck-context--beamer">
+        <div class="ck-context-main">
+          <p class="td-kicker ck-kicker">${esc(seasonKicker())}${lesson}</p>
+          ${examLine ? `<p class="ck-dates ck-dates--slim">${examLine}</p>` : ""}
+          ${noLesson ? `<p class="ck-no-lesson" role="status">Heute keine Stunde – Stand der Woche</p>` : ""}
+        </div>
+        ${respectStarsHtml()}
+      </div>`;
+    }
     return `
       <div class="ck-context ck-context--sticky">
         <div class="ck-context-main">
@@ -676,10 +699,11 @@ window.SolHelpAttribution = (function () {
 
   function renderControls(opts = {}) {
     const presentation = isPresentation();
+    const beamerChrome = !!ck.beamer;
     const asChrome = opts.asChrome === true;
-    if (asChrome && !presentation) return "";
-    if (presentation && !asChrome) return "";
-    if (presentation && asChrome && !ck.chromeVisible) return "";
+    if (asChrome && !beamerChrome && !presentation) return "";
+    if ((beamerChrome || presentation) && !asChrome) return "";
+    if (asChrome && (beamerChrome || presentation) && !ck.chromeVisible) return "";
     const d = ck.data;
     const units = d?.levelChecks || [];
     const options = units
@@ -693,10 +717,16 @@ window.SolHelpAttribution = (function () {
       : "–";
     const pollSec = Number(season()?.config?.pollSeconds) || 30;
     const namesOn = namesOnBeamer();
-    const viewSeg = BEAMER_VIEWS.map(
-      (v) =>
-        `<button type="button" class="ck-view-dot ${ck.beamerView === v ? "is-on" : ""}" data-ck-view-set="${v}" aria-pressed="${ck.beamerView === v ? "true" : "false"}">${v}</button>`
-    ).join("");
+    const viewSeg = BEAMER_VIEWS.map((v) => {
+      const meta = BEAMER_VIEW_META[v] || { key: v, label: v };
+      return `<button type="button" class="ck-view-dot ${ck.beamerView === v ? "is-on" : ""}" data-ck-view-set="${v}" aria-pressed="${ck.beamerView === v ? "true" : "false"}" aria-label="${esc(meta.label)}" title="${esc(meta.label)}">${esc(meta.label)}</button>`;
+    }).join("");
+    const raffle = d?.game?.raffle || {};
+    const raffleChrome =
+      beamerChrome || presentation
+        ? `<span class="ck-chrome-raffle">${xpPicker("raffle", ck.raffleXp)}
+            <button type="button" class="ck-btn ck-btn-go ck-btn-sm" data-ck-raffle ${raffle.eligibleCount && !ck.busy && !raffle.drawn ? "" : "disabled"}>Ziehung</button></span>`
+        : "";
     return `
       <div class="ck-controls ${asChrome ? "ck-controls--chrome is-visible" : ""}" data-ck-controls>
         <div class="ck-controls__left">
@@ -717,9 +747,10 @@ window.SolHelpAttribution = (function () {
           <div class="ck-beamer-group" role="group" aria-label="Beamer">
             <button type="button" class="ck-btn ${ck.beamer ? "ck-btn-go" : ""}" data-ck-beamer data-mode="beamer" title="Beamer-Ansicht">Beamer-Ansicht</button>
             <button type="button" class="ck-btn ${isPresentation() ? "ck-btn-go" : ""}" data-ck-fullscreen title="Vollbild">Vollbild</button>
-            <button type="button" class="ck-btn ${namesOn ? "ck-btn-go" : ""}" data-ck-names title="Namen in Highlights, Ticker und Ziehung">${namesOn ? "Namen an" : "Namen aus"}</button>
+            <button type="button" class="ck-btn ${namesOn ? "ck-btn-go" : ""}" data-ck-names title="Namen in Avatar-Wand, Highlights, Ticker und Ziehung">${namesOn ? "Namen an" : "Namen aus"}</button>
             <button type="button" class="ck-btn ${ck.beamerPaused ? "ck-btn-go" : ""}" data-ck-pause title="Ansichtswechsel pausieren">${ck.beamerPaused ? "Weiter" : "Pause"}</button>
-            <span class="ck-view-dots" aria-label="Beamer-Ansicht A B C">${viewSeg}</span>
+            <span class="ck-view-dots" role="group" aria-label="Beamer-Ansichten">${viewSeg}</span>
+            ${raffleChrome}
           </div>
         </div>
       </div>`;
@@ -728,10 +759,10 @@ window.SolHelpAttribution = (function () {
   function renderPresentationDots() {
     if (!isPresentation()) return "";
     return `<div class="ck-pres-dots" aria-label="Beamer-Ansicht">
-      ${BEAMER_VIEWS.map(
-        (v) =>
-          `<button type="button" class="ck-pres-dot ${ck.beamerView === v ? "is-on" : ""}" data-ck-view-set="${v}" aria-label="Ansicht ${v}" aria-pressed="${ck.beamerView === v ? "true" : "false"}"></button>`
-      ).join("")}
+      ${BEAMER_VIEWS.map((v) => {
+        const meta = BEAMER_VIEW_META[v] || { key: v, label: v };
+        return `<button type="button" class="ck-pres-dot ${ck.beamerView === v ? "is-on" : ""}" data-ck-view-set="${v}" aria-label="${esc(meta.label)}" aria-pressed="${ck.beamerView === v ? "true" : "false"}"></button>`;
+      }).join("")}
     </div>`;
   }
 
@@ -1404,27 +1435,85 @@ window.SolHelpAttribution = (function () {
       .join("")}</div>`;
   }
 
+  function studentByRosterId(id) {
+    return (ck.data?.students || []).find((x) => Number(x.id) === Number(id)) || null;
+  }
+
+  function ticketAvatarPool() {
+    const all = ck.data?.students || [];
+    const withTickets = all.filter((s) => s.plannedToday || s.reflectedToday);
+    return withTickets.length ? withTickets : all.slice();
+  }
+
+  function avatarMarkup(student, sizeClass) {
+    const name = student?.shortName || student?.name || "?";
+    const initial = String(name).trim().slice(0, 1).toUpperCase() || "?";
+    const url = student?.avatarUrl;
+    if (url) {
+      return `<span class="ck-av ${sizeClass || ""}"><img src="${esc(url)}" alt="" loading="lazy"><span class="ck-av-fallback" aria-hidden="true">${esc(initial)}</span></span>`;
+    }
+    return `<span class="ck-av ${sizeClass || ""} ck-av--fallback" aria-hidden="true">${esc(initial)}</span>`;
+  }
+
+  function raffleSpinInner(student) {
+    const label = namesOnBeamer()
+      ? esc(student?.shortName || student?.name || "…")
+      : "";
+    return `${avatarMarkup(student, "ck-av--xl")}${label ? `<strong class="ck-raffle-spin-name">${label}</strong>` : ""}`;
+  }
+
+  function stopRaffleSpin() {
+    if (ck.raffleSpinTimer) {
+      clearInterval(ck.raffleSpinTimer);
+      ck.raffleSpinTimer = null;
+    }
+  }
+
+  function startRaffleSpin(pool) {
+    stopRaffleSpin();
+    ck.raffleSpinPool = pool || [];
+    ck.raffleSpinIdx = 0;
+    if (!ck.raffleSpinPool.length) return;
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reduce) return;
+    ck.raffleSpinTimer = setInterval(() => {
+      if (!ck.raffleSpinPool?.length) return;
+      ck.raffleSpinIdx = (ck.raffleSpinIdx + 1) % ck.raffleSpinPool.length;
+      const host = ck.el?.querySelector?.("[data-ck-raffle-spin]");
+      if (!host) return;
+      host.innerHTML = raffleSpinInner(ck.raffleSpinPool[ck.raffleSpinIdx]);
+    }, 90);
+  }
+
   function renderRaffleCard() {
     const r = ck.data.game?.raffle || {};
     const ticketTotal = r.ticketTotal ?? r.potSize ?? r.eligibleCount ?? 0;
     const withTickets = r.studentsWithTickets ?? r.eligibleCount ?? 0;
-    const showControls = controlsVisible();
-    const winnerLabel = displayPersonName(r.drawn?.winnerShort, r.drawn?.winnerName);
+    const showControls = !ck.beamer && controlsVisible();
+    const winner = r.drawn ? studentByRosterId(r.drawn.winnerId) : null;
+    const winnerLabel = displayPersonName(
+      winner?.shortName || r.drawn?.winnerShort,
+      winner?.name || r.drawn?.winnerName
+    );
     let body;
     if (ck.reveal === "rolling") {
-      body = `<div class="ck-raffle-roll"><span></span><span></span><span></span></div><p class="ck-small ck-muted">Die Lose werden gemischt …</p>`;
+      const pool = ck.raffleSpinPool?.length ? ck.raffleSpinPool : ticketAvatarPool();
+      const spin = pool[ck.raffleSpinIdx] || pool[0];
+      body = `
+        <div class="ck-raffle-spin" data-ck-raffle-spin>${spin ? raffleSpinInner(spin) : `<div class="ck-raffle-roll"><span></span><span></span><span></span></div>`}</div>
+        <p class="ck-small ck-muted">Die Lose werden gemischt …</p>`;
     } else if (r.drawn) {
       body = `
         <div class="ck-raffle-win ck-raffle-win--lg ${ck.reveal === "show" ? "ck-raffle-win--pop" : ""}">
-          <span class="ck-raffle-star">★</span>
+          ${avatarMarkup(winner || { shortName: winnerLabel }, "ck-av--xl")}
           <strong>${esc(winnerLabel)}</strong>
           <span class="ck-raffle-xp">+${r.drawn.xp} XP</span>
         </div>
-        ${raffleRulesPills()}
-        <p class="ck-small ck-muted">${ticketTotal} Lose von ${withTickets} Schüler:innen im Topf</p>`;
+        ${raffleRulesPills()}`;
     } else {
       body = `
-        <p class="ck-big ck-raffle-pot">${ticketTotal} Lose von ${withTickets} Schüler:innen im Topf</p>
+        <p class="ck-hero ck-raffle-pot"><span class="ck-raffle-pot__n">${ticketTotal} Lose</span></p>
+        <p class="ck-body ck-raffle-pot__sub">von ${withTickets} Schüler:innen im Topf</p>
         ${raffleRulesPills()}
         ${
           showControls
@@ -1719,9 +1808,13 @@ window.SolHelpAttribution = (function () {
   }
 
   function respectSubDisplay(s) {
-    if (s.text) return s.text;
-    if (s.ziel != null && s.einheit === "%") return `Ziel ${s.ziel} %`;
-    if (s.ziel != null) return `Ziel ${s.ziel}${s.einheit ? ` ${s.einheit}` : ""}`;
+    if (s.status === "keine_daten") return s.text || "";
+    if (s.einheit === "%") {
+      if (s.ziel != null) return `Ziel ${s.ziel} %`;
+      if (s.text && /^Ziel\b/i.test(s.text)) return s.text;
+    }
+    if (s.einheit === "Lerntage" || s.einheit === "Hilfen") return "";
+    if (s.text && /^Ziel\b/i.test(s.text)) return s.text;
     return "";
   }
 
@@ -1729,7 +1822,7 @@ window.SolHelpAttribution = (function () {
     const stars = season()?.respect || [];
     const filled = Number(season()?.starsFilledCount) || stars.filter((s) => s.status === "erreicht").length;
     return `
-      <div class="ck-panel ck-respect-panel">
+      <div class="ck-panel ck-respect-panel ck-respect-panel--compact">
         <h2><span>Respekt diese Woche</span><span class="td-kicker">${filled} / 5</span></h2>
         <div class="ck-respect-list">
           ${
@@ -1745,7 +1838,7 @@ window.SolHelpAttribution = (function () {
                       ? "ck-star--dashed"
                       : "ck-star--empty";
                 return `<div class="ck-respect-row is-${esc(status)}">
-                  <span class="ck-star ck-star--panel ${starClass}" aria-hidden="true">★</span>
+                  <span class="ck-star ck-star--compact ${starClass}" aria-hidden="true">★</span>
                   <div class="ck-respect-row__mid"><strong>${esc(s.label)}</strong></div>
                   <div class="ck-respect-row__val">
                     <span class="ck-respect-wert">${esc(wert)}</span>
@@ -1784,9 +1877,13 @@ window.SolHelpAttribution = (function () {
     const cards = tiers
       .map((t) => {
         const state = t.state || "spaeter";
-        let detail = esc(t.label);
-        if (state === "erreicht") detail = `✔ freigeschaltet`;
-        else if (state === "naechste") detail = `noch ${num(t.remaining != null ? t.remaining : Math.max(0, t.xp - xp))} XP`;
+        const label = t.label || "";
+        let detail;
+        if (state === "erreicht") detail = `${esc(label)} ✓`;
+        else if (state === "naechste") {
+          const rem = t.remaining != null ? t.remaining : Math.max(0, t.xp - xp);
+          detail = `${esc(label)} · noch ${num(rem)} XP`;
+        } else detail = esc(label);
         return `<div class="ck-season-tier is-${esc(state)}" role="listitem">
           <strong>${num(t.xp)}</strong>
           <span>${detail}</span>
@@ -1797,56 +1894,151 @@ window.SolHelpAttribution = (function () {
       <div class="ck-panel ck-season-panel">
         <h2><span>${esc(title)}</span><span class="td-kicker">${num(xp)} XP</span></h2>
         <div class="ck-season-bar" aria-label="${esc(title)} ${num(xp)} XP">
+          <div class="ck-season-bar__xp" style="left:${(fillRatio * 100).toFixed(2)}%">
+            <em>${num(xp)} XP</em>
+            <i></i>
+          </div>
           <div class="ck-season-bar__track">
             <div class="ck-season-bar__fill" style="width:${(fillRatio * 100).toFixed(2)}%"></div>
             ${markerHtml}
-            <span class="ck-season-now" style="left:${(fillRatio * 100).toFixed(2)}%">
-              <i></i><em>${num(xp)} XP</em>
-            </span>
           </div>
         </div>
         <div class="ck-season-track" role="list">${cards}</div>
       </div>`;
   }
 
-  function highlightName(entry) {
-    return esc(displayPersonName(entry?.name, entry?.fullName));
+  function enrichHighlightEntry(entry) {
+    const id = entry?.id != null ? Number(entry.id) : null;
+    const roster = id != null ? studentByRosterId(id) : null;
+    return {
+      id,
+      name: roster?.shortName || entry?.name || roster?.name || "",
+      fullName: roster?.name || entry?.fullName || entry?.name || "",
+      avatarUrl: roster?.avatarUrl || entry?.avatarUrl || null
+    };
   }
 
   function renderHighlightsPanel() {
     const hl = season()?.highlights || {};
     const keys = Object.keys(HIGHLIGHT_LABELS);
+    const showNames = namesOnBeamer();
     const cards = keys
       .map((key) => {
-        const list = Array.isArray(hl[key]) ? hl[key] : [];
+        const list = (Array.isArray(hl[key]) ? hl[key] : []).map(enrichHighlightEntry);
+        if (!list.length) return "";
         const label = HIGHLIGHT_LABELS[key];
-        let body;
-        if (!list.length) {
-          body = `<p class="ck-muted ck-small">Heute noch niemand.</p>`;
-        } else if (!namesOnBeamer()) {
-          body = `<p class="ck-big">${list.length}</p><p class="ck-small ck-muted">${list.length === 1 ? "Person" : "Personen"}</p>`;
-        } else {
-          body = `<ul class="ck-hl-names">${list.map((p) => `<li>${highlightName(p)}</li>`).join("")}</ul>`;
-        }
-        return `<article class="ck-hl-card"><h3>${esc(label)}</h3>${body}</article>`;
+        const chips = list
+          .map((p) => {
+            const name = showNames
+              ? `<span class="ck-hl-chip__name">${esc(p.name || p.fullName || "Jemand")}</span>`
+              : "";
+            return `<span class="ck-hl-chip">${avatarMarkup(p, "ck-av--sm")}${name}</span>`;
+          })
+          .join("");
+        return `<article class="ck-hl-card"><h3>${esc(label)}</h3><div class="ck-hl-chips">${chips}</div></article>`;
       })
+      .filter(Boolean)
       .join("");
+    const body = cards
+      ? `<div class="ck-hl-grid">${cards}</div>`
+      : `<p class="ck-body ck-muted">Die ersten Highlights kommen mit dem ersten Tagesziel.</p>`;
     return `
-      <div class="ck-panel">
+      <div class="ck-panel ck-highlights-panel">
         <h2><span>Highlights heute</span><span class="td-kicker">positiv</span></h2>
-        <div class="ck-hl-grid">${cards}</div>
+        ${body}
       </div>`;
   }
 
-  function renderBeamerJoinedCount() {
-    const wall = ck.data?.wall || {};
-    const n = wall.classSize || (ck.data?.students || []).length || 0;
-    const planned = Number(wall.plannedCount) || students().filter((s) => s.today).length;
+  function presenceStatus(student) {
+    if (student?.reflectedToday) return "done";
+    if (student?.plannedToday) return "goal";
+    return "none";
+  }
+
+  function presenceList() {
+    const list = (ck.data?.students || []).filter((s) => !s.absent && !s.absentToday);
+    return [...list].sort((a, b) =>
+      String(a.shortName || a.name || "").localeCompare(String(b.shortName || b.name || ""), "de")
+    );
+  }
+
+  function notePresenceFromData() {
+    const list = presenceList();
+    const prev = ck.prevPresence || {};
+    const next = {};
+    const now = Date.now();
+    if (!ck.presencePopUntil) ck.presencePopUntil = {};
+    for (const s of list) {
+      const id = Number(s.id);
+      const st = presenceStatus(s);
+      next[id] = st;
+      if (ck.prevPresence != null && prev[id] != null && prev[id] !== st) {
+        ck.presencePopUntil[id] = now + 600;
+      }
+    }
+    ck.prevPresence = next;
+  }
+
+  function isPresencePop(id) {
+    const until = ck.presencePopUntil?.[Number(id)];
+    return until != null && Date.now() < until;
+  }
+
+  function fmtClockTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function teacherPresenceTooltip(student) {
+    const detail = students().find((s) => Number(s.id) === Number(student.id));
+    const today = detail?.today;
+    if (!today) return "noch kein Tagesziel";
+    const g = today.goalId ? goalById(today.goalId) : null;
+    const goalBit = g
+      ? `Mission ${g.number}: ${clip(g.text || "", 48)}`
+      : "Freies Tagesziel";
+    const timeBit = fmtClockTime(today.at);
+    return [goalBit, timeBit].filter(Boolean).join(" · ");
+  }
+
+  function renderAvatarWall({ teacherTooltips = false } = {}) {
+    const list = presenceList();
+    const counts = { none: 0, goal: 0, done: 0 };
+    for (const s of list) counts[presenceStatus(s)] += 1;
+    const showNames = namesOnBeamer();
+    const cells = list
+      .map((s) => {
+        const st = presenceStatus(s);
+        const pop = isPresencePop(s.id) ? " ck-av--pop" : "";
+        const title = teacherTooltips ? esc(teacherPresenceTooltip(s)) : "";
+        const badge =
+          st === "done"
+            ? `<span class="ck-av-badge ck-av-badge--done" aria-hidden="true">✓</span>`
+            : st === "goal"
+              ? `<span class="ck-av-badge ck-av-badge--goal">Ziel</span>`
+              : "";
+        const name = showNames
+          ? `<span class="ck-av-name">${esc(clip(s.shortName || s.name || "", 14))}</span>`
+          : "";
+        return `<div class="ck-av-cell ck-av-cell--${st}${pop}"${title ? ` title="${title}"` : ""}>
+          <div class="ck-av-ring">${avatarMarkup(s, "ck-av--wall")}${badge}</div>
+          ${name}
+        </div>`;
+      })
+      .join("");
     return `
-      <section class="ck-panel ck-joined">
-        <h2><span>Wer ist schon dabei?</span><span class="td-kicker">heute</span></h2>
-        <p class="ck-big">${planned}<span class="ck-of"> / ${n}</span></p>
-        <p class="ck-small ck-muted">Tagesziel gesetzt – Namen nur in der Lehrkraft-Ansicht.</p>
+      <section class="ck-panel ck-avatar-wall" aria-label="Wer ist dabei?">
+        <div class="ck-av-wall-head">
+          <h2><span>Wer ist dabei?</span></h2>
+          <div class="ck-av-counts" aria-label="Zähler">
+            <span><i class="ck-av-dot ck-av-dot--goal" aria-hidden="true"></i>${counts.goal} Ziel gesetzt</span>
+            <span><i class="ck-av-dot ck-av-dot--done" aria-hidden="true">✓</i>${counts.done} abgeschlossen</span>
+            <span><i class="ck-av-dot ck-av-dot--none" aria-hidden="true"></i>${counts.none} noch ohne Ziel</span>
+          </div>
+        </div>
+        <div class="ck-av-grid">${cells || `<p class="ck-muted ck-body">Keine Schüler:innen in der Klasse.</p>`}</div>
       </section>`;
   }
 
@@ -1858,7 +2050,6 @@ window.SolHelpAttribution = (function () {
           ${renderSeasonMap(false)}
           ${renderBossPanel(false)}
         </div>
-        ${renderBeamerJoinedCount()}
       </div>`;
   }
 
@@ -1924,7 +2115,7 @@ window.SolHelpAttribution = (function () {
         <p class="ck-sidequest-text">${esc(q.text)}</p>
         <div class="ck-goalbar ck-goalbar--sq"><b style="width:${pct}%"></b></div>
         <div class="ck-sidequest-stats">
-          <span class="ck-sidequest-wert">${q.progress} / ${q.ziel}</span>
+          <span class="ck-hero ck-sidequest-wert">${q.progress} / ${q.ziel}</span>
           ${q.xp ? `<span class="ck-sidequest-xp">+${q.xp} XP</span>` : ""}
         </div>
       </div>`;
@@ -1968,25 +2159,26 @@ window.SolHelpAttribution = (function () {
   }
 
   function renderBeamerViewB() {
+    const ticker = renderTickerStrip();
     return `
-      <div class="ck-beamer-view ck-beamer-view--b" data-view="B">
-        ${renderTickerStrip()}
-        ${renderCrewProgressChips()}
-        <div class="ck-beamer-b-grid">
+      <div class="ck-beamer-view ck-beamer-view--b ${ticker ? "has-ticker" : ""}" data-view="B">
+        ${renderAvatarWall({ teacherTooltips: false })}
+        <div class="ck-beamer-b-mid">
           ${renderRespectPanel()}
-          ${renderSeasonBarPanel()}
-          ${renderRaffleCard()}
           ${renderSideQuestCard()}
         </div>
+        ${ticker}
       </div>`;
   }
 
   function renderBeamerViewC() {
     return `
       <div class="ck-beamer-view ck-beamer-view--c" data-view="C">
+        ${renderHighlightsPanel()}
+        ${renderRaffleCard()}
+        ${renderSeasonBarPanel()}
         ${renderCrewProgressChips()}
         ${renderCrewDrawShow()}
-        ${renderHighlightsPanel()}
       </div>`;
   }
 
@@ -2155,6 +2347,9 @@ window.SolHelpAttribution = (function () {
           ${renderRight()}
         </section>
         ${renderTeacherMapBoss()}
+        <section class="ck-teacher-wall" aria-label="Anwesenheit heute">
+          ${renderAvatarWall({ teacherTooltips: true })}
+        </section>
         ${renderGame()}
         <section class="ck-bottom">
           ${renderPulse()}${renderTimeline()}
@@ -2200,17 +2395,23 @@ window.SolHelpAttribution = (function () {
     const doneKey = raffleAutoKey();
     ck.busy = true;
     ck.reveal = "rolling";
+    const pool = ticketAvatarPool();
+    ck.raffleSpinIdx = 0;
+    ck.raffleSpinPool = pool;
     render();
+    startRaffleSpin(pool);
     try {
       const [res] = await Promise.all([
         post("/api/teacher/cockpit/raffle", { classId: ck.classId, xp: ck.raffleXp, auto }),
-        new Promise((resolve) => setTimeout(resolve, auto ? 1800 : 1400))
+        new Promise((resolve) => setTimeout(resolve, auto ? 2600 : 2400))
       ]);
+      stopRaffleSpin();
       if (doneKey) ck.autoRaffleDoneKey = doneKey;
       ck.reveal = "show";
       await load(false);
       flash(res.message || "Gezogen.");
     } catch (err) {
+      stopRaffleSpin();
       ck.reveal = null;
       const msg = err.message || "Die Ziehung hat nicht geklappt.";
       if (auto && /schon gezogen/i.test(msg) && doneKey) {
@@ -2220,6 +2421,7 @@ window.SolHelpAttribution = (function () {
         flash(msg);
       }
     } finally {
+      stopRaffleSpin();
       ck.busy = false;
       setTimeout(() => {
         ck.reveal = null;
@@ -2580,6 +2782,11 @@ window.SolHelpAttribution = (function () {
       const next = mode === "teacher" ? false : mode === "beamer" ? true : !ck.beamer;
       ck.beamer = next;
       ck.drawerId = null;
+      ck.chromeVisible = false;
+      if (ck.chromeHideTimer) {
+        clearTimeout(ck.chromeHideTimer);
+        ck.chromeHideTimer = null;
+      }
       if (!ck.beamer) ck.beamerPaused = false;
       restartTimer();
       if (ck.beamer && !document.hidden) load(true);
@@ -2749,7 +2956,8 @@ window.SolHelpAttribution = (function () {
   }
 
   function onPresentationPointer() {
-    if (!ck.active || !isPresentation()) return;
+    if (!ck.active) return;
+    if (!ck.beamer && !isPresentation()) return;
     showPresentationChrome();
   }
 
@@ -2804,6 +3012,9 @@ window.SolHelpAttribution = (function () {
       ck.form = null;
       ck.forceBossWin = false;
       ck.bossConfetti = false;
+      ck.prevPresence = null;
+      ck.presencePopUntil = null;
+      stopRaffleSpin();
       const stored = loadNamesPref(ctx.classId);
       ck.showNamesOnBeamer = stored;
     }
@@ -2826,6 +3037,7 @@ window.SolHelpAttribution = (function () {
   function hide() {
     ck.active = false;
     stopTimer();
+    stopRaffleSpin();
     if (ck.chromeHideTimer) {
       clearTimeout(ck.chromeHideTimer);
       ck.chromeHideTimer = null;
