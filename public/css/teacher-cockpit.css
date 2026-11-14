@@ -774,13 +774,14 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
 }
 .ck-beamer-view {
   display: grid;
-  gap: 0;
+  gap: 20px;
   box-sizing: border-box;
   height: calc(100vh - var(--ck-nav-h, 56px) - var(--ck-beamer-head-h, 72px));
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
-  align-content: space-evenly;
+  align-content: start;
+  align-items: stretch;
 }
 @supports (height: 100dvh) {
   .ck-wall--season,
@@ -791,20 +792,23 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
 .ck-wall--season > .ck-beamer-view {
   height: 100%;
 }
+/* Mission: KPIs + Boss Inhaltshöhe, Karte füllt Rest */
 .ck-beamer-view--a {
-  grid-template-rows: auto auto;
+  grid-template-rows: auto minmax(0, 1fr);
 }
+/* Klasse: Avatar-Wand füllt Rest, Respekt/Side Quest Inhalt */
 .ck-beamer-view--b {
-  grid-template-rows: auto auto;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 .ck-beamer-view--b.has-ticker {
-  grid-template-rows: auto auto auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
 }
+/* Belohnung: Highlights|Ziehung füllen Rest, Season Inhalt */
 .ck-beamer-view--c {
-  grid-template-rows: auto auto;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 .ck-beamer-view--c.has-crew {
-  grid-template-rows: auto auto auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
 }
 .ck-beamer-view--c .ck-crew-chips,
 .ck-beamer-view--c .ck-draw-show {
@@ -813,25 +817,41 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
 .ck-beamer-c-top {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  align-items: start;
+  gap: 20px;
+  align-items: stretch;
   min-height: 0;
+  height: 100%;
 }
 .ck-beamer-c-top > .ck-panel {
-  height: auto;
+  height: 100%;
   min-height: 0;
+  overflow: auto;
 }
 
 .ck-beamer-ab {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr);
-  gap: 12px;
+  gap: 20px;
   align-items: start;
   min-height: 0;
+  height: 100%;
 }
 .ck-beamer-ab > .ck-panel {
   min-height: 0;
   height: auto;
+}
+.ck-beamer-view--a .ck-beamer-ab > .ck-map-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.ck-beamer-view--a .ck-beamer-ab > .ck-boss {
+  height: auto;
+  align-self: start;
+  max-height: 100%;
+  overflow: auto;
 }
 .ck-beamer-ab--teacher {
   grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.7fr);
@@ -840,7 +860,7 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
 .ck-beamer-b-mid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 20px;
   align-items: stretch;
   min-height: 0;
 }
@@ -863,6 +883,16 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: #020617;
+}
+.ck-beamer-view--a .ck-map-panel .ck-city {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  aspect-ratio: auto;
+  height: auto;
+}
+.ck-beamer-view--a .ck-map-panel .ck-city-legend {
+  flex: 0 0 auto;
 }
 .ck-city img { display: block; }
 .ck-city-legend {
@@ -941,6 +971,9 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
   box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.2);
 }
 .ck-boss-energy { margin-bottom: 8px; }
+.ck-boss-energy .ck-goalbar b {
+  background: linear-gradient(90deg, #34d399, var(--ck-cyan));
+}
 
 .ck-respect-panel { min-height: 0; height: auto; }
 .ck--beamer .ck-respect-panel,
@@ -1261,6 +1294,17 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
   max-height: none;
   height: auto;
 }
+.ck-beamer-view--b > .ck-avatar-wall {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.ck-beamer-view--b > .ck-avatar-wall .ck-av-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: center;
+  overflow: hidden;
+}
 .ck-av-wall-head {
   display: flex;
   flex-wrap: wrap;
@@ -1312,7 +1356,8 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
   overflow: visible;
 }
 .ck--beamer .ck-av-grid {
-  --ck-av-size: clamp(44px, 3.4vw, 64px);
+  --ck-av-size: clamp(52px, 4.2vw, 96px);
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
 }
 @container (max-width: 900px) {
   .ck-av-grid { --ck-av-size: 48px; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }

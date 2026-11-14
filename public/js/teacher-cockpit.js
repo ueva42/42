@@ -342,11 +342,14 @@ window.SolHelpAttribution = (function () {
 
   /* ---------- Daten ---------- */
 
-  // Beamer cannot hide T1/T2 test accounts without a DB/API flag (none exists).
+  /** Testkonten T1/T2 usw.: Login-Name = T + Ziffern (kein DB-Flag). */
+  function isTestAccount(student) {
+    const name = String(student?.name || student?.shortName || "").trim();
+    return /^T\d+$/i.test(name);
+  }
+
   function students() {
-    // Testkonten (z. B. T1/T2): kein is_test-/Demo-Flag in users — Beamer kann sie
-    // ohne Namensheuristik nicht zuverlässig ausblenden. Siehe Korrektur Runde 4.
-    return ck.data?.studentsDetail || [];
+    return (ck.data?.studentsDetail || []).filter((s) => !isTestAccount(s));
   }
 
   function goals() {
@@ -725,6 +728,7 @@ window.SolHelpAttribution = (function () {
       return `<button type="button" class="ck-view-dot ${ck.beamerView === v ? "is-on" : ""}" data-ck-view-set="${v}" aria-pressed="${ck.beamerView === v ? "true" : "false"}" aria-label="${esc(meta.label)}" title="${esc(meta.label)}">${esc(meta.label)}</button>`;
     }).join("");
     const raffle = d?.game?.raffle || {};
+    const winBtn = bossWinChromeButton();
     const raffleChrome =
       beamerChrome || presentation
         ? `<span class="ck-chrome-raffle">${xpPicker("raffle", ck.raffleXp)}
@@ -749,6 +753,7 @@ window.SolHelpAttribution = (function () {
             <button type="button" class="ck-btn ck-btn-icon ${ck.beamerPaused ? "ck-btn-go" : ""}" data-ck-pause title="${ck.beamerPaused ? "Weiter" : "Pause"}" aria-label="${ck.beamerPaused ? "Weiter" : "Pause"}">${ck.beamerPaused ? "▶" : "⏸"}</button>
             <span class="ck-view-dots" role="group" aria-label="Beamer-Ansichten">${viewSeg}</span>
             ${raffleChrome}
+            ${winBtn}
           </div>
         </div>
       </div>`;
@@ -777,6 +782,7 @@ window.SolHelpAttribution = (function () {
             <button type="button" class="ck-btn ${ck.beamerPaused ? "ck-btn-go" : ""}" data-ck-pause title="Ansichtswechsel pausieren">${ck.beamerPaused ? "Weiter" : "Pause"}</button>
             <span class="ck-view-dots" role="group" aria-label="Beamer-Ansichten">${viewSeg}</span>
             ${raffleChrome}
+            ${winBtn}
           </div>
         </div>
       </div>`;
@@ -792,23 +798,41 @@ window.SolHelpAttribution = (function () {
     </div>`;
   }
 
+  function bossEnergyDisplay(boss) {
+    if (!boss || !(Number(boss.energy) > 0)) return null;
+    const energy = Math.max(1, Number(boss.energy) || 1);
+    const rem = boss.defeated ? 0 : Math.max(0, Number(boss.remaining) || 0);
+    // Balken = Restenergie (voll bei voller Energie).
+    const pct = Math.max(0, Math.min(100, Math.round((rem / energy) * 100)));
+    return {
+      label: `${rem} / ${energy}`,
+      rem,
+      energy,
+      pct,
+      sub: boss.defeated ? "besiegt" : rem === 0 ? "letzte Treffer" : `noch ${rem}`
+    };
+  }
+
   function renderKpis() {
     const s = season();
     const k = s?.kpis || {};
-    const n = Number(k.classSize) || students().length || ck.data?.students?.length || 0;
+    const roster = (ck.data?.students || []).filter((st) => !isTestAccount(st));
+    const n = Number(k.classSize) || students().length || roster.length || 0;
     const boss = bossEffective();
     const started = k.started != null ? k.started : students().filter((st) => st.today).length;
-    const completed = k.completed != null ? k.completed : (ck.data?.students || []).filter((st) => st.reflectedToday).length;
+    const completed =
+      k.completed != null ? k.completed : roster.filter((st) => st.reflectedToday).length;
     let bossLabel = "–";
     let bossSub = "kein Checkpoint";
     let bossPct = 0;
-    if (boss && boss.energy > 0) {
-      const hits = boss.defeated ? boss.energy : boss.hits;
-      bossPct = Math.min(100, Math.round((hits / boss.energy) * 100));
-      bossLabel = `${boss.hits}/${boss.energy}`;
-      bossSub = boss.defeated ? "besiegt" : `${bossPct} % · noch ${boss.remaining}`;
+    const be = bossEnergyDisplay(boss);
+    if (be) {
+      bossLabel = be.label;
+      bossSub = be.sub;
+      bossPct = be.pct;
     } else if (typeof k.bossEnergyPct === "number" && k.bossEnergyPct > 0) {
-      bossPct = Math.round(k.bossEnergyPct * 100);
+      // Legacy: bossEnergyPct war Treffer-Anteil — Rest = 100 − Treffer.
+      bossPct = Math.max(0, Math.min(100, Math.round((1 - k.bossEnergyPct) * 100)));
       bossLabel = `${bossPct} %`;
       bossSub = "Boss-Energie";
     }
@@ -832,7 +856,7 @@ window.SolHelpAttribution = (function () {
           <div class="ck-num">${esc(bossLabel)}</div>
           <div class="ck-kpi-lbl">Boss-Energie</div>
           <div class="ck-kpi-sub">${esc(bossSub)}</div>
-          <div class="ck-bar"><span style="width:${bossPct}%;background:linear-gradient(90deg,var(--ck-orange),var(--ck-pink))"></span></div>
+          <div class="ck-bar"><span style="width:${bossPct}%;background:linear-gradient(90deg,#34d399,var(--ck-cyan))"></span></div>
         </div>
         <div class="ck-kpi">
           <div><div class="ck-num">${esc(daysLabel)}</div>
@@ -1461,12 +1485,16 @@ window.SolHelpAttribution = (function () {
       .join("")}</div>`;
   }
 
+  function rosterStudents() {
+    return (ck.data?.students || []).filter((s) => !isTestAccount(s));
+  }
+
   function studentByRosterId(id) {
-    return (ck.data?.students || []).find((x) => Number(x.id) === Number(id)) || null;
+    return rosterStudents().find((x) => Number(x.id) === Number(id)) || null;
   }
 
   function ticketAvatarPool() {
-    const all = ck.data?.students || [];
+    const all = rosterStudents();
     const withTickets = all.filter((s) => s.plannedToday || s.reflectedToday);
     return withTickets.length ? withTickets : all.slice();
   }
@@ -1795,11 +1823,12 @@ window.SolHelpAttribution = (function () {
         <div class="ck-acts ck-private"><button type="button" class="ck-btn ck-btn-sm" data-ck-mission="new" ${goals().length ? "" : "disabled"}>Klassen-Mission anlegen</button></div>
       </div>`;
     }
-    const energy = Math.max(1, Number(boss.energy) || 1);
-    const rem = boss.defeated ? 0 : Number(boss.remaining) || 0;
-    const pct = Math.max(0, Math.min(100, ((energy - rem) / energy) * 100));
+    const be = bossEnergyDisplay(boss);
     const hits = (boss.hitByMission || [])
-      .map((h) => `<li>Treffer Mission ${esc(h.n ?? "?")} −${esc(h.hits)}</li>`)
+      .map((h) => {
+        const name = h.label || (h.n != null ? `Mission ${h.n}` : "Mission");
+        return `<li>Treffer ${esc(name)} −${esc(h.hits)}</li>`;
+      })
       .join("");
     const loot = (boss.loot || [])
       .map((l) => `<li>${esc(l.label || l.kind || "Beute")}</li>`)
@@ -1808,19 +1837,21 @@ window.SolHelpAttribution = (function () {
       <div class="ck-panel ck-boss ${boss.defeated ? "ck-boss--win" : ""} ${compact ? "ck-boss--compact" : ""}">
         <h2><span>${esc(boss.name || "Boss")}</span><span class="td-kicker">${boss.defeated ? "besiegt" : "Boss-Fight"}</span></h2>
         <div class="ck-boss-energy">
-          <div class="ck-row-between"><strong>${boss.defeated ? "0" : rem}</strong><span class="ck-muted">/ ${energy} Energie</span></div>
-          <div class="ck-goalbar"><b style="width:${pct.toFixed(1)}%"></b></div>
+          <div class="ck-row-between"><strong>${esc(be?.label || "–")}</strong><span class="ck-muted">Restenergie</span></div>
+          <div class="ck-goalbar"><b style="width:${(be?.pct ?? 0).toFixed(1)}%"></b></div>
         </div>
         ${hits ? `<ul class="ck-boss-hits">${hits}</ul>` : ""}
         ${boss.weakLabel ? `<p class="ck-small">Schwachstelle: <strong>${esc(boss.weakLabel)}</strong></p>` : ""}
         <p class="ck-tiny ck-amber">Selbst ‚sicher‘ drücken trifft nicht.</p>
         ${loot ? `<div class="ck-boss-loot"><p class="ck-small"><strong>Beute</strong></p><ul>${loot}</ul></div>` : ""}
-        ${
-          boss.defeated
-            ? `<p class="ck-win">Boss besiegt – Beute freigeschaltet.</p>`
-            : `<div class="ck-acts"><button type="button" class="ck-btn ck-btn-hot" data-ck-boss-win ${ck.busy ? "disabled" : ""}>Sieg geben</button></div>`
-        }
+        ${boss.defeated ? `<p class="ck-win">Boss besiegt – Beute freigeschaltet.</p>` : ""}
       </div>`;
+  }
+
+  function bossWinChromeButton() {
+    const boss = bossEffective();
+    if (!boss || boss.defeated) return "";
+    return `<button type="button" class="ck-btn ck-btn-hot ck-btn-sm" data-ck-boss-win title="Boss-Sieg geben" ${ck.busy ? "disabled" : ""}>Sieg geben</button>`;
   }
 
   function respectWertDisplay(s) {
@@ -1982,7 +2013,9 @@ window.SolHelpAttribution = (function () {
   }
 
   function presenceList() {
-    const list = (ck.data?.students || []).filter((s) => !s.absent && !s.absentToday);
+    const list = (ck.data?.students || []).filter(
+      (s) => !s.absent && !s.absentToday && !isTestAccount(s)
+    );
     return [...list].sort((a, b) =>
       String(a.shortName || a.name || "").localeCompare(String(b.shortName || b.name || ""), "de")
     );

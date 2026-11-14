@@ -99,17 +99,32 @@
 
   function overlayMask(map, maskId) {
     const [vx, vy, vw, vh] = Array.isArray(map.viewBox) ? map.viewBox : [0, 0, 1000, 562];
-    const baseR = Math.min(vw, vh) * 0.07;
+    const baseR = Math.min(vw, vh) * 0.08;
     const holes = (map.missions || [])
       .map((m) => {
+        const conf = Number(m.rings?.rookie?.confirmed) || 0;
         const r = holeRadius(m, baseR);
-        const glowOp = Math.min(
-          1,
-          (Number(m.rings?.operator?.confirmed) || 0) * 0.5 +
-            (Number(m.rings?.street_legend?.confirmed) || 0) * 0.5
-        );
+        const soft = r * (1.25 + Math.min(1, conf) * 0.4);
         return `<circle cx="${m.x}" cy="${m.y}" r="${r.toFixed(1)}" fill="black"/>
-          <circle cx="${m.x}" cy="${m.y}" r="${(r * (1.15 + glowOp * 0.35)).toFixed(1)}" fill="black" opacity="0.45"/>`;
+          <circle cx="${m.x}" cy="${m.y}" r="${soft.toFixed(1)}" fill="black" opacity="0.4"/>`;
+      })
+      .join("");
+    const glows = (map.missions || [])
+      .map((m, i) => {
+        const confR = Number(m.rings?.rookie?.confirmed) || 0;
+        const confO = Number(m.rings?.operator?.confirmed) || 0;
+        const confS = Number(m.rings?.street_legend?.confirmed) || 0;
+        if (confR + confO + confS <= 0) return "";
+        const r = holeRadius(m, baseR) * 1.6;
+        const gid = `${maskId}-glow-${i}`;
+        const warm = Math.min(1, confO * 0.55 + confS * 0.7);
+        return `
+          <radialGradient id="${gid}" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fbbf24" stop-opacity="${(0.35 + warm * 0.35).toFixed(2)}"/>
+            <stop offset="55%" stop-color="#f97316" stop-opacity="${(0.12 + warm * 0.2).toFixed(2)}"/>
+            <stop offset="100%" stop-color="#020617" stop-opacity="0"/>
+          </radialGradient>
+          <circle cx="${m.x}" cy="${m.y}" r="${r.toFixed(1)}" fill="url(#${gid})"/>`;
       })
       .join("");
     return `
@@ -119,7 +134,22 @@
           ${holes}
         </mask>
       </defs>
-      <rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="#020617" opacity="${Number(map.darkOpacity ?? 0.6)}" mask="url(#${maskId})"/>`;
+      <rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="#020617" opacity="${Number(map.darkOpacity ?? 0.6)}" mask="url(#${maskId})"/>
+      <g class="ck-city-glows" style="mix-blend-mode:screen">${glows}</g>`;
+  }
+
+  function startSvg(map) {
+    const s = map.start;
+    if (!s || s.x == null || s.y == null) return "";
+    const x = Number(s.x);
+    const y = Number(s.y);
+    return `
+      <g class="ck-city-start">
+        <circle cx="${x}" cy="${y}" r="11" fill="#22c55e" stroke="#ecfdf5" stroke-width="2.5"/>
+        <circle cx="${x}" cy="${y}" r="4.5" fill="#052e16"/>
+        <text x="${x}" y="${y - 18}" text-anchor="middle" fill="#86efac" stroke="rgba(2,6,23,.65)" stroke-width="3" paint-order="stroke"
+          font-size="12" font-weight="800" font-family="Orbitron, system-ui">START</text>
+      </g>`;
   }
 
   function routes(map) {
@@ -164,14 +194,28 @@
   function zielSvg(map, examLabel) {
     const z = map.ziel;
     if (!z) return "";
-    const label = examLabel ? `${z.label || "LERNCHECK"} · ${examLabel}` : z.label || "LERNCHECK";
+    const label = examLabel
+      ? `${z.label || "LERNCHECK"} · ${examLabel}`
+      : z.label || "LERNCHECK";
     const x = Number(z.x);
     const y = Number(z.y);
+    const patId = `ckFlagChk-${Math.random().toString(36).slice(2, 8)}`;
+    const fw = 28;
+    const fh = 18;
     return `
       <g class="ck-city-ziel">
-        <path d="M${x} ${y} l0 -36 l28 10 l-28 8 z" fill="#f472b6" stroke="#fff" stroke-width="1.2"/>
-        <circle cx="${x}" cy="${y}" r="4" fill="#f8fafc"/>
-        <text x="${x + 8}" y="${y - 40}" fill="#f9a8d4" font-size="12" font-weight="700" font-family="Orbitron, system-ui">${esc(label)}</text>
+        <defs>
+          <pattern id="${patId}" width="7" height="7" patternUnits="userSpaceOnUse">
+            <rect width="7" height="7" fill="#f8fafc"/>
+            <rect width="3.5" height="3.5" fill="#0f172a"/>
+            <rect x="3.5" y="3.5" width="3.5" height="3.5" fill="#0f172a"/>
+          </pattern>
+        </defs>
+        <line x1="${x}" y1="${y}" x2="${x}" y2="${y - 40}" stroke="#e2e8f0" stroke-width="2.2" stroke-linecap="round"/>
+        <rect x="${x + 1}" y="${y - 40}" width="${fw}" height="${fh}" fill="url(#${patId})" stroke="#94a3b8" stroke-width="1"/>
+        <circle cx="${x}" cy="${y}" r="4" fill="#f8fafc" stroke="#64748b" stroke-width="1"/>
+        <text x="${x + fw / 2 + 2}" y="${y - 46}" text-anchor="middle" fill="#f8fafc" stroke="rgba(2,6,23,.7)" stroke-width="3" paint-order="stroke"
+          font-size="11" font-weight="800" font-family="Orbitron, system-ui">${esc(label)}</text>
       </g>`;
   }
 
@@ -198,11 +242,12 @@
         const cx = Number(m.x);
         const cy = Number(m.y);
         const here = Number(m.hereCount) || 0;
+        const bubbleW = here >= 10 ? 96 : 88;
         const bubble =
           here > 0
-            ? `<g transform="translate(${(cx + 18).toFixed(1)} ${(cy - 28).toFixed(1)})">
-                <rect x="0" y="0" width="72" height="22" rx="11" fill="#22d3ee"/>
-                <text x="36" y="15" text-anchor="middle" fill="#041018" font-size="10" font-weight="800" font-family="IBM Plex Sans, system-ui">gerade hier ${here}</text>
+            ? `<g class="ck-city-here" transform="translate(${(cx + 20).toFixed(1)} ${(cy - 42).toFixed(1)})">
+                <rect x="0" y="0" width="${bubbleW}" height="24" rx="12" fill="#22d3ee" stroke="#ecfeff" stroke-width="1.5"/>
+                <text x="${bubbleW / 2}" y="16" text-anchor="middle" fill="#041018" font-size="11" font-weight="800" font-family="IBM Plex Sans, system-ui">gerade hier ${here}</text>
               </g>`
             : "";
         return `
@@ -241,9 +286,10 @@
     return `
       <div class="ck-city" style="position:relative;aspect-ratio:16/9">
         <img src="${esc(map.imageUrl)}" alt="" decoding="async" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
-        <svg viewBox="${esc(vb)}" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true">
+        <svg viewBox="${esc(vb)}" preserveAspectRatio="xMidYMid meet" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true">
           ${overlayMask(map, maskId)}
           ${routes(map)}
+          ${startSvg(map)}
           ${markers(map, colors)}
           ${crewTagsSvg(map)}
           ${shieldSvg(bossM, opts.boss)}
