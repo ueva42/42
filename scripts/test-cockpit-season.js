@@ -83,6 +83,31 @@ function testMatchCityMap() {
     mapsDetail
   );
   assert(prefer?.id === "pythagoras", "pythagoras subset preferred over partial potenzen");
+
+  // Levelplan ist Ausschnitt der Stadt (z. B. 10b Funktionen: 2 von 26 auf der Karte)
+  const partialCity = matchCityMap(
+    new Set(["fkt-01", "fkt-06", "fkt-24"]),
+    [
+      ...mapsIndex,
+      { id: "funktionen", name: "Funktionen", klasse: "10" }
+    ],
+    new Map([
+      ...mapsDetail,
+      [
+        "funktionen",
+        {
+          missions: [
+            { wz: "fkt-01" },
+            { wz: "fkt-06" },
+            { wz: "fkt-24" },
+            { wz: "fkt-25" },
+            { wz: "fkt-26" }
+          ]
+        }
+      ]
+    ])
+  );
+  assert(partialCity?.id === "funktionen", "goals ⊆ map → funktionen city");
 }
 
 function testIsBestaetigtPriority() {
