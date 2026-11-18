@@ -9,6 +9,7 @@ import {
   tierSatisfiedByCheck,
   isTestAccountName,
   levelToApi,
+  isoDay,
   DEFAULT_AUFGABEN,
   DEFAULT_SCHWELLE
 } from "../lib/levelcheck-digital.js";
@@ -18,6 +19,10 @@ assert.equal(DEFAULT_SCHWELLE, 7);
 assert.equal(levelToApi("street_legend"), "streetLegend");
 assert.equal(isTestAccountName("T1"), true);
 assert.equal(isTestAccountName("Anna"), false);
+
+assert.equal(isoDay("2026-11-23"), "2026-11-23");
+assert.equal(isoDay(new Date("2026-11-23T00:00:00.000Z")), "2026-11-23");
+assert.equal(isoDay("2026-11-23T10:00:00.000Z"), "2026-11-23");
 
 assert.deepEqual(parseRichtig(7), { ok: true, value: 7 });
 assert.equal(parseRichtig(11).ok, false);
