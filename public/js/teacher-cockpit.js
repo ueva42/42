@@ -140,6 +140,7 @@ window.SolHelpAttribution = (function () {
     chromeVisible: false,
     chromeHideTimer: null,
     forceBossWin: false,
+    bossMissionId: "",
     bossConfetti: false,
     drawerId: null,
     moreOpen: false,
@@ -463,7 +464,14 @@ window.SolHelpAttribution = (function () {
       ck.updatedAt = new Date();
       syncNamesDefault();
       notePresenceFromData();
-      if (season()?.boss?.forceWin) ck.forceBossWin = true;
+      // Neue Klassen-Mission: alten Sieg-Zustand verwerfen (sonst bleibt der Boss „besiegt“).
+      const bossId = season()?.boss?.id != null ? String(season().boss.id) : "";
+      if (bossId !== String(ck.bossMissionId || "")) {
+        ck.bossMissionId = bossId;
+        ck.forceBossWin = false;
+        ck.bossConfetti = false;
+      }
+      ck.forceBossWin = Boolean(season()?.boss?.forceWin);
       if (ck.data?.game?.raffle?.drawn) {
         const key = raffleAutoKey();
         if (key) ck.autoRaffleDoneKey = key;
@@ -2583,6 +2591,9 @@ window.SolHelpAttribution = (function () {
           lootText: ck.form.lootText || ""
         });
         ck.form = null;
+        ck.forceBossWin = false;
+        ck.bossConfetti = false;
+        ck.bossMissionId = "";
         await load(false);
         flash(res.message || "Gestartet.");
       } catch (err) {

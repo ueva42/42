@@ -436,8 +436,21 @@ const pool = {
     }
     if (s.includes("FROM xp_transactions") && s.includes("SUM(amount)")) return { rows: [{ xp: 30, people: 2 }] };
     if (s.includes("FROM xp_transactions")) return { rows: [{ people: 3 }] };
+    if (s.includes("SELECT id, active") && s.includes("FROM class_learning_missions")) {
+      const classId = params[0];
+      const lcId = params[1];
+      const rows = db.missions
+        .filter((m) => m.class_id === classId && (lcId == null || m.level_check_id === lcId))
+        .sort((a, b) => a.seq - b.seq)
+        .map((m) => ({ id: m.id, active: m.active }));
+      return { rows };
+    }
     if (s.startsWith(" SELECT * FROM class_learning_missions") || s.includes("SELECT * FROM class_learning_missions")) {
-      const rows = [...db.missions].sort((a, b) => Number(b.active) - Number(a.active) || b.seq - a.seq);
+      let rows = [...db.missions];
+      if (s.includes("active = TRUE") || s.includes("active=TRUE")) {
+        rows = rows.filter((m) => m.active);
+      }
+      rows.sort((a, b) => Number(b.active) - Number(a.active) || b.seq - a.seq);
       return { rows: rows.slice(0, 1) };
     }
     if (s.includes("UPDATE class_learning_missions SET active = FALSE, closed_at = NOW() WHERE class_id")) {
@@ -839,6 +852,8 @@ try {
   assert.ok(r.body.game.mission.bossWonAt, "Mission trägt bossWonAt");
   assert.equal(r.body.season?.boss?.forceWin, true, "Season forceWin aus DB");
   assert.equal(r.body.season?.boss?.defeated, true, "Boss als besiegt");
+  assert.equal(r.body.season?.boss?.checkpointIndex, 1, "2. Klassen-Mission → Boss-Index 1");
+  assert.ok(r.body.season?.boss?.id, "Boss trägt Missions-ID");
   assert.equal(r.body.game.raffle.drawn.winnerId, 13);
   assert.equal(r.body.game.team.name, "Team Blau");
 
