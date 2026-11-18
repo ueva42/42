@@ -9244,35 +9244,64 @@ async function findLevelCheckForSchool(levelCheckId, schoolId, classId = null) {
 }
 
 async function findCheckpointForSchool(checkpointId, schoolId) {
-  const r = await pool.query(
-    `
-    SELECT
-      cp.id,
-      cp.school_id,
-      cp.level_check_id,
-      COALESCE(cp.class_id, lc.class_id) AS class_id,
-      cp.checkpoint_date,
-      cp.checkpoint_type,
-      cp.checkpoint_type_label,
-      cp.linked_subtopic_ids,
-      cp.selectable_as_day_goal,
-      cp.title,
-      cp.check_level,
-      cp.aufgaben,
-      cp.schwelle,
-      cp.freigegeben_am,
-      lc.subject,
-      lc.name
-    FROM level_check_checkpoints cp
-    JOIN level_checks lc ON lc.id = cp.level_check_id
-    LEFT JOIN classes c ON c.id = COALESCE(cp.class_id, lc.class_id)
-    WHERE cp.id = $1
-      AND (cp.school_id = $2 OR lc.school_id = $2 OR c.school_id = $2)
-    LIMIT 1
-  `,
-    [checkpointId, schoolId]
-  );
-  return r.rows[0] || null;
+  const params = [checkpointId, schoolId];
+  try {
+    const r = await pool.query(
+      `
+      SELECT
+        cp.id,
+        cp.school_id,
+        cp.level_check_id,
+        COALESCE(cp.class_id, lc.class_id) AS class_id,
+        cp.checkpoint_date,
+        cp.checkpoint_type,
+        cp.checkpoint_type_label,
+        cp.linked_subtopic_ids,
+        cp.selectable_as_day_goal,
+        cp.title,
+        cp.check_level,
+        cp.aufgaben,
+        cp.schwelle,
+        cp.freigegeben_am,
+        lc.subject,
+        lc.name
+      FROM level_check_checkpoints cp
+      JOIN level_checks lc ON lc.id = cp.level_check_id
+      LEFT JOIN classes c ON c.id = COALESCE(cp.class_id, lc.class_id)
+      WHERE cp.id = $1
+        AND (cp.school_id = $2 OR lc.school_id = $2 OR c.school_id = $2)
+      LIMIT 1
+    `,
+      params
+    );
+    return r.rows[0] || null;
+  } catch (err) {
+    console.warn("findCheckpointForSchool digital columns:", err?.message || err);
+    const r = await pool.query(
+      `
+      SELECT
+        cp.id,
+        cp.school_id,
+        cp.level_check_id,
+        COALESCE(cp.class_id, lc.class_id) AS class_id,
+        cp.checkpoint_date,
+        cp.checkpoint_type,
+        cp.checkpoint_type_label,
+        cp.linked_subtopic_ids,
+        cp.selectable_as_day_goal,
+        lc.subject,
+        lc.name
+      FROM level_check_checkpoints cp
+      JOIN level_checks lc ON lc.id = cp.level_check_id
+      LEFT JOIN classes c ON c.id = COALESCE(cp.class_id, lc.class_id)
+      WHERE cp.id = $1
+        AND (cp.school_id = $2 OR lc.school_id = $2 OR c.school_id = $2)
+      LIMIT 1
+    `,
+      params
+    );
+    return r.rows[0] || null;
+  }
 }
 
 async function validateLinkedSubtopicIds(levelCheckId, linkedSubtopicIds) {
@@ -9482,18 +9511,35 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
 
   let checkpointsByCheck = {};
   if (checkIds.length) {
-    const cpRes = await pool.query(
-      `
-      SELECT id, level_check_id, class_id, checkpoint_date, checkpoint_type, checkpoint_type_label,
-             linked_subtopic_ids, selectable_as_day_goal,
-             title, check_level, aufgaben, schwelle, freigegeben_am
-      FROM level_check_checkpoints
-      WHERE level_check_id = ANY($1::uuid[])
-        AND (class_id = $2 OR class_id IS NULL)
-      ORDER BY checkpoint_date DESC, created_at DESC
-    `,
-      [checkIds, classId]
-    );
+    let cpRes;
+    try {
+      cpRes = await pool.query(
+        `
+        SELECT id, level_check_id, class_id, checkpoint_date, checkpoint_type, checkpoint_type_label,
+               linked_subtopic_ids, selectable_as_day_goal,
+               title, check_level, aufgaben, schwelle, freigegeben_am
+        FROM level_check_checkpoints
+        WHERE level_check_id = ANY($1::uuid[])
+          AND (class_id = $2 OR class_id IS NULL)
+        ORDER BY checkpoint_date DESC, created_at DESC
+      `,
+        [checkIds, classId]
+      );
+    } catch (cpErr) {
+      // Fallback, falls digitale Spalten noch fehlen (Migration nicht gelaufen).
+      console.warn("level_check_checkpoints digital columns:", cpErr?.message || cpErr);
+      cpRes = await pool.query(
+        `
+        SELECT id, level_check_id, class_id, checkpoint_date, checkpoint_type, checkpoint_type_label,
+               linked_subtopic_ids, selectable_as_day_goal
+        FROM level_check_checkpoints
+        WHERE level_check_id = ANY($1::uuid[])
+          AND (class_id = $2 OR class_id IS NULL)
+        ORDER BY checkpoint_date DESC, created_at DESC
+      `,
+        [checkIds, classId]
+      );
+    }
     for (const row of cpRes.rows) {
       if (!checkpointsByCheck[row.level_check_id]) {
         checkpointsByCheck[row.level_check_id] = [];
@@ -11778,8 +11824,13 @@ app.get(
       }
       const students = await pool.query(
         `
-        SELECT u.id, u.name, u.avatar_url, u.character_name
+        SELECT
+          u.id,
+          u.name,
+          ch.image_url AS character_image,
+          ch.name AS character_name
         FROM users u
+        LEFT JOIN characters ch ON ch.id = u.character_id
         WHERE u.role = 'student'
           AND u.class_id = $1
           AND u.school_id = $2
@@ -11805,7 +11856,7 @@ app.get(
         rows.push({
           studentId: s.id,
           name: s.name,
-          avatarUrl: s.avatar_url || null,
+          avatarUrl: s.character_image || null,
           characterName: s.character_name || null,
           richtig: resRow?.richtig == null ? null : Number(resRow.richtig),
           status: display,

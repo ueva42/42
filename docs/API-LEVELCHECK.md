@@ -22,15 +22,18 @@ Unverändertes Antwortformat plus **zusätzliches** Feld `levelchecks`:
       "aufgaben": 10,
       "schwelle": 7,
       "status": "offen",
-      "richtig": null
+      "richtig": null,
+      "bestaetigtAm": null
     }
   ]
 }
 ```
 
 - `level`: `rookie` | `operator` | `streetLegend`
-- `status`: `geplant` | `offen` | `eingetragen` | `bestaetigt` | `nicht_bestanden` | `nicht_teilgenommen`
-- Nur Levelchecks der Einheit(en), zu denen das Thema des Tokens gehört
+- `status`: `geplant` | `offen` | `eingetragen` | `bestätigt` | `nicht_bestanden` | `nicht_teilgenommen`
+- `wz`: Trainingscenter-Was-Ziel-IDs (z. B. `qg-01` …), keine internen DB-UUIDs
+- `bestaetigtAm`: Freigabe-Datum (`YYYY-MM-DD`) oder `null` (für 7-Tage-„bestanden“-Fähnchen)
+- Nur Levelchecks der Klasse der Kennung, gefiltert auf das Thema der Kennung
 - Sortiert nach Datum aufsteigend
 - Freigegebene Termine: bis 14 Tage zurück sichtbar
 

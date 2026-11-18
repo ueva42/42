@@ -84,8 +84,27 @@ assert.deepEqual(serialized, {
   aufgaben: 10,
   schwelle: 7,
   status: "offen",
-  richtig: null
+  richtig: null,
+  bestaetigtAm: null
 });
+
+const released = serializeTrainingLevelcheck(
+  {
+    id: "abc",
+    title: "LC1",
+    date: "2026-11-24",
+    check_level: "rookie",
+    wz: ["qg-01"],
+    aufgaben: 10,
+    schwelle: 7,
+    freigegeben_am: "2026-11-20T10:00:00.000Z"
+  },
+  "bestaetigt",
+  8
+);
+assert.equal(released.status, "bestätigt");
+assert.equal(released.bestaetigtAm, "2026-11-20");
+assert.equal(released.richtig, 8);
 
 const cps = [
   {
