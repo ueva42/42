@@ -299,9 +299,9 @@
     const bossM = (map.missions || []).find((m) => Number(m.n) === Number(bossN));
     const maskId = `ckCityMask-${Math.random().toString(36).slice(2, 9)}`;
     return `
-      <div class="ck-city" style="position:relative;aspect-ratio:16/9">
-        <img src="${esc(map.imageUrl)}" alt="" decoding="async" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
-        <svg viewBox="${esc(vb)}" preserveAspectRatio="xMidYMid meet" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true">
+      <div class="ck-city">
+        <img src="${esc(map.imageUrl)}" alt="" decoding="async">
+        <svg viewBox="${esc(vb)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
           ${overlayMask(map, maskId)}
           ${routes(map)}
           ${startSvg(map)}

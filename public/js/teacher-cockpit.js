@@ -173,7 +173,9 @@ window.SolHelpAttribution = (function () {
     laneTier: "rookie",
     momentSnap: null,
     helpHow: false,
-    soundOn: false
+    soundOn: false,
+    prevBossRemaining: null,
+    prevBossId: null
   };
 
   function season() {
@@ -2021,31 +2023,35 @@ window.SolHelpAttribution = (function () {
     </div>`;
   }
 
-  function bossEmblemSvg(name) {
-    const label = String(name || "Boss").slice(0, 28);
-    return `<svg class="ck-boss-emblem" viewBox="0 0 200 200" aria-hidden="true">
-      <defs>
-        <linearGradient id="ckBossGlow" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#ff2ea6"/>
-          <stop offset="100%" stop-color="#22d3ee"/>
-        </linearGradient>
-      </defs>
-      <polygon points="100,8 178,54 178,146 100,192 22,146 22,54" fill="rgba(8,12,28,.92)" stroke="url(#ckBossGlow)" stroke-width="6"/>
-      <circle cx="100" cy="88" r="28" fill="none" stroke="#ff2ea6" stroke-width="4"/>
-      <path d="M70 120 Q100 145 130 120" fill="none" stroke="#f472b6" stroke-width="5" stroke-linecap="round"/>
-      <circle cx="88" cy="82" r="5" fill="#f8fafc"/>
-      <circle cx="112" cy="82" r="5" fill="#f8fafc"/>
-      <text x="100" y="178" text-anchor="middle" fill="#fdba74" font-size="11" font-weight="800" font-family="Orbitron, system-ui">${esc(label)}</text>
-    </svg>`;
+  function bossTextArt(name, { soon = false, defeated = false } = {}) {
+    const kicker = defeated ? "BESIEGT" : "BOSS-FIGHT";
+    const label = String(name || (soon ? "Nächster Boss erscheint bald" : "Boss"));
+    return `<div class="ck-boss-art ck-boss-art--text${soon ? " ck-boss-art--soon" : ""}${defeated ? " ck-boss-art--win" : ""}" aria-hidden="true">
+      <span class="ck-boss-art__kicker">${kicker}</span>
+      <strong class="ck-boss-art__name">${esc(label)}</strong>
+    </div>`;
+  }
+
+  function bossHpColor(remaining, energy) {
+    if (!(energy > 0)) return "#34d399";
+    const ratio = remaining / energy;
+    if (ratio > 0.6) return "#34d399";
+    if (ratio >= 0.3) return "#fbbf24";
+    return "#f43f5e";
   }
 
   function bossSegmentBar(boss) {
     const energy = Math.max(0, Number(boss.energy) || 0);
     const remaining = boss.defeated ? 0 : Math.max(0, Number(boss.remaining) || 0);
-    const hits = Math.max(0, energy - remaining);
-    const ratio = energy > 0 ? remaining / energy : 0;
-    const color =
-      ratio > 0.55 ? "#34d399" : ratio > 0.25 ? "#fbbf24" : "#f43f5e";
+    const bossKey = String(boss.id || boss.name || "");
+    const prev =
+      ck.prevBossId === bossKey && ck.prevBossRemaining != null
+        ? Number(ck.prevBossRemaining)
+        : remaining;
+    const flashUntil = prev > remaining ? prev : remaining;
+    ck.prevBossId = bossKey;
+    ck.prevBossRemaining = remaining;
+    const color = bossHpColor(remaining, energy);
     if (energy <= 0) {
       return `<div class="ck-boss-hp"><div class="ck-boss-hp__nums">0 / 0</div></div>`;
     }
@@ -2058,7 +2064,7 @@ window.SolHelpAttribution = (function () {
     }
     const segs = Array.from({ length: energy }, (_, i) => {
       const alive = i < remaining;
-      const justHit = !alive && i >= remaining && i < remaining + Math.min(3, hits);
+      const justHit = !alive && i >= remaining && i < flashUntil;
       return `<i class="${alive ? "is-on" : "is-off"}${justHit ? " is-flash" : ""}" style="${alive ? `background:${color}` : ""}"></i>`;
     }).join("");
     return `<div class="ck-boss-hp">
@@ -2070,9 +2076,8 @@ window.SolHelpAttribution = (function () {
   function renderBossPanel(compact) {
     const boss = bossEffective();
     if (!boss) {
-      return `<div class="ck-panel ck-boss ck-boss--soon">
-        <div class="ck-boss-art ck-boss-art--sil">${bossEmblemSvg("?")}</div>
-        <h2><span>Nächster Boss erscheint bald</span><span class="td-kicker">Checkpoint</span></h2>
+      return `<div class="ck-panel ck-boss ck-boss--soon ${compact ? "ck-boss--compact" : ""}">
+        ${bossTextArt("Nächster Boss erscheint bald", { soon: true })}
         <p class="ck-muted ck-small">Levelcheck oder Klassen-Mission anlegen.</p>
         <div class="ck-acts ck-private"><button type="button" class="ck-btn ck-btn-sm" data-ck-mission="new" ${goals().length ? "" : "disabled"}>Klassen-Mission anlegen</button></div>
       </div>`;
@@ -2097,16 +2102,10 @@ window.SolHelpAttribution = (function () {
         return `<li><span class="ck-boss-loot__ico">${icon}</span>${esc(l.label || l.kind || "Beute")}</li>`;
       })
       .join("");
-    const img = boss.bossSlug
-      ? `/bosse/${encodeURIComponent(boss.bossSlug)}.png`
-      : "";
     return `
       <div class="ck-panel ck-boss ${boss.defeated ? "ck-boss--win" : ""} ${compact ? "ck-boss--compact" : ""}" data-boss-id="${esc(boss.id || "")}">
-        <div class="ck-boss-art">
-          ${bossEmblemSvg(boss.name)}
-          ${img ? `<img class="ck-boss-art__img" src="${esc(img)}" alt="" onerror="this.remove()" onload="this.previousElementSibling.style.display='none'">` : ""}
-        </div>
-        <h2><span>${esc(boss.name || "Boss")}</span><span class="td-kicker">${boss.defeated ? "besiegt" : "Boss-Fight"}</span></h2>
+        ${bossTextArt(boss.name || "Boss", { defeated: !!boss.defeated })}
+        <h2 class="ck-boss-sr-only">${esc(boss.name || "Boss")}</h2>
         <p class="ck-boss-meta">${esc(meta)}</p>
         ${bossSegmentBar(boss)}
         ${hits ? `<ul class="ck-boss-hits">${hits}</ul>` : ""}
@@ -2640,6 +2639,59 @@ window.SolHelpAttribution = (function () {
       getComputedStyle(nav).visibility === "hidden";
     const navH = navHidden ? 0 : Math.ceil(nav.getBoundingClientRect().height) || 56;
     root.style.setProperty("--ck-nav-h", `${navH}px`);
+    fitMissionMapHeight(root);
+    fitAvatarWallSize(root);
+  }
+
+  /** Mission: wenn 16:9-Karte die Spalte nicht füllt / zu hoch wirkt → KPIs flacher. */
+  function fitMissionMapHeight(root) {
+    const view = root.querySelector(".ck-beamer-view--a");
+    if (!view) {
+      root.classList.remove("ck--kpis-flat");
+      return;
+    }
+    const kpis = view.querySelector(".ck-kpis");
+    const ab = view.querySelector(".ck-beamer-ab");
+    const mapPanel = ab?.querySelector(".ck-map-panel");
+    if (!kpis || !ab || !mapPanel) return;
+    root.classList.remove("ck--kpis-flat");
+    const colW = mapPanel.clientWidth || 0;
+    const idealH = colW > 0 ? (colW * 9) / 16 : 0;
+    const avail = ab.clientHeight || 0;
+    if (idealH > 0 && avail > 0 && avail < idealH * 0.92) {
+      root.classList.add("ck--kpis-flat");
+    }
+  }
+
+  /** Klasse: Avatare so groß wie möglich (max. 120), Wand beginnt oben. */
+  function fitAvatarWallSize(root) {
+    const wall = root.querySelector(".ck-beamer-view--b .ck-avatar-wall");
+    const grid = wall?.querySelector(".ck-av-grid");
+    if (!wall || !grid) return;
+    const head = wall.querySelector(".ck-av-wall-head");
+    const avail = Math.max(0, wall.clientHeight - (head?.offsetHeight || 0) - 10);
+    const width = grid.clientWidth || wall.clientWidth || 1;
+    const cells = grid.querySelectorAll(".ck-av-cell");
+    const n = cells.length || 1;
+    if (!(avail > 40) || !(width > 40)) return;
+    let lo = 40;
+    let hi = 120;
+    let best = 48;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const cellW = mid + 28;
+      const cellH = mid + (namesOnBeamer() ? 22 : 8);
+      const cols = Math.max(1, Math.floor(width / cellW));
+      const rows = Math.ceil(n / cols);
+      const need = rows * cellH + Math.max(0, rows - 1) * 6;
+      if (need <= avail) {
+        best = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    grid.style.setProperty("--ck-av-size", `${best}px`);
   }
 
   function render() {
@@ -2685,6 +2737,7 @@ window.SolHelpAttribution = (function () {
           ${how}${dots}${chrome}
         </div>`;
       syncBeamerMetrics();
+      requestAnimationFrame(() => syncBeamerMetrics());
       return;
     }
     ck.el.innerHTML = `
