@@ -92,21 +92,33 @@
     return parts.join("");
   }
 
-  function holeRadius(mission, baseR) {
-    const conf = Number(mission?.rings?.rookie?.confirmed) || 0;
-    return baseR * (0.35 + 0.65 * Math.min(1, conf));
+  /** Spec: Radius = 40 + 100 × Anteil Rookie bestätigt (viewBox-Einheiten). */
+  function holeRadius(mission) {
+    const conf = Math.max(0, Math.min(1, Number(mission?.rings?.rookie?.confirmed) || 0));
+    return 40 + 100 * conf;
+  }
+
+  /** Spec: warmer Schein Radius = 30 + 90 × Anteil Operator + Street Legend. */
+  function glowRadius(mission) {
+    const confO = Math.max(0, Math.min(1, Number(mission?.rings?.operator?.confirmed) || 0));
+    const confS = Math.max(0, Math.min(1, Number(mission?.rings?.street_legend?.confirmed) || 0));
+    return 30 + 90 * Math.min(1, confO + confS);
   }
 
   function overlayMask(map, maskId) {
     const [vx, vy, vw, vh] = Array.isArray(map.viewBox) ? map.viewBox : [0, 0, 1000, 562];
-    const baseR = Math.min(vw, vh) * 0.08;
     const holes = (map.missions || [])
       .map((m) => {
-        const conf = Number(m.rings?.rookie?.confirmed) || 0;
-        const r = holeRadius(m, baseR);
-        const soft = r * (1.25 + Math.min(1, conf) * 0.4);
-        return `<circle cx="${m.x}" cy="${m.y}" r="${r.toFixed(1)}" fill="black"/>
-          <circle cx="${m.x}" cy="${m.y}" r="${soft.toFixed(1)}" fill="black" opacity="0.4"/>`;
+        const r = holeRadius(m);
+        const soft = r * 1.35;
+        const gid = `${maskId}-hole-${m.n || Math.random().toString(36).slice(2, 6)}`;
+        return `
+          <radialGradient id="${gid}" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#000" stop-opacity="1"/>
+            <stop offset="55%" stop-color="#000" stop-opacity="0.85"/>
+            <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+          </radialGradient>
+          <circle cx="${m.x}" cy="${m.y}" r="${soft.toFixed(1)}" fill="url(#${gid})"/>`;
       })
       .join("");
     const glows = (map.missions || [])
@@ -115,14 +127,12 @@
         const confO = Number(m.rings?.operator?.confirmed) || 0;
         const confS = Number(m.rings?.street_legend?.confirmed) || 0;
         if (confR + confO + confS <= 0) return "";
-        const r = holeRadius(m, baseR) * 1.6;
+        const r = glowRadius(m);
         const gid = `${maskId}-glow-${i}`;
-        const warm = Math.min(1, confO * 0.55 + confS * 0.7);
         return `
           <radialGradient id="${gid}" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#fbbf24" stop-opacity="${(0.35 + warm * 0.35).toFixed(2)}"/>
-            <stop offset="55%" stop-color="#f97316" stop-opacity="${(0.12 + warm * 0.2).toFixed(2)}"/>
-            <stop offset="100%" stop-color="#020617" stop-opacity="0"/>
+            <stop offset="0%" stop-color="#FFC74D" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#FFC74D" stop-opacity="0"/>
           </radialGradient>
           <circle cx="${m.x}" cy="${m.y}" r="${r.toFixed(1)}" fill="url(#${gid})"/>`;
       })
@@ -134,7 +144,7 @@
           ${holes}
         </mask>
       </defs>
-      <rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="#020617" opacity="${Number(map.darkOpacity ?? 0.6)}" mask="url(#${maskId})"/>
+      <rect class="ck-city-dim" x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="#02040c" opacity="0.6" mask="url(#${maskId})"/>
       <g class="ck-city-glows" style="mix-blend-mode:screen">${glows}</g>`;
   }
 
@@ -244,12 +254,12 @@
         const cx = Number(m.x);
         const cy = Number(m.y);
         const here = Number(m.hereCount) || 0;
-        const bubbleW = here >= 10 ? 96 : 88;
-        const bubble =
+        // Cyan-Plakette oben rechts (r=11), Zahl = gerade hier – keine Textblasen.
+        const badge =
           here > 0
-            ? `<g class="ck-city-here" transform="translate(${(cx + 20).toFixed(1)} ${(cy - 42).toFixed(1)})">
-                <rect x="0" y="0" width="${bubbleW}" height="24" rx="12" fill="#22d3ee" stroke="#ecfeff" stroke-width="1.5"/>
-                <text x="${bubbleW / 2}" y="16" text-anchor="middle" fill="#041018" font-size="11" font-weight="800" font-family="IBM Plex Sans, system-ui">gerade hier ${here}</text>
+            ? `<g class="ck-city-here">
+                <circle cx="${(cx + 14).toFixed(1)}" cy="${(cy - 14).toFixed(1)}" r="11" fill="#22d3ee" stroke="#ecfeff" stroke-width="1.5"/>
+                <text x="${(cx + 14).toFixed(1)}" y="${(cy - 10).toFixed(1)}" text-anchor="middle" fill="#041018" font-size="11" font-weight="800" font-family="Orbitron, system-ui">${esc(here)}</text>
               </g>`
             : "";
         return `
@@ -258,7 +268,7 @@
             <circle cx="${cx}" cy="${cy}" r="${MARKER_R}" fill="rgba(8,12,28,.92)" stroke="#e2e8f0" stroke-width="2"/>
             <text x="${cx}" y="${cy + 5}" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="800" font-family="Orbitron, system-ui">${esc(m.n)}</text>
             <text x="${cx}" y="${cy + 34}" text-anchor="middle" fill="#cbd5e1" font-size="11" font-weight="700" font-family="IBM Plex Sans, system-ui">${esc(m.confirmedRookieLabel || "")}</text>
-            ${bubble}
+            ${badge}
           </g>`;
       })
       .join("");
@@ -270,7 +280,10 @@
       <span><i style="background:${esc(c.rookie || DEFAULT_RINGS.rookie)}"></i>Rookie</span>
       <span><i style="background:${esc(c.operator || DEFAULT_RINGS.operator)}"></i>Operator</span>
       <span><i style="background:${esc(c.streetLegend || DEFAULT_RINGS.streetLegend)}"></i>Street Legend</span>
+      <span class="ck-city-legend__note">Ring dick = im Levelcheck bestätigt, blass = nur gemeldet</span>
+      <span><i style="background:#22d3ee;border-radius:50%"></i>Zahl = gerade an dieser Mission</span>
       <span><i style="background:${UPCOMING};border-radius:2px"></i>Route offen</span>
+      <span><i style="background:#f97316;border-radius:2px"></i>Klasse unterwegs</span>
     </div>`;
   }
 
@@ -313,12 +326,27 @@
     }
     const cps = new Set((opts.checkpointNs || []).map(Number));
     const flagLabel = opts.flagLabel || opts.shieldLabel || "";
+    const classSize = Math.max(1, Number(opts.classSize) || 1);
+    const tier = opts.laneTier || "rookie";
+    // Levelcheck-Missionen nach vorn, wenn markiert.
+    const ordered = [...lanes].sort((a, b) => {
+      const ac = cps.has(Number(a.n)) ? 0 : 1;
+      const bc = cps.has(Number(b.n)) ? 0 : 1;
+      if (ac !== bc) return ac - bc;
+      return Number(a.n) - Number(b.n);
+    });
+    const twoCol = ordered.length > 8;
     return `
-      <div class="ck-lanes" aria-label="Fahrspuren">
-        ${lanes
+      <div class="ck-lanes ${twoCol ? "ck-lanes--2col" : ""}" aria-label="Missionen" data-lane-tier="${esc(tier)}">
+        ${ordered
           .map((lane) => {
-            const conf = Math.round((Number(lane.confirmedFrac) || 0) * 1000) / 10;
-            const rep = Math.round((Number(lane.reportedFrac) || 0) * 1000) / 10;
+            const tierRow = lane.confirmedByTier?.[tier] || null;
+            const confFrac = Number(tierRow?.confirmedFrac ?? lane.confirmedFrac) || 0;
+            const repFrac = Number(tierRow?.reportedFrac ?? lane.reportedFrac) || 0;
+            const confN = Math.round(confFrac * classSize);
+            const repExtra = Math.max(0, Math.round(repFrac * classSize) - confN);
+            const confPct = Math.round(confFrac * 1000) / 10;
+            const repPct = Math.round(repFrac * 1000) / 10;
             const cp = cps.has(Number(lane.n));
             return `<div class="ck-lane-track ${cp ? "ck-lane-track--cp" : ""}">
               <div class="ck-lane-track__lab"><strong>M${esc(lane.n)}</strong> ${esc(lane.text || "")}${
@@ -328,12 +356,12 @@
                     ? ` <span class="ck-lane-flag">LEVELCHECK</span>`
                     : ""
               }</div>
-              <div class="ck-lane-track__bar" title="bestätigt ${conf} % · gemeldet ${rep} %">
-                <span class="ck-lane-track__rep" style="width:${Math.max(conf, rep)}%"></span>
-                <span class="ck-lane-track__conf" style="width:${conf}%"></span>
+              <div class="ck-lane-track__bar" title="bestätigt ${confN} · gemeldet +${repExtra}">
+                <span class="ck-lane-track__rep" style="width:${Math.max(confPct, repPct)}%"></span>
+                <span class="ck-lane-track__conf" style="width:${confPct}%"></span>
                 ${cp ? `<i class="ck-lane-track__stop" title="${esc(flagLabel || "Checkpoint")}"></i>` : ""}
               </div>
-              <div class="ck-lane-track__pct">${conf} % bestätigt</div>
+              <div class="ck-lane-track__pct">${confN} / ${classSize} bestätigt${repExtra ? ` · +${repExtra} gemeldet` : ""}</div>
             </div>`;
           })
           .join("")}

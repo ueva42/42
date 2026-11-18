@@ -169,7 +169,11 @@ window.SolHelpAttribution = (function () {
     presencePopUntil: null,
     raffleSpinTimer: null,
     raffleSpinPool: null,
-    raffleSpinIdx: 0
+    raffleSpinIdx: 0,
+    laneTier: "rookie",
+    momentSnap: null,
+    helpHow: false,
+    soundOn: false
   };
 
   function season() {
@@ -484,6 +488,8 @@ window.SolHelpAttribution = (function () {
         maybeCelebrateBoss();
       }
       maybeShowLevelcheckOverlay();
+      detectBeamerMoments();
+      maybeShowSeasonHelp();
     } catch (err) {
       if (seq !== ck.seq) return;
       ck.error = err.message || "Das Cockpit konnte nicht geladen werden.";
@@ -572,6 +578,17 @@ window.SolHelpAttribution = (function () {
     if (!b?.defeated || ck.bossConfetti) return;
     ck.bossConfetti = true;
     spawnConfetti();
+    if (ck.beamer && window.TeacherCockpitMoments) {
+      window.TeacherCockpitMoments.enqueue(
+        {
+          id: `boss-win:${b.id || "x"}:${b.bossWonAt || Date.now()}`,
+          kind: "boss-win",
+          title: "BOSS BESIEGT!",
+          sub: (b.loot || []).map((l) => l.label).filter(Boolean).join(" · ") || "Beute freigeschaltet"
+        },
+        { beamer: true }
+      );
+    }
   }
 
   function maybeShowLevelcheckOverlay() {
@@ -580,42 +597,136 @@ window.SolHelpAttribution = (function () {
     const key = `${ov.checkpointId || ""}|${ov.at || ov.text}`;
     if (ck.seenLcOverlayKey === key) return;
     ck.seenLcOverlayKey = key;
-    ck.lcOverlayText = ov.text;
-    ck.lcOverlayUntil = Date.now() + 3600;
-    paintLevelcheckOverlay();
+    const treffer = Number(ov.treffer) || 0;
+    if (ck.beamer && window.TeacherCockpitMoments) {
+      window.TeacherCockpitMoments.enqueue(
+        {
+          id: `lc-hit:${key}`,
+          kind: "boss-hit",
+          title: treffer > 0 ? `TREFFER! −${treffer}` : ov.text,
+          sub: ov.text
+        },
+        { beamer: true }
+      );
+    }
   }
 
-  function paintLevelcheckOverlay() {
-    document.querySelectorAll(".ck-lc-overlay").forEach((n) => n.remove());
-    if (ck.lcOverlayTimer) {
-      clearTimeout(ck.lcOverlayTimer);
-      ck.lcOverlayTimer = null;
-    }
-    const left = (ck.lcOverlayUntil || 0) - Date.now();
-    if (!ck.lcOverlayText || left <= 0) {
-      ck.lcOverlayText = "";
-      ck.lcOverlayUntil = 0;
+  function detectBeamerMoments() {
+    if (!ck.beamer || !window.TeacherCockpitMoments) {
+      ck.momentSnap = snapshotMoments();
       return;
     }
-    const layer = document.createElement("div");
-    layer.className = "ck-lc-overlay";
-    layer.setAttribute("role", "status");
-    layer.innerHTML = `<div class="ck-lc-overlay__card">${esc(ck.lcOverlayText || "LEVELCHECK FREIGEGEBEN")}</div>`;
-    document.body.appendChild(layer);
-    requestAnimationFrame(() => layer.classList.add("ck-lc-overlay--show"));
-    ck.lcOverlayTimer = setTimeout(() => {
-      layer.classList.remove("ck-lc-overlay--show");
-      setTimeout(() => layer.remove(), 400);
-      ck.lcOverlayText = "";
-      ck.lcOverlayUntil = 0;
-      ck.lcOverlayTimer = null;
-    }, left);
+    const prev = ck.momentSnap;
+    const next = snapshotMoments();
+    ck.momentSnap = next;
+    if (!prev) return;
+    const M = window.TeacherCockpitMoments;
+    // Respekt-Sterne
+    (next.stars || []).forEach((s, i) => {
+      if (s && !prev.stars?.[i]) {
+        M.enqueue(
+          {
+            id: `star:${ck.classId}:${season()?.seasonKey || ""}:${s.id || i}`,
+            kind: "respect",
+            title: `★ RESPEKT +1 · ${s.label || "Stern"}`,
+            sub: "Diese Woche"
+          },
+          { beamer: true }
+        );
+      }
+    });
+    // Season-Stufe
+    if (next.seasonTier > prev.seasonTier && next.seasonLabel) {
+      M.enqueue(
+        {
+          id: `season:${ck.classId}:${next.seasonTier}:${next.seasonLabel}`,
+          kind: "season",
+          title: `FREIGESCHALTET: ${next.seasonLabel}`,
+          sub: "Season"
+        },
+        { beamer: true }
+      );
+    }
+    // Side Quest
+    if (next.sqDone && !prev.sqDone) {
+      M.enqueue(
+        {
+          id: `sq:${ck.classId}:${next.sqId || "done"}`,
+          kind: "sidequest",
+          title: "SIDE QUEST GESCHAFFT",
+          sub: next.sqXp ? `+${next.sqXp} XP` : ""
+        },
+        { beamer: true }
+      );
+    }
+    // Alle gestartet
+    if (next.allStarted && !prev.allStarted) {
+      M.enqueue(
+        {
+          id: `all-start:${ck.classId}:${ck.data?.day || ""}`,
+          kind: "all-start",
+          title: "GANZE KLASSE GESTARTET!",
+          sub: "Tagesziel"
+        },
+        { beamer: true }
+      );
+    }
   }
 
-  function ensureLevelcheckOverlay() {
-    if (!ck.lcOverlayText || !ck.lcOverlayUntil || Date.now() >= ck.lcOverlayUntil) return;
-    if (document.querySelector(".ck-lc-overlay")) return;
-    paintLevelcheckOverlay();
+  function snapshotMoments() {
+    const s = season();
+    const stars = (s?.respect || []).map((r) => (r.status === "erreicht" ? { id: r.id, label: r.label } : null));
+    const bar = s?.seasonBar || {};
+    const tiers = bar.tiers || s?.config?.seasonTiers || [];
+    let seasonTier = 0;
+    let seasonLabel = "";
+    const xp = Number(bar.xp ?? bar.classXp ?? 0);
+    for (const t of tiers) {
+      if (xp >= Number(t.xp)) {
+        seasonTier += 1;
+        seasonLabel = t.label || "";
+      }
+    }
+    const sq = s?.sideQuest;
+    const k = s?.kpis || {};
+    const n = Number(k.classSize) || students().length || 0;
+    const started = Number(k.started) || 0;
+    return {
+      stars,
+      seasonTier,
+      seasonLabel,
+      sqDone: sq?.done === true,
+      sqId: sq?.id || null,
+      sqXp: Number(sq?.xp) || 0,
+      allStarted: n > 0 && started >= n
+    };
+  }
+
+  function maybeShowSeasonHelp() {
+    const key = `sol.ck.help.${ck.classId}.${season()?.seasonKey || ck.data?.levelCheck?.id || "x"}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      if (!ck.beamer) return;
+      localStorage.setItem(key, "1");
+      ck.helpHow = true;
+      render();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function renderHowItWorks() {
+    if (!ck.helpHow) return "";
+    return `<div class="ck-how" role="dialog" aria-label="So funktioniert's">
+      <button type="button" class="ck-how__close" data-ck-how-close aria-label="Schließen">✕</button>
+      <h2 class="ck-how__title">So funktioniert's</h2>
+      <div class="ck-how__grid">
+        <article class="ck-how__card"><div class="ck-how__ico">⚔</div><h3>Boss</h3><p>Jeder Levelcheck ist ein Boss. Nur bestandene Levelchecks treffen – selbst ‚sicher‘ drücken trifft nicht.</p></article>
+        <article class="ck-how__card"><div class="ck-how__ico">★</div><h3>Respekt</h3><p>Fünf Sterne pro Woche für die ganze Klasse: planen, reflektieren, gut einschätzen, dranbleiben, helfen.</p></article>
+        <article class="ck-how__card"><div class="ck-how__ico">🎟</div><h3>Lose</h3><p>Lose gibt es fürs Lernen, nicht fürs Tempo: geplant +1, reflektiert +1, gut eingeschätzt +2, geholfen +1.</p></article>
+        <article class="ck-how__card"><div class="ck-how__ico">🏔</div><h3>Season</h3><p>Gemeinsame XP schalten Belohnungen für alle frei.</p></article>
+      </div>
+    </div>`;
   }
 
   function spawnConfetti() {
@@ -808,6 +919,8 @@ window.SolHelpAttribution = (function () {
             <button type="button" class="ck-btn ck-btn-icon ${isPresentation() ? "ck-btn-go" : ""}" data-ck-fullscreen title="Vollbild" aria-label="Vollbild">⛶</button>
             <button type="button" class="ck-btn ck-btn-icon ${namesOn ? "ck-btn-go" : ""}" data-ck-names title="Namen an/aus" aria-label="${namesOn ? "Namen an" : "Namen aus"}">N</button>
             <button type="button" class="ck-btn ck-btn-icon ${ck.beamerPaused ? "ck-btn-go" : ""}" data-ck-pause title="${ck.beamerPaused ? "Weiter" : "Pause"}" aria-label="${ck.beamerPaused ? "Weiter" : "Pause"}">${ck.beamerPaused ? "▶" : "⏸"}</button>
+            <button type="button" class="ck-btn ck-btn-icon ${ck.soundOn ? "ck-btn-go" : ""}" data-ck-sound title="Ton an/aus" aria-label="Ton">${ck.soundOn ? "🔊" : "🔇"}</button>
+            <button type="button" class="ck-btn ck-btn-icon" data-ck-how title="So funktioniert's" aria-label="Hilfe">?</button>
             <span class="ck-view-dots" role="group" aria-label="Beamer-Ansichten">${viewSeg}</span>
             ${raffleChrome}
             ${winBtn}
@@ -837,6 +950,8 @@ window.SolHelpAttribution = (function () {
             <button type="button" class="ck-btn ${isPresentation() ? "ck-btn-go" : ""}" data-ck-fullscreen title="Vollbild">Vollbild</button>
             <button type="button" class="ck-btn ${namesOn ? "ck-btn-go" : ""}" data-ck-names title="Namen in Avatar-Wand, Highlights, Ticker und Ziehung">${namesOn ? "Namen an" : "Namen aus"}</button>
             <button type="button" class="ck-btn ${ck.beamerPaused ? "ck-btn-go" : ""}" data-ck-pause title="Ansichtswechsel pausieren">${ck.beamerPaused ? "Weiter" : "Pause"}</button>
+            <button type="button" class="ck-btn ${ck.soundOn ? "ck-btn-go" : ""}" data-ck-sound title="Ton an/aus (Standard aus)">${ck.soundOn ? "Ton an" : "Ton aus"}</button>
+            <button type="button" class="ck-btn" data-ck-how title="So funktioniert's">?</button>
             <span class="ck-view-dots" role="group" aria-label="Beamer-Ansichten">${viewSeg}</span>
             ${raffleChrome}
             ${winBtn}
@@ -897,6 +1012,17 @@ window.SolHelpAttribution = (function () {
     const daysLabel = days == null ? "–" : String(days);
     const daysSub =
       days == null ? "kein Termin" : days === 0 ? "heute" : days === 1 ? "morgen" : `noch ${days} Tage`;
+    const examEv = (ck.data?.unit?.events || []).find(
+      (e) => e.type === "klassenarbeit" || e.type === "test" || e.type === "projektabgabe"
+    );
+    const target = ck.data?.unit?.target;
+    const examKind = examEv?.type || target?.type || target?.kind || "";
+    const daysTitle =
+      examKind === "projektabgabe"
+        ? "Tage bis Projektabgabe"
+        : examKind === "test"
+          ? "Tage bis Test"
+          : "Tage bis KA";
     return `
       <section class="ck-kpis" aria-label="Kennzahlen">
         <div class="ck-kpi">
@@ -917,7 +1043,7 @@ window.SolHelpAttribution = (function () {
         </div>
         <div class="ck-kpi">
           <div><div class="ck-num">${esc(daysLabel)}</div>
-          <div class="ck-kpi-lbl">Tage bis KA</div>
+          <div class="ck-kpi-lbl">${esc(daysTitle)}</div>
           <div class="ck-kpi-sub">${esc(daysSub)}</div></div>
         </div>
       </section>`;
@@ -1623,7 +1749,10 @@ window.SolHelpAttribution = (function () {
         ${raffleRulesPills()}`;
     } else {
       body = `
-        <p class="ck-hero ck-raffle-pot"><span class="ck-raffle-pot__n">${ticketTotal} Lose</span></p>
+        <div class="ck-lostopf" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i>
+          <span class="ck-lostopf__n">${ticketTotal} Lose</span>
+        </div>
         <p class="ck-body ck-raffle-pot__sub">von ${withTickets} Schüler:innen im Topf</p>
         ${raffleRulesPills()}
         ${
@@ -1860,50 +1989,131 @@ window.SolHelpAttribution = (function () {
       return `<div class="ck-panel"><p class="ck-muted ck-small">Kartendaten fehlen oder Einheit ohne Season.</p></div>`;
     }
     const boss = bossEffective();
+    const laneTier = ck.laneTier || "rookie";
     const html = MapApi.renderMap(map, {
       ringColors: season()?.config?.mapRingColors,
       boss,
       examLabel: examShortLabel(),
       checkpointNs: (boss?.hitByMission || []).map((h) => h.n).filter(Boolean),
       flagLabel: boss?.flagLabel || boss?.shieldLabel || "",
-      shieldLabel: boss?.shieldLabel || ""
+      shieldLabel: boss?.shieldLabel || "",
+      classSize: Number(season()?.kpis?.classSize) || students().length || 1,
+      laneTier
     });
+    const isCity = map.mode === "city";
+    const title = isCity ? map.ort || map.name || "Stadtteil" : "Missionen";
+    const kicker = isCity ? "Karte" : "Einheit";
+    const tierSwitch = !isCity
+      ? `<div class="ck-lane-tiers" role="group" aria-label="Level">
+          ${["rookie", "operator", "street_legend"]
+            .map((t) => {
+              const lab =
+                t === "operator" ? "Operator" : t === "street_legend" ? "Street Legend" : "Rookie";
+              return `<button type="button" class="ck-lane-tier ${laneTier === t ? "is-on" : ""}" data-ck-lane-tier="${t}">${esc(lab)}</button>`;
+            })
+            .join("")}
+        </div>`
+      : "";
     return `<div class="ck-panel ck-map-panel ${compact ? "ck-map-panel--compact" : ""}">
-      <h2><span>${map.mode === "city" ? esc(map.ort || map.name || "Stadtteil") : "Fahrspuren"}</span><span class="td-kicker">${map.mode === "city" ? "Karte" : "ohne Stadtteil"}</span></h2>
+      <h2><span>${esc(title)}</span><span class="td-kicker">${esc(kicker)}</span></h2>
+      ${tierSwitch}
       ${html}
+    </div>`;
+  }
+
+  function bossEmblemSvg(name) {
+    const label = String(name || "Boss").slice(0, 28);
+    return `<svg class="ck-boss-emblem" viewBox="0 0 200 200" aria-hidden="true">
+      <defs>
+        <linearGradient id="ckBossGlow" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ff2ea6"/>
+          <stop offset="100%" stop-color="#22d3ee"/>
+        </linearGradient>
+      </defs>
+      <polygon points="100,8 178,54 178,146 100,192 22,146 22,54" fill="rgba(8,12,28,.92)" stroke="url(#ckBossGlow)" stroke-width="6"/>
+      <circle cx="100" cy="88" r="28" fill="none" stroke="#ff2ea6" stroke-width="4"/>
+      <path d="M70 120 Q100 145 130 120" fill="none" stroke="#f472b6" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="88" cy="82" r="5" fill="#f8fafc"/>
+      <circle cx="112" cy="82" r="5" fill="#f8fafc"/>
+      <text x="100" y="178" text-anchor="middle" fill="#fdba74" font-size="11" font-weight="800" font-family="Orbitron, system-ui">${esc(label)}</text>
+    </svg>`;
+  }
+
+  function bossSegmentBar(boss) {
+    const energy = Math.max(0, Number(boss.energy) || 0);
+    const remaining = boss.defeated ? 0 : Math.max(0, Number(boss.remaining) || 0);
+    const hits = Math.max(0, energy - remaining);
+    const ratio = energy > 0 ? remaining / energy : 0;
+    const color =
+      ratio > 0.55 ? "#34d399" : ratio > 0.25 ? "#fbbf24" : "#f43f5e";
+    if (energy <= 0) {
+      return `<div class="ck-boss-hp"><div class="ck-boss-hp__nums">0 / 0</div></div>`;
+    }
+    if (energy > 40) {
+      const pct = Math.max(0, Math.min(100, (remaining / energy) * 100));
+      return `<div class="ck-boss-hp">
+        <div class="ck-boss-hp__bar ck-boss-hp__bar--solid" style="--hp:${pct.toFixed(1)}%;--hp-color:${color}"></div>
+        <div class="ck-boss-hp__nums"><strong>${remaining}</strong> / ${energy}</div>
+      </div>`;
+    }
+    const segs = Array.from({ length: energy }, (_, i) => {
+      const alive = i < remaining;
+      const justHit = !alive && i >= remaining && i < remaining + Math.min(3, hits);
+      return `<i class="${alive ? "is-on" : "is-off"}${justHit ? " is-flash" : ""}" style="${alive ? `background:${color}` : ""}"></i>`;
+    }).join("");
+    return `<div class="ck-boss-hp">
+      <div class="ck-boss-hp__segs" style="--segs:${energy}">${segs}</div>
+      <div class="ck-boss-hp__nums"><strong>${remaining}</strong> / ${energy}</div>
     </div>`;
   }
 
   function renderBossPanel(compact) {
     const boss = bossEffective();
     if (!boss) {
-      return `<div class="ck-panel ck-boss"><h2><span>Boss-Fight</span><span class="td-kicker">Checkpoint</span></h2>
-        <p class="ck-muted ck-small">Nächster Boss erscheint bald – Levelcheck oder Klassen-Mission anlegen.</p>
+      return `<div class="ck-panel ck-boss ck-boss--soon">
+        <div class="ck-boss-art ck-boss-art--sil">${bossEmblemSvg("?")}</div>
+        <h2><span>Nächster Boss erscheint bald</span><span class="td-kicker">Checkpoint</span></h2>
+        <p class="ck-muted ck-small">Levelcheck oder Klassen-Mission anlegen.</p>
         <div class="ck-acts ck-private"><button type="button" class="ck-btn ck-btn-sm" data-ck-mission="new" ${goals().length ? "" : "disabled"}>Klassen-Mission anlegen</button></div>
       </div>`;
     }
-    const be = bossEnergyDisplay(boss);
+    const due = boss.dueDate ? fmtShort(boss.dueDate) : "";
+    const meta = [
+      boss.source === "levelcheck" ? "Levelcheck" : "Mission",
+      due,
+      boss.tierLabel || "Rookie"
+    ]
+      .filter(Boolean)
+      .join(" · ");
     const hits = (boss.hitByMission || [])
       .map((h) => {
         const name = h.label || (h.n != null ? `Mission ${h.n}` : "Mission");
-        return `<li>Treffer ${esc(name)} −${esc(h.hits)}</li>`;
+        return `<li><span class="ck-boss-hit__n">${esc(name)}</span> <strong>−${esc(h.hits)}</strong></li>`;
       })
       .join("");
     const loot = (boss.loot || [])
-      .map((l) => `<li>${esc(l.label || l.kind || "Beute")}</li>`)
+      .map((l) => {
+        const icon = l.kind === "xp" ? "✦" : "🎁";
+        return `<li><span class="ck-boss-loot__ico">${icon}</span>${esc(l.label || l.kind || "Beute")}</li>`;
+      })
       .join("");
+    const img = boss.bossSlug
+      ? `/bosse/${encodeURIComponent(boss.bossSlug)}.png`
+      : "";
     return `
-      <div class="ck-panel ck-boss ${boss.defeated ? "ck-boss--win" : ""} ${compact ? "ck-boss--compact" : ""}">
-        <h2><span>${esc(boss.name || "Boss")}</span><span class="td-kicker">${boss.defeated ? "besiegt" : "Boss-Fight"}</span></h2>
-        <div class="ck-boss-energy">
-          <div class="ck-row-between"><strong>${esc(be?.label || "–")}</strong><span class="ck-muted">Restenergie</span></div>
-          <div class="ck-goalbar"><b style="width:${(be?.pct ?? 0).toFixed(1)}%"></b></div>
+      <div class="ck-panel ck-boss ${boss.defeated ? "ck-boss--win" : ""} ${compact ? "ck-boss--compact" : ""}" data-boss-id="${esc(boss.id || "")}">
+        <div class="ck-boss-art">
+          ${bossEmblemSvg(boss.name)}
+          ${img ? `<img class="ck-boss-art__img" src="${esc(img)}" alt="" onerror="this.remove()" onload="this.previousElementSibling.style.display='none'">` : ""}
         </div>
+        <h2><span>${esc(boss.name || "Boss")}</span><span class="td-kicker">${boss.defeated ? "besiegt" : "Boss-Fight"}</span></h2>
+        <p class="ck-boss-meta">${esc(meta)}</p>
+        ${bossSegmentBar(boss)}
         ${hits ? `<ul class="ck-boss-hits">${hits}</ul>` : ""}
-        ${boss.weakLabel ? `<p class="ck-small">Schwachstelle: <strong>${esc(boss.weakLabel)}</strong></p>` : ""}
+        ${boss.weakLabel ? `<span class="ck-boss-weak">Schwachstelle · ${esc(boss.weakLabel)}</span>` : ""}
         <p class="ck-tiny ck-amber">Selbst ‚sicher‘ drücken trifft nicht.</p>
         ${loot ? `<div class="ck-boss-loot"><p class="ck-small"><strong>Beute</strong></p><ul>${loot}</ul></div>` : ""}
-        ${boss.defeated ? `<p class="ck-win">Boss besiegt – Beute freigeschaltet.</p>` : ""}
+        ${boss.defeated ? `<p class="ck-win">BOSS BESIEGT – Beute freigeschaltet.</p>` : ""}
       </div>`;
   }
 
@@ -1990,17 +2200,20 @@ window.SolHelpAttribution = (function () {
         return `<span class="ck-season-mark is-${esc(t.state || "spaeter")}" style="left:${left}%" title="${esc(t.label)} · ${num(t.xp)} XP"></span>`;
       })
       .join("");
+    const seasonIcons = ["♪", "🪑", "🃏", "🌳", "🥐"];
     const cards = tiers
-      .map((t) => {
+      .map((t, i) => {
         const state = t.state || "spaeter";
         const label = t.label || "";
+        const ico = seasonIcons[i % seasonIcons.length];
         let detail;
         if (state === "erreicht") detail = `${esc(label)} ✓`;
         else if (state === "naechste") {
           const rem = t.remaining != null ? t.remaining : Math.max(0, t.xp - xp);
           detail = `${esc(label)} · noch ${num(rem)} XP`;
-        } else detail = esc(label);
+        } else detail = `🔒 ${esc(label)}`;
         return `<div class="ck-season-tier is-${esc(state)}" role="listitem">
+          <span class="ck-season-tier__ico" aria-hidden="true">${ico}</span>
           <strong>${num(t.xp)}</strong>
           <span>${detail}</span>
         </div>`;
@@ -2048,7 +2261,7 @@ window.SolHelpAttribution = (function () {
             const name = showNames
               ? `<span class="ck-hl-chip__name">${esc(p.name || p.fullName || "Jemand")}</span>`
               : "";
-            return `<span class="ck-hl-chip">${avatarMarkup(p, "ck-av--sm")}${name}</span>`;
+            return `<span class="ck-hl-chip">${avatarMarkup(p, "ck-av--hl")}${name}</span>`;
           })
           .join("");
         return `<article class="ck-hl-card"><h3>${esc(label)}</h3><div class="ck-hl-chips">${chips}</div></article>`;
@@ -2437,9 +2650,9 @@ window.SolHelpAttribution = (function () {
     const toastHtml = toast ? `<p class="td-toast" role="status">${esc(toast)}</p>` : "";
     const chrome = renderControls({ asChrome: true });
     const dots = renderPresentationDots();
+    const how = renderHowItWorks();
     if (!ck.data) {
-      ck.el.innerHTML = `<div class="ck">${toastHtml}<div class="td-panel td-empty"><strong>${ck.error ? esc(ck.error) : "Lade das Cockpit …"}</strong></div>${dots}${chrome}</div>`;
-      ensureLevelcheckOverlay();
+      ck.el.innerHTML = `<div class="ck">${toastHtml}<div class="td-panel td-empty"><strong>${ck.error ? esc(ck.error) : "Lade das Cockpit …"}</strong></div>${how}${dots}${chrome}</div>`;
       return;
     }
     const d = ck.data;
@@ -2452,16 +2665,14 @@ window.SolHelpAttribution = (function () {
             ${renderHead()}
             ${renderControls()}
             <div class="td-panel td-empty"><strong>${esc(d.message || "Keine Unterrichtseinheit.")}</strong></div>
-            ${dots}${chrome}
+            ${how}${dots}${chrome}
           </div>`;
         syncBeamerMetrics();
-        ensureLevelcheckOverlay();
         return;
       }
       ck.el.innerHTML = `<div class="ck">${toastHtml}${error}${renderHead()}${renderControls()}
         <div class="td-panel td-empty"><strong>${esc(d.message || "Keine Unterrichtseinheit.")}</strong></div>
-        ${renderGame()}${dots}${chrome}</div>`;
-      ensureLevelcheckOverlay();
+        ${renderGame()}${how}${dots}${chrome}</div>`;
       return;
     }
     if (ck.beamer) {
@@ -2471,10 +2682,9 @@ window.SolHelpAttribution = (function () {
           ${renderHead()}
           ${renderControls()}
           ${renderBeamerWall()}
-          ${dots}${chrome}
+          ${how}${dots}${chrome}
         </div>`;
       syncBeamerMetrics();
-      ensureLevelcheckOverlay();
       return;
     }
     ck.el.innerHTML = `
@@ -2502,9 +2712,8 @@ window.SolHelpAttribution = (function () {
         </details>
         ${renderDrawer()}
         ${renderHelpModal()}
-        ${dots}${chrome}
+        ${how}${dots}${chrome}
       </div>`;
-    ensureLevelcheckOverlay();
   }
 
   /* ---------- Bedienung ---------- */
@@ -2553,6 +2762,22 @@ window.SolHelpAttribution = (function () {
       ck.reveal = "show";
       await load(false);
       flash(res.message || "Gezogen.");
+      const drawn = ck.data?.game?.raffle?.drawn;
+      if (ck.beamer && drawn && window.TeacherCockpitMoments) {
+        const w = studentByRosterId(drawn.winnerId);
+        const label = namesOnBeamer()
+          ? displayPersonName(w?.shortName || drawn.winnerShort, w?.name || drawn.winnerName) || "Gewinner:in"
+          : "Gewinner:in";
+        window.TeacherCockpitMoments.enqueue(
+          {
+            id: `raffle:${ck.classId}:${drawn.winnerId}:${ck.data?.day || ""}`,
+            kind: "raffle",
+            title: label,
+            sub: `+${drawn.xp || ck.raffleXp} XP`
+          },
+          { beamer: true }
+        );
+      }
     } catch (err) {
       stopRaffleSpin();
       ck.reveal = null;
@@ -2965,6 +3190,28 @@ window.SolHelpAttribution = (function () {
     if (t.closest("[data-ck-names]")) {
       ck.showNamesOnBeamer = !namesOnBeamer();
       if (ck.classId != null) saveNamesPref(ck.classId, ck.showNamesOnBeamer);
+      render();
+      return;
+    }
+    if (t.closest("[data-ck-sound]")) {
+      ck.soundOn = !ck.soundOn;
+      window.TeacherCockpitMoments?.setSound?.(ck.soundOn);
+      render();
+      return;
+    }
+    if (t.closest("[data-ck-how]")) {
+      ck.helpHow = true;
+      render();
+      return;
+    }
+    if (t.closest("[data-ck-how-close]")) {
+      ck.helpHow = false;
+      render();
+      return;
+    }
+    const laneTierBtn = t.closest("[data-ck-lane-tier]");
+    if (laneTierBtn) {
+      ck.laneTier = laneTierBtn.getAttribute("data-ck-lane-tier") || "rookie";
       render();
       return;
     }

@@ -109,7 +109,7 @@ body.ck-fake-fullscreen .td-main {
 .ck-context--beamer .ck-respekt-box {
   padding: 6px 10px;
 }
-.ck-context--beamer .ck-star--head { font-size: 22px; }
+.ck-context--beamer .ck-star--head { font-size: 40px; }
 body.ck--presentation .ck-context--sticky,
 body.ck-beamer.ck-wide:fullscreen .ck-context--sticky,
 .ck--beamer:fullscreen .ck-context--sticky,
@@ -171,7 +171,13 @@ body.ck-beamer.ck-wide:fullscreen .ck-context--sticky,
   line-height: 1;
   filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.35));
 }
-.ck-star--head { font-size: 32px; }
+.ck-star--head { font-size: 40px; line-height: 1; }
+.ck-star--on { text-shadow: 0 0 12px rgba(251, 191, 36, 0.85); }
+.ck-star--pop { animation: ck-star-pop 2s ease; }
+@keyframes ck-star-pop {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  30% { transform: scale(1.35); filter: brightness(1.4); }
+}
 .ck-star--panel { font-size: 36px; }
 .ck-star--on { color: #FFC74D; -webkit-text-stroke: 1px #7c5a12; text-stroke: 1px #7c5a12; }
 .ck-star--empty {
@@ -1277,6 +1283,225 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
   vertical-align: middle;
 }
 
+/* —— Beamer-Momente —— */
+.ck-moment {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 96;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 4, 12, 0.55);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.ck-moment--show { opacity: 1; }
+.ck-moment__card {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: #fde68a;
+  background: rgba(8, 12, 28, 0.95);
+  border: 2px solid #ff2ea6;
+  border-radius: 16px;
+  padding: 1.4rem 1.8rem;
+  max-width: min(92vw, 36rem);
+  box-shadow: 0 0 48px rgba(255, 46, 166, 0.45), 0 0 80px rgba(34, 211, 238, 0.2);
+  transform: scale(0.86);
+  transition: transform 0.35s cubic-bezier(.2,1.4,.4,1);
+}
+.ck-moment--show .ck-moment__card { transform: scale(1) rotate(-0.6deg); }
+.ck-moment--static .ck-moment__card { transition: none; transform: none; }
+.ck-moment__title { font-size: clamp(1.35rem, 3.4vw, 2.2rem); line-height: 1.15; }
+.ck-moment__sub { margin-top: 0.55rem; font-size: clamp(0.85rem, 1.6vw, 1.1rem); color: #67e8f9; font-weight: 700; }
+.ck-moment__card--boss-hit { border-color: #f43f5e; color: #fecdd3; }
+.ck-moment__card--boss-win { border-color: #34d399; color: #a7f3d0; }
+.ck-moment__card--respect { border-color: #fbbf24; color: #fde68a; }
+
+/* —— Boss-Figur & HP —— */
+.ck-boss-art {
+  position: relative;
+  height: 40%;
+  min-height: 140px;
+  max-height: 220px;
+  display: grid;
+  place-items: center;
+  margin: 0 0 10px;
+}
+.ck-boss-emblem { width: min(100%, 200px); height: auto; filter: drop-shadow(0 0 18px rgba(255, 46, 166, 0.45)); }
+.ck-boss-art__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ck-boss--soon .ck-boss-art { opacity: 0.45; filter: grayscale(0.6); }
+.ck-boss-meta { margin: 0 0 8px; color: #94a3b8; font-size: 0.85rem; }
+.ck-boss-hp { display: grid; gap: 6px; margin-bottom: 10px; }
+.ck-boss-hp__nums { font-family: Orbitron, system-ui, sans-serif; font-size: 1.35rem; }
+.ck-boss-hp__nums strong { color: #f8fafc; }
+.ck-boss-hp__bar--solid {
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  overflow: hidden;
+  position: relative;
+}
+.ck-boss-hp__bar--solid::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--hp, 100%);
+  background: var(--hp-color, #34d399);
+  transition: width 0.6s ease;
+}
+.ck-boss-hp__segs {
+  display: grid;
+  grid-template-columns: repeat(var(--segs, 10), minmax(0, 1fr));
+  gap: 3px;
+  height: 20px;
+}
+.ck-boss-hp__segs i {
+  display: block;
+  border-radius: 3px;
+  background: rgba(51, 65, 85, 0.8);
+}
+.ck-boss-hp__segs i.is-on { box-shadow: 0 0 6px rgba(52, 211, 153, 0.45); }
+.ck-boss-hp__segs i.is-flash { animation: ck-hp-flash 0.7s ease; }
+@keyframes ck-hp-flash {
+  0% { background: #fff; }
+  100% { background: rgba(51, 65, 85, 0.8); }
+}
+.ck-boss-hits { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.ck-boss-hits li { display: flex; justify-content: space-between; gap: 8px; font-size: 0.9rem; }
+.ck-boss-weak {
+  display: inline-block;
+  margin: 0 0 8px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(244, 63, 94, 0.18);
+  border: 1px solid rgba(244, 63, 94, 0.45);
+  color: #fecdd3;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.ck-boss-loot__ico { margin-right: 0.35rem; }
+
+.ck-lane-tiers { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.ck-lane-tier {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.7);
+  color: #cbd5e1;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ck-lane-tier.is-on { border-color: #22d3ee; color: #ecfeff; background: rgba(34, 211, 238, 0.18); }
+.ck-lanes--2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ck-city-legend__note { opacity: 0.85; font-size: 0.75rem; }
+
+.ck-how {
+  position: absolute;
+  inset: 0;
+  z-index: 97;
+  background: rgba(2, 6, 23, 0.92);
+  padding: 2rem clamp(1rem, 3vw, 2.5rem);
+  overflow: auto;
+}
+.ck-how__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  border: 0;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+.ck-how__title {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  margin: 0 0 1.2rem;
+  text-align: center;
+}
+.ck-how__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+.ck-how__card {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  padding: 1.1rem 1.2rem;
+}
+.ck-how__ico { font-size: 1.6rem; margin-bottom: 0.4rem; }
+.ck-how__card h3 { margin: 0 0 0.4rem; font-family: Orbitron, system-ui, sans-serif; }
+.ck-how__card p { margin: 0; color: #cbd5e1; line-height: 1.45; }
+
+.ck--beamer .ck-kpis { max-height: 110px; }
+.ck--beamer .ck-map-panel { align-self: stretch; }
+.ck--beamer .ck-boss { display: flex; flex-direction: column; }
+
+.ck-lostopf {
+  position: relative;
+  height: 110px;
+  margin: 0.4rem 0 0.6rem;
+  display: grid;
+  place-items: end center;
+}
+.ck-lostopf i {
+  position: absolute;
+  bottom: 18px;
+  width: 42px;
+  height: 58px;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  transform-origin: bottom center;
+}
+.ck-lostopf i:nth-child(1) { left: 18%; background: #22d3ee; transform: rotate(-14deg); }
+.ck-lostopf i:nth-child(2) { left: 30%; background: #ff2ea6; transform: rotate(-6deg); z-index: 2; }
+.ck-lostopf i:nth-child(3) { left: 42%; background: #fbbf24; transform: rotate(2deg); z-index: 3; }
+.ck-lostopf i:nth-child(4) { left: 54%; background: #a78bfa; transform: rotate(9deg); z-index: 2; }
+.ck-lostopf i:nth-child(5) { left: 66%; background: #34d399; transform: rotate(16deg); }
+.ck-lostopf__n {
+  position: relative;
+  z-index: 4;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-weight: 900;
+  font-size: 1.35rem;
+  color: #f8fafc;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
+}
+.ck-season-tier__ico { font-size: 1.15rem; margin-right: 0.25rem; }
+.ck-season-panel { margin-bottom: 28px; }
+.ck-city-glows circle {
+  transition: r 1s ease, opacity 1s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ck-city-glows circle { transition: none; }
+}
+.ck-respect-list .ck-star,
+.ck--beamer .ck-respect-list .ck-star--compact {
+  font-size: 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ck-moment__card, .ck-boss-hp__segs i.is-flash, .ck-star--pop { animation: none !important; transition: none !important; }
+}
+
+@media (max-width: 900px) {
+  .ck-how__grid { grid-template-columns: 1fr; }
+  .ck-lanes--2col { grid-template-columns: 1fr; }
+}
+
 .ck-av {
   position: relative;
   display: inline-grid;
@@ -1316,6 +1541,7 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
 }
 .ck-av--sm { width: 40px; height: 40px; font-size: 0.85rem; }
 .ck-av--md { width: 48px; height: 48px; }
+.ck-av--hl { width: 56px; height: 56px; font-size: 1rem; border-width: 3px; }
 .ck-av--lg { width: 64px; height: 64px; font-size: 1.15rem; border-width: 3px; }
 .ck-av--xl { width: 120px; height: 120px; font-size: 2rem; border-width: 3px; }
 .ck-av--wall {
@@ -1400,8 +1626,11 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
   overflow: visible;
 }
 .ck--beamer .ck-av-grid {
-  --ck-av-size: clamp(52px, 4.2vw, 96px);
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  --ck-av-size: clamp(56px, 7cqh, 120px);
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--ck-av-size) + 28px), 1fr));
+}
+.ck--beamer .ck-avatar-wall {
+  container-type: size;
 }
 @container (max-width: 900px) {
   .ck-av-grid { --ck-av-size: 48px; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
