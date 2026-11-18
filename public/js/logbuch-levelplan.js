@@ -890,11 +890,74 @@
       </section>`;
   }
 
+  const DIGITAL_LC_STATUSES = new Set([
+    "geplant",
+    "offen",
+    "eingetragen",
+    "bestaetigt",
+    "nicht_bestanden",
+    "nicht_teilgenommen"
+  ]);
+
   function storedPercent(lc) {
     if (lc?.levelcheckPercent == null || lc.levelcheckPercent === "") return null;
     const n = Number(lc.levelcheckPercent);
     if (!Number.isInteger(n) || n < 0 || n > 100) return null;
     return n;
+  }
+
+  function usesDigitalLc(lc) {
+    if (!lc) return false;
+    if (DIGITAL_LC_STATUSES.has(String(lc.status || ""))) return true;
+    if (lc.richtig != null && Number.isFinite(Number(lc.richtig))) return true;
+    return false;
+  }
+
+  function lcAufgaben(lc) {
+    const n = Number(lc?.aufgaben);
+    return Number.isFinite(n) && n > 0 ? n : Number(state.data?.levelcheckAufgaben) || 10;
+  }
+
+  function formatLcShortDate(lc) {
+    const iso = String(lc?.date || "").slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      const d = new Date(`${iso}T12:00:00`);
+      if (!Number.isNaN(d.getTime())) {
+        return d.toLocaleDateString("de-DE", {
+          weekday: "short",
+          day: "2-digit",
+          month: "2-digit"
+        });
+      }
+    }
+    const label = String(lc?.dateLabel || "").trim();
+    if (!label) return "–";
+    return label.replace(/\.\d{4}$/, ".").replace(/\s+\d{4}$/, "");
+  }
+
+  function lcMissionsLine(lc) {
+    return (lc?.linkedGoalLabels || []).filter(Boolean).join(", ");
+  }
+
+  function lcLevelLabel(lc) {
+    return lc?.checkLevelLabel || "Rookie";
+  }
+
+  function isActiveDigitalLc(lc) {
+    const st = String(lc?.status || "");
+    return st === "geplant" || st === "offen" || st === "eingetragen";
+  }
+
+  function sortLevelchecksForDisplay(checks) {
+    const next = [];
+    const past = [];
+    for (const lc of checks) {
+      if (usesDigitalLc(lc) ? isActiveDigitalLc(lc) : !lc.isPast) next.push(lc);
+      else past.push(lc);
+    }
+    next.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+    past.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    return [...next, ...past];
   }
 
   function renderPercentControl(lc, pct, hasValue) {
@@ -908,40 +971,112 @@
     return `<button type="button" class="lp-lc__value ${hasValue ? "" : "is-empty"}" data-lp-pct-edit data-lc-id="${escapeHtml(lc.id)}" aria-label="Ergebnis direkt eingeben">${label}</button>`;
   }
 
+  function renderLegacyPercentCard(lc) {
+    const pct = storedPercent(lc);
+    const hasValue = pct != null;
+    const shown = hasValue ? pct : 0;
+    const names = (lc.linkedGoalLabels || []).filter(Boolean);
+    const chips = names.length
+      ? `<ul class="lp-lc__chips">${names
+          .map((name) => `<li class="lp-lc__chip">${escapeHtml(name)}</li>`)
+          .join("")}</ul>`
+      : "";
+    const passed = hasValue && pct >= (lc.unlockThreshold || passPercent());
+    return `
+      <article class="lp-lc ${passed ? "is-pass" : ""} ${hasValue ? "" : "is-empty"}" data-lp-lc-result data-topic-id="${escapeHtml(lc.levelCheckId)}" data-lc-id="${escapeHtml(lc.id)}" data-threshold="${lc.unlockThreshold || passPercent()}" aria-label="Levelcheck ${escapeHtml(lc.dateLabel || lc.date || "")}">
+        <p class="lp-lc__date">${escapeHtml(lc.dateLabel || lc.date || "Levelcheck")}</p>
+        ${chips}
+        <div class="lp-lc__result">
+          ${renderPercentControl(lc, pct, hasValue)}
+          <input type="range" class="lp-lc__range" min="0" max="100" step="1" value="${shown}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${shown}" aria-valuetext="${hasValue ? `${pct} Prozent richtig` : "Ergebnis eintragen"}" aria-label="Ergebnis Levelcheck in Prozent, gilt für das ganze Thema">
+        </div>
+      </article>`;
+  }
+
+  function renderDigitalRichtigForm(lc, aufgaben, richtig) {
+    const saving = state.saving === `lc_${lc.id}`;
+    const val = richtig == null ? "" : String(richtig);
+    return `
+      <form class="lp-lc__form" data-lp-lc-form data-lc-id="${escapeHtml(lc.id)}">
+        <label class="lp-lc__form-label" for="lp-lc-in-${escapeHtml(lc.id)}">Wie viele von ${aufgaben} hast du richtig?</label>
+        <div class="lp-lc__form-row">
+          <input id="lp-lc-in-${escapeHtml(lc.id)}" class="lp-lc__score" type="number" inputmode="numeric" min="0" max="${aufgaben}" step="1" value="${escapeHtml(val)}" required ${saving ? "disabled" : ""} aria-label="Richtige Aufgaben von ${aufgaben}">
+          <button type="submit" class="lp-lc__submit" ${saving ? "disabled" : ""}>${saving ? "…" : "Eintragen"}</button>
+        </div>
+      </form>`;
+  }
+
+  function renderDigitalLcCard(lc, isNext) {
+    const status = String(lc.status || "");
+    const aufgaben = lcAufgaben(lc);
+    const richtig = lc.richtig == null || lc.richtig === "" ? null : Number(lc.richtig);
+    const hasRichtig = Number.isInteger(richtig) && richtig >= 0;
+    const level = lcLevelLabel(lc);
+    const missions = lcMissionsLine(lc);
+    const dateShort = formatLcShortDate(lc);
+    const title = lc.title || lc.dateLabel || "Levelcheck";
+    const names = (lc.linkedGoalLabels || []).filter(Boolean);
+    const chips = names.length
+      ? `<ul class="lp-lc__chips">${names
+          .map((name) => `<li class="lp-lc__chip">${escapeHtml(name)}</li>`)
+          .join("")}</ul>`
+      : "";
+    const editing =
+      String(state.editingLcId) === String(lc.id) &&
+      (status === "offen" || status === "eingetragen");
+    let body = "";
+    let cardClass = "lp-lc lp-lc--digital";
+    if (isNext) cardClass += " is-next";
+    if (status === "bestaetigt") cardClass += " is-pass";
+    if (status === "nicht_bestanden") cardClass += " is-soft";
+    if (status === "offen" || editing) cardClass += " is-empty";
+
+    if (status === "geplant") {
+      const parts = [`Am ${dateShort}`, level];
+      if (missions) parts.push(missions);
+      body = `<p class="lp-lc__line">${escapeHtml(parts.join(" · "))}</p>`;
+    } else if (status === "offen" || editing) {
+      body = `${chips}${renderDigitalRichtigForm(lc, aufgaben, hasRichtig ? richtig : null)}`;
+    } else if (status === "eingetragen") {
+      body = `
+        ${chips}
+        <button type="button" class="lp-lc__status-btn" data-lp-lc-edit data-lc-id="${escapeHtml(lc.id)}" aria-label="Ergebnis ändern">
+          <span class="lp-lc__score-text">${hasRichtig ? richtig : "–"} von ${aufgaben}</span>
+          <span class="lp-lc__unit">wartet auf Freigabe</span>
+        </button>`;
+    } else if (status === "bestaetigt") {
+      body = `${chips}<p class="lp-lc__line lp-lc__line--ok"><span class="lp-lc__score-text">${hasRichtig ? richtig : "–"} von ${aufgaben}</span> · bestanden ✓</p>`;
+    } else if (status === "nicht_bestanden") {
+      body = `
+        ${chips}
+        <p class="lp-lc__line"><span class="lp-lc__score-text">${hasRichtig ? richtig : "–"} von ${aufgaben}</span> · noch nicht geschafft</p>
+        <p class="lp-lc__hint">Übe weiter im Trainingscenter, der nächste Levelcheck ist deine Chance.</p>`;
+    } else if (status === "nicht_teilgenommen") {
+      body = `${chips}<p class="lp-lc__line">Nicht teilgenommen · Nachschreiben möglich</p>`;
+    } else {
+      body = `${chips}${renderDigitalRichtigForm(lc, aufgaben, hasRichtig ? richtig : null)}`;
+    }
+
+    return `
+      <article class="${cardClass}" data-lp-lc-digital data-lc-id="${escapeHtml(lc.id)}" data-status="${escapeHtml(status)}" aria-label="Levelcheck ${escapeHtml(title)}">
+        <p class="lp-lc__date">${escapeHtml(status === "geplant" ? title : [dateShort, level].filter(Boolean).join(" · ") || title)}</p>
+        ${status !== "geplant" && lc.title ? `<p class="lp-lc__title">${escapeHtml(lc.title)}</p>` : ""}
+        ${body}
+      </article>`;
+  }
+
   function renderLevelchecks(thema) {
-    const checks = levelcheckRecordsForThema(thema?.id);
+    const checks = sortLevelchecksForDisplay(levelcheckRecordsForThema(thema?.id));
     if (!checks.length) return "";
-    const note =
-      checks.length > 1
-        ? `<p class="lp-lc-note">Ein Ergebnis für das ganze Thema.</p>`
-        : "";
     const cards = checks
-      .map((lc) => {
-        const pct = storedPercent(lc);
-        const hasValue = pct != null;
-        const shown = hasValue ? pct : 0;
-        const names = (lc.linkedGoalLabels || []).filter(Boolean);
-        const chips = names.length
-          ? `<ul class="lp-lc__chips">${names
-              .map((name) => `<li class="lp-lc__chip">${escapeHtml(name)}</li>`)
-              .join("")}</ul>`
-          : "";
-        const passed = hasValue && pct >= (lc.unlockThreshold || passPercent());
-        return `
-          <article class="lp-lc ${passed ? "is-pass" : ""} ${hasValue ? "" : "is-empty"}" data-lp-lc-result data-topic-id="${escapeHtml(lc.levelCheckId)}" data-lc-id="${escapeHtml(lc.id)}" data-threshold="${lc.unlockThreshold || passPercent()}" aria-label="Levelcheck ${escapeHtml(lc.dateLabel || lc.date || "")}">
-            <p class="lp-lc__date">${escapeHtml(lc.dateLabel || lc.date || "Levelcheck")}</p>
-            ${chips}
-            <div class="lp-lc__result">
-              ${renderPercentControl(lc, pct, hasValue)}
-              <input type="range" class="lp-lc__range" min="0" max="100" step="1" value="${shown}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${shown}" aria-valuetext="${hasValue ? `${pct} Prozent richtig` : "Ergebnis eintragen"}" aria-label="Ergebnis Levelcheck in Prozent, gilt für das ganze Thema">
-            </div>
-          </article>`;
+      .map((lc, index) => {
+        if (usesDigitalLc(lc)) return renderDigitalLcCard(lc, index === 0 && isActiveDigitalLc(lc));
+        return renderLegacyPercentCard(lc);
       })
       .join("");
     return `
-      <section class="lp-block" aria-labelledby="lp-lc-title">
+      <section class="lp-block lp-block--lc" aria-labelledby="lp-lc-title">
         <h2 id="lp-lc-title" class="lp-kicker">Levelchecks · ${checks.length}</h2>
-        ${note}
         <div class="lp-lc-list">${cards}</div>
       </section>`;
   }
@@ -1735,6 +1870,7 @@
         ${renderLive()}
       </div>
       ${strecke}
+      ${renderLevelchecks(thema)}
       ${renderRedeem(thema)}
       ${renderOverlay()}`;
   }
@@ -2093,6 +2229,38 @@
       });
     });
 
+    root.querySelectorAll("[data-lp-lc-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.editingLcId = btn.dataset.lcId || null;
+        closeOverlay();
+        render();
+        const id = String(btn.dataset.lcId || "");
+        const safe = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(id) : id.replace(/"/g, "");
+        document
+          .querySelector(`#levelplan-screen-root [data-lp-lc-form][data-lc-id="${safe}"] .lp-lc__score`)
+          ?.focus?.();
+      });
+    });
+
+    root.querySelectorAll("[data-lp-lc-form]").forEach((form) => {
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const checkpointId = form.dataset.lcId;
+        const input = form.querySelector(".lp-lc__score");
+        const raw = String(input?.value ?? "").trim();
+        if (!checkpointId) return;
+        const n = Number(raw);
+        const max = Number(input?.max) || 10;
+        if (!Number.isInteger(n) || n < 0 || n > max) {
+          state.error = `Bitte eine ganze Zahl von 0 bis ${max}.`;
+          state.message = "";
+          flashLive(state.error, true);
+          return;
+        }
+        saveLevelcheckRichtig(checkpointId, n);
+      });
+    });
+
     root.querySelectorAll(".lp-lc__input").forEach((input) => {
       input.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
@@ -2230,6 +2398,66 @@
     el.textContent = text || "";
     el.classList.toggle("is-error", !!isError && !!text);
     el.classList.toggle("is-ok", !isError && !!text);
+  }
+
+  function applyDigitalResultLocally(checkpointId, payload) {
+    const id = String(checkpointId);
+    for (const lc of state.data?.scheduledLevelchecks || []) {
+      if (String(lc.id) !== id) continue;
+      if (payload.richtig != null) lc.richtig = Number(payload.richtig);
+      if (payload.status) lc.status = payload.status;
+      if (payload.aufgaben != null) lc.aufgaben = Number(payload.aufgaben);
+      if (payload.schwelle != null) lc.schwelle = Number(payload.schwelle);
+      const aufgaben = lcAufgaben(lc);
+      if (lc.richtig != null && aufgaben > 0) {
+        lc.levelcheckPercent = Math.round((Number(lc.richtig) / aufgaben) * 100);
+      }
+      lc.levelcheckPassed = lc.status === "bestaetigt";
+      if (lc.levelCheckId) {
+        applyLevelcheckPercentLocally(
+          lc.levelCheckId,
+          lc.levelcheckPercent,
+          lc.levelcheckPassed
+        );
+      }
+    }
+  }
+
+  async function saveLevelcheckRichtig(checkpointId, richtig) {
+    state.saving = `lc_${checkpointId}`;
+    state.error = "";
+    state.message = "";
+    render();
+    try {
+      const res = await fetch("/api/student/levelcheck-result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkpointId, richtig })
+      });
+      const data = await res.json();
+      state.saving = null;
+      if (!data.success) {
+        const message = data.message || "Speichern fehlgeschlagen.";
+        state.error = message;
+        state.message = "";
+        flashLive(message, true);
+        render();
+        return;
+      }
+      applyDigitalResultLocally(checkpointId, data);
+      state.editingLcId = null;
+      state.error = "";
+      state.message = "Eingetragen.";
+      flashLive("Eingetragen – wartet auf Freigabe.", false);
+      render();
+    } catch (err) {
+      console.error(err);
+      state.saving = null;
+      state.error = "Netzwerkfehler beim Speichern.";
+      state.message = "";
+      flashLive(state.error, true);
+      render();
+    }
   }
 
   async function saveLevelcheckPercent(topicId, percent) {

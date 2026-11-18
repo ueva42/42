@@ -43,7 +43,11 @@
       type: "klassenarbeit",
       customLabel: "",
       linked: [],
-      selectableAsDayGoal: true
+      selectableAsDayGoal: true,
+      title: "",
+      checkLevel: "rookie",
+      aufgaben: 10,
+      schwelle: 7
     },
     data: null,
     loading: false,
@@ -64,7 +68,24 @@
       type: "klassenarbeit",
       customLabel: "",
       linked: [],
-      selectableAsDayGoal: true
+      selectableAsDayGoal: true,
+      title: "",
+      checkLevel: "rookie",
+      aufgaben: 10,
+      schwelle: 7
+    };
+  }
+
+  function readLevelcheckDraftFields(card) {
+    const aufgabenRaw = Number(card?.querySelector(".tc-lc-aufgaben")?.value);
+    const schwelleRaw = Number(card?.querySelector(".tc-lc-schwelle")?.value);
+    const level = String(card?.querySelector(".tc-lc-check-level")?.value || "rookie").trim();
+    return {
+      title: card?.querySelector(".tc-lc-title")?.value?.trim() || "",
+      checkLevel:
+        level === "operator" || level === "street_legend" ? level : "rookie",
+      aufgaben: Number.isFinite(aufgabenRaw) && aufgabenRaw >= 1 ? Math.round(aufgabenRaw) : 10,
+      schwelle: Number.isFinite(schwelleRaw) && schwelleRaw >= 1 ? Math.round(schwelleRaw) : 7
     };
   }
 
@@ -75,6 +96,7 @@
     const customEl = card.querySelector(".tc-checkpoint-type-custom");
     const selectableEl = card.querySelector(".tc-selectable-day-goal");
     const type = typeEl?.value || "klassenarbeit";
+    const lc = readLevelcheckDraftFields(card);
     state.formDraft = {
       date: dateEl?.value?.trim() || "",
       type,
@@ -82,7 +104,11 @@
       linked: [...card.querySelectorAll(".tc-was-goal-check:checked")].map((el) => el.value),
       selectableAsDayGoal: selectableEl
         ? !!selectableEl.checked
-        : defaultSelectableAsDayGoal(type)
+        : defaultSelectableAsDayGoal(type),
+      title: lc.title,
+      checkLevel: lc.checkLevel,
+      aufgaben: lc.aufgaben,
+      schwelle: lc.schwelle
     };
   }
 
@@ -368,6 +394,10 @@
       const cp = checkpointById(state.editCheckpointId);
       if (!cp) return null;
       const type = normalizeType(cp);
+      const checkLevel =
+        cp.checkLevel === "operator" || cp.checkLevel === "street_legend"
+          ? cp.checkLevel
+          : "rookie";
       return {
         topicId: cp.topicId,
         date: isoToGerman(cp.checkpointDate),
@@ -377,7 +407,11 @@
         selectableAsDayGoal:
           cp.selectableAsDayGoal == null
             ? defaultSelectableAsDayGoal(type)
-            : !!cp.selectableAsDayGoal
+            : !!cp.selectableAsDayGoal,
+        title: cp.title || "",
+        checkLevel,
+        aufgaben: Number(cp.aufgaben) > 0 ? Number(cp.aufgaben) : 10,
+        schwelle: Number(cp.schwelle) > 0 ? Number(cp.schwelle) : 7
       };
     }
     ensureThemaSelection();
@@ -390,8 +424,36 @@
       selectableAsDayGoal:
         state.formDraft.selectableAsDayGoal == null
           ? defaultSelectableAsDayGoal(state.formDraft.type)
-          : !!state.formDraft.selectableAsDayGoal
+          : !!state.formDraft.selectableAsDayGoal,
+      title: state.formDraft.title || "",
+      checkLevel:
+        state.formDraft.checkLevel === "operator" ||
+        state.formDraft.checkLevel === "street_legend"
+          ? state.formDraft.checkLevel
+          : "rookie",
+      aufgaben: Number(state.formDraft.aufgaben) > 0 ? Number(state.formDraft.aufgaben) : 10,
+      schwelle: Number(state.formDraft.schwelle) > 0 ? Number(state.formDraft.schwelle) : 7
     };
+  }
+
+  function renderLevelSegment(selected) {
+    const levels = [
+      { value: "rookie", label: "Rookie" },
+      { value: "operator", label: "Operator" },
+      { value: "street_legend", label: "Street Legend" }
+    ];
+    return `
+      <div class="tc-level-segment" role="group" aria-label="Level">
+        ${levels
+          .map(
+            (lvl) =>
+              `<button type="button" class="tc-level-seg" data-level="${escapeHtml(lvl.value)}" aria-pressed="${
+                lvl.value === selected ? "true" : "false"
+              }">${escapeHtml(lvl.label)}</button>`
+          )
+          .join("")}
+      </div>
+      <input type="hidden" class="tc-lc-check-level" value="${escapeHtml(selected)}">`;
   }
 
   function primaryTopicIdFromLinked(linkedIds) {
@@ -491,6 +553,49 @@
                 ${isCustom ? "" : "disabled"}
               >
             </label>
+          </div>
+
+          <div class="tc-levelcheck-extra ${values.type === "levelcheck" ? "" : "tc-checkpoint-custom-hidden"}">
+            <div class="tc-checkpoint-row">
+              <label>
+                Titel
+                <input
+                  type="text"
+                  class="tc-lc-title"
+                  maxlength="120"
+                  placeholder="z. B. Levelcheck 1"
+                  value="${escapeHtml(values.title || "")}"
+                >
+              </label>
+            </div>
+            <div class="tc-checkpoint-row">
+              <label class="tc-lc-level-label">
+                Level
+                ${renderLevelSegment(values.checkLevel || "rookie")}
+              </label>
+              <label>
+                Aufgaben
+                <input
+                  type="number"
+                  class="tc-lc-aufgaben"
+                  min="1"
+                  max="50"
+                  step="1"
+                  value="${escapeHtml(String(values.aufgaben ?? 10))}"
+                >
+              </label>
+              <label>
+                Schwelle
+                <input
+                  type="number"
+                  class="tc-lc-schwelle"
+                  min="1"
+                  max="50"
+                  step="1"
+                  value="${escapeHtml(String(values.schwelle ?? 7))}"
+                >
+              </label>
+            </div>
           </div>
 
           <label class="tc-selectable-day-goal-label">
@@ -607,6 +712,22 @@
     }
   }
 
+  function toggleLevelcheckFields(card, show) {
+    const wrap = card?.querySelector(".tc-levelcheck-extra");
+    if (!wrap) return;
+    wrap.classList.toggle("tc-checkpoint-custom-hidden", !show);
+  }
+
+  function setCheckLevel(card, level) {
+    const value =
+      level === "operator" || level === "street_legend" ? level : "rookie";
+    const hidden = card?.querySelector(".tc-lc-check-level");
+    if (hidden) hidden.value = value;
+    card?.querySelectorAll(".tc-level-seg").forEach((btn) => {
+      btn.setAttribute("aria-pressed", btn.dataset.level === value ? "true" : "false");
+    });
+  }
+
   function resetNewForm() {
     state.editCheckpointId = null;
     clearFormDraft();
@@ -648,6 +769,7 @@
         }
         captureFormDraft(card);
         toggleCustomField(card, type === "custom");
+        toggleLevelcheckFields(card, type === "levelcheck");
         updateSaveButtonLabel(card);
       });
 
@@ -658,6 +780,22 @@
 
       card.querySelector(".tc-checkpoint-date")?.addEventListener("input", () => {
         captureFormDraft(card);
+      });
+
+      card.querySelector(".tc-lc-title")?.addEventListener("input", () => {
+        captureFormDraft(card);
+      });
+      card.querySelector(".tc-lc-aufgaben")?.addEventListener("input", () => {
+        captureFormDraft(card);
+      });
+      card.querySelector(".tc-lc-schwelle")?.addEventListener("input", () => {
+        captureFormDraft(card);
+      });
+      card.querySelectorAll(".tc-level-seg").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          setCheckLevel(card, btn.dataset.level);
+          captureFormDraft(card);
+        });
       });
 
       card.querySelector(".tc-selectable-day-goal")?.addEventListener("change", () => {
@@ -748,6 +886,7 @@
     );
     const selectableEl = card.querySelector(".tc-selectable-day-goal");
     const catalogId = card.querySelector(".tc-levelplan-select")?.value || "";
+    const lc = readLevelcheckDraftFields(card);
 
     return {
       catalogId,
@@ -759,7 +898,11 @@
       linkedSubtopicIds,
       selectableAsDayGoal: selectableEl
         ? !!selectableEl.checked
-        : defaultSelectableAsDayGoal(checkpointType)
+        : defaultSelectableAsDayGoal(checkpointType),
+      title: lc.title,
+      checkLevel: lc.checkLevel,
+      aufgaben: lc.aufgaben,
+      schwelle: lc.schwelle
     };
   }
 
@@ -795,20 +938,27 @@
       const url = isEdit
         ? `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(state.editCheckpointId)}`
         : "/api/teacher/levelcheck-checkpoints";
+      const body = {
+        classId: state.classId,
+        subject: state.subject,
+        levelCheckId: payload.levelCheckId,
+        catalogId: payload.catalogId || null,
+        checkpointDate: payload.checkpointDate,
+        checkpointType: payload.checkpointType,
+        checkpointTypeLabel: payload.checkpointTypeLabel,
+        linkedSubtopicIds: payload.linkedSubtopicIds,
+        selectableAsDayGoal: payload.selectableAsDayGoal
+      };
+      if (payload.checkpointType === "levelcheck") {
+        body.title = payload.title || null;
+        body.checkLevel = payload.checkLevel || "rookie";
+        body.aufgaben = payload.aufgaben;
+        body.schwelle = payload.schwelle;
+      }
       const res = await fetch(url, {
         method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          classId: state.classId,
-          subject: state.subject,
-          levelCheckId: payload.levelCheckId,
-          catalogId: payload.catalogId || null,
-          checkpointDate: payload.checkpointDate,
-          checkpointType: payload.checkpointType,
-          checkpointTypeLabel: payload.checkpointTypeLabel,
-          linkedSubtopicIds: payload.linkedSubtopicIds,
-          selectableAsDayGoal: payload.selectableAsDayGoal
-        })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       state.saving = false;

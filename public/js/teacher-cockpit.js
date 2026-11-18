@@ -142,6 +142,10 @@ window.SolHelpAttribution = (function () {
     forceBossWin: false,
     bossMissionId: "",
     bossConfetti: false,
+    seenLcOverlayKey: "",
+    lcOverlayText: "",
+    lcOverlayUntil: 0,
+    lcOverlayTimer: null,
     drawerId: null,
     moreOpen: false,
     form: null,
@@ -479,6 +483,7 @@ window.SolHelpAttribution = (function () {
       if (season()?.boss?.defeated) {
         maybeCelebrateBoss();
       }
+      maybeShowLevelcheckOverlay();
     } catch (err) {
       if (seq !== ck.seq) return;
       ck.error = err.message || "Das Cockpit konnte nicht geladen werden.";
@@ -567,6 +572,50 @@ window.SolHelpAttribution = (function () {
     if (!b?.defeated || ck.bossConfetti) return;
     ck.bossConfetti = true;
     spawnConfetti();
+  }
+
+  function maybeShowLevelcheckOverlay() {
+    const ov = season()?.levelcheckOverlay;
+    if (!ov?.text) return;
+    const key = `${ov.checkpointId || ""}|${ov.at || ov.text}`;
+    if (ck.seenLcOverlayKey === key) return;
+    ck.seenLcOverlayKey = key;
+    ck.lcOverlayText = ov.text;
+    ck.lcOverlayUntil = Date.now() + 3600;
+    paintLevelcheckOverlay();
+  }
+
+  function paintLevelcheckOverlay() {
+    document.querySelectorAll(".ck-lc-overlay").forEach((n) => n.remove());
+    if (ck.lcOverlayTimer) {
+      clearTimeout(ck.lcOverlayTimer);
+      ck.lcOverlayTimer = null;
+    }
+    const left = (ck.lcOverlayUntil || 0) - Date.now();
+    if (!ck.lcOverlayText || left <= 0) {
+      ck.lcOverlayText = "";
+      ck.lcOverlayUntil = 0;
+      return;
+    }
+    const layer = document.createElement("div");
+    layer.className = "ck-lc-overlay";
+    layer.setAttribute("role", "status");
+    layer.innerHTML = `<div class="ck-lc-overlay__card">${esc(ck.lcOverlayText || "LEVELCHECK FREIGEGEBEN")}</div>`;
+    document.body.appendChild(layer);
+    requestAnimationFrame(() => layer.classList.add("ck-lc-overlay--show"));
+    ck.lcOverlayTimer = setTimeout(() => {
+      layer.classList.remove("ck-lc-overlay--show");
+      setTimeout(() => layer.remove(), 400);
+      ck.lcOverlayText = "";
+      ck.lcOverlayUntil = 0;
+      ck.lcOverlayTimer = null;
+    }, left);
+  }
+
+  function ensureLevelcheckOverlay() {
+    if (!ck.lcOverlayText || !ck.lcOverlayUntil || Date.now() >= ck.lcOverlayUntil) return;
+    if (document.querySelector(".ck-lc-overlay")) return;
+    paintLevelcheckOverlay();
   }
 
   function spawnConfetti() {
@@ -1815,7 +1864,9 @@ window.SolHelpAttribution = (function () {
       ringColors: season()?.config?.mapRingColors,
       boss,
       examLabel: examShortLabel(),
-      checkpointNs: (boss?.hitByMission || []).map((h) => h.n).filter(Boolean)
+      checkpointNs: (boss?.hitByMission || []).map((h) => h.n).filter(Boolean),
+      flagLabel: boss?.flagLabel || boss?.shieldLabel || "",
+      shieldLabel: boss?.shieldLabel || ""
     });
     return `<div class="ck-panel ck-map-panel ${compact ? "ck-map-panel--compact" : ""}">
       <h2><span>${map.mode === "city" ? esc(map.ort || map.name || "Stadtteil") : "Fahrspuren"}</span><span class="td-kicker">${map.mode === "city" ? "Karte" : "ohne Stadtteil"}</span></h2>
@@ -1827,7 +1878,7 @@ window.SolHelpAttribution = (function () {
     const boss = bossEffective();
     if (!boss) {
       return `<div class="ck-panel ck-boss"><h2><span>Boss-Fight</span><span class="td-kicker">Checkpoint</span></h2>
-        <p class="ck-muted ck-small">Keine aktive Klassen-Mission – lege einen Checkpoint an, dann erscheint der Boss.</p>
+        <p class="ck-muted ck-small">Nächster Boss erscheint bald – Levelcheck oder Klassen-Mission anlegen.</p>
         <div class="ck-acts ck-private"><button type="button" class="ck-btn ck-btn-sm" data-ck-mission="new" ${goals().length ? "" : "disabled"}>Klassen-Mission anlegen</button></div>
       </div>`;
     }
@@ -2388,6 +2439,7 @@ window.SolHelpAttribution = (function () {
     const dots = renderPresentationDots();
     if (!ck.data) {
       ck.el.innerHTML = `<div class="ck">${toastHtml}<div class="td-panel td-empty"><strong>${ck.error ? esc(ck.error) : "Lade das Cockpit …"}</strong></div>${dots}${chrome}</div>`;
+      ensureLevelcheckOverlay();
       return;
     }
     const d = ck.data;
@@ -2403,11 +2455,13 @@ window.SolHelpAttribution = (function () {
             ${dots}${chrome}
           </div>`;
         syncBeamerMetrics();
+        ensureLevelcheckOverlay();
         return;
       }
       ck.el.innerHTML = `<div class="ck">${toastHtml}${error}${renderHead()}${renderControls()}
         <div class="td-panel td-empty"><strong>${esc(d.message || "Keine Unterrichtseinheit.")}</strong></div>
         ${renderGame()}${dots}${chrome}</div>`;
+      ensureLevelcheckOverlay();
       return;
     }
     if (ck.beamer) {
@@ -2420,6 +2474,7 @@ window.SolHelpAttribution = (function () {
           ${dots}${chrome}
         </div>`;
       syncBeamerMetrics();
+      ensureLevelcheckOverlay();
       return;
     }
     ck.el.innerHTML = `
@@ -2449,6 +2504,7 @@ window.SolHelpAttribution = (function () {
         ${renderHelpModal()}
         ${dots}${chrome}
       </div>`;
+    ensureLevelcheckOverlay();
   }
 
   /* ---------- Bedienung ---------- */
@@ -3157,6 +3213,13 @@ window.SolHelpAttribution = (function () {
       clearTimeout(ck.chromeHideTimer);
       ck.chromeHideTimer = null;
     }
+    if (ck.lcOverlayTimer) {
+      clearTimeout(ck.lcOverlayTimer);
+      ck.lcOverlayTimer = null;
+    }
+    ck.lcOverlayText = "";
+    ck.lcOverlayUntil = 0;
+    document.querySelectorAll(".ck-lc-overlay").forEach((n) => n.remove());
     ck.fakeFullscreen = false;
     ck.chromeVisible = false;
     document.body.classList.remove("ck-wide", "ck-beamer", "ck--presentation", "ck-fake-fullscreen");

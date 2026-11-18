@@ -13976,6 +13976,88 @@ button.today-city-map {
 #levelplan-section .lp-lc.is-pass {
   border-color: rgba(34, 197, 94, 0.35);
 }
+#levelplan-section .lp-lc.is-next {
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.12);
+}
+#levelplan-section .lp-lc.is-soft {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+#levelplan-section .lp-lc__title {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+#levelplan-section .lp-lc__line {
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: #e2e8f0;
+}
+#levelplan-section .lp-lc__line--ok { color: #86efac; }
+#levelplan-section .lp-lc__hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+#levelplan-section .lp-lc__form {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#levelplan-section .lp-lc__form-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+#levelplan-section .lp-lc__form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#levelplan-section .lp-lc__score {
+  width: 5.5rem;
+  min-height: 48px;
+  padding: 0 10px;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.65);
+  color: #f8fafc;
+  font-family: "Orbitron", system-ui;
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+}
+#levelplan-section .lp-lc__submit,
+#levelplan-section .lp-lc__status-btn {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(34, 211, 238, 0.12);
+  color: #e2e8f0;
+  font-weight: 700;
+  cursor: pointer;
+}
+#levelplan-section .lp-lc__status-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  margin-top: 8px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.04);
+}
+#levelplan-section .lp-lc__score-text {
+  font-family: "Orbitron", system-ui;
+  font-size: 22px;
+  font-weight: 800;
+  color: #f8fafc;
+}
 #levelplan-section .lp-lc__date {
   margin: 0;
   font-size: 11px;
@@ -14097,6 +14179,100 @@ button.today-city-map {
 #levelplan-section .lp-lc.is-empty .lp-lc__range::-moz-range-thumb {
   background: #0b1224;
   border-color: #cbd5e1;
+}
+#levelplan-section .lp-block--lc { margin-top: 16px; }
+#levelplan-section .lp-lc--digital.is-next {
+  border-color: rgba(34, 211, 238, 0.4);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.12), transparent 55%),
+    rgba(6, 11, 29, 0.94);
+}
+#levelplan-section .lp-lc--digital.is-soft {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+#levelplan-section .lp-lc__title {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+#levelplan-section .lp-lc__line {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #e2e8f0;
+}
+#levelplan-section .lp-lc__line--ok { color: #86efac; }
+#levelplan-section .lp-lc__hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+#levelplan-section .lp-lc__score-text {
+  font-family: "Orbitron", system-ui;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #f8fafc;
+}
+#levelplan-section .lp-lc__line--ok .lp-lc__score-text { color: #86efac; }
+#levelplan-section .lp-lc__status-btn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+#levelplan-section .lp-lc__form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+#levelplan-section .lp-lc__form-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+#levelplan-section .lp-lc__form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+#levelplan-section .lp-lc__score {
+  width: 5.5rem;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 2px solid #22d3ee;
+  background: transparent;
+  color: #f8fafc;
+  font-family: "Orbitron", system-ui;
+  font-size: 28px;
+  font-weight: 800;
+}
+#levelplan-section .lp-lc__submit {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  background: rgba(34, 211, 238, 0.16);
+  color: #e0f2fe;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#levelplan-section .lp-lc__submit:disabled,
+#levelplan-section .lp-lc__score:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 @media (max-width: 1023px) {
   #levelplan-section .lp-sheet {

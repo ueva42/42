@@ -339,6 +339,8 @@ body.admin-app .tc-linked-select,
 body.admin-app .tc-checkpoint-date,
 body.admin-app .tc-checkpoint-row input,
 body.admin-app .tc-checkpoint-row select,
+body.admin-app .tm-lc-richtig,
+body.admin-app .tc-level-seg,
 body.admin-app .tc-goal-input,
 body.admin-app .lpi-textarea {
   border: 1px solid rgba(125, 145, 185, 0.32);

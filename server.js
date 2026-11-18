@@ -85,6 +85,18 @@ import {
   migrateTrainingTables,
   registerTrainingRoutes
 } from "./lib/training-api.js";
+import {
+  migrateLevelcheckDigital,
+  loadResultsForCheckpoints,
+  personDisplayStatus,
+  upsertStudentResult,
+  releaseLevelcheck,
+  isTestAccountName,
+  normalizeCheckLevel,
+  levelToApi,
+  DEFAULT_AUFGABEN,
+  DEFAULT_SCHWELLE
+} from "./lib/levelcheck-digital.js";
 import { trainingWzForTopicGoal } from "./lib/training-merge.js";
 import {
   parseLevelplanImportText as parseLevelplanImportTextBase,
@@ -1643,16 +1655,24 @@ function isPlanCheckpointType(typeKey, typeLabel = null) {
 function mapLevelCheckCheckpointRow(row) {
   const linked = row.linked_subtopic_ids;
   const type = normalizeCheckpointType(row.checkpoint_type);
+  const isLc = isLevelcheckCheckpointType(type);
   return {
     id: row.id,
     levelCheckId: row.level_check_id,
+    classId: row.class_id != null ? Number(row.class_id) : null,
     checkpointDate: normalizeIsoDate(row.checkpoint_date),
     checkpointType: type,
     checkpointTypeLabel: row.checkpoint_type_label ?? null,
     linkedSubtopicIds: Array.isArray(linked)
       ? linked.map((id) => String(id))
       : [],
-    selectableAsDayGoal: resolveSelectableAsDayGoal(row.selectable_as_day_goal, type)
+    selectableAsDayGoal: resolveSelectableAsDayGoal(row.selectable_as_day_goal, type),
+    title: row.title || null,
+    checkLevel: isLc ? normalizeCheckLevel(row.check_level) || "rookie" : null,
+    checkLevelApi: isLc ? levelToApi(row.check_level || "rookie") : null,
+    aufgaben: isLc ? Number(row.aufgaben) || DEFAULT_AUFGABEN : null,
+    schwelle: isLc ? Number(row.schwelle) || DEFAULT_SCHWELLE : null,
+    freigegebenAm: row.freigegeben_am || null
   };
 }
 
@@ -2023,7 +2043,7 @@ function serializeUpcomingCheckpointPick(pick) {
   };
 }
 
-function buildScheduledLevelchecksPayload(checks, targetsByCheck = {}) {
+function buildScheduledLevelchecksPayload(checks, targetsByCheck = {}, resultsByCheckpoint = null) {
   const today = todayIsoDate();
   return flattenScheduledCheckpoints(checks)
     .filter((c) => isLevelcheckCheckpointType(c.checkpointType))
@@ -2032,21 +2052,62 @@ function buildScheduledLevelchecksPayload(checks, targetsByCheck = {}) {
       const percent =
         target.levelcheckPercent == null ? null : Number(target.levelcheckPercent);
       const linkedGoals = linkedGoalsAcrossChecks(c.linkedSubtopicIds, checks);
+      const resultKey = resultsByCheckpoint ? `${c.id}` : null;
+      const dig = resultKey ? resultsByCheckpoint.get(resultKey) : null;
+      const aufgaben = Number(c.aufgaben) || DEFAULT_AUFGABEN;
+      const schwelle = Number(c.schwelle) || DEFAULT_SCHWELLE;
+      const display = dig
+        ? dig.displayStatus
+        : personDisplayStatus({
+            date: c.checkpointDate,
+            freigegebenAm: c.freigegebenAm,
+            result: null,
+            today
+          });
+      const richtig = dig?.richtig == null ? null : Number(dig.richtig);
+      const pctFromRichtig =
+        richtig != null && aufgaben > 0
+          ? Math.round((richtig / aufgaben) * 100)
+          : null;
+      const effectivePercent =
+        pctFromRichtig != null
+          ? pctFromRichtig
+          : Number.isInteger(percent)
+            ? percent
+            : null;
       return {
         id: c.id,
         levelCheckId: c.levelCheckId,
         subject: c.subject,
         topicName: c.name,
+        title: c.title || `Levelcheck · ${c.name || "Thema"}`,
         date: c.checkpointDate,
         dateLabel: formatGermanDate(c.checkpointDate),
         type: "levelcheck",
         typeLabel: resolveCheckpointTypeLabel("levelcheck", c.checkpointTypeLabel),
+        checkLevel: c.checkLevel || "rookie",
+        checkLevelApi: c.checkLevelApi || levelToApi(c.checkLevel || "rookie"),
+        checkLevelLabel:
+          c.checkLevel === "operator"
+            ? "Operator"
+            : c.checkLevel === "street_legend"
+              ? "Street Legend"
+              : "Rookie",
+        aufgaben,
+        schwelle,
+        freigegebenAm: c.freigegebenAm || null,
         linkedGoalIds: linkedGoals.map((g) => g.id),
         linkedGoalLabels: linkedGoals.map((g) => formatLinkedGoalLabel(g, c.name)),
         isPast: c.checkpointDate < today,
         isUpcoming: c.checkpointDate >= today,
-        levelcheckPercent: Number.isInteger(percent) ? percent : null,
-        levelcheckPassed: isLevelcheckPassPercent(percent),
+        status: display,
+        richtig,
+        levelcheckPercent: effectivePercent,
+        levelcheckPassed:
+          display === "bestaetigt" ||
+          (display !== "nicht_bestanden" &&
+            display !== "nicht_teilgenommen" &&
+            isLevelcheckPassPercent(effectivePercent)),
         unlockThreshold: LEVELCHECK_PASS_PERCENT
       };
     })
@@ -4930,6 +4991,7 @@ async function migrate() {
 
   await migrateCoachTables(pool);
   await migrateTrainingTables(pool);
+  await migrateLevelcheckDigital(pool);
   await migrateCockpitTables(pool);
 
   console.log("✔️ Migration fertig.");
@@ -9188,17 +9250,22 @@ async function findCheckpointForSchool(checkpointId, schoolId) {
       cp.id,
       cp.school_id,
       cp.level_check_id,
+      COALESCE(cp.class_id, lc.class_id) AS class_id,
       cp.checkpoint_date,
       cp.checkpoint_type,
       cp.checkpoint_type_label,
       cp.linked_subtopic_ids,
       cp.selectable_as_day_goal,
-      lc.class_id,
+      cp.title,
+      cp.check_level,
+      cp.aufgaben,
+      cp.schwelle,
+      cp.freigegeben_am,
       lc.subject,
       lc.name
     FROM level_check_checkpoints cp
     JOIN level_checks lc ON lc.id = cp.level_check_id
-    LEFT JOIN classes c ON c.id = lc.class_id
+    LEFT JOIN classes c ON c.id = COALESCE(cp.class_id, lc.class_id)
     WHERE cp.id = $1
       AND (cp.school_id = $2 OR lc.school_id = $2 OR c.school_id = $2)
     LIMIT 1
@@ -9417,7 +9484,9 @@ async function getLevelChecksForClass(classId, schoolId, studentId = null) {
   if (checkIds.length) {
     const cpRes = await pool.query(
       `
-      SELECT id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids, selectable_as_day_goal
+      SELECT id, level_check_id, class_id, checkpoint_date, checkpoint_type, checkpoint_type_label,
+             linked_subtopic_ids, selectable_as_day_goal,
+             title, check_level, aufgaben, schwelle, freigegeben_am
       FROM level_check_checkpoints
       WHERE level_check_id = ANY($1::uuid[])
         AND (class_id = $2 OR class_id IS NULL)
@@ -9837,7 +9906,34 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
     const targetsByCheck = await fetchTargetGradesByCheck(studentId, checkIds);
     const checksWithTargets = attachTargetProgressToChecks(checks, targetsByCheck);
     const activeLevels = await getClassActiveLevels(classId);
-    const scheduledLevelchecks = buildScheduledLevelchecksPayload(checks, targetsByCheck);
+
+    const flatLc = flattenScheduledCheckpoints(checks).filter((c) =>
+      isLevelcheckCheckpointType(c.checkpointType)
+    );
+    const resultsMap = await loadResultsForCheckpoints(
+      pool,
+      flatLc.map((c) => c.id)
+    );
+    const today = todayIsoDate();
+    const resultsByCheckpoint = new Map();
+    for (const c of flatLc) {
+      const row = resultsMap.get(`${c.id}|${studentId}`) || null;
+      resultsByCheckpoint.set(String(c.id), {
+        richtig: row?.richtig ?? null,
+        status: row?.status || null,
+        displayStatus: personDisplayStatus({
+          date: c.checkpointDate,
+          freigegebenAm: c.freigegebenAm,
+          result: row,
+          today
+        })
+      });
+    }
+    const scheduledLevelchecks = buildScheduledLevelchecksPayload(
+      checks,
+      targetsByCheck,
+      resultsByCheckpoint
+    );
 
     res.json({
       hasClass: true,
@@ -9850,11 +9946,79 @@ app.get("/api/student/levelplan", isStudent, async (req, res) => {
         label: LEVEL_STATUS_LABELS[id]
       })),
       scheduledLevelchecks,
-      levelcheckPassPercent: LEVELCHECK_PASS_PERCENT
+      levelcheckPassPercent: LEVELCHECK_PASS_PERCENT,
+      levelcheckAufgaben: DEFAULT_AUFGABEN,
+      levelcheckSchwelle: DEFAULT_SCHWELLE
     });
   } catch (err) {
     console.error("❌ /api/student/levelplan:", err);
     res.status(500).json({ error: "Serverfehler" });
+  }
+});
+
+app.post("/api/student/levelcheck-result", isStudent, async (req, res) => {
+  try {
+    const studentId = req.session.user.id;
+    const schoolId = req.session.user.school_id;
+    const classId = req.session.user.class_id;
+    const checkpointId = String(req.body?.checkpointId || req.body?.levelcheckId || "").trim();
+    if (!classId || !checkpointId) {
+      return res.status(400).json({ success: false, message: "Checkpoint fehlt." });
+    }
+    const existing = await findCheckpointForSchool(checkpointId, schoolId);
+    if (!existing || !isLevelcheckCheckpointType(existing.checkpoint_type)) {
+      return res.status(404).json({ success: false, message: "Levelcheck nicht gefunden." });
+    }
+    if (
+      existing.class_id != null &&
+      Number(existing.class_id) !== Number(classId)
+    ) {
+      return res.status(403).json({ success: false, message: "Nicht deine Klasse." });
+    }
+    if (existing.freigegeben_am) {
+      return res.status(400).json({
+        success: false,
+        message: "Bereits freigegeben – Änderung nur über die Lehrkraft."
+      });
+    }
+    const today = todayIsoDate();
+    const day = normalizeIsoDate(existing.checkpoint_date);
+    if (day && today < day) {
+      return res.status(400).json({
+        success: false,
+        message: "Der Levelcheck ist noch nicht fällig."
+      });
+    }
+    const saved = await upsertStudentResult(pool, {
+      schoolId,
+      checkpointId,
+      userId: studentId,
+      richtig: req.body?.richtig,
+      enteredBy: "student"
+    });
+    if (!saved.ok) {
+      return res.status(saved.status || 400).json({
+        success: false,
+        message: saved.error || "Ungültiger Wert."
+      });
+    }
+    const display = personDisplayStatus({
+      date: day,
+      freigegebenAm: existing.freigegeben_am,
+      result: { richtig: saved.row.richtig, status: saved.row.status },
+      today
+    });
+    return res.json({
+      success: true,
+      checkpointId,
+      richtig: saved.row.richtig == null ? null : Number(saved.row.richtig),
+      status: display,
+      aufgaben: Number(existing.aufgaben) || DEFAULT_AUFGABEN,
+      schwelle: Number(existing.schwelle) || DEFAULT_SCHWELLE
+    });
+  } catch (err) {
+    console.error("❌ POST /api/student/levelcheck-result:", err);
+    res.status(500).json({ success: false, message: "Serverfehler" });
   }
 });
 
@@ -11067,14 +11231,30 @@ app.post("/api/teacher/levelcheck-checkpoints", isTeacher, async (req, res) => {
       checkpointType
     );
 
+    const isLc = isLevelcheckCheckpointType(checkpointType);
+    const title = isLc
+      ? String(req.body.title || req.body.titel || "").trim() || null
+      : null;
+    const checkLevel = isLc
+      ? normalizeCheckLevel(req.body.checkLevel || req.body.level || "rookie") || "rookie"
+      : null;
+    const aufgaben = isLc
+      ? Math.max(1, Number(req.body.aufgaben) || DEFAULT_AUFGABEN)
+      : null;
+    const schwelle = isLc
+      ? Math.max(1, Number(req.body.schwelle) || DEFAULT_SCHWELLE)
+      : null;
+
     const ins = await pool.query(
       `
       INSERT INTO level_check_checkpoints (
         school_id, level_check_id, class_id, checkpoint_date, checkpoint_type,
-        checkpoint_type_label, linked_subtopic_ids, selectable_as_day_goal
+        checkpoint_type_label, linked_subtopic_ids, selectable_as_day_goal,
+        title, check_level, aufgaben, schwelle
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
-      RETURNING id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids, selectable_as_day_goal
+      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12)
+      RETURNING id, level_check_id, class_id, checkpoint_date, checkpoint_type, checkpoint_type_label,
+                linked_subtopic_ids, selectable_as_day_goal, title, check_level, aufgaben, schwelle, freigegeben_am
     `,
       [
         schoolId,
@@ -11084,7 +11264,11 @@ app.post("/api/teacher/levelcheck-checkpoints", isTeacher, async (req, res) => {
         checkpointType,
         checkpointTypeLabel,
         JSON.stringify(linkedSubtopicIds),
-        selectableAsDayGoal
+        selectableAsDayGoal,
+        title,
+        checkLevel,
+        aufgaben,
+        schwelle
       ]
     );
 
@@ -11121,8 +11305,24 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isTeacher, async (req, res)
     const hasTypeLabel = Object.prototype.hasOwnProperty.call(req.body, "checkpointTypeLabel");
     const hasLinked = Object.prototype.hasOwnProperty.call(req.body, "linkedSubtopicIds");
     const hasSelectable = Object.prototype.hasOwnProperty.call(req.body, "selectableAsDayGoal");
+    const hasTitle = Object.prototype.hasOwnProperty.call(req.body, "title")
+      || Object.prototype.hasOwnProperty.call(req.body, "titel");
+    const hasLevel = Object.prototype.hasOwnProperty.call(req.body, "checkLevel")
+      || Object.prototype.hasOwnProperty.call(req.body, "level");
+    const hasAufgaben = Object.prototype.hasOwnProperty.call(req.body, "aufgaben");
+    const hasSchwelle = Object.prototype.hasOwnProperty.call(req.body, "schwelle");
 
-    if (!hasDate && !hasType && !hasTypeLabel && !hasLinked && !hasSelectable) {
+    if (
+      !hasDate &&
+      !hasType &&
+      !hasTypeLabel &&
+      !hasLinked &&
+      !hasSelectable &&
+      !hasTitle &&
+      !hasLevel &&
+      !hasAufgaben &&
+      !hasSchwelle
+    ) {
       return res.json({ success: false, message: "Keine Änderung übergeben." });
     }
 
@@ -11213,6 +11413,25 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isTeacher, async (req, res)
       return res.json({ success: false, message: levelcheckLinkError });
     }
 
+    const isLc = isLevelcheckCheckpointType(checkpointType);
+    let title = existing.title || null;
+    let checkLevel = normalizeCheckLevel(existing.check_level) || "rookie";
+    let aufgaben = Number(existing.aufgaben) || DEFAULT_AUFGABEN;
+    let schwelle = Number(existing.schwelle) || DEFAULT_SCHWELLE;
+    if (hasTitle) {
+      title = String(req.body.title ?? req.body.titel ?? "").trim() || null;
+    }
+    if (hasLevel) {
+      checkLevel =
+        normalizeCheckLevel(req.body.checkLevel || req.body.level) || "rookie";
+    }
+    if (hasAufgaben) {
+      aufgaben = Math.max(1, Number(req.body.aufgaben) || DEFAULT_AUFGABEN);
+    }
+    if (hasSchwelle) {
+      schwelle = Math.max(1, Number(req.body.schwelle) || DEFAULT_SCHWELLE);
+    }
+
     const upd = await pool.query(
       `
       UPDATE level_check_checkpoints
@@ -11222,9 +11441,14 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isTeacher, async (req, res)
         checkpoint_type = $3,
         checkpoint_type_label = $4,
         linked_subtopic_ids = $5::jsonb,
-        selectable_as_day_goal = $6
-      WHERE id = $7
-      RETURNING id, level_check_id, checkpoint_date, checkpoint_type, checkpoint_type_label, linked_subtopic_ids, selectable_as_day_goal
+        selectable_as_day_goal = $6,
+        title = $7,
+        check_level = $8,
+        aufgaben = $9,
+        schwelle = $10
+      WHERE id = $11
+      RETURNING id, level_check_id, class_id, checkpoint_date, checkpoint_type, checkpoint_type_label,
+                linked_subtopic_ids, selectable_as_day_goal, title, check_level, aufgaben, schwelle, freigegeben_am
     `,
       [
         levelCheckId,
@@ -11233,6 +11457,10 @@ app.patch("/api/teacher/levelcheck-checkpoints/:id", isTeacher, async (req, res)
         checkpointTypeLabel,
         JSON.stringify(linkedSubtopicIds),
         selectableAsDayGoal,
+        isLc ? title : null,
+        isLc ? checkLevel : null,
+        isLc ? aufgaben : null,
+        isLc ? schwelle : null,
         checkpointId
       ]
     );
@@ -11528,6 +11756,190 @@ app.get(
       });
     } catch (err) {
       console.error("❌ GET checkpoint evaluations:", err);
+      res.status(500).json({ success: false, message: "Serverfehler" });
+    }
+  }
+);
+
+app.get(
+  "/api/teacher/levelcheck-checkpoints/:checkpointId/results",
+  isTeacher,
+  async (req, res) => {
+    try {
+      const schoolId = req.session.user.school_id;
+      const checkpointId = req.params.checkpointId;
+      const existing = await findCheckpointForSchool(checkpointId, schoolId);
+      if (!existing || !isLevelcheckCheckpointType(existing.checkpoint_type)) {
+        return res.status(404).json({ success: false, message: "Levelcheck nicht gefunden." });
+      }
+      const classId = Number(existing.class_id);
+      if (!classId) {
+        return res.status(400).json({ success: false, message: "Keine Klasse am Levelcheck." });
+      }
+      const students = await pool.query(
+        `
+        SELECT u.id, u.name, u.avatar_url, u.character_name
+        FROM users u
+        WHERE u.role = 'student'
+          AND u.class_id = $1
+          AND u.school_id = $2
+          AND COALESCE(u.is_active, TRUE) = TRUE
+        ORDER BY u.name ASC
+      `,
+        [classId, schoolId]
+      );
+      const resultsMap = await loadResultsForCheckpoints(pool, [checkpointId]);
+      const today = todayIsoDate();
+      const aufgaben = Number(existing.aufgaben) || DEFAULT_AUFGABEN;
+      const schwelle = Number(existing.schwelle) || DEFAULT_SCHWELLE;
+      const rows = [];
+      for (const s of students.rows) {
+        if (isTestAccountName(s.name)) continue;
+        const resRow = resultsMap.get(`${checkpointId}|${s.id}`) || null;
+        const display = personDisplayStatus({
+          date: normalizeIsoDate(existing.checkpoint_date),
+          freigegebenAm: existing.freigegeben_am,
+          result: resRow,
+          today
+        });
+        rows.push({
+          studentId: s.id,
+          name: s.name,
+          avatarUrl: s.avatar_url || null,
+          characterName: s.character_name || null,
+          richtig: resRow?.richtig == null ? null : Number(resRow.richtig),
+          status: display,
+          resultStatus: resRow?.status || null,
+          enteredBy: resRow?.entered_by || null,
+          nichtTeilgenommen: display === "nicht_teilgenommen" || resRow?.status === "nicht_teilgenommen"
+        });
+      }
+      const eingetragen = rows.filter(
+        (r) => r.richtig != null || r.nichtTeilgenommen
+      ).length;
+      return res.json({
+        success: true,
+        checkpoint: {
+          ...checkpointPayloadFromRow(existing),
+          title: existing.title || `Levelcheck · ${existing.name || ""}`,
+          checkLevel: normalizeCheckLevel(existing.check_level) || "rookie",
+          checkLevelApi: levelToApi(existing.check_level || "rookie"),
+          aufgaben,
+          schwelle,
+          freigegebenAm: existing.freigegeben_am || null
+        },
+        counts: {
+          total: rows.length,
+          entered: eingetragen,
+          missing: Math.max(0, rows.length - eingetragen)
+        },
+        results: rows
+      });
+    } catch (err) {
+      console.error("❌ GET checkpoint results:", err);
+      res.status(500).json({ success: false, message: "Serverfehler" });
+    }
+  }
+);
+
+app.patch(
+  "/api/teacher/levelcheck-checkpoints/:checkpointId/results/:studentId",
+  isTeacher,
+  async (req, res) => {
+    try {
+      const schoolId = req.session.user.school_id;
+      const checkpointId = req.params.checkpointId;
+      const studentId = Number(req.params.studentId);
+      if (!Number.isFinite(studentId)) {
+        return res.status(400).json({ success: false, message: "Ungültige Schüler-ID." });
+      }
+      const existing = await findCheckpointForSchool(checkpointId, schoolId);
+      if (!existing || !isLevelcheckCheckpointType(existing.checkpoint_type)) {
+        return res.status(404).json({ success: false, message: "Levelcheck nicht gefunden." });
+      }
+      const notTeilgenommen =
+        req.body?.nichtTeilgenommen === true ||
+        req.body?.notTeilgenommen === true ||
+        String(req.body?.status || "") === "nicht_teilgenommen";
+      const saved = await upsertStudentResult(pool, {
+        schoolId,
+        checkpointId,
+        userId: studentId,
+        richtig: notTeilgenommen ? null : req.body?.richtig,
+        enteredBy: "teacher",
+        notTeilgenommen
+      });
+      if (!saved.ok) {
+        return res.status(saved.status || 400).json({
+          success: false,
+          message: saved.error || "Ungültiger Wert."
+        });
+      }
+      const display = personDisplayStatus({
+        date: normalizeIsoDate(existing.checkpoint_date),
+        freigegebenAm: existing.freigegeben_am || saved.checkpoint?.freigegeben_am,
+        result: { richtig: saved.row.richtig, status: saved.row.status },
+        today: todayIsoDate()
+      });
+      return res.json({
+        success: true,
+        studentId,
+        richtig: saved.row.richtig == null ? null : Number(saved.row.richtig),
+        status: display,
+        resultStatus: saved.row.status
+      });
+    } catch (err) {
+      console.error("❌ PATCH checkpoint result:", err);
+      res.status(500).json({ success: false, message: "Serverfehler" });
+    }
+  }
+);
+
+app.post(
+  "/api/teacher/levelcheck-checkpoints/:checkpointId/release",
+  isTeacher,
+  async (req, res) => {
+    try {
+      const schoolId = req.session.user.school_id;
+      const checkpointId = req.params.checkpointId;
+      const existing = await findCheckpointForSchool(checkpointId, schoolId);
+      if (!existing || !isLevelcheckCheckpointType(existing.checkpoint_type)) {
+        return res.status(404).json({ success: false, message: "Levelcheck nicht gefunden." });
+      }
+      const released = await releaseLevelcheck(pool, checkpointId);
+      if (!released.ok) {
+        return res.status(released.status || 500).json({ success: false, message: "Freigabe fehlgeschlagen." });
+      }
+      const classId = Number(existing.class_id);
+      const treffer = Number(released.treffer) || 0;
+      const overlay = `LEVELCHECK FREIGEGEBEN · ${treffer} TREFFER!`;
+      if (classId) {
+        try {
+          const { recordCockpitEvent } = await import("./lib/cockpit-events.js");
+          await recordCockpitEvent(pool, {
+            schoolId,
+            classId,
+            typ: "levelcheck_freigegeben",
+            data: {
+              checkpointId,
+              treffer,
+              title: existing.title || existing.name || "Levelcheck",
+              overlay
+            }
+          });
+        } catch (evErr) {
+          console.warn("cockpit event levelcheck_freigegeben:", evErr?.message || evErr);
+        }
+      }
+      return res.json({
+        success: true,
+        freigegebenAm: released.checkpoint.freigegeben_am,
+        enteredPassed: released.enteredPassed,
+        treffer,
+        overlay
+      });
+    } catch (err) {
+      console.error("❌ POST checkpoint release:", err);
       res.status(500).json({ success: false, message: "Serverfehler" });
     }
   }

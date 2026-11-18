@@ -179,7 +179,9 @@
   function shieldSvg(m, boss) {
     if (!m || !boss) return "";
     const defeated = boss.defeated || boss.forceWin;
-    const label = defeated ? "BESIEGT" : boss.shieldLabel || "BOSS-FIGHT";
+    const label = defeated
+      ? "BESIEGT"
+      : boss.flagLabel || boss.shieldLabel || "BOSS-FIGHT";
     const x = Number(m.x);
     const y = Number(m.y) - 48;
     const w = Math.max(118, label.length * 7.2);
@@ -310,6 +312,7 @@
       return `<p class="ck-muted ck-small">Keine Missionen für die Spur-Ansicht.</p>`;
     }
     const cps = new Set((opts.checkpointNs || []).map(Number));
+    const flagLabel = opts.flagLabel || opts.shieldLabel || "";
     return `
       <div class="ck-lanes" aria-label="Fahrspuren">
         ${lanes
@@ -318,11 +321,17 @@
             const rep = Math.round((Number(lane.reportedFrac) || 0) * 1000) / 10;
             const cp = cps.has(Number(lane.n));
             return `<div class="ck-lane-track ${cp ? "ck-lane-track--cp" : ""}">
-              <div class="ck-lane-track__lab"><strong>M${esc(lane.n)}</strong> ${esc(lane.text || "")}</div>
+              <div class="ck-lane-track__lab"><strong>M${esc(lane.n)}</strong> ${esc(lane.text || "")}${
+                cp && flagLabel
+                  ? ` <span class="ck-lane-flag">${esc(flagLabel)}</span>`
+                  : cp
+                    ? ` <span class="ck-lane-flag">LEVELCHECK</span>`
+                    : ""
+              }</div>
               <div class="ck-lane-track__bar" title="bestätigt ${conf} % · gemeldet ${rep} %">
                 <span class="ck-lane-track__rep" style="width:${Math.max(conf, rep)}%"></span>
                 <span class="ck-lane-track__conf" style="width:${conf}%"></span>
-                ${cp ? `<i class="ck-lane-track__stop" title="Checkpoint"></i>` : ""}
+                ${cp ? `<i class="ck-lane-track__stop" title="${esc(flagLabel || "Checkpoint")}"></i>` : ""}
               </div>
               <div class="ck-lane-track__pct">${conf} % bestätigt</div>
             </div>`;

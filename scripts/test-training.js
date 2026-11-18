@@ -525,7 +525,7 @@ assert.equal(
 );
 assert.equal(isCityMapTopic("Lineare und quadratische Funktionen"), true);
 assert.equal(isCityMapTopic("  lineare   und quadratische funktionen "), true);
-assert.equal(isCityMapTopic("Funktionen"), false);
+assert.equal(isCityMapTopic("Funktionen"), true);
 assert.equal(isCityMapTopic("Quadratische Funktionen"), false);
 assert.equal(isCityMapTopic("Potenzen und Wurzeln"), true);
 assert.equal(isCityMapTopic("  POTENZEN   und   Wurzeln "), true);
@@ -1261,8 +1261,9 @@ async function captureAssign(run) {
   return calls;
 }
 const fktAssign = await captureAssign(assignTrainingGoalIds);
-assert.equal(fktAssign.length, 1);
+assert.equal(fktAssign.length, 2);
 assert.equal(fktAssign[0].params[0], TRAINING_ASSIGN_TOPIC);
+assert.equal(fktAssign[1].params[0], "funktionen");
 assert.equal(fktAssign[0].params.includes("pw-01"), false);
 assert.equal(fktAssign[0].params.includes("potenzen"), false);
 assert.equal(fktAssign[0].params.includes("fkt-01"), true);

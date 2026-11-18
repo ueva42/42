@@ -1345,6 +1345,38 @@
     }
     .tm-eval-percent-cell input[type="range"] { flex: 1; }
     .tm-eval-percent-cell input[type="number"] { width: 64px; }
+    .td-modal--wide { max-width: 960px; }
+    .tm-lc-counts { margin: 0 0 12px; }
+    .tm-lc-name { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+    .tm-lc-av {
+      width: 36px; height: 36px; border-radius: 50%; object-fit: cover;
+      background: rgba(148,163,184,0.2); border: 1px solid rgba(148,163,184,0.35); flex-shrink: 0;
+    }
+    .tm-lc-av--empty {
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; color: #cbd5e1;
+    }
+    .tm-lc-richtig-cell { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .tm-lc-richtig {
+      width: 4.5rem; min-height: 44px; font-size: 18px; text-align: center;
+      border-radius: 8px; border: 1px solid rgba(56,189,248,0.35); background: #0b1220; color: #e2e8f0;
+    }
+    .tm-lc-richtig:disabled { opacity: 0.45; }
+    .tm-lc-von { opacity: 0.65; margin-left: 4px; }
+    .tm-lc-skip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; cursor: pointer; }
+    .tm-lc-status { font-size: 12px; opacity: 0.75; }
+    .tm-lc-row-skipped { opacity: 0.72; }
+    .tm-lc-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .tc-levelcheck-extra { margin-top: 12px; }
+    .tc-level-segment { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .tc-level-seg {
+      border: 1px solid rgba(148,163,184,0.35); background: rgba(15,23,42,0.65); color: #e2e8f0;
+      border-radius: 8px; padding: 7px 10px; font-size: 12px; cursor: pointer;
+    }
+    .tc-level-seg[aria-pressed="true"] {
+      border-color: rgba(34,211,238,0.55); background: rgba(34,211,238,0.16); color: #a5f3fc;
+    }
+    .tc-lc-level-label { min-width: 220px; }
     .td-detail-table { width:100%; border-collapse:collapse; font-size:12px; }
     .td-detail-table th, .td-detail-table td { border-bottom:1px solid rgba(148,163,184,0.2); padding:8px 6px; text-align:left; }
     .tab-placeholder { opacity:0.75; font-size:14px; padding:20px 0; }
@@ -1626,6 +1658,15 @@
     }
     .tc-selectable-day-goal-label input { margin-top: 2px; }
     .tc-checkpoint-custom-hidden { display:none; }
+    .tc-level-segment { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .tc-level-seg {
+      min-height: 36px; padding: 0 10px; border-radius: 8px; cursor: pointer;
+      border: 1px solid rgba(148,163,184,0.35); background: rgba(15,23,42,0.55); color: #e2e8f0; font-size: 12px; font-weight: 700;
+    }
+    .tc-level-seg[aria-pressed="true"] {
+      border-color: rgba(34,211,238,0.65); background: rgba(34,211,238,0.18); color: #ecfeff;
+    }
+    .tc-lc-level-label { display:block; }
     .tc-topic-goal-group[hidden] { display:none; }
     .tc-levelplan-pick { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; margin-bottom:10px; }
     .tc-levelplan-pick label { display:flex; flex-direction:column; gap:4px; font-size:11px; opacity:0.9; min-width:220px; }
@@ -2377,8 +2418,8 @@
 <script src="/js/teacher-levelplan-import.js?v=12"></script>
 <script src="/js/teacher-levelplan.js?v=19"></script>
 <script src="/js/teacher-levelplan-zuordnung.js?v=8"></script>
-<script src="/js/teacher-competencies.js?v=27"></script>
-<script src="/js/teacher-termine.js?v=8"></script>
+<script src="/js/teacher-competencies.js?v=29"></script>
+<script src="/js/teacher-termine.js?v=10"></script>
 <script src="/js/teacher-gruppenmodus.js?v=15"></script>
 <script src="/js/teacher-materialschrank.js?v=3"></script>
 <script src="/js/teacher-app-modules.js?v=3"></script>

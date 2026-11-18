@@ -1233,6 +1233,50 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
   100% { transform: translateY(110vh) rotate(540deg); opacity: 0.15; }
 }
 
+.ck-lc-overlay {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 6, 23, 0.45);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.ck-lc-overlay--show { opacity: 1; }
+.ck-lc-overlay__card {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.1rem, 2.8vw, 1.85rem);
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: #fdba74;
+  background: rgba(8, 12, 28, 0.94);
+  border: 2px solid #f97316;
+  border-radius: 12px;
+  padding: 1.1rem 1.6rem;
+  max-width: min(92vw, 34rem);
+  box-shadow: 0 0 40px rgba(249, 115, 22, 0.35);
+  transform: scale(0.92);
+  transition: transform 0.35s ease;
+}
+.ck-lc-overlay--show .ck-lc-overlay__card { transform: scale(1); }
+
+.ck-lane-flag {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #fdba74;
+  background: rgba(8, 12, 28, 0.85);
+  border: 1px solid #f97316;
+  vertical-align: middle;
+}
+
 .ck-av {
   position: relative;
   display: inline-grid;

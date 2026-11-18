@@ -172,9 +172,13 @@
           : `<span class="tc-checkpoint-item-goals">Keine Was-Ziele markiert</span>`;
         const ungradedNote =
           cp.typeKey === "levelcheck"
-            ? `<span class="tc-checkpoint-item-ungraded">ohne Note · keine Zielnote</span>`
+            ? `<span class="tc-checkpoint-item-ungraded">ohne Note · x von 10</span>`
             : "";
         const themaText = linkedTopicNames(cp, levelChecks);
+        const resultsBtn =
+          cp.typeKey === "levelcheck"
+            ? `<button type="button" class="action tc-termine-eval" data-checkpoint-id="${escapeHtml(cp.id)}">Ergebnisse</button>`
+            : "";
 
         return `
         <li class="tc-checkpoint-item">
@@ -188,6 +192,7 @@
             ${goalText}
           </div>
           <div class="tc-termine-btns">
+            ${resultsBtn}
             <button type="button" class="tc-edit-btn tc-termine-edit" data-checkpoint-id="${escapeHtml(cp.id)}">Bearbeiten</button>
             <button type="button" class="tc-delete-btn tc-termine-delete" data-checkpoint-id="${escapeHtml(cp.id)}" ${
               state.deletingId === String(cp.id) ? "disabled" : ""
@@ -227,11 +232,11 @@
           : `<span class="tc-checkpoint-item-goals">Keine Was-Ziele markiert</span>`;
         const ungradedNote =
           cp.typeKey === "levelcheck"
-            ? `<span class="tc-checkpoint-item-ungraded">ohne Note · keine Zielnote</span>`
+            ? `<span class="tc-checkpoint-item-ungraded">ohne Note · x von 10</span>`
             : "";
         const evalBtn =
           cp.typeKey === "levelcheck"
-            ? `<button type="button" class="action tc-termine-eval" data-checkpoint-id="${escapeHtml(cp.id)}">Bewerten</button>`
+            ? `<button type="button" class="action tc-termine-eval" data-checkpoint-id="${escapeHtml(cp.id)}">Ergebnisse</button>`
             : "";
         return `
       <li class="tc-checkpoint-item">
@@ -280,35 +285,65 @@
       </section>`;
   }
 
+  function checkLevelLabel(level) {
+    if (level === "operator") return "Operator";
+    if (level === "street_legend") return "Street Legend";
+    return "Rookie";
+  }
+
+  function resultStatusLabel(status) {
+    switch (String(status || "")) {
+      case "geplant":
+        return "geplant";
+      case "offen":
+        return "offen";
+      case "eingetragen":
+        return "eingetragen";
+      case "bestaetigt":
+        return "bestätigt";
+      case "nicht_bestanden":
+        return "nicht bestanden";
+      case "nicht_teilgenommen":
+        return "nicht teilgenommen";
+      default:
+        return status || "–";
+    }
+  }
+
   function renderEvalModal() {
     if (!state.evalCheckpointId || !state.evalData) return "";
     const cp = state.evalData.checkpoint || {};
-    const options = (state.evalData.statusOptions || [])
-      .map(
-        (o) =>
-          `<option value="${escapeHtml(o.id)}">${escapeHtml(o.label)}</option>`
-      )
-      .join("");
-
-    const rows = (state.evalData.evaluations || [])
+    const counts = state.evalData.counts || {};
+    const max = Math.max(1, Number(cp.aufgaben) || 10);
+    const freigegeben = !!cp.freigegebenAm;
+    const levelText = checkLevelLabel(cp.checkLevel);
+    const rows = (state.evalData.results || [])
       .map((ev) => {
-        const statusOpts = (state.evalData.statusOptions || [])
-          .map(
-            (o) =>
-              `<option value="${escapeHtml(o.id)}" ${o.id === (ev.status || "not_evaluated") ? "selected" : ""}>${escapeHtml(o.label)}</option>`
-          )
-          .join("");
-        const pct = ev.percent == null ? "" : String(ev.percent);
+        const skipped = !!ev.nichtTeilgenommen;
+        const val = ev.richtig == null ? "" : String(ev.richtig);
+        const av = ev.avatarUrl
+          ? `<img class="tm-lc-av" src="${escapeHtml(ev.avatarUrl)}" alt="" width="36" height="36">`
+          : `<span class="tm-lc-av tm-lc-av--empty" aria-hidden="true">${escapeHtml(
+              String(ev.name || "?").trim().charAt(0).toUpperCase() || "?"
+            )}</span>`;
         return `
-        <tr data-student-id="${escapeHtml(ev.studentId)}">
-          <td>${escapeHtml(ev.name)}</td>
+        <tr data-student-id="${escapeHtml(ev.studentId)}" class="${skipped ? "tm-lc-row-skipped" : ""}">
+          <td class="tm-lc-name">${av}<span>${escapeHtml(ev.name)}</span></td>
+          <td class="tm-lc-richtig-cell">
+            <input type="number" class="tm-lc-richtig" min="0" max="${max}" step="1"
+              value="${escapeHtml(val)}" placeholder="0–${max}"
+              ${skipped ? "disabled" : ""}
+              aria-label="Richtige Aufgaben für ${escapeHtml(ev.name)}"
+              inputmode="numeric">
+            <span class="tm-lc-von">/ ${max}</span>
+          </td>
           <td>
-            <select class="tm-eval-status" aria-label="Status für ${escapeHtml(ev.name)}">${statusOpts}</select>
+            <label class="tm-lc-skip">
+              <input type="checkbox" class="tm-lc-skip-cb" ${skipped ? "checked" : ""}>
+              nicht teilgenommen
+            </label>
           </td>
-          <td class="tm-eval-percent-cell">
-            <input type="range" class="tm-eval-slider" min="0" max="100" step="1" value="${pct === "" ? 0 : pct}" aria-label="Prozent für ${escapeHtml(ev.name)}" />
-            <input type="number" class="tm-eval-percent" min="0" max="100" step="1" value="${escapeHtml(pct)}" placeholder="–" aria-label="Prozentzahl für ${escapeHtml(ev.name)}" />
-          </td>
+          <td class="tm-lc-status">${escapeHtml(resultStatusLabel(ev.status))}</td>
           <td>
             <button type="button" class="action tm-eval-save" ${state.evalSaving ? "disabled" : ""}>Speichern</button>
           </td>
@@ -318,22 +353,31 @@
 
     return `
       <div class="td-modal-overlay" id="tmEvalOverlay">
-        <div class="td-modal" role="dialog" aria-modal="true" aria-label="Levelcheck bewerten">
+        <div class="td-modal td-modal--wide" role="dialog" aria-modal="true" aria-label="Levelcheck bewerten">
           <div class="td-modal-head">
             <div>
               <h3>Levelcheck bewerten</h3>
-              <p class="td-modal-sub">${escapeHtml(cp.typeLabel || "Levelcheck")} · ${escapeHtml(cp.subject || "")} · ${escapeHtml(cp.topicName || "")}</p>
+              <p class="td-modal-sub">${escapeHtml(cp.title || "Levelcheck")} · ${escapeHtml(levelText)} · ${escapeHtml(
+                cp.subject || ""
+              )}${cp.topicName ? ` · ${escapeHtml(cp.topicName)}` : ""} · ${escapeHtml(
+                isoToGerman(cp.checkpointDate || cp.date || "")
+              )}${freigegeben ? " · freigegeben" : ""}</p>
             </div>
             <button type="button" class="td-modal-close" id="tmEvalClose">✕</button>
           </div>
-          <p class="hint">Kein Schulnoten-Termin: Status bewusst setzen (nicht aus Prozent berechnet). Bestanden kann verknüpfte Themen freischalten – XP und Level bleiben unverändert.</p>
-          <table class="td-detail-table tm-eval-table">
+          <p class="hint tm-lc-counts"><strong>${Number(counts.entered) || 0} eingetragen · ${Number(counts.missing) || 0} fehlen</strong></p>
+          <table class="td-detail-table tm-eval-table tm-lc-table">
             <thead>
-              <tr><th>Schüler:in</th><th>Status</th><th>Prozent (optional)</th><th></th></tr>
+              <tr><th>Schüler:in</th><th>Richtig</th><th></th><th>Status</th><th></th></tr>
             </thead>
-            <tbody>${rows || `<tr><td colspan="4">Keine Schüler:innen in der Klasse.</td></tr>`}</tbody>
+            <tbody>${rows || `<tr><td colspan="5">Keine Schüler:innen in der Klasse.</td></tr>`}</tbody>
           </table>
-          <button type="button" class="action" id="tmEvalClose2" style="margin-top:12px;">Schließen</button>
+          <div class="tm-lc-actions">
+            <button type="button" class="action" id="tmLcRelease" ${state.evalSaving ? "disabled" : ""}>
+              Alle freigeben
+            </button>
+            <button type="button" class="action" id="tmEvalClose2">Schließen</button>
+          </div>
         </div>
       </div>`;
   }
@@ -474,33 +518,32 @@
     });
 
     root.querySelectorAll(".tm-eval-table tr[data-student-id]").forEach((tr) => {
-      const slider = tr.querySelector(".tm-eval-slider");
-      const number = tr.querySelector(".tm-eval-percent");
-      slider?.addEventListener("input", () => {
-        if (number) number.value = slider.value;
-      });
-      number?.addEventListener("input", () => {
-        if (!slider) return;
-        const n = Number(number.value);
-        if (Number.isFinite(n)) slider.value = String(Math.max(0, Math.min(100, n)));
+      const skip = tr.querySelector(".tm-lc-skip-cb");
+      const number = tr.querySelector(".tm-lc-richtig");
+      skip?.addEventListener("change", () => {
+        if (!number) return;
+        number.disabled = !!skip.checked;
+        if (skip.checked) number.value = "";
       });
       tr.querySelector(".tm-eval-save")?.addEventListener("click", () => {
         saveEvaluation(tr);
       });
     });
+
+    root.querySelector("#tmLcRelease")?.addEventListener("click", releaseLevelcheck);
   }
 
-  async function openEvalModal(checkpointId) {
+  async function openEvalModal(checkpointId, opts = {}) {
     if (!checkpointId) return;
-    state.message = "";
-    state.error = "";
+    if (!opts.keepMessage) state.message = "";
+    if (!opts.keepError) state.error = "";
     try {
       const res = await fetch(
-        `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(checkpointId)}/evaluations`
+        `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(checkpointId)}/results`
       );
       const data = await res.json();
       if (!res.ok || !data.success) {
-        state.error = data.message || "Bewertung konnte nicht geladen werden.";
+        state.error = data.message || "Ergebnisse konnten nicht geladen werden.";
         render();
         return;
       }
@@ -509,42 +552,82 @@
       render();
     } catch (err) {
       console.error(err);
-      state.error = "Netzwerkfehler beim Laden der Bewertung.";
+      state.error = "Netzwerkfehler beim Laden der Ergebnisse.";
       render();
     }
   }
 
   async function saveEvaluation(tr) {
     const studentId = tr.dataset.studentId;
-    const status = tr.querySelector(".tm-eval-status")?.value || "not_evaluated";
-    const percentRaw = tr.querySelector(".tm-eval-percent")?.value;
-    const percent = percentRaw === "" || percentRaw == null ? null : Number(percentRaw);
+    const nichtTeilgenommen = !!tr.querySelector(".tm-lc-skip-cb")?.checked;
+    const raw = tr.querySelector(".tm-lc-richtig")?.value;
+    const richtig = raw === "" || raw == null ? null : Number(raw);
     if (!state.evalCheckpointId || !studentId) return;
 
     const btn = tr.querySelector(".tm-eval-save");
     if (btn) btn.disabled = true;
+    state.evalSaving = true;
     try {
+      const body = nichtTeilgenommen
+        ? { nichtTeilgenommen: true }
+        : { richtig };
       const res = await fetch(
-        `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(state.evalCheckpointId)}/evaluations/${encodeURIComponent(studentId)}`,
+        `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(state.evalCheckpointId)}/results/${encodeURIComponent(studentId)}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status, percent })
+          body: JSON.stringify(body)
         }
       );
       const data = await res.json();
+      state.evalSaving = false;
       if (!res.ok || !data.success) {
         state.error = data.message || "Speichern fehlgeschlagen.";
-        await openEvalModal(state.evalCheckpointId);
+        await openEvalModal(state.evalCheckpointId, { keepError: true });
         return;
       }
-      state.message = "Levelcheck-Bewertung gespeichert.";
+      state.message = "Eintrag gespeichert.";
       state.error = "";
-      await openEvalModal(state.evalCheckpointId);
+      await openEvalModal(state.evalCheckpointId, { keepMessage: true });
     } catch (err) {
       console.error(err);
+      state.evalSaving = false;
       state.error = "Netzwerkfehler beim Speichern.";
       if (btn) btn.disabled = false;
+      render();
+    }
+  }
+
+  async function releaseLevelcheck() {
+    if (!state.evalCheckpointId || state.evalSaving) return;
+    const counts = state.evalData?.counts || {};
+    const missing = Number(counts.missing) || 0;
+    const msg =
+      missing > 0
+        ? `${missing} fehlen noch. Fehlende werden als „nicht teilgenommen“ gesetzt.\n\nWirklich alle freigeben?`
+        : "Alle Ergebnisse freigeben? Danach erscheinen die Treffer im Cockpit.";
+    if (!confirm(msg)) return;
+    state.evalSaving = true;
+    render();
+    try {
+      const res = await fetch(
+        `/api/teacher/levelcheck-checkpoints/${encodeURIComponent(state.evalCheckpointId)}/release`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+      );
+      const data = await res.json();
+      state.evalSaving = false;
+      if (!res.ok || !data.success) {
+        state.error = data.message || "Freigabe fehlgeschlagen.";
+        await openEvalModal(state.evalCheckpointId, { keepError: true });
+        return;
+      }
+      state.message = data.overlay || `Freigegeben · ${data.treffer || 0} Treffer`;
+      state.error = "";
+      await openEvalModal(state.evalCheckpointId, { keepMessage: true });
+    } catch (err) {
+      console.error(err);
+      state.evalSaving = false;
+      state.error = "Netzwerkfehler bei der Freigabe.";
       render();
     }
   }
