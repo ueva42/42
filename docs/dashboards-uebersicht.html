@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Streets of Logic – Dashboards und Trainingscenter</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 18mm 16mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "IBM Plex Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: #0f172a;
+      font-size: 10.5pt;
+      line-height: 1.45;
+      margin: 0;
+    }
+    h1 {
+      font-size: 18pt;
+      margin: 0 0 6pt;
+      color: #020617;
+    }
+    h2 {
+      font-size: 13pt;
+      margin: 18pt 0 8pt;
+      padding-bottom: 4pt;
+      border-bottom: 1.5px solid #cbd5e1;
+      color: #0f172a;
+      page-break-after: avoid;
+    }
+    h3 {
+      font-size: 11pt;
+      margin: 12pt 0 6pt;
+      color: #1e293b;
+      page-break-after: avoid;
+    }
+    p { margin: 0 0 8pt; }
+    .lead {
+      color: #475569;
+      font-size: 10.5pt;
+      margin-bottom: 14pt;
+    }
+    .meta {
+      font-size: 9pt;
+      color: #64748b;
+      margin-bottom: 16pt;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 10pt;
+      font-size: 9.5pt;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 6pt 8pt;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+      width: 28%;
+    }
+    ul { margin: 0 0 8pt; padding-left: 18pt; }
+    li { margin-bottom: 3pt; }
+    .box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6pt;
+      padding: 10pt 12pt;
+      margin: 8pt 0 12pt;
+      page-break-inside: avoid;
+    }
+    .box strong { display: block; margin-bottom: 4pt; }
+    pre.flow {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 8.5pt;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 12pt;
+      border-radius: 6pt;
+      white-space: pre-wrap;
+      line-height: 1.4;
+      margin: 8pt 0 12pt;
+      page-break-inside: avoid;
+    }
+    .footer {
+      margin-top: 20pt;
+      font-size: 8.5pt;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 8pt;
+    }
+  </style>
+</head>
+<body>
+  <h1>Streets of Logic – Dashboards und Trainingscenter</h1>
+  <p class="lead">
+    Überblick für Lehrkräfte: Schüler-Dashboard, Lehrer-Dashboard inkl. Beamer-Cockpit
+    und die Verbindung zum Trainingscenter.
+  </p>
+  <p class="meta">Stand: November 2026 · Streets of Logic / SRL-Logbuch</p>
+
+  <h2>1. Schüler-Dashboard</h2>
+  <p>
+    Einstieg nach dem Login unter <strong>/student/hub</strong>. Oben oft Charakter, XP und Tagesfokus,
+    darunter Kacheln zu den Lernbereichen.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Bereich</th><th>Zweck</th></tr>
+    </thead>
+    <tbody>
+      <tr><th>Mein Tag</th><td>Stundenplan heute → pro Fach Planen → Check → Reflektieren.</td></tr>
+      <tr><th>Meine Woche</th><td>Wochenüberblick und Reflexion.</td></tr>
+      <tr><th>Mein Lernstand</th><td>Levelplan-Matrix: was ich schon kann.</td></tr>
+      <tr><th>Zielsetzung</th><td>Zielnote / Street Target und Fortschritt.</td></tr>
+      <tr><th>Meine Checks</th><td>Tests, Klassenarbeiten und Termine.</td></tr>
+      <tr><th>Hausaufgaben</th><td>Was heute fällig ist und was mitgenommen wird.</td></tr>
+      <tr><th>Üben zu Hause</th><td>Fach wählen, üben, abschließen.</td></tr>
+      <tr><th>Materialschrank</th><td>Links und Übungen der Lehrkraft.</td></tr>
+      <tr><th>Gruppenarbeit</th><td>Gruppenmodus (z.&nbsp;B. Labor am iPad).</td></tr>
+      <tr><th>Taktik-Deck</th><td>Lernstrategien bei Blockaden.</td></tr>
+      <tr><th>Missionen / Belohnungen / Charakter / XP</th><td>Spiel- und Belohnungsteil.</td></tr>
+    </tbody>
+  </table>
+  <div class="box">
+    <strong>Kernidee</strong>
+    Der Tag steuert das Lernen (Plan–Check–Reflect). Der Rest stützt Ziele, Übung und Motivation.
+  </div>
+
+  <h2>2. Lehrer-Dashboard</h2>
+  <p>
+    Zentrale Steuerung unter <strong>/teacher</strong>. Oben wählt man die Klasse, daneben fünf Bereiche:
+  </p>
+  <table>
+    <thead>
+      <tr><th>Bereich</th><th>Zweck</th></tr>
+    </thead>
+    <tbody>
+      <tr><th>Cockpit</th><td>Klassenspiel und Beamer: Mission, Avatar-Wand, Respekt, Side Quests, Season, Glücks-Ziehung. Umschalter Lehrkraft-Ansicht / Beamer-Ansicht.</td></tr>
+      <tr><th>Klasse</th><td>„Wie lernt die Klasse?“ – Muster für die nächste Stunde, Lernstand, ggf. Trainingscenter-Stand.</td></tr>
+      <tr><th>Schüler:innen</th><td>Einzelne Person: Feedback, Notizen, Gespräch geführt, Detailblick.</td></tr>
+      <tr><th>Heute</th><td>„Wer braucht mich?“ – Live: Hilfe-Anfragen, Besuche, Themen. Hilfe übernehmen oder abschließen, Peer-Hilfe.</td></tr>
+      <tr><th>Werkzeuge</th><td>Setup und Pflege: Schülerkonten, Stundenplan, Levelplan, Materialschrank, Was-/Wie-Ziele, Termine, Levelchecks, Gruppenmodus, Wochenübersicht.</td></tr>
+    </tbody>
+  </table>
+  <div class="box">
+    <strong>Kernidee</strong>
+    Im Unterricht reagieren (Heute), den Stand sehen (Klasse / Cockpit), vorbereiten (Werkzeuge).
+  </div>
+
+  <h2>3. Beamer-Dashboard (im Cockpit)</h2>
+  <p>
+    Das Cockpit (<strong>/teacher/cockpit</strong>) hat zwei Modi:
+  </p>
+  <table>
+    <thead>
+      <tr><th>Modus</th><th>Für wen</th><th>Inhalt</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th>Lehrkraft-Ansicht</th>
+        <td>am Lehrer-Gerät</td>
+        <td>Steuerung, Namen, Hilfe, Ziehung starten, Einheit wählen</td>
+      </tr>
+      <tr>
+        <th>Beamer-Ansicht</th>
+        <td>an der Wand</td>
+        <td>groß, wenig Text, kein Ranking; Namen nur bei Positivem und nur wenn „Namen an“</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Drei Beamer-Seiten</h3>
+  <p>In der Beamer-Ansicht rotieren drei Vollbild-Seiten (Pause möglich, Steuerleiste bei Mausbewegung):</p>
+  <ol>
+    <li><strong>Mission</strong> — Kennzahlen (gestartet, Abschluss, Boss-Energie, Tage bis zur Klassenarbeit), Stadtkarte oder Fahrspuren, Boss-Fight am nächsten Checkpoint.</li>
+    <li><strong>Klasse</strong> — Avatar-Wand, Respekt (5 Sterne der Woche), Side Quest, ggf. Ticker.</li>
+    <li><strong>Belohnung</strong> — Highlights und Glücks-Ziehung nebeneinander, darunter die Season-Leiste; nach der Ziehung großer Gewinner-Avatar mit +XP.</li>
+  </ol>
+
+  <div class="box">
+    <strong>Spielidee</strong>
+    Die Klasse fährt gemeinsam die Route des Themas. „Sicher“ tippen allein reicht nicht —
+    <em>bestätigt</em> (Levelcheck / Training) zählt für Boss und Karte. Respekt und Lose belohnen
+    Planen, Reflektieren, richtig Einschätzen und Helfen.
+  </div>
+
+  <h2>4. Zusammenspiel App ↔ Schüler:innen ↔ Lehrkraft</h2>
+  <ul>
+    <li>Der <strong>Stundenplan</strong> der Lehrkraft füllt <strong>Mein Tag</strong>.</li>
+    <li><strong>Levelplan / Levelchecks / Material</strong> der Lehrkraft erscheinen bei den Schüler:innen als Lernstand, Checks und Materialschrank.</li>
+    <li>Was Schüler:innen heute melden (Hilfe, Ziele, Reflexion), landet bei der Lehrkraft unter <strong>Heute</strong>, <strong>Klasse</strong> und im <strong>Cockpit</strong>.</li>
+  </ul>
+
+  <h2>5. App und Trainingscenter</h2>
+  <p>
+    Das Trainingscenter ist eine eigene Website
+    (<strong>trainingscenter.streetsoflogic.de</strong>).
+    Logbuch-App und Center sprechen so miteinander:
+  </p>
+
+  <pre class="flow">Schüler:in in der App
+        │
+        ▼
+App erzeugt persönlichen Link
+  (Token t + Zielnote note + Thema/Halt k, d, h …)
+        │
+        ▼
+Trainingscenter (Übungen / Stadtkarte)
+        │
+        ▼
+Center meldet Ergebnisse zurück
+  POST /api/training/results  (mit demselben Token)
+        │
+        ▼
+App speichert Training + schreibt ggf. Levelplan-Marken („sicher“)
+        │
+        ▼
+Lehrkraft: Cockpit, Klasse, Heute sehen den Stand</pre>
+
+  <h3>Im Detail</h3>
+  <ol>
+    <li><strong>Öffnen</strong> — Die App legt pro Schüler:in und Thema einen Token an und baut eine URL mit Zielnote und Station/Halt. Ohne gültigen Token kein Training.</li>
+    <li><strong>Zurückmelden</strong> — Das Center schickt Übungsstände an die App. Die App prüft Token, Thema und Unterthema (z.&nbsp;B. pw-01).</li>
+    <li><strong>Einspeisen</strong> — Ergebnisse werden gespeichert. Bei genug Fortschritt kann der Levelplan auf „sicher“ gesetzt werden; das fließt in Cockpit (Karte, Boss, Respekt, Highlights) und in die Klassenansicht.</li>
+    <li><strong>Status abfragen</strong> — Das Center kann per Token den aktuellen Stand und die Zielnote holen.</li>
+  </ol>
+
+  <div class="box">
+    <strong>Kurz</strong>
+    Die App startet das Training mit einem persönlichen Link. Das Center übt und meldet zurück.
+    Die App macht daraus Lernstand und Beamer-Spiel. Es gibt keinen gemeinsamen Login —
+    der Token im Link ist die Brücke.
+  </div>
+
+  <p class="footer">
+    Streets of Logic · Interne Übersicht für Lehrkräfte · Keine Schülernamen in diesem Dokument.
+  </p>
+</body>
+</html>
