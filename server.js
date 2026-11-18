@@ -11961,6 +11961,14 @@ app.post(
       if (!released.ok) {
         return res.status(released.status || 500).json({ success: false, message: "Freigabe fehlgeschlagen." });
       }
+      try {
+        await pool.query(
+          `UPDATE level_check_checkpoints SET teacher_locked = TRUE, pending_beamer_moment = TRUE WHERE id = $1`,
+          [checkpointId]
+        );
+      } catch (_) {
+        /* Spalte ggf. noch nicht migriert */
+      }
       const classId = Number(existing.class_id);
       const treffer = Number(released.treffer) || 0;
       const overlay = `LEVELCHECK FREIGEGEBEN · ${treffer} TREFFER!`;
@@ -17356,6 +17364,8 @@ app.get("/teacher", isTeacherShell, (_req, res) => {
 const teacherAppPaths = [
   "/teacher/heute",
   "/teacher/cockpit",
+  "/teacher/beamer",
+  "/teacher/autopilot",
   "/teacher/klasse",
   "/teacher/klassen",
   "/teacher/schuelerinnen",

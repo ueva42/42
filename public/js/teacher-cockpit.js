@@ -175,7 +175,9 @@ window.SolHelpAttribution = (function () {
     helpHow: false,
     soundOn: false,
     prevBossRemaining: null,
-    prevBossId: null
+    prevBossId: null,
+    autopilot: null,
+    allStartedLatch: false
   };
 
   function season() {
@@ -520,6 +522,46 @@ window.SolHelpAttribution = (function () {
     return s > 0 ? s : 25;
   }
 
+  function autopilotSettings() {
+    return ck.autopilot?.settings || ck.data?.autopilot?.settings || null;
+  }
+
+  function raffleLeadMinutes() {
+    const s = autopilotSettings();
+    const n = Number(s?.raffleLeadMinutes);
+    return Number.isFinite(n) && n > 0 ? n : 5;
+  }
+
+  /** Phasen: Start→Klasse, Lern→Rotation, Abschluss→Klasse dann Belohnung. */
+  function applyAutopilotPhase() {
+    const ap = ck.autopilot;
+    if (!ck.beamer || !ap) return;
+    const settings = ap.settings || {};
+    if (settings.phasesOn === false) return;
+    const phase = ap.phase;
+    if (phase === "start") {
+      const snap = snapshotMoments();
+      if (snap.allStarted && ap.allStartedEndsStart !== false) {
+        ck.beamerView = "A";
+        return;
+      }
+      ck.beamerView = "B";
+      return;
+    }
+    if (phase === "end") {
+      const focus = ap.schedule?.current;
+      if (focus?.endAt) {
+        const now = Date.now();
+        const end = new Date(focus.endAt).getTime();
+        const endMins = Number(settings.endPhaseMinutes) || 10;
+        const mid = end - (endMins * 60 * 1000) / 2;
+        ck.beamerView = now < mid ? "B" : "C";
+      } else {
+        ck.beamerView = "C";
+      }
+    }
+  }
+
   function startTimer() {
     if (ck.timer) return;
     armTimer();
@@ -558,6 +600,25 @@ window.SolHelpAttribution = (function () {
       ck.viewTimer = null;
     }
     if (!ck.active || !ck.beamer || ck.beamerPaused) return;
+    applyAutopilotPhase();
+    const phase = ck.autopilot?.phase;
+    const phasesOn = ck.autopilot?.settings?.phasesOn !== false;
+    if (phasesOn && phase === "start" && !snapshotMoments().allStarted) {
+      ck.beamerView = "B";
+      ck.viewTimer = setTimeout(() => {
+        ck.viewTimer = null;
+        armViewTimer();
+      }, 5000);
+      return;
+    }
+    if (phasesOn && phase === "end") {
+      applyAutopilotPhase();
+      ck.viewTimer = setTimeout(() => {
+        ck.viewTimer = null;
+        armViewTimer();
+      }, 5000);
+      return;
+    }
     ck.viewTimer = setTimeout(() => {
       ck.viewTimer = null;
       if (!ck.active || !ck.beamer || ck.beamerPaused) return;
@@ -1397,7 +1458,8 @@ window.SolHelpAttribution = (function () {
     const msLeft = end.getTime() - now.getTime();
     if (msLeft < 0) return { kind: "ended" };
     const minutesLeft = Math.max(0, Math.ceil(msLeft / 60000));
-    const inWindow = msLeft <= 5 * 60 * 1000;
+    const lead = raffleLeadMinutes();
+    const inWindow = msLeft <= lead * 60 * 1000;
     if (!inWindow) return { kind: "countdown", minutesLeft };
     if (!(Number(r.eligibleCount) > 0)) return { kind: "waiting_eligible", minutesLeft };
     return { kind: "ready", minutesLeft };
@@ -1410,6 +1472,8 @@ window.SolHelpAttribution = (function () {
 
   function maybeAutoRaffle() {
     if (!ck.active || ck.busy || ck.form || document.hidden) return;
+    const settings = autopilotSettings();
+    if (settings && settings.autoRaffleOn === false) return;
     const r = ck.data?.game?.raffle;
     if (!r || r.drawn) {
       const key = raffleAutoKey();
@@ -1420,6 +1484,7 @@ window.SolHelpAttribution = (function () {
     if (!key || ck.autoRaffleDoneKey === key) return;
     const status = raffleAutoStatus();
     if (status.kind !== "ready") return;
+    if (settings?.raffleXp) ck.raffleXp = Number(settings.raffleXp) || ck.raffleXp;
     runRaffle({ auto: true });
   }
 
@@ -2490,8 +2555,18 @@ window.SolHelpAttribution = (function () {
 
   function renderBeamerViewB() {
     const ticker = renderTickerStrip();
+    const endHint =
+      ck.autopilot?.phase === "end"
+        ? `<p class="ck-auto-phase-hint" role="status">Zeit für eure Reflexion</p>`
+        : "";
+    const releaseHint = (ck.data?.autopilot?.releaseHints || [])[0];
+    const lcHint =
+      !ck.beamer && releaseHint
+        ? `<p class="ck-auto-lc-hint" role="status">${esc(releaseHint.message)}</p>`
+        : "";
     return `
       <div class="ck-beamer-view ck-beamer-view--b ${ticker ? "has-ticker" : ""}" data-view="B">
+        ${endHint}${lcHint}
         ${renderAvatarWall({ teacherTooltips: false })}
         <div class="ck-beamer-b-mid">
           ${renderRespectPanel()}
@@ -2740,11 +2815,16 @@ window.SolHelpAttribution = (function () {
       requestAnimationFrame(() => syncBeamerMetrics());
       return;
     }
+    const releaseHint = (ck.data?.autopilot?.releaseHints || [])[0];
+    const lcHintHtml = releaseHint
+      ? `<p class="ck-auto-lc-hint" role="status">${esc(releaseHint.message)}</p>`
+      : "";
     ck.el.innerHTML = `
       <div class="ck">
         ${toastHtml}${error}
         ${renderHead()}
         ${renderControls()}
+        ${lcHintHtml}
         ${renderKpis()}
         <section class="ck-grid">
           ${renderLeft()}
@@ -3463,14 +3543,17 @@ window.SolHelpAttribution = (function () {
   }
 
   /**
-   * ctx: { classId, levelCheckId, range, view, toast, api, escapeHtml, setView }
+   * ctx: { classId, levelCheckId, range, view, toast, api, escapeHtml, setView, beamerMode, autopilot }
    * Wird bei jedem render() des Lehrer-Dashboards aufgerufen, solange der Tab offen ist.
    */
   function show(el, ctx) {
     ck.el = el;
     ck.ctx = ctx;
     ck.active = true;
+    ck.autopilot = ctx.autopilot || null;
+    if (ctx.beamerMode) ck.beamer = true;
     document.body.classList.add("ck-wide");
+    if (ck.beamer) document.body.classList.add("ck-beamer");
     bind();
     if (ctx.view && Number(ctx.view.class?.id) === Number(ctx.classId)) ck.live = ctx.view;
     const classChanged = Number(ck.classId) !== Number(ctx.classId);
@@ -3485,10 +3568,21 @@ window.SolHelpAttribution = (function () {
       ck.bossConfetti = false;
       ck.prevPresence = null;
       ck.presencePopUntil = null;
+      ck.allStartedLatch = false;
       stopRaffleSpin();
       const stored = loadNamesPref(ctx.classId);
       ck.showNamesOnBeamer = stored;
     }
+    const apSet = ctx.autopilot?.settings;
+    if (apSet) {
+      if (typeof apSet.namesOnBeamer === "boolean") ck.showNamesOnBeamer = apSet.namesOnBeamer;
+      if (typeof apSet.soundOn === "boolean") {
+        ck.soundOn = apSet.soundOn;
+        window.TeacherCockpitMoments?.setSound?.(ck.soundOn);
+      }
+      if (apSet.raffleXp) ck.raffleXp = Number(apSet.raffleXp) || ck.raffleXp;
+    }
+    applyAutopilotPhase();
     const key = `${ctx.classId}|${ctx.levelCheckId || ""}`;
     const inFlight = ck.loading && ck.loadingKey === key;
     if ((!ck.data || classChanged || unitChanged) && !inFlight) {

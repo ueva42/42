@@ -59,8 +59,14 @@ window.LogbuchReminders = (function () {
     return duration <= 60 ? 20 : 45;
   }
 
-  function reflectReminderOffset(duration) {
-    return duration <= 60 ? 5 : 8;
+  function reflectReminderOffset(_duration) {
+    // Autopilot: 10 Minuten vor Stundenende
+    return 10;
+  }
+
+  function dayGoalReminderOffset() {
+    // Autopilot: 5 Minuten nach Stundenbeginn
+    return 5;
   }
 
   function loadStore() {
@@ -453,9 +459,36 @@ window.LogbuchReminders = (function () {
       const reflectOff = reflectReminderOffset(parsed.duration);
       const checkAt = parsed.start + checkOff;
       const reflectAt = parsed.end - reflectOff;
+      const dayGoalAt = parsed.start + dayGoalReminderOffset();
+      const hasDayGoal = !!(entry.what_goal_id || entry.goalId || entry.hasPlan || entry.planned);
 
       const checkState = store[reminderKey(entry.id, "check")] || {};
       const reflectState = store[reminderKey(entry.id, "reflect")] || {};
+      const dayGoalState = store[reminderKey(entry.id, "daygoal")] || {};
+
+      // Tagesziel: 5 min nach Beginn, wenn noch keins gesetzt
+      if (!hasDayGoal && now >= dayGoalAt && now < parsed.end) {
+        const due = shouldFire(
+          entry.id,
+          "daygoal",
+          dayGoalAt,
+          now,
+          parsed.end,
+          dayGoalState.snoozeUntil
+        );
+        if (due && !dayGoalState.firedAt) {
+          markFired(entry.id, "daygoal");
+          showToast({
+            entryId: entry.id,
+            type: "reflect",
+            subject: block.subject,
+            title: "Setz dein Tagesziel",
+            text: `In ${block.subject} fehlt noch dein Ziel für heute.`
+          });
+        }
+      } else if (hasDayGoal) {
+        clearForEntry(entry.id, "daygoal");
+      }
 
       // Zwischen-Check nur bei Doppelstunde / manueller Markierung
       const needsMidCheck = block.needsMidCheck === true || entry.needsMidCheck === true;
@@ -494,7 +527,7 @@ window.LogbuchReminders = (function () {
             entryId: entry.id,
             type: "reflect",
             subject: block.subject,
-            title: "Zeit für deinen Tagesabschluss",
+            title: "Zeit für deine Reflexion",
             text: "Was hast du heute geschafft und was nimmst du mit?"
           });
         }

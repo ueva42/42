@@ -2037,3 +2037,90 @@ body.ck-beamer .td-main { width: min(1680px, calc(100% - 16px)); }
   min-width: 0;
   flex: 1 1 120px;
 }
+
+/* —— Autopilot —— */
+.td-top--hidden-beamer { display: none !important; }
+body.ck-autopilot .td-main { padding: 0; max-width: none; }
+.ck-auto-wait {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 0.6rem;
+  text-align: center;
+  padding: 2rem;
+  background: radial-gradient(ellipse at 50% 30%, #12203a, #060a18 70%);
+  color: #e2e8f0;
+}
+.ck-auto-wait__clock {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  margin: 0;
+  color: #67e8f9;
+}
+.ck-auto-wait__kicker {
+  margin: 0;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #ff2ea6;
+  font-weight: 800;
+}
+.ck-auto-wait__title {
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: clamp(1.4rem, 3.5vw, 2.4rem);
+  margin: 0.2rem 0;
+}
+.ck-auto-wait__sub { margin: 0; color: #94a3b8; }
+.ck-auto-wait__hint { margin-top: 1.5rem; color: #64748b; font-size: 0.9rem; }
+.ck-auto-phase-hint {
+  margin: 0 0 8px;
+  padding: 0.55rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: #fde68a;
+  font-weight: 800;
+  text-align: center;
+}
+.ck-auto-lc-hint {
+  margin: 0 0 10px;
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(34, 211, 238, 0.1);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  color: #a5f3fc;
+  font-size: 0.9rem;
+}
+.ck-auto-form {
+  display: grid;
+  gap: 10px;
+  max-width: 520px;
+  margin: 1rem 0;
+}
+.ck-auto-form label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ck-auto-form input[type="number"],
+.ck-auto-form input[type="date"],
+.ck-auto-form input[type="time"] {
+  width: 9rem;
+}
+.ck-auto-sim {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  padding: 10px;
+}
+.ck-auto-preview { padding-left: 1.2em; }
+.ck-auto-props { display: grid; gap: 8px; margin: 10px 0; }
+.ck-auto-prop {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(8, 16, 32, 0.5);
+}

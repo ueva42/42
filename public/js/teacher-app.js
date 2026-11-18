@@ -64,6 +64,8 @@
 
   function tabFromPath(path) {
     const p = String(path || "");
+    if (p.includes("/beamer")) return "beamer";
+    if (p.includes("/autopilot")) return "autopilot";
     if (p.includes("/werkzeuge") || p.includes("/lernbegleitung") || p.includes("/verlauf") || p.includes("/profil")) {
       return "werkzeuge";
     }
@@ -78,6 +80,8 @@
     if (tab === "klasse") return "/teacher/klasse";
     if (tab === "schueler") return "/teacher/schuelerinnen";
     if (tab === "werkzeuge") return "/teacher/werkzeuge";
+    if (tab === "beamer") return "/teacher/beamer";
+    if (tab === "autopilot") return "/teacher/autopilot";
     return "/teacher/cockpit";
   }
 
@@ -785,6 +789,8 @@
       ],
       ["/teacher/was-goals", "Was-Ziele", "Unterthemen und Material prüfen"],
       ["/teacher/lesson-goals", "Wie-Ziele", "Wie arbeite ich daran? – pro Fach"],
+      ["/teacher/autopilot", "Autopilot", "Beamer läuft von allein: Phasen, Ziehung, Side Quest", "Cockpit", true],
+      ["/teacher/beamer", "Beamer", "Ganztags-Beamer ohne Navigation", "Cockpit", true],
       ["/teacher/termine", "Termine", "Klassenarbeiten, Tests, Levelchecks"],
       ["/teacher/levelchecks", "Levelchecks", "Nachweise und Bewertungen"],
       ["/teacher/gruppenmodus", "Gruppenmodus", "Rollen und Gruppen"],
@@ -822,22 +828,199 @@
       </div>`;
   }
 
+  function showCockpit({ beamer = false, autopilot = null } = {}) {
+    if (!window.TeacherCockpit || !state.classId) {
+      appEl.innerHTML = `<div class="td-panel td-empty"><strong>${escapeHtml(state.view?.message || "Keine Klasse zugewiesen.")}</strong></div>`;
+      return;
+    }
+    window.TeacherCockpit.show(appEl, {
+      classId: state.classId,
+      levelCheckId: state.levelCheckId,
+      range: state.range,
+      view: state.view,
+      toast: state.toast,
+      api,
+      escapeHtml,
+      beamerMode: beamer,
+      autopilot,
+      setView(view) {
+        state.view = view;
+        state.levelCheckId = view?.levelCheck?.id || state.levelCheckId;
+      }
+    });
+  }
+
+  function renderAutopilotSettings() {
+    return `<div class="td-panel ck-autopilot-settings" id="ckAutopilotRoot">
+      <p class="td-kicker">Pro Klasse</p>
+      <h2>Autopilot</h2>
+      <p class="td-muted">Einmal einrichten – Beamer läuft den Tag allein. <a href="/teacher/beamer">Beamer öffnen →</a></p>
+      <p class="td-muted">Lade Einstellungen…</p>
+    </div>`;
+  }
+
+  async function loadAutopilotSettingsUi() {
+    const root = document.getElementById("ckAutopilotRoot");
+    if (!root || !state.classId) return;
+    try {
+      const data = await api(`/api/teacher/autopilot?classId=${encodeURIComponent(state.classId)}`);
+      const s = data.settings || {};
+      const lessons = (data.preview?.lessons || [])
+        .map((l) => `<li><strong>${escapeHtml(l.timeslot)}</strong> · ${escapeHtml(l.subject)}${l.room ? ` · ${escapeHtml(l.room)}` : ""}</li>`)
+        .join("");
+      root.innerHTML = `
+        <p class="td-kicker">Pro Klasse</p>
+        <h2>Autopilot</h2>
+        <p class="td-muted">Beamer-Link: <a href="/teacher/beamer">/teacher/beamer</a></p>
+        <form id="ckAutopilotForm" class="ck-auto-form">
+          <label><input type="checkbox" name="enabled" ${s.enabled ? "checked" : ""}/> Autopilot an</label>
+          <label><input type="checkbox" name="phasesOn" ${s.phasesOn ? "checked" : ""}/> Phasen an</label>
+          <label><input type="checkbox" name="autoRaffleOn" ${s.autoRaffleOn ? "checked" : ""}/> Automatische Ziehung an</label>
+          <label>Ziehung XP <input type="number" name="raffleXp" min="1" max="100" value="${Number(s.raffleXp) || 10}"/></label>
+          <label>Ziehung Minuten vor Ende <input type="number" name="raffleLeadMinutes" min="1" max="30" value="${Number(s.raffleLeadMinutes) || 5}"/></label>
+          <label><input type="checkbox" name="autoSideQuestOn" ${s.autoSideQuestOn ? "checked" : ""}/> Automatische Side Quest an</label>
+          <label><input type="checkbox" name="autoLevelcheckReleaseOn" ${s.autoLevelcheckReleaseOn ? "checked" : ""}/> Automatische Levelcheck-Freigabe an</label>
+          <label>Freigabe nach Schultagen <input type="number" name="levelcheckReleaseSchoolDays" min="1" max="10" value="${Number(s.levelcheckReleaseSchoolDays) || 2}"/></label>
+          <label><input type="checkbox" name="namesOnBeamer" ${s.namesOnBeamer ? "checked" : ""}/> Namen am Beamer an</label>
+          <label><input type="checkbox" name="soundOn" ${s.soundOn ? "checked" : ""}/> Ton an</label>
+          <label>Startphase (min) <input type="number" name="startPhaseMinutes" min="1" max="40" value="${Number(s.startPhaseMinutes) || 10}"/></label>
+          <label>Abschlussphase (min) <input type="number" name="endPhaseMinutes" min="1" max="40" value="${Number(s.endPhaseMinutes) || 10}"/></label>
+          <label>Wartebildschirm vor Beginn (min) <input type="number" name="waitBeforeMinutes" min="0" max="30" value="${Number(s.waitBeforeMinutes) || 5}"/></label>
+          <fieldset class="ck-auto-sim">
+            <legend>Simulation (Tests)</legend>
+            <label>Datum <input type="date" name="simDate" value="${escapeHtml(s.simDate || "")}"/></label>
+            <label>Uhrzeit <input type="time" name="simTime" value="${escapeHtml(s.simTime || "")}"/></label>
+          </fieldset>
+          <button type="submit" class="td-btn">Speichern</button>
+        </form>
+        <h3>So sieht dein Tag aus</h3>
+        <ul class="ck-auto-preview">${lessons || "<li>Heute keine Stunden im Plan.</li>"}</ul>
+        <div id="ckLcProposals"></div>`;
+      root.querySelector("#ckAutopilotForm")?.addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const fd = new FormData(ev.target);
+        const settings = {
+          enabled: fd.get("enabled") === "on",
+          phasesOn: fd.get("phasesOn") === "on",
+          autoRaffleOn: fd.get("autoRaffleOn") === "on",
+          raffleXp: Number(fd.get("raffleXp")),
+          raffleLeadMinutes: Number(fd.get("raffleLeadMinutes")),
+          autoSideQuestOn: fd.get("autoSideQuestOn") === "on",
+          autoLevelcheckReleaseOn: fd.get("autoLevelcheckReleaseOn") === "on",
+          levelcheckReleaseSchoolDays: Number(fd.get("levelcheckReleaseSchoolDays")),
+          namesOnBeamer: fd.get("namesOnBeamer") === "on",
+          soundOn: fd.get("soundOn") === "on",
+          startPhaseMinutes: Number(fd.get("startPhaseMinutes")),
+          endPhaseMinutes: Number(fd.get("endPhaseMinutes")),
+          waitBeforeMinutes: Number(fd.get("waitBeforeMinutes")),
+          simDate: fd.get("simDate") || null,
+          simTime: fd.get("simTime") || null
+        };
+        await api("/api/teacher/autopilot", {
+          method: "PUT",
+          body: JSON.stringify({ classId: state.classId, settings })
+        });
+        state.toast = "Autopilot gespeichert.";
+        await loadAutopilotSettingsUi();
+      });
+      if (state.levelCheckId) loadLevelcheckProposalsUi().catch(() => {});
+    } catch (err) {
+      root.innerHTML = `<p class="td-toast">${escapeHtml(err.message || "Fehler")}</p>`;
+    }
+  }
+
+  async function loadLevelcheckProposalsUi() {
+    const box = document.getElementById("ckLcProposals");
+    if (!box || !state.classId || !state.levelCheckId) return;
+    const data = await api(
+      `/api/teacher/levelcheck-proposals?classId=${encodeURIComponent(state.classId)}&levelCheckId=${encodeURIComponent(state.levelCheckId)}`
+    );
+    if (data.hasExisting) {
+      box.innerHTML = `<p class="td-muted">Für diese Einheit gibt es schon Levelchecks.</p>`;
+      return;
+    }
+    const rows = (data.proposals || [])
+      .map(
+        (p, i) => `<label class="ck-auto-prop">
+          <input type="checkbox" name="prop" value="${i}" checked/>
+          <span><strong>${escapeHtml(p.date)}</strong> · ${escapeHtml(p.title)} · ${escapeHtml(p.checkLevel)}
+          <small>${escapeHtml((p.missionLabels || []).slice(0, 3).join(", "))}</small></span>
+        </label>`
+      )
+      .join("");
+    box.innerHTML = `<h3>Vorgeschlagene Levelchecks</h3>
+      <div class="ck-auto-props">${rows || "<p>Kein Ziel-Termin – Vorschlag nicht möglich.</p>"}</div>
+      ${rows ? `<button type="button" class="td-btn" id="ckLcAcceptAll">Alle übernehmen</button>` : ""}`;
+    box.querySelector("#ckLcAcceptAll")?.addEventListener("click", async () => {
+      const selected = [...box.querySelectorAll('input[name="prop"]:checked')].map((el) =>
+        data.proposals[Number(el.value)]
+      );
+      await api("/api/teacher/levelcheck-proposals/accept", {
+        method: "POST",
+        body: JSON.stringify({
+          classId: state.classId,
+          levelCheckId: state.levelCheckId,
+          items: selected
+        })
+      });
+      state.toast = "Levelchecks übernommen.";
+      await loadLevelcheckProposalsUi();
+    });
+  }
+
+  function startBeamerAutopilot() {
+    document.body.classList.add("ck-beamer");
+    document.querySelector(".td-top")?.classList.add("td-top--hidden-beamer");
+    if (!window.TeacherCockpitAutopilot) {
+      showCockpit({ beamer: true });
+      return;
+    }
+    window.TeacherCockpitAutopilot.start({
+      api,
+      getClassId: () => state.classId,
+      setClassId(id) {
+        if (Number(id) === Number(state.classId)) return;
+        state.classId = Number(id);
+        fillClasses();
+      },
+      setLevelCheckId(id) {
+        state.levelCheckId = id || null;
+      },
+      onLive({ schedule, settings, phase }) {
+        const focus = schedule?.current || schedule?.focus;
+        if (focus?.classId) state.classId = Number(focus.classId);
+        if (focus?.levelCheckId) state.levelCheckId = focus.levelCheckId;
+        fillClasses();
+        showCockpit({
+          beamer: true,
+          autopilot: {
+            phase: phase || null,
+            settings: settings || {},
+            schedule,
+            allStartedEndsStart: true
+          }
+        });
+      }
+    });
+  }
+
   function render() {
     markTabs();
+    if (state.tab === "beamer") {
+      startBeamerAutopilot();
+      return;
+    }
+    window.TeacherCockpitAutopilot?.stop?.();
+    document.body.classList.remove("ck-beamer");
+    document.querySelector(".td-top")?.classList.remove("td-top--hidden-beamer");
+    if (state.tab === "autopilot") {
+      window.TeacherCockpit?.hide();
+      appEl.innerHTML = renderAutopilotSettings();
+      loadAutopilotSettingsUi().catch(() => {});
+      return;
+    }
     if (state.tab === "cockpit" && window.TeacherCockpit && state.classId) {
-      window.TeacherCockpit.show(appEl, {
-        classId: state.classId,
-        levelCheckId: state.levelCheckId,
-        range: state.range,
-        view: state.view,
-        toast: state.toast,
-        api,
-        escapeHtml,
-        setView(view) {
-          state.view = view;
-          state.levelCheckId = view?.levelCheck?.id || state.levelCheckId;
-        }
-      });
+      showCockpit({ beamer: false });
       return;
     }
     window.TeacherCockpit?.hide();
