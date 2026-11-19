@@ -367,14 +367,18 @@
     const missionDone = stats.planned;
     const missionTotal = stats.total || 0;
     const remaining = Math.max(0, stats.total - stats.done);
+    const focusLine =
+      remaining > 0
+        ? "Bleib fokussiert und schließe deine heutigen Schritte ab."
+        : "Stark! Deine heutigen Schritte sind erledigt.";
 
     const missionCircle = V
       ? V.circularProgress({
           completed: missionDone,
           total: missionTotal,
-          label: "Tages-Mission",
-          sublabel: missionTotal ? `${missionDone} von ${missionTotal} geplant` : "Noch keine Stunden heute",
-          size: 104,
+          label: "Geplant",
+          sublabel: missionTotal ? `${missionDone}/${missionTotal}` : "–",
+          size: 72,
           accent: "#a855f7"
         })
       : "";
@@ -383,47 +387,38 @@
       ? V.circularProgress({
           completed: stats.done,
           total: missionTotal,
-          label: "Tagesfokus",
-          sublabel: remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft!",
-          size: 104,
+          label: "Fertig",
+          sublabel: remaining > 0 ? `${remaining} offen` : "fertig",
+          size: 72,
           accent: stats.done >= missionTotal && missionTotal > 0 ? "#22c55e" : "#f97316"
         })
       : "";
 
     return `
-      <section class="hub-status-grid">
-        <div class="dashboard-feature-card dashboard-feature-card--mission hub-accent-purple">
-          <div class="dashboard-feature-card__content hub-status-card__content">
-            <p class="hub-block-label">Tages-Mission</p>
-            <div class="hub-status-card__body">
-              ${missionCircle}
-              <div class="hub-status-card__copy">
-                <p class="hub-status-card__title" id="hubMissionTitle">${ui.escapeHtml(missionLabel)}</p>
-                <p class="hub-status-card__meta" id="hubMissionMeta">${missionTotal ? `${missionDone} von ${missionTotal} geplant` : "Keine Stunden eingetragen"}</p>
-                <div class="hub-streak-dots" id="hubStreakFlames">${streakDots(stats.done)}</div>
-                <button type="button" class="hub-btn-ghost hub-btn-compact" data-hub-section="today">Weiter machen →</button>
-              </div>
+      <section class="hub-day-panel" aria-label="Dein Tag">
+        <p class="hub-block-label">Dein Tag</p>
+        <div class="hub-day-panel__card">
+          <div class="hub-day-panel__row hub-day-panel__row--mission">
+            ${missionCircle}
+            <div class="hub-day-panel__copy">
+              <p class="hub-day-panel__kicker">Tages-Mission</p>
+              <p class="hub-status-card__title" id="hubMissionTitle">${ui.escapeHtml(missionLabel)}</p>
+              <p class="hub-status-card__meta" id="hubMissionMeta">${missionTotal ? `${missionDone} von ${missionTotal} geplant` : "Keine Stunden eingetragen"}</p>
+              <div class="hub-streak-dots" id="hubStreakFlames">${streakDots(stats.done)}</div>
             </div>
           </div>
-          ${featureVisual(DASHBOARD_HERO.mission)}
-        </div>
-
-        <div class="dashboard-feature-card dashboard-feature-card--focus hub-accent-orange">
-          <div class="dashboard-feature-card__content hub-status-card__content">
-            <p class="hub-block-label">Täglicher Fokus</p>
-            <div class="hub-status-card__body">
-              ${focusCircle}
-              <div class="hub-status-card__copy">
-                <p class="hub-status-card__title" id="hubFocusText">
-                  ${remaining > 0
-                    ? "Bleib fokussiert und schließe deine heutigen Schritte ab."
-                    : "Stark! Deine heutigen Schritte sind erledigt."}
-                </p>
-                <p class="hub-status-card__meta" id="hubFocusMeta">${remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft"} · ${stats.done}/${missionTotal || 0} Reflexionen</p>
-              </div>
+          <div class="hub-day-panel__divider" aria-hidden="true"></div>
+          <div class="hub-day-panel__row hub-day-panel__row--focus">
+            ${focusCircle}
+            <div class="hub-day-panel__copy">
+              <p class="hub-day-panel__kicker">Täglicher Fokus</p>
+              <p class="hub-status-card__title" id="hubFocusText">${focusLine}</p>
+              <p class="hub-status-card__meta" id="hubFocusMeta">${remaining > 0 ? `${remaining} Aufgabe${remaining === 1 ? "" : "n"} übrig` : "Alles geschafft"} · ${stats.done}/${missionTotal || 0} Reflexionen</p>
             </div>
           </div>
-          ${featureVisual(DASHBOARD_HERO.focus)}
+          <div class="hub-day-panel__actions">
+            <button type="button" class="hub-btn-ghost hub-btn-compact" data-hub-section="today">Weiter machen →</button>
+          </div>
         </div>
       </section>`;
   }
@@ -532,11 +527,7 @@
       ));
     }
 
-    return `
-      <section class="hub-block hub-class-game" style="margin:14px 0 4px">
-        <h2 class="hub-block-label">Klassen-Spiel</h2>
-        <div class="hub-class-game-grid">${cards.join("")}</div>
-      </section>`;
+    return `<div class="hub-class-game-stack">${cards.join("")}</div>`;
   }
 
   /** Crew-Naming: nur wenn API eine Crew liefert. Bearbeiten nur bei canEdit. */
@@ -553,8 +544,8 @@
       : [color, ...CREW_COLOR_SWATCHES];
 
     const statusLine = canEdit
-      ? "Noch nicht freigegeben – ihr könnt Name, Farbe und Tag festlegen (ein Gerät pro Crew)."
-      : "Freigegeben – nur noch lesen.";
+      ? "Noch nicht freigegeben – Name, Farbe und Tag festlegen."
+      : "Freigegeben – nur lesen.";
 
     const formHtml = canEdit
       ? `
@@ -586,13 +577,36 @@
         </div>`;
 
     return `
-      <section class="hub-block hub-crew" style="margin:14px 0 4px" id="hubCrewPanel">
-        <h2 class="hub-block-label">Crew</h2>
-        <article class="hub-class-game-card hub-crew-card">
-          <p class="hub-class-game-card__label">Eure Crew</p>
-          <p class="hub-class-game-card__meta">${memberCount} Mitglied${memberCount === 1 ? "" : "er"} · ${ui.escapeHtml(statusLine)}</p>
-          ${formHtml}
-        </article>
+      <article class="hub-class-game-card hub-crew-card" id="hubCrewPanel">
+        <p class="hub-class-game-card__label">Crew</p>
+        <p class="hub-class-game-card__title">${ui.escapeHtml(name || "Eure Crew")}</p>
+        <p class="hub-class-game-card__meta">${memberCount} Mitglied${memberCount === 1 ? "" : "er"} · ${ui.escapeHtml(statusLine)}</p>
+        ${formHtml}
+      </article>`;
+  }
+
+  /** Rechte Spalte: Crew + Klassen-Spiel als kompaktes Klassen-Dashboard. */
+  function renderClassDashboard(ui) {
+    const crewHtml = renderCrewPanel(ui);
+    const gameEnabled = window.StudentFeatureModules?.isModuleEnabled?.("missionen") !== false;
+    const gameHtml = gameEnabled ? renderClassGame(ui) : "";
+    if (!crewHtml && !gameHtml) return "";
+    return `
+      <aside class="hub-class-dash" aria-label="Klassen-Dashboard">
+        <p class="hub-block-label">Klassen-Dashboard</p>
+        <div class="hub-class-dash__stack">
+          ${crewHtml}
+          ${gameHtml}
+        </div>
+      </aside>`;
+  }
+
+  function renderDayBoard(ui, stats, step) {
+    const dash = renderClassDashboard(ui);
+    return `
+      <section class="hub-day-board${dash ? " hub-day-board--with-dash" : ""}">
+        ${renderStatusPanel(ui, stats, step)}
+        ${dash}
       </section>`;
   }
 
@@ -754,13 +768,7 @@
           }
         </section>
 
-        ${renderStatusPanel(ui, stats, step)}
-        ${renderCrewPanel(ui)}
-        ${
-          window.StudentFeatureModules?.isModuleEnabled?.("missionen") === false
-            ? ""
-            : renderClassGame(ui)
-        }
+        ${renderDayBoard(ui, stats, step)}
         ${renderTeacherFeedback(ui)}
 
         <section class="hub-block">

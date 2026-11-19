@@ -828,7 +828,7 @@ body.student-app .notif-panel {
 .hub-page {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
   padding-bottom: 8px;
 }
 
@@ -1881,24 +1881,25 @@ body.student-app .notif-panel {
   padding-bottom: 0;
 }
 
-/* Klassen-Spiel: eigene Karten – nicht dashboard-feature-card (dessen ::after verdunkelt Text ohne __content). */
-.hub-class-game-grid {
+/* Klassen-Dashboard: kompakte Karten gestapelt (neben „Dein Tag“). */
+.hub-class-game-grid,
+.hub-class-game-stack {
   display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  grid-template-columns: 1fr;
 }
 
 .hub-class-game-card {
   position: relative;
   z-index: 1;
   min-height: 0;
-  padding: 14px 16px;
-  border-radius: 18px;
+  padding: 12px 14px;
+  border-radius: 16px;
   border: 1px solid rgba(148, 163, 184, 0.28);
   background:
     radial-gradient(circle at 90% 20%, rgba(56, 189, 248, 0.1), transparent 45%),
     linear-gradient(160deg, #101a33 0%, #0b1428 55%, #080f1f 100%);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
   color: #f1f5ff;
 }
 
@@ -1943,7 +1944,7 @@ body.student-app .notif-panel {
 }
 
 .hub-crew-card {
-  max-width: 520px;
+  max-width: none;
 }
 
 .hub-crew-form {
@@ -2666,7 +2667,7 @@ body.student-app .notif-panel {
 }
 
 .hub-status-card__meta {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   font-size: 12px;
   line-height: 1.45;
   color: #e2e8f0;
@@ -2677,9 +2678,91 @@ body.student-app .notif-panel {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32), 0 0 28px rgba(124, 58, 237, 0.08);
 }
 
+/* Tag + Klassen-Dashboard nebeneinander */
+.hub-day-board {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .hub-day-board--with-dash {
+    grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+    gap: 20px;
+  }
+}
+
+.hub-day-panel__card,
+.hub-class-dash__stack {
+  display: grid;
+  gap: 0;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background:
+    radial-gradient(circle at 88% 12%, rgba(168, 85, 247, 0.12), transparent 42%),
+    linear-gradient(165deg, #0e1730 0%, #0a1326 55%, #070e1c 100%);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.hub-day-panel__card {
+  padding: 14px 16px 12px;
+  gap: 10px;
+}
+
+.hub-day-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.hub-day-panel__copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hub-day-panel__kicker {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9eb6ff;
+}
+
+.hub-day-panel__divider {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.22);
+  margin: 2px 0;
+}
+
+.hub-day-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.hub-class-dash__stack {
+  padding: 10px;
+  gap: 8px;
+  background:
+    radial-gradient(circle at 90% 8%, rgba(34, 211, 238, 0.1), transparent 40%),
+    linear-gradient(165deg, #0e1730 0%, #0a1326 55%, #070e1c 100%);
+}
+
+.hub-class-dash .hub-class-game-card {
+  box-shadow: none;
+}
+
+.hub-class-dash .hub-block-label,
+.hub-day-panel .hub-block-label {
+  margin-bottom: 10px;
+}
+
 .hub-status-grid {
   display: grid;
-  gap: 24px;
+  gap: 16px;
 }
 
 @media (min-width: 1024px) {
@@ -15656,7 +15739,7 @@ button.today-city-map {
 <script src="/js/logbuch-strategies.js?v=3"></script>
 <script src="/js/logbuch-ui.js?v=2"></script>
 <script src="/js/logbuch-coach.js?v=8"></script>
-<script src="/js/logbuch-hub.js?v=53"></script>
+<script src="/js/logbuch-hub.js?v=54"></script>
 <script src="/js/logbuch-visuals.js?v=21"></script>
 <script src="/js/logbuch-reminders.js?v=6"></script>
 <script src="/js/logbuch-group-invites.js?v=3"></script>
