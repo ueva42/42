@@ -74,6 +74,18 @@ import {
 } from "./lib/teacher-setup-api.js";
 import { migrateCoachTables, registerCoachRoutes } from "./lib/coach-api.js";
 import {
+  hashPassword,
+  verifyPassword,
+  generateTempPassword,
+  otpForDisplay
+} from "./lib/passwords.js";
+import {
+  clientIp,
+  checkLoginAllowed,
+  recordLoginFailure,
+  recordLoginSuccess
+} from "./lib/login-rate-limit.js";
+import {
   applyTrigPracticeLinks,
   assignPotenzenGoalIds,
   assignPythagorasGoalIds,
@@ -248,6 +260,14 @@ for (let i = 2; i <= 12; i++) {
   const num = i / 2;
   TARGET_GRADE_ORDER.push(Number.isInteger(num) ? String(num) : num.toFixed(1));
 }
+
+/** Erreichte Endnote: 1,0 … 6,0 in Zehntelschritten (nur Eintragen, nicht Zielnote). */
+const ACHIEVED_GRADE_ORDER = [];
+for (let i = 10; i <= 60; i++) {
+  const num = i / 10;
+  ACHIEVED_GRADE_ORDER.push(Number.isInteger(num) ? String(num) : num.toFixed(1));
+}
+const ACHIEVED_GRADE_SET = new Set(ACHIEVED_GRADE_ORDER);
 
 const LEGACY_TARGET_GRADE_MAP = {
   "1-": "1.5",
@@ -424,6 +444,11 @@ const TARGET_GRADE_OPTIONS = TARGET_GRADE_ORDER.map((value) => ({
   label: formatGradeLabel(value)
 }));
 
+const ACHIEVED_GRADE_OPTIONS = ACHIEVED_GRADE_ORDER.map((value) => ({
+  value,
+  label: formatGradeLabel(value)
+}));
+
 function normalizeTargetGradeKey(raw) {
   if (raw == null || raw === "") return null;
 
@@ -441,6 +466,23 @@ function normalizeTargetGradeKey(raw) {
     ? String(halfStep)
     : halfStep.toFixed(1);
   return TARGET_GRADE_RULES[normalized] ? normalized : null;
+}
+
+/** Endnote: 1–6 in 0,1-Schritten (inkl. Legacy-Halbnoten). */
+function normalizeAchievedGradeKey(raw) {
+  if (raw == null || raw === "") return null;
+
+  let key = String(raw).trim().replace(",", ".").replace("−", "-");
+  if (LEGACY_TARGET_GRADE_MAP[key]) key = LEGACY_TARGET_GRADE_MAP[key];
+
+  const num = Number(key);
+  if (!Number.isFinite(num) || num < 1 || num > 6) return null;
+
+  const tenth = Math.round(num * 10) / 10;
+  if (Math.abs(tenth - num) > 0.001) return null;
+
+  const normalized = Number.isInteger(tenth) ? String(tenth) : tenth.toFixed(1);
+  return ACHIEVED_GRADE_SET.has(normalized) ? normalized : null;
 }
 
 function gradeRequirementsMet(totalGoals, markCounts, gradeKey) {
@@ -629,7 +671,7 @@ function buildTopicTargetProgress(check, targetsRow = null) {
   const totalGoals = check.goals.length;
   const markCounts = countGoalMarksCumulative(check.goals);
   const targetKey = normalizeTargetGradeKey(targetsRow?.targetGradeKey);
-  const achievedKey = normalizeTargetGradeKey(targetsRow?.achievedGradeKey);
+  const achievedKey = normalizeAchievedGradeKey(targetsRow?.achievedGradeKey);
   const levelcheckPercent =
     targetsRow?.levelcheckPercent == null
       ? null
@@ -945,7 +987,7 @@ async function fetchTargetGradesByCheck(studentId, checkIds) {
       targetGradeKey:
         normalizeTargetGradeKey(row.target_grade_key) ||
         normalizeTargetGradeKey(row.target_grade),
-      achievedGradeKey: normalizeTargetGradeKey(row.achieved_grade_key),
+      achievedGradeKey: normalizeAchievedGradeKey(row.achieved_grade_key),
       levelcheckPercent:
         row.levelcheck_percent == null ? null : Number(row.levelcheck_percent),
       growText: row.grow_text ?? null,
@@ -2953,6 +2995,25 @@ async function verifyDatabaseReady() {
 const isProduction =
   process.env.NODE_ENV === "production" || !!process.env.RAILWAY_ENVIRONMENT;
 
+/** Session-Secret: stark empfohlen, aber kein Absturz wenn fehlt (Railway bleibt erreichbar). */
+function resolveSessionSecret() {
+  const secret = String(process.env.SESSION_SECRET || "").trim();
+  if (secret.length >= 16) return secret;
+  if (isProduction) {
+    console.error(
+      "❌ SESSION_SECRET fehlt oder ist zu kurz (min. 16 Zeichen). " +
+        "Bitte in Railway Variables setzen. Starte vorübergehend mit unsicherem Fallback."
+    );
+  } else {
+    console.warn(
+      "⚠️ SESSION_SECRET fehlt – nutze unsicheren Dev-Fallback."
+    );
+  }
+  return "super-temp-secret";
+}
+
+const SESSION_SECRET_VALUE = resolveSessionSecret();
+
 const PgSession = connectPgSimple(session);
 const SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
 
@@ -2982,7 +3043,7 @@ const sessionMiddlewareByRole = Object.fromEntries(
     session({
       name: sessionCookieNameFor(role),
       store: sessionStore,
-      secret: process.env.SESSION_SECRET || "super-temp-secret",
+      secret: SESSION_SECRET_VALUE,
       resave: false,
       saveUninitialized: false,
       cookie: {
@@ -3033,7 +3094,7 @@ function isStaticAssetPath(p) {
 }
 
 function sessionSecret() {
-  return process.env.SESSION_SECRET || "super-temp-secret";
+  return SESSION_SECRET_VALUE;
 }
 
 /** Welche Rollen-Session diese Anfrage nutzt (siehe lib/session-scope.js). */
@@ -3396,15 +3457,7 @@ async function ensureColumn(table, col, type) {
   `);
 }
 
-// -------------------------------------------------------
-// Helper – Temp-Passwort
-// -------------------------------------------------------
-function generateTempPassword(length = 6) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  return Array.from({ length })
-    .map(() => chars[Math.floor(Math.random() * chars.length)])
-    .join("");
-}
+// generateTempPassword → lib/passwords.js
 
 // -------------------------------------------------------
 // LEVEL-Funktionen
@@ -3636,6 +3689,8 @@ async function migrate() {
   await ensureColumn("users", "has_seen_start_briefing", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("users", "school_id", "INTEGER");
   await ensureColumn("users", "is_active", "BOOLEAN NOT NULL DEFAULT TRUE");
+  // Klartext nur für offene Einmalpasswörter (first_login); Auth läuft über gehashtes password
+  await ensureColumn("users", "temp_password", "TEXT");
 
   // Freiheitsrang (manuell durch Lehrkraft, unabhängig von XP)
   await ensureColumn(
@@ -4958,24 +5013,24 @@ async function migrate() {
     [defaultSchoolId]
   );
 
-  // Default Admin
+  // Default Admin / Superadmin (gehasht; ON CONFLICT ändert bestehende Konten nicht)
+  const defaultBootstrapHash = await hashPassword("bruhrain");
   await pool.query(
     `
     INSERT INTO users (name,password,role,school_id,first_login)
-    VALUES ('admin','bruhrain','admin',$1,FALSE)
+    VALUES ('admin',$2,'admin',$1,FALSE)
     ON CONFLICT (name,school_id) DO NOTHING
   `,
-    [defaultSchoolId]
+    [defaultSchoolId, defaultBootstrapHash]
   );
 
-  // Superadmin user
   await pool.query(
     `
     INSERT INTO users (name,password,role,school_id,first_login)
-    VALUES ('ueva42','bruhrain','superadmin',$1,FALSE)
+    VALUES ('ueva42',$2,'superadmin',$1,FALSE)
     ON CONFLICT (name,school_id) DO NOTHING
   `,
-    [defaultSchoolId]
+    [defaultSchoolId, defaultBootstrapHash]
   );
 
   // Defaults für alle Schulen
@@ -5065,7 +5120,25 @@ function loginUserSession(req, res, user, options = {}) {
 }
 
 app.post("/api/login", async (req, res) => {
-  const { username, password } = req.body;
+  const username = String(req.body?.username || "").trim();
+  const password = String(req.body?.password || "");
+  const ip = clientIp(req);
+
+  const rate = checkLoginAllowed({ ip, username });
+  if (!rate.allowed) {
+    res.set("Retry-After", String(rate.retryAfterSec));
+    return res.status(429).json({
+      success: false,
+      message: `Zu viele Fehlversuche. Bitte in ${rate.retryAfterSec} Sekunden erneut versuchen.`
+    });
+  }
+
+  const fail = () => {
+    recordLoginFailure({ ip, username });
+    return res.json({ success: false });
+  };
+
+  if (!username || !password) return fail();
 
   const r = await pool.query(
     `
@@ -5079,11 +5152,39 @@ app.post("/api/login", async (req, res) => {
     [username]
   );
 
-  if (!r.rows.length) return res.json({ success: false });
+  if (!r.rows.length) return fail();
 
   const user = r.rows[0];
-  if (user.password !== password) return res.json({ success: false });
+  const verified = await verifyPassword(user.password, password);
+  if (!verified.ok) return fail();
+
+  if (verified.needsRehash) {
+    try {
+      const hashed = await hashPassword(password);
+      // Bei offenem Einmalpasswort Klartext in temp_password sichern (Karten/Export)
+      if (user.first_login) {
+        await pool.query(
+          `
+          UPDATE users
+          SET password = $1,
+              temp_password = COALESCE(temp_password, $2)
+          WHERE id = $3
+        `,
+          [hashed, password, user.id]
+        );
+      } else {
+        await pool.query(`UPDATE users SET password = $1 WHERE id = $2`, [
+          hashed,
+          user.id
+        ]);
+      }
+    } catch (err) {
+      console.warn("⚠️ Passwort-Rehash nach Login fehlgeschlagen:", err.message || err);
+    }
+  }
+
   if (user.is_active === false) {
+    recordLoginFailure({ ip, username });
     return res.json({ success: false, message: "Konto deaktiviert." });
   }
   if (user.role === "student" && (await isClassAccessLocked(user.class_id))) {
@@ -5105,6 +5206,7 @@ app.post("/api/login", async (req, res) => {
     });
   }
 
+  recordLoginSuccess({ ip, username });
   loginUserSession(req, res, user);
 });
 
@@ -5745,21 +5847,22 @@ app.post("/api/admin/change-password", isAdmin, async (req, res) => {
       });
     }
 
-    if (r.rows[0].password !== currentPassword) {
+    const verified = await verifyPassword(r.rows[0].password, currentPassword);
+    if (!verified.ok) {
       return res.json({
         success: false,
         message: "Aktuelles Passwort ist falsch."
       });
     }
 
-    // Neues Passwort setzen
+    const hashed = await hashPassword(newPassword);
     await pool.query(
       `
       UPDATE users
-      SET password=$1
+      SET password=$1, temp_password=NULL
       WHERE id=$2 AND school_id=$3 AND role='admin'
       `,
-      [newPassword, adminId, schoolId]
+      [hashed, adminId, schoolId]
     );
 
     res.json({ success: true });
@@ -6041,16 +6144,18 @@ app.post("/api/first-login", isStudent, async (req, res) => {
     });
   }
 
-  if (user.password !== currentPassword) {
+  const verified = await verifyPassword(user.password, currentPassword);
+  if (!verified.ok) {
     return res.json({
       success: false,
       message: "Aktuelles Einmalpasswort ist falsch."
     });
   }
 
+  const hashed = await hashPassword(newPassword);
   await pool.query(
-    "UPDATE users SET password=$1, first_login=FALSE WHERE id=$2",
-    [newPassword, studentId]
+    "UPDATE users SET password=$1, first_login=FALSE, temp_password=NULL WHERE id=$2",
+    [hashed, studentId]
   );
 
   res.json({ success: true });
@@ -10082,6 +10187,7 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
         hasClass: false,
         grouped: [],
         gradeOptions: TARGET_GRADE_OPTIONS,
+        achievedGradeOptions: ACHIEVED_GRADE_OPTIONS,
         feedbackOptions: buildZielsetzungFeedbackOptions(),
         xpValues: ZIELSETZUNG_XP
       });
@@ -10162,6 +10268,7 @@ app.get("/api/student/zielsetzung", isStudent, async (req, res) => {
       subjects: subjectsFromZielsetzungGroups(grouped),
       upcomingBySubject,
       gradeOptions: TARGET_GRADE_OPTIONS,
+      achievedGradeOptions: ACHIEVED_GRADE_OPTIONS,
       feedbackOptions: buildZielsetzungFeedbackOptions(),
       xpValues: ZIELSETZUNG_XP,
       levelcheckPassPercent: LEVELCHECK_PASS_PERCENT,
@@ -10209,11 +10316,11 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
     let achievedGradeKey;
     if (hasAchieved) {
       const raw = req.body.achievedGradeKey ?? req.body.achievedGrade;
-      achievedGradeKey = raw === "" || raw == null ? null : normalizeTargetGradeKey(raw);
+      achievedGradeKey = raw === "" || raw == null ? null : normalizeAchievedGradeKey(raw);
       if (raw !== "" && raw != null && !achievedGradeKey) {
         return res.json({
           success: false,
-          message: "Bitte eine gültige erreichte Note wählen (1 bis 6 in 0,5-Schritten)."
+          message: "Bitte eine gültige erreichte Note wählen (1,0 bis 6,0 in Zehntelschritten)."
         });
       }
     }
@@ -10311,7 +10418,7 @@ app.post("/api/student/zielsetzung", isStudent, async (req, res) => {
           normalizeTargetGradeKey(existing?.target_grade);
     const finalAchieved = hasAchieved
       ? achievedGradeKey
-      : normalizeTargetGradeKey(existing?.achieved_grade_key);
+      : normalizeAchievedGradeKey(existing?.achieved_grade_key);
     const finalPercent = hasLevelcheckPercent
       ? levelcheckPercent
       : existing?.levelcheck_percent == null
@@ -14018,6 +14125,7 @@ app.get("/api/teacher/students", isTeacher, async (req, res) => {
         u.id,
         u.name,
         u.password,
+        u.temp_password,
         COALESCE(u.first_login, FALSE) AS first_login,
         COALESCE(u.xp, 0) AS xp
       FROM users u
@@ -14039,7 +14147,7 @@ app.get("/api/teacher/students", isTeacher, async (req, res) => {
           id: row.id,
           name: row.name,
           firstLogin,
-          password: firstLogin ? row.password : null,
+          password: otpForDisplay(row),
           xp: Number(row.xp || 0)
         };
       })
@@ -14067,13 +14175,14 @@ app.post("/api/teacher/students", isTeacher, async (req, res) => {
     }
 
     const temporaryPassword = generateTempPassword();
+    const hashed = await hashPassword(temporaryPassword);
     const ins = await pool.query(
       `
-      INSERT INTO users (name, password, role, class_id, school_id, xp, first_login, freedom_rank)
-      VALUES ($1, $2, 'student', $3, $4, 0, TRUE, $5)
+      INSERT INTO users (name, password, role, class_id, school_id, xp, first_login, freedom_rank, temp_password)
+      VALUES ($1, $2, 'student', $3, $4, 0, TRUE, $5, $6)
       RETURNING id, name
     `,
-      [name, temporaryPassword, classId, schoolId, FREEDOM_RANK_DEFAULT]
+      [name, hashed, classId, schoolId, FREEDOM_RANK_DEFAULT, temporaryPassword]
     );
 
     res.json({
@@ -14105,14 +14214,15 @@ app.post("/api/teacher/students/reset-password", isTeacher, async (req, res) => 
     }
 
     const temporaryPassword = generateTempPassword();
+    const hashed = await hashPassword(temporaryPassword);
     const r = await pool.query(
       `
       UPDATE users
-      SET password = $1, first_login = TRUE
+      SET password = $1, first_login = TRUE, temp_password = $4
       WHERE id = $2 AND school_id = $3 AND role = 'student'
       RETURNING id, name
     `,
-      [temporaryPassword, studentId, schoolId]
+      [hashed, studentId, schoolId, temporaryPassword]
     );
 
     if (!r.rows.length) {
@@ -16215,6 +16325,7 @@ app.get("/api/student", isAdmin, async (req, res) => {
       u.id,
       u.name,
       u.password,
+      u.temp_password,
       u.xp,
       u.freedom_rank,
       COALESCE(u.first_login, FALSE) AS first_login,
@@ -16244,7 +16355,7 @@ app.get("/api/student", isAdmin, async (req, res) => {
       name: row.name,
       firstLogin,
       // Einmalpasswort nur sichtbar, solange first_login noch aktiv ist
-      password: firstLogin ? row.password : null,
+      password: otpForDisplay(row),
       xp: Number(row.xp || 0),
       earnedXp: Number(row.earned_xp || 0),
       freedomRank: rank.id,
@@ -16378,7 +16489,8 @@ app.get("/api/exportPasswords", isAdmin, async (req, res) => {
 
     const r = await pool.query(
       `
-      SELECT id, name, password
+      SELECT id, name, password, temp_password,
+             COALESCE(first_login, FALSE) AS first_login
       FROM users
       WHERE role = 'student'
         AND class_id = $1
@@ -16389,7 +16501,13 @@ app.get("/api/exportPasswords", isAdmin, async (req, res) => {
       [classId, schoolId]
     );
 
-    res.json(r.rows);
+    res.json(
+      r.rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        password: otpForDisplay(row)
+      }))
+    );
   } catch (err) {
     console.error("❌ GET /api/exportPasswords:", err);
     res.status(500).json([]);
@@ -16427,13 +16545,14 @@ app.post("/api/student/reissuePasswords", isAdmin, async (req, res) => {
     const issued = [];
     for (const student of studentsRes.rows) {
       const temporaryPassword = generateTempPassword();
+      const hashed = await hashPassword(temporaryPassword);
       await pool.query(
         `
         UPDATE users
-        SET password = $1, first_login = TRUE
+        SET password = $1, first_login = TRUE, temp_password = $4
         WHERE id = $2 AND school_id = $3 AND role = 'student'
       `,
-        [temporaryPassword, student.id, schoolId]
+        [hashed, student.id, schoolId, temporaryPassword]
       );
       issued.push({
         id: student.id,
@@ -16457,11 +16576,12 @@ app.post("/api/student", isAdmin, async (req, res) => {
     return res.json({ success: false });
 
   const temporaryPassword = generateTempPassword();
+  const hashed = await hashPassword(temporaryPassword);
 
   await pool.query(`
-    INSERT INTO users (name,password,role,class_id,school_id,xp,first_login,freedom_rank)
-    VALUES ($1,$2,'student',$3,$4,0,TRUE,$5)
-  `, [name, temporaryPassword, classId, schoolId, FREEDOM_RANK_DEFAULT]);
+    INSERT INTO users (name,password,role,class_id,school_id,xp,first_login,freedom_rank,temp_password)
+    VALUES ($1,$2,'student',$3,$4,0,TRUE,$5,$6)
+  `, [name, hashed, classId, schoolId, FREEDOM_RANK_DEFAULT, temporaryPassword]);
 
   res.json({ success: true, temporaryPassword, firstLogin: true });
 });
@@ -16485,13 +16605,14 @@ app.post("/api/student/resetPassword", isAdmin, async (req, res) => {
     return res.json({ success: false, message: "studentId fehlt" });
 
   const newPassword = generateTempPassword();
+  const hashed = await hashPassword(newPassword);
 
   const r = await pool.query(`
     UPDATE users
-    SET password=$1, first_login=TRUE
+    SET password=$1, first_login=TRUE, temp_password=$4
     WHERE id=$2 AND school_id=$3 AND role='student'
     RETURNING id, name
-  `, [newPassword, studentId, schoolId]);
+  `, [hashed, studentId, schoolId, newPassword]);
 
   if (!r.rows.length)
     return res.json({ success: false, message: "Schüler:in nicht gefunden" });
@@ -17119,15 +17240,16 @@ app.post("/api/superadmin/admins", isSuperadmin, async (req, res) => {
   const schoolId = s.rows[0].id;
 
   const temporaryPassword = generateTempPassword();
+  const hashed = await hashPassword(temporaryPassword);
 
   const ins = await pool.query(
     `
-    INSERT INTO users (name,password,role,school_id,first_login)
-    VALUES ($1,$2,'admin',$3,FALSE)
+    INSERT INTO users (name,password,role,school_id,first_login,temp_password)
+    VALUES ($1,$2,'admin',$3,FALSE,NULL)
     ON CONFLICT (name,school_id) DO NOTHING
     RETURNING id
   `,
-    [name, temporaryPassword, schoolId]
+    [name, hashed, schoolId]
   );
 
   if (!ins.rows.length) {
@@ -17147,10 +17269,11 @@ app.post(
   isSuperadmin,
   async (req, res) => {
     const newPassword = generateTempPassword();
+    const hashed = await hashPassword(newPassword);
 
     const r = await pool.query(
-      "UPDATE users SET password=$1 WHERE id=$2 AND role='admin' RETURNING id",
-      [newPassword, req.params.id]
+      "UPDATE users SET password=$1, temp_password=NULL WHERE id=$2 AND role='admin' RETURNING id",
+      [hashed, req.params.id]
     );
 
     if (!r.rows.length) {

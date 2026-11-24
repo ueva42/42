@@ -224,6 +224,23 @@
     }));
   }
 
+  /** Endnote: Zehntelnoten 1,0–6,0 (Zielnote bleibt bei Halbschritten). */
+  function achievedGradeOptions() {
+    const fromApi = state.data?.achievedGradeOptions;
+    if (Array.isArray(fromApi) && fromApi.length) {
+      return fromApi.map((g) =>
+        typeof g === "object" ? g : { value: String(g), label: formatGradeLabel(g) }
+      );
+    }
+    const out = [];
+    for (let i = 10; i <= 60; i++) {
+      const num = i / 10;
+      const value = Number.isInteger(num) ? String(num) : num.toFixed(1);
+      out.push({ value, label: formatGradeLabel(value) });
+    }
+    return out;
+  }
+
   function feedbackOptions(field) {
     const fromApi = state.data?.feedbackOptions?.[field];
     if (Array.isArray(fromApi) && fromApi.length) {
@@ -917,7 +934,7 @@
     const topic = findTopic(state.modal.topicId);
     if (!topic || topic.requiresTargetGrade === false) return "";
 
-    const options = gradeOptions();
+    const options = achievedGradeOptions();
     const selected = topic.achievedGrade != null ? String(topic.achievedGrade) : "";
 
     return `
@@ -926,11 +943,11 @@
           <div class="zielpfad-modal__head">
             <div class="zielpfad-modal__titles">
               <h3 class="zielpfad-modal__title">Erreichte Note</h3>
-              <p class="zielpfad-modal__sub">Welche Note hast du in der Arbeit bekommen? Danach kommt Glow · Grow · Next.</p>
+              <p class="zielpfad-modal__sub">Welche Note hast du in der Arbeit bekommen? Zehntelnoten sind möglich. Danach kommt Glow · Grow · Next.</p>
             </div>
             <button type="button" class="zielpfad-modal__close" data-zs-close-grade-modal>Schließen</button>
           </div>
-          <div class="zielpfad-grade-tile-grid">
+          <div class="zielpfad-grade-tile-grid zielpfad-grade-tile-grid--tenths">
             ${options
               .map((g) => {
                 const val = String(g.value);
@@ -938,7 +955,7 @@
                 return `
                   <button
                     type="button"
-                    class="zielpfad-grade-tile ${isSel ? "is-selected" : ""}"
+                    class="zielpfad-grade-tile zielpfad-grade-tile--compact ${isSel ? "is-selected" : ""}"
                     data-zs-select-achieved-grade
                     data-topic-id="${escapeHtml(topic.id)}"
                     data-grade="${escapeHtml(val)}"
