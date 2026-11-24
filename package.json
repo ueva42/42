@@ -16,12 +16,10 @@
     "test:teacher-cockpit": "node scripts/test-teacher-cockpit.js",
     "test:levelcheck-digital": "node scripts/test-levelcheck-digital.js",
     "test:cockpit-autopilot": "node scripts/test-cockpit-autopilot.js",
-    "test:passwords-auth": "node scripts/test-passwords-auth.js",
-    "test": "npm run test:group-mode && npm run test:freedom-ranks && npm run test:levelplan-import && npm run test:student-day-checks && npm run test:session-logout && npm run test:session-scope && npm run test:training && npm run test:teacher-cockpit && npm run test:levelcheck-digital && npm run test:cockpit-autopilot && npm run test:passwords-auth"
+    "test": "npm run test:group-mode && npm run test:freedom-ranks && npm run test:levelplan-import && npm run test:student-day-checks && npm run test:session-logout && npm run test:session-scope && npm run test:training && npm run test:teacher-cockpit && npm run test:levelcheck-digital && npm run test:cockpit-autopilot"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.932.0",
-    "bcryptjs": "^3.0.3",
     "connect-pg-simple": "^10.0.0",
     "express": "^4.21.2",
     "express-session": "^1.17.3",
@@ -29,8 +27,5 @@
     "mathjs": "^15.2.0",
     "multer": "1.4.4",
     "pg": "^8.11.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6"
   }
 }
